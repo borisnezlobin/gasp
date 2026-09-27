@@ -10,6 +10,7 @@ pub mod demo;
 pub mod editor;
 pub mod element;
 pub mod frame;
+pub mod icons;
 pub mod images;
 pub mod input;
 pub mod keymap;
@@ -24,4 +25,4 @@ pub mod theme;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod x11_wake;
 
-pub use editor::EditorView;
+pub use editor::{EditorEvent, EditorView, HighlightKind};

@@ -36,8 +36,11 @@ impl ClickUnit {
 }
 
 impl EditorView {
+    /// Commands the editor doesn't run bubble up to the workspace.
     fn on_run_command(&mut self, action: &RunCommand, window: &mut Window, cx: &mut Context<Self>) {
-        self.run_command(&action.id, window, cx);
+        if !self.run_command(&action.id, window, cx) {
+            cx.propagate();
+        }
     }
 
     /// The range `unit` covers at `offset`.

@@ -130,9 +130,9 @@ fn every_keymap_row_is_a_default_rule() {
 
 /// Text-editing keys (cursor movement, selection, deletion, clipboard) are
 /// defaults too, but they follow each platform's conventions rather than the
-/// plan's keymap table.
+/// plan's keymap table. Zoom and split keys are additions beyond the table.
 fn is_text_editing(command: &str) -> bool {
-    ["cursor.", "select.", "edit."]
+    ["cursor.", "select.", "edit.", "view.zoom-", "pane.split-"]
         .iter()
         .any(|prefix| command.starts_with(prefix))
 }

@@ -1,0 +1,462 @@
+//! Phosphor icons (regular weight, MIT licensed) embedded in the binary,
+//! and the asset source GPUI loads them from.
+
+use std::borrow::Cow;
+
+use gpui::{AssetSource, SharedString, Svg, svg};
+
+/// Every icon the app ships. Add one by copying its SVG from Phosphor's
+/// regular set into `assets/icons` and adding a row to [`ICONS`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum IconName {
+    ArrowClockwise,
+    ArrowCounterClockwise,
+    ArrowLeft,
+    ArrowRight,
+    ArrowsClockwise,
+    Article,
+    BookOpen,
+    CaretDown,
+    CaretLeft,
+    CaretRight,
+    CaretUp,
+    Check,
+    CheckSquare,
+    ClipboardText,
+    Clock,
+    CloudArrowUp,
+    CloudCheck,
+    CloudSlash,
+    Code,
+    Columns,
+    Command,
+    Copy,
+    DotsThree,
+    Export,
+    Eye,
+    EyeSlash,
+    FilePlus,
+    FileText,
+    Folder,
+    FolderOpen,
+    FolderPlus,
+    Function,
+    GearSix,
+    GitMerge,
+    Hash,
+    HighlighterCircle,
+    Image,
+    Info,
+    Keyboard,
+    Lightning,
+    Link,
+    List,
+    ListBullets,
+    MagnifyingGlass,
+    MagnifyingGlassPlus,
+    NoteBlank,
+    PencilSimple,
+    Plus,
+    Printer,
+    PushPin,
+    Quotes,
+    Rows,
+    SidebarSimple,
+    Square,
+    TextAa,
+    TextB,
+    TextItalic,
+    TextStrikethrough,
+    TextSuperscript,
+    TextUnderline,
+    Trash,
+    Warning,
+    WarningCircle,
+    X,
+    XCircle,
+}
+
+const ICONS: [(IconName, &str, &[u8]); 65] = [
+    (
+        IconName::ArrowClockwise,
+        "arrow-clockwise",
+        include_bytes!("../assets/icons/arrow-clockwise.svg"),
+    ),
+    (
+        IconName::ArrowCounterClockwise,
+        "arrow-counter-clockwise",
+        include_bytes!("../assets/icons/arrow-counter-clockwise.svg"),
+    ),
+    (
+        IconName::ArrowLeft,
+        "arrow-left",
+        include_bytes!("../assets/icons/arrow-left.svg"),
+    ),
+    (
+        IconName::ArrowRight,
+        "arrow-right",
+        include_bytes!("../assets/icons/arrow-right.svg"),
+    ),
+    (
+        IconName::ArrowsClockwise,
+        "arrows-clockwise",
+        include_bytes!("../assets/icons/arrows-clockwise.svg"),
+    ),
+    (
+        IconName::Article,
+        "article",
+        include_bytes!("../assets/icons/article.svg"),
+    ),
+    (
+        IconName::BookOpen,
+        "book-open",
+        include_bytes!("../assets/icons/book-open.svg"),
+    ),
+    (
+        IconName::CaretDown,
+        "caret-down",
+        include_bytes!("../assets/icons/caret-down.svg"),
+    ),
+    (
+        IconName::CaretLeft,
+        "caret-left",
+        include_bytes!("../assets/icons/caret-left.svg"),
+    ),
+    (
+        IconName::CaretRight,
+        "caret-right",
+        include_bytes!("../assets/icons/caret-right.svg"),
+    ),
+    (
+        IconName::CaretUp,
+        "caret-up",
+        include_bytes!("../assets/icons/caret-up.svg"),
+    ),
+    (
+        IconName::Check,
+        "check",
+        include_bytes!("../assets/icons/check.svg"),
+    ),
+    (
+        IconName::CheckSquare,
+        "check-square",
+        include_bytes!("../assets/icons/check-square.svg"),
+    ),
+    (
+        IconName::ClipboardText,
+        "clipboard-text",
+        include_bytes!("../assets/icons/clipboard-text.svg"),
+    ),
+    (
+        IconName::Clock,
+        "clock",
+        include_bytes!("../assets/icons/clock.svg"),
+    ),
+    (
+        IconName::CloudArrowUp,
+        "cloud-arrow-up",
+        include_bytes!("../assets/icons/cloud-arrow-up.svg"),
+    ),
+    (
+        IconName::CloudCheck,
+        "cloud-check",
+        include_bytes!("../assets/icons/cloud-check.svg"),
+    ),
+    (
+        IconName::CloudSlash,
+        "cloud-slash",
+        include_bytes!("../assets/icons/cloud-slash.svg"),
+    ),
+    (
+        IconName::Code,
+        "code",
+        include_bytes!("../assets/icons/code.svg"),
+    ),
+    (
+        IconName::Columns,
+        "columns",
+        include_bytes!("../assets/icons/columns.svg"),
+    ),
+    (
+        IconName::Command,
+        "command",
+        include_bytes!("../assets/icons/command.svg"),
+    ),
+    (
+        IconName::Copy,
+        "copy",
+        include_bytes!("../assets/icons/copy.svg"),
+    ),
+    (
+        IconName::DotsThree,
+        "dots-three",
+        include_bytes!("../assets/icons/dots-three.svg"),
+    ),
+    (
+        IconName::Export,
+        "export",
+        include_bytes!("../assets/icons/export.svg"),
+    ),
+    (
+        IconName::Eye,
+        "eye",
+        include_bytes!("../assets/icons/eye.svg"),
+    ),
+    (
+        IconName::EyeSlash,
+        "eye-slash",
+        include_bytes!("../assets/icons/eye-slash.svg"),
+    ),
+    (
+        IconName::FilePlus,
+        "file-plus",
+        include_bytes!("../assets/icons/file-plus.svg"),
+    ),
+    (
+        IconName::FileText,
+        "file-text",
+        include_bytes!("../assets/icons/file-text.svg"),
+    ),
+    (
+        IconName::Folder,
+        "folder",
+        include_bytes!("../assets/icons/folder.svg"),
+    ),
+    (
+        IconName::FolderOpen,
+        "folder-open",
+        include_bytes!("../assets/icons/folder-open.svg"),
+    ),
+    (
+        IconName::FolderPlus,
+        "folder-plus",
+        include_bytes!("../assets/icons/folder-plus.svg"),
+    ),
+    (
+        IconName::Function,
+        "function",
+        include_bytes!("../assets/icons/function.svg"),
+    ),
+    (
+        IconName::GearSix,
+        "gear-six",
+        include_bytes!("../assets/icons/gear-six.svg"),
+    ),
+    (
+        IconName::GitMerge,
+        "git-merge",
+        include_bytes!("../assets/icons/git-merge.svg"),
+    ),
+    (
+        IconName::Hash,
+        "hash",
+        include_bytes!("../assets/icons/hash.svg"),
+    ),
+    (
+        IconName::HighlighterCircle,
+        "highlighter-circle",
+        include_bytes!("../assets/icons/highlighter-circle.svg"),
+    ),
+    (
+        IconName::Image,
+        "image",
+        include_bytes!("../assets/icons/image.svg"),
+    ),
+    (
+        IconName::Info,
+        "info",
+        include_bytes!("../assets/icons/info.svg"),
+    ),
+    (
+        IconName::Keyboard,
+        "keyboard",
+        include_bytes!("../assets/icons/keyboard.svg"),
+    ),
+    (
+        IconName::Lightning,
+        "lightning",
+        include_bytes!("../assets/icons/lightning.svg"),
+    ),
+    (
+        IconName::Link,
+        "link",
+        include_bytes!("../assets/icons/link.svg"),
+    ),
+    (
+        IconName::List,
+        "list",
+        include_bytes!("../assets/icons/list.svg"),
+    ),
+    (
+        IconName::ListBullets,
+        "list-bullets",
+        include_bytes!("../assets/icons/list-bullets.svg"),
+    ),
+    (
+        IconName::MagnifyingGlass,
+        "magnifying-glass",
+        include_bytes!("../assets/icons/magnifying-glass.svg"),
+    ),
+    (
+        IconName::MagnifyingGlassPlus,
+        "magnifying-glass-plus",
+        include_bytes!("../assets/icons/magnifying-glass-plus.svg"),
+    ),
+    (
+        IconName::NoteBlank,
+        "note-blank",
+        include_bytes!("../assets/icons/note-blank.svg"),
+    ),
+    (
+        IconName::PencilSimple,
+        "pencil-simple",
+        include_bytes!("../assets/icons/pencil-simple.svg"),
+    ),
+    (
+        IconName::Plus,
+        "plus",
+        include_bytes!("../assets/icons/plus.svg"),
+    ),
+    (
+        IconName::Printer,
+        "printer",
+        include_bytes!("../assets/icons/printer.svg"),
+    ),
+    (
+        IconName::PushPin,
+        "push-pin",
+        include_bytes!("../assets/icons/push-pin.svg"),
+    ),
+    (
+        IconName::Quotes,
+        "quotes",
+        include_bytes!("../assets/icons/quotes.svg"),
+    ),
+    (
+        IconName::Rows,
+        "rows",
+        include_bytes!("../assets/icons/rows.svg"),
+    ),
+    (
+        IconName::SidebarSimple,
+        "sidebar-simple",
+        include_bytes!("../assets/icons/sidebar-simple.svg"),
+    ),
+    (
+        IconName::Square,
+        "square",
+        include_bytes!("../assets/icons/square.svg"),
+    ),
+    (
+        IconName::TextAa,
+        "text-aa",
+        include_bytes!("../assets/icons/text-aa.svg"),
+    ),
+    (
+        IconName::TextB,
+        "text-b",
+        include_bytes!("../assets/icons/text-b.svg"),
+    ),
+    (
+        IconName::TextItalic,
+        "text-italic",
+        include_bytes!("../assets/icons/text-italic.svg"),
+    ),
+    (
+        IconName::TextStrikethrough,
+        "text-strikethrough",
+        include_bytes!("../assets/icons/text-strikethrough.svg"),
+    ),
+    (
+        IconName::TextSuperscript,
+        "text-superscript",
+        include_bytes!("../assets/icons/text-superscript.svg"),
+    ),
+    (
+        IconName::TextUnderline,
+        "text-underline",
+        include_bytes!("../assets/icons/text-underline.svg"),
+    ),
+    (
+        IconName::Trash,
+        "trash",
+        include_bytes!("../assets/icons/trash.svg"),
+    ),
+    (
+        IconName::Warning,
+        "warning",
+        include_bytes!("../assets/icons/warning.svg"),
+    ),
+    (
+        IconName::WarningCircle,
+        "warning-circle",
+        include_bytes!("../assets/icons/warning-circle.svg"),
+    ),
+    (IconName::X, "x", include_bytes!("../assets/icons/x.svg")),
+    (
+        IconName::XCircle,
+        "x-circle",
+        include_bytes!("../assets/icons/x-circle.svg"),
+    ),
+];
+
+const ICON_PREFIX: &str = "icons/";
+
+impl IconName {
+    /// The asset path GPUI loads the icon from.
+    pub fn path(self) -> SharedString {
+        let name = ICONS
+            .iter()
+            .find(|(icon, ..)| *icon == self)
+            .map_or("", |(_, name, _)| name);
+        format!("{ICON_PREFIX}{name}.svg").into()
+    }
+}
+
+/// An icon element. Size and colour come from the caller's theme tokens.
+pub fn icon(name: IconName) -> Svg {
+    svg().path(name.path())
+}
+
+/// Serves the embedded icons to GPUI.
+pub struct Assets;
+
+impl AssetSource for Assets {
+    fn load(&self, path: &str) -> gpui::Result<Option<Cow<'static, [u8]>>> {
+        let bytes = path
+            .strip_prefix(ICON_PREFIX)
+            .and_then(|file| file.strip_suffix(".svg"))
+            .and_then(|name| ICONS.iter().find(|(_, known, _)| *known == name))
+            .map(|(_, _, bytes)| Cow::Borrowed(*bytes));
+        Ok(bytes)
+    }
+
+    fn list(&self, path: &str) -> gpui::Result<Vec<SharedString>> {
+        if path.trim_end_matches('/') != ICON_PREFIX.trim_end_matches('/') {
+            return Ok(Vec::new());
+        }
+        Ok(ICONS.iter().map(|(icon, ..)| icon.path()).collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_icon_loads_as_an_svg() {
+        for (icon, _, _) in ICONS {
+            let bytes = Assets
+                .load(&icon.path())
+                .unwrap()
+                .expect("icon is embedded");
+            assert!(bytes.starts_with(b"<svg"), "{icon:?}");
+        }
+    }
+
+    #[test]
+    fn unknown_paths_load_nothing() {
+        assert!(Assets.load("icons/nope.svg").unwrap().is_none());
+        assert!(Assets.load("fonts/x.ttf").unwrap().is_none());
+    }
+}
