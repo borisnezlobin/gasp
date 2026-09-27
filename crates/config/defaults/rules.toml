@@ -263,6 +263,48 @@ on   = "key"
 keys = "Mod+Alt+Right"
 do   = "pane.focus-right"
 
+[[rule]]
+id   = "key.pane.focus-up"
+on   = "key"
+keys = "Mod+Alt+Up"
+do   = "pane.focus-up"
+
+[[rule]]
+id   = "key.pane.focus-down"
+on   = "key"
+keys = "Mod+Alt+Down"
+do   = "pane.focus-down"
+
+[[rule]]
+id   = "key.pane.move-tab-left"
+on   = "key"
+keys = "Mod+Alt+Shift+Left"
+do   = "pane.move-tab-left"
+
+[[rule]]
+id   = "key.pane.move-tab-right"
+on   = "key"
+keys = "Mod+Alt+Shift+Right"
+do   = "pane.move-tab-right"
+
+[[rule]]
+id   = "key.pane.move-tab-up"
+on   = "key"
+keys = "Mod+Alt+Shift+Up"
+do   = "pane.move-tab-up"
+
+[[rule]]
+id   = "key.pane.move-tab-down"
+on   = "key"
+keys = "Mod+Alt+Shift+Down"
+do   = "pane.move-tab-down"
+
+[[rule]]
+id   = "key.pane.close"
+on   = "key"
+keys = "Mod+Alt+W"
+do   = "pane.close"
+
 # App
 
 [[rule]]
@@ -309,6 +351,12 @@ id   = "key.pane.split-right"
 on   = "key"
 keys = "Mod+Shift+\\"
 do   = "pane.split-right"
+
+[[rule]]
+id   = "key.pane.split-down"
+on   = "key"
+keys = "Mod+Alt+\\"
+do   = "pane.split-down"
 
 [[rule]]
 id   = "key.view.zoom-in"

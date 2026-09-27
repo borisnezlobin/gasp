@@ -16,6 +16,7 @@ use super::files::note_title;
 use super::history::NavHistory;
 use super::launcher::Launcher;
 use super::note_doc::{Conflict, NoteDoc};
+use super::pane_tree::DropZone;
 use crate::editor::EditorView;
 use crate::keymap::{KEY_CONTEXT, RunCommand};
 use crate::text_input::TextInput;
@@ -96,6 +97,17 @@ pub enum PaneMenu {
     More,
     /// A right-click on the note.
     Editor,
+    /// A right-click on the tab at this index.
+    Tab(usize),
+}
+
+/// Where a dragged tab was dropped on a pane.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TabTarget {
+    /// Into the tab strip, before the tab at this index (or last).
+    Slot(usize),
+    /// On the note: into the pane, or split off toward a side.
+    Zone(DropZone),
 }
 
 /// What the pane's own controls ask the workspace to do.
@@ -109,6 +121,12 @@ pub enum PaneEvent {
     /// Show this folder in the file tree.
     Reveal(PathBuf),
     OpenMenu(PaneMenu, MenuAnchor),
+    /// A tab from `from` was dropped on this pane.
+    DropTab {
+        from: Entity<Pane>,
+        index: usize,
+        target: TabTarget,
+    },
 }
 
 pub struct Pane {
@@ -120,7 +138,7 @@ pub struct Pane {
     pub(super) tab_scroll: ScrollHandle,
     /// The tab strip's width when the active tab was last scrolled into
     /// view: a pane that narrows, as when it's split, shows it again.
-    pub(super) revealed_width: std::cell::Cell<Pixels>,
+    pub(super) revealed_width: Rc<std::cell::Cell<Pixels>>,
     pub(super) theme: Theme,
     pub(super) vault: PathBuf,
     show_inline_title: bool,
@@ -138,6 +156,22 @@ pub struct Pane {
     pub(crate) menu: MenuSlot,
     /// Notes a paused sync merge is waiting on, which get a banner.
     sync_conflicts: Vec<PathBuf>,
+    /// Where a tab dragged over this pane would land, while one is.
+    pub(super) drop: DropState,
+}
+
+/// What a tab drag over the pane shows. It changes only when the landing
+/// place does, so moving the pointer doesn't redraw the pane.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(super) struct DropState {
+    /// The slot in the tab strip the tab would go into.
+    pub slot: Option<usize>,
+    /// The zone of the note the pointer is over.
+    pub zone: Option<DropZone>,
+    /// The zone shown before, which the highlight moves from.
+    pub previous_zone: Option<DropZone>,
+    /// The tab of this pane being dragged, drawn as a faint place-holder.
+    pub dragged: Option<usize>,
 }
 
 impl EventEmitter<PaneEvent> for Pane {}
@@ -164,7 +198,7 @@ impl Pane {
             history: NavHistory::default(),
             toolbar: None,
             tab_scroll: ScrollHandle::new(),
-            revealed_width: std::cell::Cell::new(px(0.)),
+            revealed_width: Rc::new(std::cell::Cell::new(px(0.))),
             theme: Theme::default(),
             vault: vault.to_path_buf(),
             show_inline_title,
@@ -175,6 +209,7 @@ impl Pane {
             reading_probe: None,
             menu: MenuSlot::default(),
             sync_conflicts: Vec::new(),
+            drop: DropState::default(),
         }
     }
 
@@ -307,6 +342,25 @@ impl Pane {
         self.tabs.insert(index, tab);
         self.activate(index, cx);
         index
+    }
+
+    /// Puts `tab` at `index` (clamped to the end) and shows it.
+    pub fn insert_tab(&mut self, index: usize, tab: Tab, cx: &mut Context<Self>) -> usize {
+        let index = index.min(self.tabs.len());
+        self.tabs.insert(index, tab);
+        self.activate(index, cx);
+        index
+    }
+
+    /// Moves the tab at `from` so it goes before the tab now at `slot`
+    /// (or last), and shows it.
+    pub fn move_tab(&mut self, from: usize, slot: usize, cx: &mut Context<Self>) {
+        if from >= self.tabs.len() {
+            return;
+        }
+        let tab = self.tabs.remove(from);
+        let to = if slot > from { slot - 1 } else { slot };
+        self.insert_tab(to, tab, cx);
     }
 
     /// Puts `tab` in place of the tab at `index`, returning the old one.
@@ -455,11 +509,18 @@ impl Pane {
         note.title
             .update(cx, |title, cx| title.set_title_font_size(title_size, cx));
         let editor = note.editor.clone();
+        // A note shown for the first time learns its header's height while
+        // it's drawn, too late for this frame. GPUI drops a redraw asked
+        // for mid-draw, so ask for the next frame, or a note that appears
+        // with nothing else moving (as when a dropped tab leaves its pane)
+        // draws its first line under the title.
         let measure = canvas(
-            move |bounds, _, cx| {
-                editor.update(cx, |editor, cx| {
-                    editor.set_header_height(bounds.size.height, cx)
-                })
+            move |bounds, window, cx| {
+                let height = bounds.size.height;
+                if editor.read(cx).header_height() != height {
+                    editor.update(cx, |editor, cx| editor.set_header_height(height, cx));
+                    window.request_animation_frame();
+                }
             },
             |_, _, _, _| {},
         )
@@ -531,6 +592,7 @@ impl Render for Pane {
         });
         let surface = div()
             .id("pane-surface")
+            .debug_selector(|| "pane-surface".to_owned())
             .relative()
             .flex()
             .flex_col()
@@ -543,7 +605,9 @@ impl Render for Pane {
             .child(self.render_note_header(cx))
             .children(self.render_sync_banner(cx))
             .child(self.render_content(cx))
-            .children(toolbar);
+            .children(toolbar)
+            .on_drag_move(cx.listener(Self::on_drag_over_note))
+            .children(self.render_drop_zone(cx));
         div()
             .id("pane")
             .track_focus(&self.focus_handle)
