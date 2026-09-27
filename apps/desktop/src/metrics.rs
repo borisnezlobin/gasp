@@ -139,6 +139,14 @@ impl LineMetrics {
     ) {
         let len = self.heights.len();
         let old_lines = old_lines.start.min(len)..old_lines.end.min(len);
+        // Typing within lines keeps the count: those lines update in
+        // place, and only a change in the count rebuilds the sums.
+        if old_lines.len() == new_lines.len() {
+            for line in new_lines {
+                self.set(line, estimator.estimate(source.line_text(line)));
+            }
+            return;
+        }
         let fresh = new_lines.map(|line| estimator.estimate(source.line_text(line)));
         self.heights.splice(old_lines, fresh);
         self.sums = build_sums(&self.heights);
@@ -279,13 +287,27 @@ mod tests {
         let walked = |line: usize| heights[..line].iter().fold(px(0.), |sum, h| sum + *h);
         let total = walked(heights.len());
         assert!((metrics.total_height() - total).abs() < px(0.01));
-        for line in 0..heights.len() {
+        for (line, height) in heights.iter().enumerate() {
             assert!((metrics.top_of(line) - walked(line)).abs() < px(0.01));
-            let inside = walked(line) + heights[line] / 2.;
+            let inside = walked(line) + *height / 2.;
             assert_eq!(metrics.line_at_y(inside).0, line);
         }
         assert_eq!(metrics.line_at_y(px(-5.)).0, 0);
         assert_eq!(metrics.line_at_y(total + px(100.)).0, heights.len() - 1);
+    }
+
+    #[test]
+    fn an_edit_within_lines_keeps_the_sums_right() {
+        let (mut metrics, theme) = metrics("a\nb\nc\nd", 600.);
+        let estimator = Estimator {
+            theme: &theme,
+            column_width: px(600.),
+        };
+        let source = Source::new("a\n# b\nc\nd");
+        metrics.splice(1..2, 1..2, &source, &estimator);
+        let rebuilt = LineMetrics::build(&source, &estimator);
+        assert_eq!(metrics.total_height(), rebuilt.total_height());
+        assert_eq!(metrics.top_of(3), rebuilt.top_of(3));
     }
 
     #[test]
