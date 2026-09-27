@@ -3010,6 +3010,8 @@ dependencies = [
  "jiff",
  "keyring",
  "notify",
+ "objc",
+ "raw-window-handle",
  "resvg 0.45.1",
  "rustix 1.1.5",
  "serde",

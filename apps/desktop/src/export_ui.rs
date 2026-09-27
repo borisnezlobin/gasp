@@ -1,4 +1,4 @@
-//! Export and print. `app.export` opens a small dialog with two choices:
+//! Export. `app.export` opens a small dialog with two choices:
 //!
 //! - PDF asks where to save, writes the note through Typst and then shows
 //!   the file with Open and Show in folder.
@@ -6,13 +6,11 @@
 //!   with Copy HTML (what the website's editor takes), Save… and a preview
 //!   in the browser styled by the site's article stylesheet.
 //!
-//! `app.print` writes the PDF to a temporary file and opens it in the
-//! system viewer, which prints it. A live PDF preview with settings is a
-//! later phase.
+//! Printing, with its preview and settings, is `crate::print`; it shares
+//! the save flow and file names here.
 //!
 //! Wiring: on `app.export` the workspace calls [`export`] and hosts the
-//! returned dialog in its modal slot until it emits `DismissEvent`; on
-//! `app.print` it calls [`print`].
+//! returned dialog in its modal slot until it emits `DismissEvent`.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -132,6 +130,11 @@ fn couldnt_write(path: &Path) -> String {
     format!("Couldn’t write {name}")
 }
 
+/// Writes finished PDF bytes to `destination`.
+pub(crate) fn write_bytes(destination: &Path, bytes: &[u8]) -> anyhow::Result<()> {
+    std::fs::write(destination, bytes).with_context(|| couldnt_write(destination))
+}
+
 /// The note's PDF bytes.
 pub fn pdf_bytes(
     text: &str,
@@ -188,7 +191,7 @@ pub fn print_path(note_path: Option<&Path>) -> PathBuf {
     std::env::temp_dir().join(suggested_file_name(note_path))
 }
 
-fn save_folder(note_path: Option<&Path>) -> PathBuf {
+pub(crate) fn save_folder(note_path: Option<&Path>) -> PathBuf {
     note_path
         .and_then(Path::parent)
         .map(Path::to_path_buf)
@@ -199,7 +202,7 @@ fn save_folder(note_path: Option<&Path>) -> PathBuf {
 /// Asks where to save `name`, then writes it with `write` on a background
 /// thread. Resolves to the saved path and `write`'s answer, or `None` when
 /// the save was cancelled.
-fn save_with<T: Send + 'static>(
+pub(crate) fn save_with<T: Send + 'static>(
     folder: &Path,
     name: &str,
     write: impl FnOnce(&Path) -> anyhow::Result<T> + Send + 'static,
@@ -249,31 +252,6 @@ pub fn save_pdf(
         },
         cx,
     )
-}
-
-/// Writes the PDF to a temporary file and opens it in the system viewer,
-/// where it can be printed.
-pub fn print(
-    text: String,
-    note_path: Option<PathBuf>,
-    vault_root: Option<PathBuf>,
-    cx: &mut App,
-) -> Task<anyhow::Result<PathBuf>> {
-    let destination = print_path(note_path.as_deref());
-    let writing = cx.background_spawn(async move {
-        write_pdf(
-            &text,
-            note_path.as_deref(),
-            vault_root.as_deref(),
-            &destination,
-        )?;
-        anyhow::Ok(destination)
-    });
-    cx.spawn(async move |cx| {
-        let destination = writing.await?;
-        cx.update(|cx| cx.open_with_system(&destination))?;
-        Ok(destination)
-    })
 }
 
 /// Opens the export dialog for the note's text. The workspace hosts the

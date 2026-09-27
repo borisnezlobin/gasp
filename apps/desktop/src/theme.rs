@@ -1936,6 +1936,8 @@ pub struct UiTheme {
     pub note_background: Hsla,
     /// The shadow under the sidebar where it slides over the note.
     pub overlay_shadow: Hsla,
+    /// The print dialog and its page preview.
+    pub print: PrintTheme,
 }
 
 impl Default for UiTheme {
@@ -2108,6 +2110,7 @@ impl UiTheme {
             drag_preview_offset: point(px(10.), px(14.)),
             note_background: p.background,
             overlay_shadow: p.shadow,
+            print: PrintTheme::from_palette(p),
         }
     }
 }
@@ -2188,6 +2191,107 @@ impl UiTheme {
             blur_radius: px(RING_BLUR),
             spread_radius: self.surface_ring_width,
         }
+    }
+}
+
+// Print dialog ------------------------------------------------------------
+
+/// The print dialog: its page preview, a column of white pages on a
+/// neutral well, and the settings beside it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PrintTheme {
+    /// How wide each previewed page is drawn.
+    pub page_width: Pixels,
+    /// Space around the pages inside the well, and between them.
+    pub well_padding: Pixels,
+    pub page_gap: Pixels,
+    /// The well is as tall as the window allows, within these; the
+    /// allowance is the room the rest of the dialog and its offset take.
+    pub preview_min_height: Pixels,
+    pub preview_max_height: Pixels,
+    pub window_allowance: Pixels,
+    pub well_radius: Pixels,
+    /// The settings column beside the preview.
+    pub settings_width: Pixels,
+    pub settings_padding: Pixels,
+    pub setting_row_height: Pixels,
+    /// Paper is white in both modes: it's what comes out of the printer.
+    pub paper: Hsla,
+    /// The page-shaped placeholder shown until the first page is drawn.
+    pub placeholder: Hsla,
+    pub well: Hsla,
+    pub page_shadow: Hsla,
+    pub page_shadow_blur: Pixels,
+    pub page_shadow_offset: Pixels,
+    pub page_ring: Hsla,
+    /// The widest a layout error's text runs inside the well.
+    pub message_width: Pixels,
+    /// How long settings rest before the preview is laid out again.
+    pub debounce: std::time::Duration,
+}
+
+impl Default for PrintTheme {
+    fn default() -> Self {
+        Self::from_palette(Palette::builtin())
+    }
+}
+
+impl PrintTheme {
+    pub fn from_palette(p: &Palette) -> Self {
+        let paper = hsla(0., 0., 1., 1.);
+        // A shade under the dialog: the window's colour in dark mode, and
+        // a touch deeper in light mode, where the window is nearly as
+        // light as the dialog.
+        let dark = p.popover.l < 0.5;
+        let well = if dark {
+            p.app_background
+        } else {
+            over(p.fill, p.app_background)
+        };
+        PrintTheme {
+            page_width: px(400.),
+            well_padding: px(24.),
+            page_gap: px(20.),
+            preview_min_height: px(280.),
+            preview_max_height: px(620.),
+            window_allowance: px(200.),
+            well_radius: px(8.),
+            settings_width: px(290.),
+            settings_padding: px(12.),
+            setting_row_height: px(40.),
+            paper,
+            placeholder: over(paper.opacity(0.55), well),
+            well,
+            page_shadow: p.popover_shadow,
+            page_shadow_blur: px(10.),
+            page_shadow_offset: px(2.),
+            page_ring: p.popover_ring,
+            message_width: px(320.),
+            debounce: std::time::Duration::from_millis(150),
+        }
+    }
+
+    /// The soft shadow under each page, with a hairline ring.
+    pub fn page_shadows(&self) -> Vec<BoxShadow> {
+        vec![
+            BoxShadow {
+                color: self.page_shadow,
+                offset: point(px(0.), self.page_shadow_offset),
+                blur_radius: self.page_shadow_blur,
+                spread_radius: px(0.),
+            },
+            BoxShadow {
+                color: self.page_ring,
+                offset: point(px(0.), px(0.)),
+                blur_radius: px(RING_BLUR),
+                spread_radius: px(1.),
+            },
+        ]
+    }
+
+    /// The well's width: a page and the padding either side.
+    pub fn well_width(&self) -> Pixels {
+        self.page_width + self.well_padding * 2.
     }
 }
 
