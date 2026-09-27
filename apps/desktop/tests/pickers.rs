@@ -9,9 +9,10 @@ use editor_config::{Platform, RuleSet};
 use editor_desktop::keymap::{RunCommand, WORKSPACE_CONTEXT, bind_rules};
 use editor_desktop::outline::{OutlineEvent, OutlinePicker};
 use editor_desktop::palette::{CommandPalette, PaletteEvent};
-use editor_desktop::picker::{self, input_keystrokes};
+use editor_desktop::picker;
 use editor_desktop::switcher::{QuickSwitcher, SwitcherEvent};
-use editor_desktop::theme::PickerTheme;
+use editor_desktop::text_input::input_bindings;
+use editor_desktop::theme::{InputTheme, PickerTheme};
 use gpui::{
     AppContext, ClipboardItem, Context, DismissEvent, Entity, EntityInputHandler, EventEmitter,
     Focusable, IntoElement, ManagedView, Modifiers, ParentElement, Render, Styled, TestAppContext,
@@ -61,7 +62,7 @@ where
 {
     cx.update(|cx| {
         bind_rules(&RuleSet::defaults(), cx);
-        picker::bind_keys(&RuleSet::defaults(), cx);
+        picker::bind_keys(cx);
     });
     let (host, cx) = cx.add_window_view(move |window, cx| {
         let modal = cx.new(|cx| build(window, cx));
@@ -134,7 +135,7 @@ fn palette_query(opened: &mut Opened<'_, CommandPalette, PaletteEvent>) -> Strin
 
 /// The GPUI keystroke the default rules bind to `command` on this platform.
 fn key_for(command: &str) -> String {
-    input_keystrokes(&RuleSet::defaults(), Platform::current())
+    input_bindings(&RuleSet::defaults(), Platform::current())
         .into_iter()
         .find(|(_, id)| id == command)
         .map(|(keystroke, _)| keystroke)
@@ -293,7 +294,8 @@ fn clicking_a_row_runs_it(cx: &mut TestAppContext) {
     let mut opened = palette(cx, &[]);
     let rows = palette_rows(&mut opened);
     let theme = PickerTheme::default();
-    let list_top = theme.input_padding_y * 2. + theme.input_line_height;
+    let input = InputTheme::default();
+    let list_top = theme.input_padding_y * 2. + input.line_height(input.query_font_size);
     let second_row = list_top + theme.row_height * 1.5;
     opened
         .cx

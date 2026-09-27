@@ -322,7 +322,7 @@ impl FileTree {
 
     fn name_field(
         &self,
-        field: &Entity<crate::settings_view::TextField>,
+        field: &Entity<crate::text_input::TextInput>,
         error: Option<String>,
     ) -> AnyElement {
         let theme = &self.theme;
@@ -334,7 +334,7 @@ impl FileTree {
             .children(error.map(|message| {
                 div()
                     .absolute()
-                    .top(theme.input_height)
+                    .top_full()
                     .left_0()
                     .px(theme.padding_x)
                     .py(theme.padding_y)

@@ -11,6 +11,7 @@ use editor_config::RuleSet;
 use editor_desktop::settings_view::{
     ControlRow, SectionRef, SettingsEvent, SettingsFocus, SettingsView,
 };
+use editor_desktop::text_input;
 use gpui::{DismissEvent, Entity, Focusable, Modifiers, TestAppContext, VisualTestContext};
 use serde_json::Value;
 use tempfile::TempDir;
@@ -54,6 +55,7 @@ fn open<'a>(
     &'a mut VisualTestContext,
     Rc<RefCell<Recorded>>,
 ) {
+    cx.update(|cx| text_input::bind_keys(&RuleSet::defaults(), cx));
     let root = root.to_path_buf();
     let (view, cx) = cx.add_window_view(move |window, cx| {
         SettingsView::with_rules(root.clone(), &RuleSet::defaults(), window, cx)
