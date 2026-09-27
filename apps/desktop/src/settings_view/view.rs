@@ -19,7 +19,7 @@ use super::config_files;
 use super::menu::OpenMenu;
 use super::model::{
     ACCENT_DESCRIPTION, ACCENT_TITLE, FontSlot, PAGES, Page, PageSpec, RowSpec, SettingItem,
-    ShortcutRow, humanize, page_cards, setting_items, shortcut_rows, words_match,
+    ShortcutRow, map_name_label, map_names, page_cards, setting_items, shortcut_rows, words_match,
 };
 use super::store::{SettingsFile, settings_path};
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
@@ -87,7 +87,7 @@ impl ControlRow {
     pub fn uses_field(&self) -> bool {
         match self {
             ControlRow::Setting(item) => item.kind == SettingKind::Text,
-            ControlRow::MapAdd(_) => true,
+            ControlRow::MapAdd(item) => map_names(&item.key).is_none(),
             _ => false,
         }
     }
@@ -535,7 +535,7 @@ impl SettingsView {
                     map: item.clone(),
                     item: SettingItem {
                         key: format!("{}.{name}", item.key),
-                        title: humanize(&name),
+                        title: map_name_label(&item.key, &name),
                         description: String::new(),
                         kind: (**inner).clone(),
                         default: Value::Null,
@@ -599,7 +599,7 @@ impl SettingsView {
     pub(super) fn field_for(&self, row: &ControlRow) -> Option<Entity<TextInput>> {
         let key = match row {
             ControlRow::Setting(item) if item.kind == SettingKind::Text => item.key.clone(),
-            ControlRow::MapAdd(item) => add_field_key(&item.key),
+            ControlRow::MapAdd(item) if map_names(&item.key).is_none() => add_field_key(&item.key),
             _ => return None,
         };
         self.fields.get(&key).cloned()

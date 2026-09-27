@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 use gpui::{
     AnyElement, AnyView, App, Context, Div, Entity, EventEmitter, FocusHandle, Focusable,
-    MouseButton, MouseDownEvent, ScrollHandle, ScrollWheelEvent, SharedString, Subscription,
-    Window, canvas, div, prelude::*, px,
+    MouseButton, MouseDownEvent, Pixels, ScrollHandle, ScrollWheelEvent, SharedString,
+    Subscription, Window, canvas, div, prelude::*, px,
 };
 
 use super::files::note_title;
@@ -125,6 +125,9 @@ pub struct Pane {
     /// Whether the tab bar starts with the sidebar button, because the
     /// sidebar that has its own is hidden.
     pub show_sidebar_toggle: bool,
+    /// Room at the tab bar's left for the window's own buttons, when this
+    /// pane is at the window's top-left.
+    pub corner_inset: Pixels,
     pub(crate) reading_probe: Option<ReadingProbe>,
     pub(crate) menu: MenuSlot,
 }
@@ -159,6 +162,7 @@ impl Pane {
             marked_focused: false,
             in_split: false,
             show_sidebar_toggle: false,
+            corner_inset: px(0.),
             reading_probe: None,
             menu: MenuSlot::default(),
         }

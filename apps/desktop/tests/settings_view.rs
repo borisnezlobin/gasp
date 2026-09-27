@@ -582,21 +582,41 @@ fn map_entries_can_be_added_and_removed(cx: &mut TestAppContext) {
     let root = dir.path();
     let (view, cx, recorded) = open(cx, root);
     go_to_section(&view, "Editor", cx);
-    go_to_row(&view, cx, |row| matches!(row, ControlRow::MapAdd(_)));
-    cx.simulate_input("not a syntax");
+    let add = go_to_row(&view, cx, |row| matches!(row, ControlRow::MapAdd(_)));
+    // The names come from a menu, so nobody has to know them.
     cx.simulate_keystrokes("enter");
-    assert!(view.read_with(cx, |view, _| view.last_error().is_some()));
-    assert_eq!(read_settings(root), "");
-    cx.simulate_keystrokes("enter secondary-a");
-    cx.simulate_input("link url");
+    let options = view.read_with(cx, |view, _| view.menu_options());
+    assert_eq!(options.len(), 18);
+    let link_url = options.iter().position(|o| o == "link-url").unwrap();
+    for _ in 0..link_url {
+        cx.simulate_keystrokes("down");
+    }
     cx.simulate_keystrokes("enter");
+    assert!(!view.read_with(cx, |view, _| view.menu_open()));
+    assert_eq!(
+        view.read_with(cx, |view, _| view.focus_state()),
+        SettingsFocus::Control(add)
+    );
     let key = "markdown.symbols.overrides.link-url";
     assert_eq!(value(&view, key, cx), Value::from("always-shown"));
     assert_eq!(
         recorded.borrow().changed.last().unwrap(),
         "markdown.symbols.overrides"
     );
-    cx.simulate_keystrokes("down right");
+    let title = view.read_with(cx, |view, _| {
+        let rows = view.rows();
+        let entry = rows
+            .iter()
+            .position(|row| matches!(row, ControlRow::MapEntry { .. }))
+            .unwrap();
+        rows[entry].title()
+    });
+    assert_eq!(title, "Link addresses");
+    // A name that's been added isn't offered again.
+    cx.simulate_keystrokes("enter");
+    let options = view.read_with(cx, |view, _| view.menu_options());
+    assert!(options.len() == 17 && !options.contains(&"link-url".to_string()));
+    cx.simulate_keystrokes("escape down right");
     assert_eq!(value(&view, key, cx), Value::from("around-cursor"));
     cx.simulate_keystrokes("delete");
     assert!(!read_settings(root).contains("link-url"));

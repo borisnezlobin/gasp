@@ -37,6 +37,7 @@ impl Pane {
             .items_center()
             .gap(ui.space_xs)
             .h(ui.tab_bar_height)
+            .pl(self.corner_inset)
             .children(toggle)
             .child(
                 div()
