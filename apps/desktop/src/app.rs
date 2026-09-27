@@ -11,6 +11,7 @@ use crate::note::LoadedNote;
 
 const WINDOW_SIZE: (f32, f32) = (900., 700.);
 const WINDOW_TITLE: &str = "Editor";
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 const WAKE_DELAY: Duration = Duration::from_millis(500);
 const BENCH_TIMEOUT: Duration = Duration::from_secs(600);
 
