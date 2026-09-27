@@ -108,7 +108,9 @@ impl FileTree {
         cx: &mut Context<Self>,
     ) -> Self {
         let root = vault_root.into();
+        let span = crate::trace::span("file-tree-config");
         let options = FileTreeOptions::for_vault(&root);
+        drop(span);
         Self::with_options(root, options, window, cx)
     }
 
@@ -120,7 +122,10 @@ impl FileTree {
     ) -> Self {
         let mut tree = FileTree {
             focus_handle: cx.focus_handle(),
-            model: TreeModel::new(vault_root),
+            model: {
+                let _span = crate::trace::span("file-tree-scan");
+                TreeModel::new(vault_root)
+            },
             theme: PanelTheme {
                 font_family: crate::ui::ui_theme(cx).font_family,
                 ..PanelTheme::default()
@@ -143,12 +148,24 @@ impl FileTree {
         tree
     }
 
+    /// Starts watching off the main thread, since watching a folder means
+    /// visiting every folder in it.
     fn start_watching(&mut self, cx: &mut Context<Self>) {
-        let Ok((watcher, mut changes)) = watch::watch(self.model.root()) else {
-            return;
-        };
-        self._watcher = Some(watcher);
+        let root = self.model.root().to_path_buf();
+        let starting = cx.background_spawn(async move {
+            let _span = crate::trace::span("file-tree-watch");
+            watch::watch(&root)
+        });
         self._watch_task = Some(cx.spawn(async move |this, cx| {
+            let Ok((watcher, mut changes)) = starting.await else {
+                return;
+            };
+            if this
+                .update(cx, |tree, _| tree._watcher = Some(watcher))
+                .is_err()
+            {
+                return;
+            }
             while changes.next().await.is_some() {
                 cx.background_executor().timer(REFRESH_DEBOUNCE).await;
                 while changes.try_recv().is_ok() {}

@@ -50,6 +50,18 @@ impl Launcher {
         &self.recent
     }
 
+    /// Shows `recent` in place of the notes listed, keeping the selection
+    /// in range.
+    pub fn set_recent(&mut self, recent: Vec<PathBuf>, cx: &mut Context<Self>) {
+        let recent: Vec<PathBuf> = recent.into_iter().take(MAX_RECENT).collect();
+        if recent == self.recent {
+            return;
+        }
+        self.recent = recent;
+        self.selected = self.selected.min(self.recent.len().saturating_sub(1));
+        cx.notify();
+    }
+
     pub fn selected(&self) -> usize {
         self.selected
     }

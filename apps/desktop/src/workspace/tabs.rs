@@ -10,12 +10,10 @@ use super::history::Location;
 use super::launcher::{Launcher, MAX_RECENT, OpenRecent};
 use super::note_doc::NoteDoc;
 use super::pane::{NoteTab, Pane, Tab, TabContent};
+use super::startup::RECENT_SCAN_FOLDERS;
 use super::{MAX_CLOSED_TABS, OpenIn, Workspace};
 use crate::editor::EditorView;
 use crate::text_input::{TextInput, TextInputStyle};
-
-/// Folders the launcher reads at most when looking for recent notes.
-const RECENT_SCAN_FOLDERS: usize = 200;
 
 /// The choices when closing a note that changed on disk under edits.
 const CONFLICT_ANSWERS: [&str; 3] = ["Keep my version", "Use the version on disk", "Cancel"];
@@ -133,10 +131,13 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> io::Result<Tab> {
+        let span = crate::trace::span("note-load");
         let doc = self.doc(path, cx)?;
-        let editor = doc.update(cx, |doc, cx| doc.new_editor(cx));
-        let config = self.config.clone();
-        editor.update(cx, |editor, cx| editor.apply_config(&config, cx));
+        drop(span);
+        let span = crate::trace::span("note-editor");
+        let config = &self.config;
+        let editor = doc.update(cx, |doc, cx| doc.new_editor(config, cx));
+        drop(span);
         let title_text = note_title(path);
         let title = cx.new(|cx| {
             let mut title = TextInput::new(window, cx)
@@ -156,20 +157,46 @@ impl Workspace {
         Ok(Tab::new(content, subscriptions))
     }
 
-    /// Adds an empty tab showing recent notes.
+    /// Adds an empty tab showing recent notes. It shows the notes as last
+    /// read at once, and the vault is read again in the background.
     pub(crate) fn add_launcher_tab(
         &mut self,
         pane: &Entity<Pane>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let launcher = self.insert_launcher_tab(pane, window, cx);
+        let vault = self.vault.clone();
+        let scan =
+            cx.background_spawn(async move { notes_by_recency(&vault, RECENT_SCAN_FOLDERS) });
+        let task = cx.spawn(async move |workspace, cx| {
+            let recency = scan.await;
+            workspace
+                .update(cx, |workspace, cx| {
+                    workspace.recency = recency;
+                    let notes = workspace.launcher_notes();
+                    launcher.update(cx, |launcher, cx| launcher.set_recent(notes, cx));
+                })
+                .ok();
+        });
+        self.tasks.push(task);
+    }
+
+    /// Adds a launcher tab listing the notes as last read.
+    pub(crate) fn insert_launcher_tab(
+        &mut self,
+        pane: &Entity<Pane>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<Launcher> {
         let recent = self.launcher_notes();
         let vault = self.vault.clone();
         let launcher = cx.new(|cx| Launcher::new(&vault, recent, cx));
         let subscription = cx.subscribe_in(&launcher, window, Self::on_open_recent);
-        let tab = Tab::new(TabContent::Launcher(launcher), vec![subscription]);
+        let tab = Tab::new(TabContent::Launcher(launcher.clone()), vec![subscription]);
         pane.update(cx, |pane, cx| pane.add_tab(tab, cx));
         self.activate_pane(pane, window, cx);
+        launcher
     }
 
     /// Opens a note from a launcher in place of it. When the note already
@@ -200,12 +227,12 @@ impl Workspace {
     /// vault's most recently changed.
     fn launcher_notes(&self) -> Vec<PathBuf> {
         let mut notes: Vec<PathBuf> = self.recent.clone();
-        for path in notes_by_recency(&self.vault, RECENT_SCAN_FOLDERS) {
+        for path in &self.recency {
             if notes.len() >= MAX_RECENT {
                 break;
             }
-            if !notes.contains(&path) {
-                notes.push(path);
+            if !notes.contains(path) {
+                notes.push(path.clone());
             }
         }
         notes.retain(|path| path.is_file());
