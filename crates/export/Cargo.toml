@@ -17,9 +17,10 @@ typst-pdf = "0.15.1"
 typst-html = "0.15.1"
 typst-layout = "0.15.1"
 typst-assets = { version = "0.15.1", features = ["fonts"] }
+# Page images for the print preview.
+typst-render = "0.15.1"
 
 [dev-dependencies]
-typst-render = "0.15.1"
 lopdf = "0.36"
 
 [lints]
