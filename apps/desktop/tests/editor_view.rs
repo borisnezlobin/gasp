@@ -138,6 +138,41 @@ fn clicking_places_the_cursor_and_dragging_selects(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_drag_held_past_the_bottom_keeps_scrolling_and_selecting(cx: &mut TestAppContext) {
+    let note = "A line of the note.\n".repeat(400);
+    let (view, cx) = open(cx, &note);
+    let start = point_in_line(&view, cx, 0, px(1.));
+    let below = view.read_with(cx, |view, _| {
+        let bounds = view.frame().unwrap().bounds;
+        point(start.x, bounds.bottom() + px(40.))
+    });
+    cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(below, MouseButton::Left, Modifiers::none());
+    let reach = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |view, _| {
+            (view.scroll_offset(), view.selected_range().end)
+        })
+    };
+    let first = reach(cx);
+    // Held still: no more moves, only time passing.
+    for _ in 0..10 {
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(16));
+        cx.run_until_parked();
+    }
+    let held = reach(cx);
+    assert!(held.0 > first.0, "the note scrolls while the drag is held");
+    assert!(held.1 > first.1, "and the selection grows with it");
+    cx.simulate_mouse_up(below, MouseButton::Left, Modifiers::none());
+    for _ in 0..5 {
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(16));
+        cx.run_until_parked();
+    }
+    assert_eq!(reach(cx), held.clone(), "letting go stops it");
+}
+
+#[gpui::test]
 fn shift_click_extends_the_selection(cx: &mut TestAppContext) {
     let (view, cx) = open(cx, "one\ntwo");
     place_cursor(&view, cx, 1);
