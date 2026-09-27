@@ -12,10 +12,10 @@ use super::history::{BIG_JUMP_LINES, Location};
 use super::note_doc::{DiskOutcome, NoteDoc};
 use super::pane::{NoteTab, Pane};
 use super::status::StatusInfo;
-use super::title_input::{TitleEvent, TitleInput};
 use super::watcher::DiskChange;
 use super::{CursorSeen, OpenIn, Workspace};
 use crate::editor::{EditorEvent, EditorView};
+use crate::text_input::{TextInput, TextInputEvent};
 
 /// Where `trash = "vault"` puts deleted notes, as Obsidian does.
 const VAULT_TRASH: &str = ".trash";
@@ -70,8 +70,8 @@ impl Workspace {
 
     pub(crate) fn on_title_event(
         &mut self,
-        title: &Entity<TitleInput>,
-        event: &TitleEvent,
+        title: &Entity<TextInput>,
+        event: &TextInputEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -79,12 +79,29 @@ impl Workspace {
             return;
         };
         match event {
-            TitleEvent::Committed(text) => self.rename_note(&note.doc, text, window, cx),
-            TitleEvent::Done => window.focus(&note.editor.read(cx).focus_handle),
+            TextInputEvent::Submitted => {
+                self.commit_title(&note, window, cx);
+                window.focus(&note.editor.read(cx).focus_handle);
+            }
+            TextInputEvent::Cancelled => {
+                let current = note_title(note.doc.read(cx).path());
+                title.update(cx, |title, cx| title.set_text(&current, cx));
+                window.focus(&note.editor.read(cx).focus_handle);
+            }
+            TextInputEvent::Blurred => self.commit_title(&note, window, cx),
+            TextInputEvent::Changed => {}
         }
     }
 
-    fn note_tab_with_title(&self, title: &Entity<TitleInput>, cx: &gpui::App) -> Option<NoteTab> {
+    /// Renames the note to what its title says, if that changed.
+    fn commit_title(&mut self, note: &NoteTab, window: &mut Window, cx: &mut Context<Self>) {
+        let typed = note.title.read(cx).text().to_owned();
+        if typed != note_title(note.doc.read(cx).path()) {
+            self.rename_note(&note.doc, &typed, window, cx);
+        }
+    }
+
+    fn note_tab_with_title(&self, title: &Entity<TextInput>, cx: &gpui::App) -> Option<NoteTab> {
         self.panes.panes().iter().find_map(|pane| {
             pane.read(cx)
                 .tabs()
@@ -195,12 +212,17 @@ impl Workspace {
                 *path = to.to_path_buf();
             }
         }
-        let title = note_title(to);
+        let (old_title, title) = (note_title(from), note_title(to));
         for (pane, index) in self.tabs_showing(doc, cx) {
             let note = pane.read(cx).tabs()[index].note().cloned();
             if let Some(note) = note {
-                note.title
-                    .update(cx, |input, cx| input.set_title(&title, cx));
+                // Leave a title someone is typing a different name into.
+                note.title.update(cx, |input, cx| {
+                    let shown = input.text().trim();
+                    if shown == old_title || shown == title {
+                        input.set_text(&title, cx);
+                    }
+                });
             }
         }
         cx.notify();
@@ -210,8 +232,7 @@ impl Workspace {
         for (pane, index) in self.tabs_showing(doc, cx) {
             let note = pane.read(cx).tabs()[index].note().cloned();
             if let Some(note) = note {
-                note.title
-                    .update(cx, |input, cx| input.set_title(title, cx));
+                note.title.update(cx, |input, cx| input.set_text(title, cx));
             }
         }
     }

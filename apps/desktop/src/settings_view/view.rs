@@ -14,7 +14,7 @@ use serde_json::Value;
 
 use super::model::{Section, SettingItem, ShortcutRow, humanize, settings_sections, shortcut_rows};
 use super::store::{self, SettingsFile, settings_path};
-use super::{TextField, TextFieldEvent};
+use crate::text_input::{TextInput, TextInputEvent};
 use crate::theme::PanelTheme;
 
 /// What the settings screen tells its host.
@@ -84,11 +84,11 @@ pub struct SettingsView {
     pub(super) sections: Vec<Section>,
     pub(super) shortcuts: Vec<ShortcutRow>,
     pub(super) file: SettingsFile,
-    pub(super) search: Entity<TextField>,
+    pub(super) search: Entity<TextInput>,
     pub(super) query: String,
     pub(super) current: usize,
     pub(super) focus: SettingsFocus,
-    pub(super) fields: HashMap<String, Entity<TextField>>,
+    pub(super) fields: HashMap<String, Entity<TextInput>>,
     pub(super) number_edit: Option<(String, String)>,
     pub(super) error: Option<(String, String)>,
     pub(super) scroll: ScrollHandle,
@@ -132,7 +132,7 @@ impl SettingsView {
         cx: &mut Context<Self>,
     ) -> Self {
         let vault_root = vault_root.into();
-        let search = cx.new(|cx| TextField::new(cx).with_placeholder("Search settings"));
+        let search = cx.new(|cx| TextInput::new(window, cx).with_placeholder("Search settings"));
         let mut subscriptions = vec![
             cx.subscribe_in(&search, window, Self::on_search_event),
             cx.on_focus(&search.focus_handle(cx), window, |view, _, cx| {
@@ -178,7 +178,7 @@ impl SettingsView {
         let mut subscriptions = Vec::new();
         for (key, adds) in keys {
             let placeholder = if adds { "Add by name" } else { "" };
-            let field = cx.new(|cx| TextField::new(cx).with_placeholder(placeholder));
+            let field = cx.new(|cx| TextInput::new(window, cx).with_placeholder(placeholder));
             let event_key = key.clone();
             subscriptions.push(cx.subscribe_in(
                 &field,
@@ -191,12 +191,6 @@ impl SettingsView {
             subscriptions.push(
                 cx.on_focus(&field.focus_handle(cx), window, move |view, _, cx| {
                     view.focus_field_row(&focus_key, cx);
-                }),
-            );
-            let blur_key = key.clone();
-            subscriptions.push(
-                cx.on_blur(&field.focus_handle(cx), window, move |view, _, cx| {
-                    view.commit_field(&blur_key, cx);
                 }),
             );
             self.fields.insert(key, field);
@@ -382,7 +376,7 @@ impl SettingsView {
         cx.notify();
     }
 
-    pub(super) fn field_for(&self, row: &ControlRow) -> Option<Entity<TextField>> {
+    pub(super) fn field_for(&self, row: &ControlRow) -> Option<Entity<TextInput>> {
         let key = match row {
             ControlRow::Setting(item) if item.kind == SettingKind::Text => item.key.clone(),
             ControlRow::MapAdd(item) => add_field_key(&item.key),
@@ -570,7 +564,7 @@ impl SettingsView {
 
     /// Puts the file's values into the text fields.
     fn sync_fields(&mut self, cx: &mut Context<Self>) {
-        let values: Vec<(Entity<TextField>, String)> = self
+        let values: Vec<(Entity<TextInput>, String)> = self
             .fields
             .iter()
             .map(|(key, field)| {
@@ -590,20 +584,21 @@ impl SettingsView {
     fn on_field_event(
         &mut self,
         key: &str,
-        event: &TextFieldEvent,
+        event: &TextInputEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         match event {
-            TextFieldEvent::Submitted => {
+            TextInputEvent::Submitted => {
                 self.commit_field(key, cx);
                 window.focus(&self.focus_handle);
             }
-            TextFieldEvent::Cancelled => {
+            TextInputEvent::Cancelled => {
                 self.sync_fields(cx);
                 window.focus(&self.focus_handle);
             }
-            TextFieldEvent::Changed => {}
+            TextInputEvent::Blurred => self.commit_field(key, cx),
+            TextInputEvent::Changed => {}
         }
     }
 
@@ -663,26 +658,26 @@ impl SettingsView {
 
     fn on_search_event(
         &mut self,
-        _: &Entity<TextField>,
-        event: &TextFieldEvent,
+        _: &Entity<TextInput>,
+        event: &TextInputEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         match event {
-            TextFieldEvent::Changed => {
+            TextInputEvent::Changed => {
                 self.query = self.search.read(cx).text().to_string();
                 self.select_section(0, cx);
             }
-            TextFieldEvent::Submitted if !self.rows().is_empty() => {
+            TextInputEvent::Submitted if !self.rows().is_empty() => {
                 self.set_focus(SettingsFocus::Control(0), window, cx);
             }
-            TextFieldEvent::Submitted => {}
-            TextFieldEvent::Cancelled if !self.query.is_empty() => {
+            TextInputEvent::Submitted | TextInputEvent::Blurred => {}
+            TextInputEvent::Cancelled if !self.query.is_empty() => {
                 self.search.update(cx, |field, cx| field.set_text("", cx));
                 self.query.clear();
                 self.select_section(0, cx);
             }
-            TextFieldEvent::Cancelled => cx.emit(DismissEvent),
+            TextInputEvent::Cancelled => cx.emit(DismissEvent),
         }
     }
 }

@@ -1,5 +1,5 @@
 //! The settings screen, generated from the settings schema so it never
-//! drifts from the files, plus the text field it shares with the file tree.
+//! drifts from the files.
 //!
 //! [`SettingsView`] writes every change to the vault's
 //! `.editor/settings.toml` straight away and emits
@@ -10,8 +10,6 @@ mod keys;
 pub mod model;
 mod render;
 pub mod store;
-mod text_field;
 mod view;
 
-pub use text_field::{TextField, TextFieldEvent};
 pub use view::{ControlRow, SectionRef, SettingsEvent, SettingsFocus, SettingsView};

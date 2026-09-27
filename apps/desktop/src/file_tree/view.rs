@@ -19,7 +19,7 @@ use super::menu::{ContextMenu, MenuItem};
 use super::model::{Row, TreeModel};
 use super::ops::{self, validate_name};
 use super::watch::{self, VaultWatcher};
-use crate::settings_view::{TextField, TextFieldEvent};
+use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
 use crate::theme::PanelTheme;
 
 /// Changes closer together than this refresh the tree once.
@@ -62,7 +62,7 @@ pub(super) enum EditTarget {
 /// An inline name field in the tree.
 pub(super) struct InlineEdit {
     pub target: EditTarget,
-    pub field: Entity<TextField>,
+    pub field: Entity<TextInput>,
     pub error: Option<String>,
     _subscriptions: Vec<Subscription>,
 }
@@ -219,7 +219,7 @@ impl FileTree {
     }
 
     /// The inline name field, while renaming or creating.
-    pub fn editing_field(&self) -> Option<Entity<TextField>> {
+    pub fn editing_field(&self) -> Option<Entity<TextInput>> {
         self.edit.as_ref().map(|edit| edit.field.clone())
     }
 
@@ -448,20 +448,12 @@ impl FileTree {
     ) {
         self.menu = None;
         let field = cx.new(|cx| {
-            let mut field = TextField::new(cx);
+            let mut field = TextInput::new(window, cx).with_style(TextInputStyle::Inline);
             field.set_text(text, cx);
             field.select(selection, cx);
             field
         });
-        let subscriptions = vec![
-            cx.subscribe_in(&field, window, Self::on_field_event),
-            cx.on_blur(&field.focus_handle(cx), window, |tree, window, cx| {
-                tree.commit_edit(window, cx);
-                if tree.edit.is_some() {
-                    tree.cancel_edit(window, cx);
-                }
-            }),
-        ];
+        let subscriptions = vec![cx.subscribe_in(&field, window, Self::on_field_event)];
         window.focus(&field.focus_handle(cx));
         self.edit = Some(InlineEdit {
             target,
@@ -474,15 +466,22 @@ impl FileTree {
 
     fn on_field_event(
         &mut self,
-        _: &Entity<TextField>,
-        event: &TextFieldEvent,
+        _: &Entity<TextInput>,
+        event: &TextInputEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         match event {
-            TextFieldEvent::Submitted => self.commit_edit(window, cx),
-            TextFieldEvent::Cancelled => self.cancel_edit(window, cx),
-            TextFieldEvent::Changed => {
+            TextInputEvent::Submitted => self.commit_edit(window, cx),
+            TextInputEvent::Cancelled => self.cancel_edit(window, cx),
+            // Clicking away keeps a good name and drops a bad one.
+            TextInputEvent::Blurred => {
+                self.commit_edit(window, cx);
+                if self.edit.is_some() {
+                    self.cancel_edit(window, cx);
+                }
+            }
+            TextInputEvent::Changed => {
                 if let Some(edit) = self.edit.as_mut() {
                     edit.error = None;
                 }
