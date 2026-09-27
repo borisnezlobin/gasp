@@ -27,11 +27,9 @@ pub enum FileTreeEvent {
     /// Open a file, in a new tab when `new_tab` is set.
     Open { path: PathBuf, new_tab: bool },
     /// A file or folder was renamed or moved. For a folder, every open
-    /// path under `from` moved to the same place under `to`.
+    /// path under `from` moved to the same place under `to`. Links to it
+    /// are the workspace's to rewrite, in open editors where it can.
     Renamed { from: PathBuf, to: PathBuf },
-    /// Notes whose links were rewritten after a rename. Open copies of
-    /// them should reload.
-    LinksUpdated { paths: Vec<PathBuf> },
     /// A note or folder was created.
     Created { path: PathBuf },
     /// A file or folder went to the trash.

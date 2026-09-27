@@ -32,8 +32,9 @@ pub struct SuggestionRow {
 pub type RowHandler<V> = fn(&mut V, usize, &mut Window, &mut Context<V>);
 
 /// What the list does with the wheel: the distance to scroll, positive
-/// towards the end.
-pub type ScrollHandler<V> = fn(&mut V, Pixels, &mut Window, &mut Context<V>);
+/// towards the end, and which of the rows showing the pointer is on
+/// (0 for the top one), so the highlight can stay under it.
+pub type ScrollHandler<V> = fn(&mut V, Pixels, Option<usize>, &mut Window, &mut Context<V>);
 
 /// What the pointer does to a suggestion list.
 pub struct ListHandlers<V> {
@@ -61,6 +62,7 @@ pub fn suggestion_list<V: 'static>(
         scroll: on_scroll,
     } = handlers;
     let end = rows.len().min(first + theme.suggestion_rows);
+    let theme_row_height = theme.menu_row_height;
     let glyph_column = rows.iter().any(|row| row.glyph.is_some());
     let rendered: Vec<AnyElement> = (first..end)
         .map(|index| {
@@ -87,6 +89,15 @@ pub fn suggestion_list<V: 'static>(
                     on_hover(view, index, window, cx);
                 }
             }))
+            // The pointer doesn't move while the rows scroll under it, so
+            // no hover event says which row it's on now.
+            .on_scroll_wheel(
+                cx.listener(move |view, event: &ScrollWheelEvent, window, cx| {
+                    cx.stop_propagation();
+                    let delta = event.delta.pixel_delta(theme_row_height);
+                    on_scroll(view, -delta.y, Some(index - first), window, cx);
+                }),
+            )
             .when(glyph_column, |row_div| {
                 row_div.child(glyph_cell(row.glyph.clone(), theme))
             })
@@ -114,7 +125,7 @@ pub fn suggestion_list<V: 'static>(
             cx.listener(move |view, event: &ScrollWheelEvent, window, cx| {
                 cx.stop_propagation();
                 let delta = event.delta.pixel_delta(row_height);
-                on_scroll(view, -delta.y, window, cx);
+                on_scroll(view, -delta.y, None, window, cx);
             }),
         )
         .children(rendered)

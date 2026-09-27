@@ -218,6 +218,9 @@ pub struct EditorSettings {
     /// Whether code blocks number their lines. A block's `ln:` option
     /// overrides it either way.
     pub code_line_numbers: bool,
+    /// Whether numbered footnotes renumber in reading order, and `^[1]`
+    /// typos become `[^1]`, once typing pauses.
+    pub renumber_footnotes: bool,
 }
 
 impl Default for EditorSettings {
@@ -228,6 +231,7 @@ impl Default for EditorSettings {
             curl_pasted_quotes: true,
             auto_pair: true,
             code_line_numbers: false,
+            renumber_footnotes: true,
         }
     }
 }

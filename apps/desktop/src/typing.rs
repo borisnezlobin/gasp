@@ -9,8 +9,8 @@ use gpui::Context;
 use crate::editor::EditorView;
 
 impl EditorView {
-    /// Turns smart quotes and auto-pairing on or off, for typing and for
-    /// pasting.
+    /// Turns smart quotes, auto-pairing and footnote renumbering on or
+    /// off, for typing and for pasting.
     pub(crate) fn apply_typing_settings(&mut self, settings: &EditorSettings) {
         self.pipeline
             .set_enabled(step_names::SMART_QUOTES, settings.smart_quotes)
@@ -19,6 +19,7 @@ impl EditorView {
             .set_enabled(step_names::AUTO_PAIR, settings.auto_pair)
             .expect("the built-in pipeline has an auto-pair step");
         self.curl_pasted_quotes = settings.smart_quotes && settings.curl_pasted_quotes;
+        self.set_footnote_renumbering(settings.renumber_footnotes);
     }
 
     /// Text typed at the keyboard, as opposed to an input method's

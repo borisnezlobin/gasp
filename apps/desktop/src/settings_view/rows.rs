@@ -26,14 +26,7 @@ impl SettingsView {
             ControlRow::Shortcut(shortcut) => self.shortcut_default(shortcut),
             _ => {
                 let description = self.row_description(row);
-                (!description.is_empty()).then(|| {
-                    let text = div().child(description);
-                    match row {
-                        ControlRow::Vault => text.font_family(self.style.code_font_family.clone()),
-                        _ => text,
-                    }
-                    .into_any_element()
-                })
+                (!description.is_empty()).then(|| div().child(description).into_any_element())
             }
         };
         row_text(row.title(), description, self.row_notes(row), &self.style).into_any_element()

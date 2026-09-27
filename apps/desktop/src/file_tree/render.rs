@@ -264,7 +264,9 @@ impl FileTree {
             .into_any_element()
     }
 
-    /// Icon and name, or the rename field.
+    /// A folder's disclosure caret, icon and name, or the rename field.
+    /// Files leave the caret's room empty so every name at a level lines
+    /// up.
     fn row_content(&self, row: &Row, state: RowState, ui: &UiTheme) -> Vec<AnyElement> {
         let color = if state.active {
             ui.icon_active
@@ -275,7 +277,11 @@ impl FileTree {
             .flex_none()
             .size(ui.icon_size)
             .text_color(color);
-        vec![kind.into_any_element(), self.row_label(row, ui)]
+        vec![
+            disclosure(row, ui).into_any_element(),
+            kind.into_any_element(),
+            self.row_label(row, ui),
+        ]
     }
 
     fn row_label(&self, row: &Row, ui: &UiTheme) -> AnyElement {
@@ -332,6 +338,7 @@ impl FileTree {
             ..RowState::default()
         };
         self.row_shell(depth, state, ui)
+            .child(div().flex_none().w(caret_width(ui)))
             .child(icon)
             .child(self.name_field(&edit.field, edit.error.clone(), ui))
             .into_any_element()
@@ -418,10 +425,38 @@ impl FileTree {
 }
 
 /// A hairline under each ancestor folder's icon, for a row `depth` deep.
+/// The caret's column: one indent less the gap after it, so a folder's
+/// children start their carets under its icon.
+fn caret_width(ui: &UiTheme) -> gpui::Pixels {
+    ui.tree_indent - ui.tree_row_gap
+}
+
+/// A caret pointing right for a closed folder and down for an open one;
+/// just its room for anything else.
+fn disclosure(row: &Row, ui: &UiTheme) -> gpui::Div {
+    let width = caret_width(ui);
+    let caret = row.entry.is_folder().then(|| {
+        let name = match row.expanded {
+            true => IconName::CaretDown,
+            false => IconName::CaretRight,
+        };
+        icon(name).size(width).text_color(ui.icon)
+    });
+    div()
+        .flex_none()
+        .w(width)
+        .flex()
+        .items_center()
+        .justify_center()
+        .children(caret)
+}
+
+/// A hairline under each open folder's caret, down past its children.
 fn indent_guides(depth: usize, inset: gpui::Pixels, ui: &UiTheme) -> Vec<AnyElement> {
     (0..depth)
         .map(|level| {
-            let left = inset + ui.space_md + ui.tree_indent * level as f32 + ui.icon_size / 2.;
+            let caret_middle = caret_width(ui) / 2. - ui.indent_guide_width / 2.;
+            let left = inset + ui.space_md + ui.tree_indent * level as f32 + caret_middle;
             div()
                 .absolute()
                 .top_0()

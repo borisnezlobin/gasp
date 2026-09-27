@@ -66,6 +66,18 @@ fn footnotes_renumber_once_typing_pauses(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_setting_leaves_footnotes_as_written(cx: &mut TestAppContext) {
+    let out_of_order = "B[^2]. A[^1]\n\n[^1]: one\n[^2]: two\n";
+    let (view, cx) = open(cx, out_of_order, 6);
+    let mut config = editor_config::Config::defaults();
+    config.settings.editor.renumber_footnotes = false;
+    view.update(cx, |view, cx| view.apply_config(&config, cx));
+    view.update(cx, |view, cx| view.replace(6..6, "", cx));
+    wait(cx, TIDY_DELAY * 2);
+    assert_eq!(text(&view, cx), out_of_order);
+}
+
+#[gpui::test]
 fn inline_typos_convert_once_the_cursor_moves_on(cx: &mut TestAppContext) {
     let (view, cx) = open(cx, "Claim\n\n[^1]: Source.\n", 5);
     view.update(cx, |view, cx| view.replace(5..5, "^[1]", cx));

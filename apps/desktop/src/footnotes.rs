@@ -56,6 +56,14 @@ impl EditorView {
         &self.footnotes.problems
     }
 
+    /// Whether footnotes renumber by themselves once typing pauses.
+    pub(crate) fn set_footnote_renumbering(&mut self, on: bool) {
+        self.footnotes.settings.auto_renumber_on_edit = on;
+        if !on {
+            self.footnotes.tidy = None;
+        }
+    }
+
     /// The problem covering `offset`, if any.
     pub(crate) fn footnote_problem_at(&self, offset: usize) -> Option<&FootnoteProblem> {
         self.footnotes

@@ -165,6 +165,7 @@ fn on_tree_event(
             open_note(workspace, path, open_in, window, cx);
             tree.update(cx, |tree, cx| tree.set_active_path(Some(path), cx));
         }
+        FileTreeEvent::Renamed { from, to } => workspace.entry_moved(from, to, cx),
         FileTreeEvent::Dismissed => workspace.focus_active(window, cx),
         FileTreeEvent::Failed { message } => eprintln!("{message}"),
         _ => {}
@@ -588,8 +589,9 @@ fn open_vault_search(
     let _span = crate::trace::span("search-open");
     crate::trace::presented(window, "search-open");
     let texts = workspace.note_texts().clone();
+    let index = workspace.vault_index().clone();
     workspace.toggle_modal(window, cx, |window, cx| {
-        VaultSearch::with_texts(texts, window, cx)
+        VaultSearch::with_texts(texts, window, cx).with_index(index)
     });
     let Some(search) = workspace.active_modal::<VaultSearch>() else {
         return;

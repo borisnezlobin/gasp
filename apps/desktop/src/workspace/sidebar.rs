@@ -51,6 +51,9 @@ pub struct LeftPanel {
     rules: RuleEngine,
     settings: SettingsIndex,
     pub(crate) tick: Option<Task<()>>,
+    /// The pointer left the panel while dragging something out of it;
+    /// the panel waits for the drop before it counts as left.
+    pub(crate) left_while_dragging: bool,
 }
 
 impl LeftPanel {
@@ -67,6 +70,7 @@ impl LeftPanel {
             rules: RuleEngine::new(rules, Platform::current()),
             settings: SettingsIndex::new(settings),
             tick: None,
+            left_while_dragging: false,
         }
     }
 

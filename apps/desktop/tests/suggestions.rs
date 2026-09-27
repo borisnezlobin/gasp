@@ -269,6 +269,26 @@ fn the_wheel_scrolls_the_list_and_keeps_the_highlight_in_view(cx: &mut TestAppCo
 }
 
 #[gpui::test]
+fn the_highlight_follows_the_pointer_as_the_wheel_scrolls(cx: &mut TestAppContext) {
+    let (view, cx) = open_with_many_notes(cx);
+    let third = cx
+        .debug_bounds("suggestion-Note 03")
+        .expect("the third row is drawn");
+    cx.simulate_event(ScrollWheelEvent {
+        position: third.center(),
+        delta: ScrollDelta::Lines(point(0., -3.)),
+        ..Default::default()
+    });
+    cx.run_until_parked();
+    assert_eq!(first_visible(&view, cx), 3);
+    assert_eq!(
+        highlighted(&view, cx),
+        5,
+        "the row now under the pointer, Note 06, without moving it"
+    );
+}
+
+#[gpui::test]
 fn clicking_a_row_accepts_it(cx: &mut TestAppContext) {
     let (view, cx) = open_with_many_notes(cx);
     let row = cx

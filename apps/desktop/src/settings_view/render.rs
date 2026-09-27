@@ -101,52 +101,31 @@ impl SettingsView {
             .gap(style.gap_sm)
             .p(style.nav_padding)
             .child(self.search_box(window, cx))
-            .child(self.key_search_button(cx))
             .child(list)
     }
 
-    /// "Search by keys": the next chord pressed becomes the search. While
-    /// it waits, the search box says so and the button reads as pressed.
+    /// "Search by keys", at the search field's right end: the next chord
+    /// pressed becomes the search. While it waits, the field says so and
+    /// the button reads as pressed in.
     fn key_search_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let style = &self.style;
-        let waiting = self.searching_by_keys();
-        let hover = style.hover;
-        let button = div()
-            .id("search-by-keys")
-            .debug_selector(|| "search-by-keys".to_string())
-            .flex_none()
-            .h(style.nav_item_height - style.gap_sm)
-            .px(style.control_gap)
-            .flex()
-            .items_center()
-            .gap(style.gap_sm)
-            .text_size(style.small_text_size)
-            .rounded(style.radius)
-            .cursor_pointer()
-            .text_color(style.text_muted)
-            .when(waiting, |button| {
-                button.bg(style.selected).text_color(style.text)
+        let view = cx.entity().downgrade();
+        crate::ui::IconButton::new("search-by-keys", IconName::Keyboard)
+            .small()
+            .toggled(self.searching_by_keys())
+            .tooltip("Search by keys")
+            .on_click(move |_, window, cx| {
+                view.update(cx, |view, cx| {
+                    if view.searching_by_keys() {
+                        view.cancel_capture(cx);
+                    } else {
+                        view.start_key_search(window, cx);
+                    }
+                })
+                .ok();
             })
-            .when(!waiting, |button| button.hover(move |b| b.bg(hover)))
-            .child(
-                icon(IconName::Keyboard)
-                    .flex_none()
-                    .size(style.small_icon_size)
-                    .text_color(style.text_muted),
-            )
-            .child("Search by keys")
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .on_click(cx.listener(move |view, _: &ClickEvent, window, cx| {
-                if view.searching_by_keys() {
-                    view.cancel_capture(cx);
-                } else {
-                    view.start_key_search(window, cx);
-                }
-            }));
-        div().flex_none().flex().justify_end().child(button)
     }
 
-    fn search_box(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {
+    fn search_box(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let style = &self.style;
         let waiting = self.searching_by_keys();
         let focused = waiting || self.rings(SettingsFocus::Search, window, cx);
@@ -175,7 +154,8 @@ impl SettingsView {
             .relative()
             .flex_none()
             .h(style.control_height + style.gap_sm * 2.)
-            .px(style.control_gap)
+            .pl(style.control_gap)
+            .pr(style.gap_sm)
             .flex()
             .items_center()
             .gap(style.control_gap)
@@ -189,6 +169,7 @@ impl SettingsView {
                     .text_color(style.text_muted),
             )
             .child(field)
+            .child(self.key_search_button(cx))
             .children(rejection)
     }
 
