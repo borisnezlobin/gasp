@@ -1,245 +1,51 @@
-//! Keyboard actions, their default bindings, and mouse handling.
+//! Mouse handling and the view's render tree. Keys are bound in
+//! [`crate::keymap`] and run through [`crate::commands`].
 
+use std::ops::Range;
+
+use editor_core::motion;
 use gpui::{
-    App, ClipboardItem, Context, CursorStyle, KeyBinding, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, ScrollWheelEvent, Window, actions, div, prelude::*,
+    Context, CursorStyle, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    ScrollWheelEvent, Window, div, prelude::*,
 };
 
 use crate::editor::EditorView;
 use crate::element::EditorElement;
+use crate::keymap::{KEY_CONTEXT, RunCommand};
 
-actions!(
-    editor,
-    [
-        MoveLeft,
-        MoveRight,
-        MoveUp,
-        MoveDown,
-        SelectLeft,
-        SelectRight,
-        SelectUp,
-        SelectDown,
-        MoveToLineStart,
-        MoveToLineEnd,
-        SelectToLineStart,
-        SelectToLineEnd,
-        SelectAll,
-        Backspace,
-        Delete,
-        Newline,
-        Undo,
-        Redo,
-        Copy,
-        Cut,
-        Paste,
-        Quit,
-    ]
-);
+pub use crate::keymap::bind_keys;
 
-const KEY_CONTEXT: &str = "Editor";
-
-/// Binds the editor's default keys. `secondary` is Cmd on macOS and Ctrl
-/// elsewhere.
-pub fn bind_keys(cx: &mut App) {
-    let context = Some(KEY_CONTEXT);
-    cx.bind_keys([
-        KeyBinding::new("left", MoveLeft, context),
-        KeyBinding::new("right", MoveRight, context),
-        KeyBinding::new("up", MoveUp, context),
-        KeyBinding::new("down", MoveDown, context),
-        KeyBinding::new("shift-left", SelectLeft, context),
-        KeyBinding::new("shift-right", SelectRight, context),
-        KeyBinding::new("shift-up", SelectUp, context),
-        KeyBinding::new("shift-down", SelectDown, context),
-        KeyBinding::new("home", MoveToLineStart, context),
-        KeyBinding::new("end", MoveToLineEnd, context),
-        KeyBinding::new("shift-home", SelectToLineStart, context),
-        KeyBinding::new("shift-end", SelectToLineEnd, context),
-        KeyBinding::new("secondary-a", SelectAll, context),
-        KeyBinding::new("backspace", Backspace, context),
-        KeyBinding::new("delete", Delete, context),
-        KeyBinding::new("enter", Newline, context),
-        KeyBinding::new("secondary-z", Undo, context),
-        KeyBinding::new("secondary-shift-z", Redo, context),
-        KeyBinding::new("secondary-c", Copy, context),
-        KeyBinding::new("secondary-x", Cut, context),
-        KeyBinding::new("secondary-v", Paste, context),
-        KeyBinding::new("secondary-q", Quit, None),
-    ]);
-    cx.on_action(|_: &Quit, cx| cx.quit());
+/// What a click selects: one click places the caret, two select a word,
+/// three select a line. Dragging extends by the same unit.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ClickUnit {
+    #[default]
+    Character,
+    Word,
+    Line,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Direction {
-    Backward,
-    Forward,
+impl ClickUnit {
+    fn from_count(count: usize) -> ClickUnit {
+        match count {
+            0 | 1 => ClickUnit::Character,
+            2 => ClickUnit::Word,
+            _ => ClickUnit::Line,
+        }
+    }
 }
 
 impl EditorView {
-    fn move_horizontally(&mut self, direction: Direction, extend: bool, cx: &mut Context<Self>) {
-        self.goal_x = None;
-        let selection = self.selected_range();
-        if !extend && !selection.is_empty() {
-            let edge = match direction {
-                Direction::Backward => selection.start,
-                Direction::Forward => selection.end,
-            };
-            return self.move_to(edge, false, cx);
-        }
-        let target = match direction {
-            Direction::Backward => self.doc().prev_char_boundary(self.cursor()),
-            Direction::Forward => self.doc().next_char_boundary(self.cursor()),
-        };
-        self.move_to(target, extend, cx);
+    fn on_run_command(&mut self, action: &RunCommand, window: &mut Window, cx: &mut Context<Self>) {
+        self.run_command(&action.id, window, cx);
     }
 
-    fn move_vertically(
-        &mut self,
-        direction: Direction,
-        extend: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let line = self.doc().line_of_offset(self.cursor());
-        let target_line = match direction {
-            Direction::Backward => line.checked_sub(1),
-            Direction::Forward => Some(line + 1).filter(|next| *next < self.doc().line_count()),
-        };
-        let Some(target_line) = target_line else {
-            let edge = if direction == Direction::Backward {
-                0
-            } else {
-                self.doc().len()
-            };
-            return self.move_to(edge, extend, cx);
-        };
-        let current = self.visual_line(line, window);
-        let cursor = self.cursor();
-        let goal_x = *self
-            .goal_x
-            .get_or_insert_with(|| current.x_for_offset(cursor - current.start));
-        let target = self.visual_line(target_line, window);
-        self.move_to(target.start + target.offset_for_x(goal_x), extend, cx);
-        self.goal_x = Some(goal_x);
-    }
-
-    fn move_to_line_edge(&mut self, to_end: bool, extend: bool, cx: &mut Context<Self>) {
-        self.goal_x = None;
-        let line = self.doc().line_of_offset(self.cursor());
-        let range = self.doc().line_range(line);
-        let target = if to_end { range.end } else { range.start };
-        self.move_to(target, extend, cx);
-    }
-
-    fn delete_or_selection(&mut self, direction: Direction, cx: &mut Context<Self>) {
-        let mut range = self.selected_range();
-        if range.is_empty() {
-            range = match direction {
-                Direction::Backward => self.doc().prev_char_boundary(range.start)..range.end,
-                Direction::Forward => range.start..self.doc().next_char_boundary(range.end),
-            };
-        }
-        self.replace(range, "", cx);
-    }
-
-    fn selected_text(&self) -> Option<String> {
-        let range = self.selected_range();
-        (!range.is_empty()).then(|| self.doc().slice(range))
-    }
-
-    fn on_move_left(&mut self, _: &MoveLeft, _: &mut Window, cx: &mut Context<Self>) {
-        self.move_horizontally(Direction::Backward, false, cx);
-    }
-
-    fn on_move_right(&mut self, _: &MoveRight, _: &mut Window, cx: &mut Context<Self>) {
-        self.move_horizontally(Direction::Forward, false, cx);
-    }
-
-    fn on_select_left(&mut self, _: &SelectLeft, _: &mut Window, cx: &mut Context<Self>) {
-        self.move_horizontally(Direction::Backward, true, cx);
-    }
-
-    fn on_select_right(&mut self, _: &SelectRight, _: &mut Window, cx: &mut Context<Self>) {
-        self.move_horizontally(Direction::Forward, true, cx);
-    }
-
-    fn on_move_up(&mut self, _: &MoveUp, window: &mut Window, cx: &mut Context<Self>) {
-        self.move_vertically(Direction::Backward, false, window, cx);
-    }
-
-    fn on_move_down(&mut self, _: &MoveDown, window: &mut Window, cx: &mut Context<Self>) {
-        self.move_vertically(Direction::Forward, false, window, cx);
-    }
-
-    fn on_select_up(&mut self, _: &SelectUp, window: &mut Window, cx: &mut Context<Self>) {
-        self.move_vertically(Direction::Backward, true, window, cx);
-    }
-
-    fn on_select_down(&mut self, _: &SelectDown, window: &mut Window, cx: &mut Context<Self>) {
-        self.move_vertically(Direction::Forward, true, window, cx);
-    }
-
-    fn on_line_start(&mut self, _: &MoveToLineStart, _: &mut Window, cx: &mut Context<Self>) {
-        self.move_to_line_edge(false, false, cx);
-    }
-
-    fn on_line_end(&mut self, _: &MoveToLineEnd, _: &mut Window, cx: &mut Context<Self>) {
-        self.move_to_line_edge(true, false, cx);
-    }
-
-    fn on_select_line_start(
-        &mut self,
-        _: &SelectToLineStart,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.move_to_line_edge(false, true, cx);
-    }
-
-    fn on_select_line_end(&mut self, _: &SelectToLineEnd, _: &mut Window, cx: &mut Context<Self>) {
-        self.move_to_line_edge(true, true, cx);
-    }
-
-    fn on_select_all(&mut self, _: &SelectAll, _: &mut Window, cx: &mut Context<Self>) {
-        self.select(0, self.doc().len(), cx);
-    }
-
-    fn on_backspace(&mut self, _: &Backspace, _: &mut Window, cx: &mut Context<Self>) {
-        self.delete_or_selection(Direction::Backward, cx);
-    }
-
-    fn on_delete(&mut self, _: &Delete, _: &mut Window, cx: &mut Context<Self>) {
-        self.delete_or_selection(Direction::Forward, cx);
-    }
-
-    fn on_newline(&mut self, _: &Newline, _: &mut Window, cx: &mut Context<Self>) {
-        self.insert("\n", cx);
-    }
-
-    fn on_undo(&mut self, _: &Undo, _: &mut Window, cx: &mut Context<Self>) {
-        self.undo(cx);
-    }
-
-    fn on_redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
-        self.redo(cx);
-    }
-
-    fn on_copy(&mut self, _: &Copy, _: &mut Window, cx: &mut Context<Self>) {
-        if let Some(text) = self.selected_text() {
-            cx.write_to_clipboard(ClipboardItem::new_string(text));
-        }
-    }
-
-    fn on_cut(&mut self, _: &Cut, _: &mut Window, cx: &mut Context<Self>) {
-        if let Some(text) = self.selected_text() {
-            cx.write_to_clipboard(ClipboardItem::new_string(text));
-            self.insert("", cx);
-        }
-    }
-
-    fn on_paste(&mut self, _: &Paste, _: &mut Window, cx: &mut Context<Self>) {
-        if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
-            self.insert(&text, cx);
+    /// The range `unit` covers at `offset`.
+    fn unit_at(&self, unit: ClickUnit, offset: usize) -> Range<usize> {
+        match unit {
+            ClickUnit::Character => offset..offset,
+            ClickUnit::Word => motion::word_at(self.doc(), offset),
+            ClickUnit::Line => motion::line_at(self.doc(), offset),
         }
     }
 
@@ -253,7 +59,26 @@ impl EditorView {
         self.is_selecting = true;
         self.goal_x = None;
         let offset = self.offset_for_point(event.position, window);
-        self.move_to(offset, event.modifiers.shift, cx);
+        self.click_unit = ClickUnit::from_count(event.click_count);
+        if event.modifiers.shift {
+            self.click_origin = self.anchor()..self.anchor();
+            return self.extend_by_unit(offset, cx);
+        }
+        let range = self.unit_at(self.click_unit, offset);
+        self.click_origin = range.clone();
+        self.select(range.start, range.end, cx);
+    }
+
+    /// Selects from the click's unit to the unit under `offset`, so a
+    /// double-click drag grows word by word.
+    fn extend_by_unit(&mut self, offset: usize, cx: &mut Context<Self>) {
+        let origin = self.click_origin.clone();
+        let under = self.unit_at(self.click_unit, offset);
+        if under.start < origin.start {
+            self.select(origin.end, under.start, cx);
+        } else {
+            self.select(origin.start, under.end.max(origin.end), cx);
+        }
     }
 
     fn on_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
@@ -268,7 +93,7 @@ impl EditorView {
     ) {
         if self.is_selecting {
             let offset = self.offset_for_point(event.position, window);
-            self.move_to(offset, true, cx);
+            self.extend_by_unit(offset, cx);
         }
     }
 
@@ -287,27 +112,7 @@ impl Render for EditorView {
             .track_focus(&self.focus_handle)
             .cursor(CursorStyle::IBeam)
             .bg(self.theme.background)
-            .on_action(cx.listener(Self::on_move_left))
-            .on_action(cx.listener(Self::on_move_right))
-            .on_action(cx.listener(Self::on_select_left))
-            .on_action(cx.listener(Self::on_select_right))
-            .on_action(cx.listener(Self::on_move_up))
-            .on_action(cx.listener(Self::on_move_down))
-            .on_action(cx.listener(Self::on_select_up))
-            .on_action(cx.listener(Self::on_select_down))
-            .on_action(cx.listener(Self::on_line_start))
-            .on_action(cx.listener(Self::on_line_end))
-            .on_action(cx.listener(Self::on_select_line_start))
-            .on_action(cx.listener(Self::on_select_line_end))
-            .on_action(cx.listener(Self::on_select_all))
-            .on_action(cx.listener(Self::on_backspace))
-            .on_action(cx.listener(Self::on_delete))
-            .on_action(cx.listener(Self::on_newline))
-            .on_action(cx.listener(Self::on_undo))
-            .on_action(cx.listener(Self::on_redo))
-            .on_action(cx.listener(Self::on_copy))
-            .on_action(cx.listener(Self::on_cut))
-            .on_action(cx.listener(Self::on_paste))
+            .on_action(cx.listener(Self::on_run_command))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))

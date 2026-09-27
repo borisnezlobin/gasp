@@ -2,12 +2,14 @@
 //! mouse input, IME composition and the laid-out geometry. The test
 //! platform shapes text with fixed-width fake glyphs.
 
+use editor_config::{Platform, RuleSet};
 use editor_desktop::EditorView;
 use editor_desktop::actions::bind_keys;
+use editor_desktop::keymap::editor_bindings;
 use editor_desktop::line_layout::PieceContent;
 use gpui::{
-    Entity, EntityInputHandler, Focusable, Modifiers, MouseButton, Pixels, Point, TestAppContext,
-    VisualTestContext, point, px,
+    Entity, EntityInputHandler, Focusable, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent,
+    Pixels, Point, TestAppContext, VisualTestContext, point, px,
 };
 
 const NOTE: &str = "# Heading\nbody **bold** text\nimage ![[pic.png]] here\nlast line";
@@ -258,4 +260,122 @@ fn only_visible_lines_are_laid_out(cx: &mut TestAppContext) {
         view.frame().unwrap().lines.last().unwrap().visual.line
     });
     assert_eq!(last, 4_999);
+}
+
+/// The keystroke this platform's default rules bind to `command`.
+fn key_for(command: &str) -> String {
+    editor_bindings(&RuleSet::defaults(), Platform::current())
+        .into_iter()
+        .find(|(_, id)| id == command)
+        .map(|(keystroke, _)| keystroke)
+        .unwrap_or_else(|| panic!("{command} has no key on this platform"))
+}
+
+fn press(cx: &mut VisualTestContext, command: &str) {
+    cx.simulate_keystrokes(&key_for(command));
+}
+
+fn selection(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> std::ops::Range<usize> {
+    view.read_with(cx, |view, _| view.selected_range())
+}
+
+#[gpui::test]
+fn word_deletes_remove_whole_words(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "one two, three");
+    place_cursor(&view, cx, 14);
+    press(cx, "edit.delete-word-backward");
+    assert_eq!(text(&view, cx), "one two, ");
+    press(cx, "edit.delete-word-backward");
+    assert_eq!(text(&view, cx), "one ");
+    place_cursor(&view, cx, 0);
+    press(cx, "edit.delete-word-forward");
+    assert_eq!(text(&view, cx), " ");
+}
+
+#[gpui::test]
+fn word_motions_move_and_select(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "alpha beta gamma");
+    place_cursor(&view, cx, 0);
+    press(cx, "cursor.word-right");
+    assert_eq!(selection(&view, cx), 5..5);
+    press(cx, "select.word-right");
+    assert_eq!(selection(&view, cx), 5..10);
+    press(cx, "cursor.doc-end");
+    assert_eq!(selection(&view, cx), 16..16);
+    press(cx, "select.word-left");
+    assert_eq!(selection(&view, cx), 11..16);
+}
+
+#[gpui::test]
+fn copy_and_paste_round_trip(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "copy me");
+    view.update(cx, |view, cx| view.select(0, 4, cx));
+    press(cx, "edit.copy");
+    press(cx, "cursor.doc-end");
+    press(cx, "edit.paste");
+    assert_eq!(text(&view, cx), "copy mecopy");
+    view.update(cx, |view, cx| view.select(0, 5, cx));
+    press(cx, "edit.cut");
+    assert_eq!(text(&view, cx), "mecopy");
+    press(cx, "edit.paste");
+    assert_eq!(text(&view, cx), "copy mecopy");
+}
+
+#[gpui::test]
+fn formatting_and_footnote_keys_edit_the_note(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "a claim");
+    view.update(cx, |view, cx| view.select(2, 7, cx));
+    press(cx, "format.bold");
+    assert_eq!(text(&view, cx), "a **claim**");
+    press(cx, "cursor.doc-end");
+    press(cx, "footnote.insert-or-jump");
+    assert!(text(&view, cx).starts_with("a **claim**[^1]"));
+    assert!(text(&view, cx).contains("\n[^1]: "));
+}
+
+#[gpui::test]
+fn enter_continues_lists_and_tab_indents_them(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "- one");
+    place_cursor(&view, cx, 5);
+    press(cx, "edit.newline");
+    assert_eq!(text(&view, cx), "- one\n- ");
+    press(cx, "edit.indent");
+    assert_eq!(text(&view, cx), "- one\n\t- ");
+    press(cx, "edit.outdent");
+    assert_eq!(text(&view, cx), "- one\n- ");
+}
+
+fn click(cx: &mut VisualTestContext, position: Point<Pixels>, count: usize) {
+    cx.simulate_event(MouseDownEvent {
+        position,
+        button: MouseButton::Left,
+        modifiers: Modifiers::none(),
+        click_count: count,
+        first_mouse: false,
+    });
+    cx.simulate_event(MouseUpEvent {
+        position,
+        button: MouseButton::Left,
+        modifiers: Modifiers::none(),
+        click_count: count,
+    });
+}
+
+#[gpui::test]
+fn double_click_selects_a_word_and_triple_click_a_line(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "hello there world\nnext");
+    let glyph = view.read_with(cx, |view, _| {
+        view.frame()
+            .unwrap()
+            .line(0)
+            .unwrap()
+            .visual
+            .x_for_offset(7)
+    });
+    let inside_there = point_in_line(&view, cx, 0, glyph);
+    click(cx, inside_there, 1);
+    click(cx, inside_there, 2);
+    assert_eq!(selection(&view, cx), 6..11);
+    click(cx, inside_there, 3);
+    assert_eq!(selection(&view, cx), 0..18);
 }

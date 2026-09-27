@@ -7,9 +7,12 @@ use std::time::Instant;
 
 use editor_core::document::{Document, Selection, SelectionRange};
 use editor_core::history::EditorState;
+use editor_core::pipeline::{EditRequest, Pipeline};
+use editor_core::syntax;
 use editor_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{App, Bounds, Context, FocusHandle, Focusable, Pixels, Point, Window, px};
 
+use crate::actions::ClickUnit;
 use crate::bench::Bench;
 use crate::frame::{FrameLayout, PlacedLine};
 use crate::images::ImageStore;
@@ -32,11 +35,14 @@ pub struct EditorView {
     pub(crate) scroll_y: Pixels,
     pub(crate) goal_x: Option<Pixels>,
     pub(crate) is_selecting: bool,
+    pub(crate) click_unit: ClickUnit,
+    pub(crate) click_origin: Range<usize>,
     pub(crate) autoscroll: bool,
     pub(crate) frame: Option<FrameLayout>,
     pub(crate) timings: Timings,
     pub(crate) bench: Option<Bench>,
     pub(crate) log_timings: bool,
+    pipeline: Pipeline,
     clock: Instant,
 }
 
@@ -61,11 +67,14 @@ impl EditorView {
             scroll_y: px(0.),
             goal_x: None,
             is_selecting: false,
+            click_unit: ClickUnit::Character,
+            click_origin: 0..0,
             autoscroll: false,
             frame: None,
             timings: Timings::default(),
             bench: None,
             log_timings: false,
+            pipeline: Pipeline::builtin(),
             clock: Instant::now(),
         }
     }
@@ -108,7 +117,7 @@ impl EditorView {
         self.log_timings = enabled;
     }
 
-    fn now_ms(&self) -> u64 {
+    pub(crate) fn now_ms(&self) -> u64 {
         self.clock.elapsed().as_millis() as u64
     }
 
@@ -171,6 +180,59 @@ impl EditorView {
     pub fn insert(&mut self, text: &str, cx: &mut Context<Self>) {
         let range = self.marked.clone().unwrap_or_else(|| self.selected_range());
         self.replace(range, text, cx);
+    }
+
+    /// Applies a transaction from a command or the input pipeline and
+    /// re-measures the lines. Any composition ends.
+    pub fn apply_transaction(&mut self, transaction: Transaction, cx: &mut Context<Self>) {
+        if self.state.apply(transaction).is_err() {
+            return;
+        }
+        self.goal_x = None;
+        self.timings.input_started.get_or_insert_with(Instant::now);
+        self.after_history_step(cx);
+    }
+
+    /// Runs a core editing command on the current document and selection.
+    pub fn run_edit(
+        &mut self,
+        command: impl FnOnce(&Document, &Selection, u64) -> Transaction,
+        cx: &mut Context<Self>,
+    ) {
+        let transaction = command(self.state.doc(), self.state.selection(), self.now_ms());
+        self.apply_transaction(transaction, cx);
+    }
+
+    /// Deletes the selection, or the range `around` the cursor when nothing
+    /// is selected.
+    pub fn delete_or(
+        &mut self,
+        around: impl FnOnce(&Document, usize) -> Range<usize>,
+        cx: &mut Context<Self>,
+    ) {
+        let mut range = self.selected_range();
+        if range.is_empty() {
+            range = around(self.state.doc(), range.start);
+        }
+        if !range.is_empty() {
+            self.replace(range, "", cx);
+        }
+    }
+
+    /// Enter runs through the input pipeline so lists continue.
+    pub fn newline(&mut self, cx: &mut Context<Self>) {
+        let tree = syntax::parse(&self.state.doc().to_string());
+        let transaction = self.pipeline.run(
+            EditRequest::Newline,
+            self.state.doc(),
+            self.state.selection(),
+            &tree,
+            self.now_ms(),
+        );
+        match transaction {
+            Some(transaction) => self.apply_transaction(transaction, cx),
+            None => self.insert("\n", cx),
+        }
     }
 
     pub fn undo(&mut self, cx: &mut Context<Self>) {

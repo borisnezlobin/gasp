@@ -301,6 +301,427 @@ on   = "key"
 keys = "Mod+Shift+N"
 do   = "vault.open"
 
+
+# ---- Text editing. Where Apple and PC conventions differ, each gets its own rule. ----
+
+[[rule]]
+id   = "key.cursor.left"
+on   = "key"
+keys = "Left"
+do   = "cursor.left"
+
+[[rule]]
+id   = "key.select.left"
+on   = "key"
+keys = "Shift+Left"
+do   = "select.left"
+
+[[rule]]
+id   = "key.cursor.right"
+on   = "key"
+keys = "Right"
+do   = "cursor.right"
+
+[[rule]]
+id   = "key.select.right"
+on   = "key"
+keys = "Shift+Right"
+do   = "select.right"
+
+[[rule]]
+id   = "key.cursor.up"
+on   = "key"
+keys = "Up"
+do   = "cursor.up"
+
+[[rule]]
+id   = "key.select.up"
+on   = "key"
+keys = "Shift+Up"
+do   = "select.up"
+
+[[rule]]
+id   = "key.cursor.down"
+on   = "key"
+keys = "Down"
+do   = "cursor.down"
+
+[[rule]]
+id   = "key.select.down"
+on   = "key"
+keys = "Shift+Down"
+do   = "select.down"
+
+[[rule]]
+id   = "key.cursor.line-start"
+on   = "key"
+keys = "Home"
+do   = "cursor.line-start"
+
+[[rule]]
+id   = "key.select.line-start"
+on   = "key"
+keys = "Shift+Home"
+do   = "select.line-start"
+
+[[rule]]
+id   = "key.cursor.line-end"
+on   = "key"
+keys = "End"
+do   = "cursor.line-end"
+
+[[rule]]
+id   = "key.select.line-end"
+on   = "key"
+keys = "Shift+End"
+do   = "select.line-end"
+
+[[rule]]
+id   = "key.cursor.page-up"
+on   = "key"
+keys = "PageUp"
+do   = "cursor.page-up"
+
+[[rule]]
+id   = "key.select.page-up"
+on   = "key"
+keys = "Shift+PageUp"
+do   = "select.page-up"
+
+[[rule]]
+id   = "key.cursor.page-down"
+on   = "key"
+keys = "PageDown"
+do   = "cursor.page-down"
+
+[[rule]]
+id   = "key.select.page-down"
+on   = "key"
+keys = "Shift+PageDown"
+do   = "select.page-down"
+
+[[rule]]
+id   = "key.edit.delete-backward"
+on   = "key"
+keys = "Backspace"
+do   = "edit.delete-backward"
+
+[[rule]]
+id   = "key.edit.delete-forward"
+on   = "key"
+keys = "Delete"
+do   = "edit.delete-forward"
+
+[[rule]]
+id   = "key.edit.newline"
+on   = "key"
+keys = "Enter"
+do   = "edit.newline"
+
+[[rule]]
+id   = "key.edit.indent"
+on   = "key"
+keys = "Tab"
+do   = "edit.indent"
+
+[[rule]]
+id   = "key.edit.outdent"
+on   = "key"
+keys = "Shift+Tab"
+do   = "edit.outdent"
+
+[[rule]]
+id   = "key.select.all"
+on   = "key"
+keys = "Mod+A"
+do   = "select.all"
+
+[[rule]]
+id   = "key.edit.undo"
+on   = "key"
+keys = "Mod+Z"
+do   = "edit.undo"
+
+[[rule]]
+id   = "key.edit.redo"
+on   = "key"
+keys = "Mod+Shift+Z"
+do   = "edit.redo"
+
+[[rule]]
+id   = "key.edit.copy"
+on   = "key"
+keys = "Mod+C"
+do   = "edit.copy"
+
+[[rule]]
+id   = "key.edit.cut"
+on   = "key"
+keys = "Mod+X"
+do   = "edit.cut"
+
+[[rule]]
+id   = "key.edit.paste"
+on   = "key"
+keys = "Mod+V"
+do   = "edit.paste"
+
+# Apple: Option moves by word, Cmd by line and note, plus the Emacs keys macOS text fields accept.
+
+[[rule]]
+id   = "key.apple.cursor.word-left"
+on   = "key"
+keys = "Alt+Left"
+do   = "cursor.word-left"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.select.word-left"
+on   = "key"
+keys = "Alt+Shift+Left"
+do   = "select.word-left"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.cursor.word-right"
+on   = "key"
+keys = "Alt+Right"
+do   = "cursor.word-right"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.select.word-right"
+on   = "key"
+keys = "Alt+Shift+Right"
+do   = "select.word-right"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.cursor.line-start"
+on   = "key"
+keys = "Mod+Left"
+do   = "cursor.line-start"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.select.line-start"
+on   = "key"
+keys = "Mod+Shift+Left"
+do   = "select.line-start"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.cursor.line-end"
+on   = "key"
+keys = "Mod+Right"
+do   = "cursor.line-end"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.select.line-end"
+on   = "key"
+keys = "Mod+Shift+Right"
+do   = "select.line-end"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.cursor.doc-start"
+on   = "key"
+keys = "Mod+Up"
+do   = "cursor.doc-start"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.select.doc-start"
+on   = "key"
+keys = "Mod+Shift+Up"
+do   = "select.doc-start"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.cursor.doc-end"
+on   = "key"
+keys = "Mod+Down"
+do   = "cursor.doc-end"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.select.doc-end"
+on   = "key"
+keys = "Mod+Shift+Down"
+do   = "select.doc-end"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.edit.delete-word-backward"
+on   = "key"
+keys = "Alt+Backspace"
+do   = "edit.delete-word-backward"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.edit.delete-word-forward"
+on   = "key"
+keys = "Alt+Delete"
+do   = "edit.delete-word-forward"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.edit.delete-to-line-start"
+on   = "key"
+keys = "Mod+Backspace"
+do   = "edit.delete-to-line-start"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.edit.delete-to-line-end"
+on   = "key"
+keys = "Mod+Delete"
+do   = "edit.delete-to-line-end"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.cursor.line-start.a"
+on   = "key"
+keys = "Ctrl+A"
+do   = "cursor.line-start"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.cursor.line-end.e"
+on   = "key"
+keys = "Ctrl+E"
+do   = "cursor.line-end"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.cursor.left.b"
+on   = "key"
+keys = "Ctrl+B"
+do   = "cursor.left"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.cursor.right.f"
+on   = "key"
+keys = "Ctrl+F"
+do   = "cursor.right"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.cursor.up.p"
+on   = "key"
+keys = "Ctrl+P"
+do   = "cursor.up"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.cursor.down.n"
+on   = "key"
+keys = "Ctrl+N"
+do   = "cursor.down"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.edit.delete-backward.h"
+on   = "key"
+keys = "Ctrl+H"
+do   = "edit.delete-backward"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.edit.delete-forward.d"
+on   = "key"
+keys = "Ctrl+D"
+do   = "edit.delete-forward"
+platform = "apple"
+
+[[rule]]
+id   = "key.apple.edit.delete-to-line-end.k"
+on   = "key"
+keys = "Ctrl+K"
+do   = "edit.delete-to-line-end"
+platform = "apple"
+
+# Windows and Linux: Ctrl moves by word and, with Home and End, by note.
+
+[[rule]]
+id   = "key.pc.cursor.word-left"
+on   = "key"
+keys = "Ctrl+Left"
+do   = "cursor.word-left"
+platform = "pc"
+
+[[rule]]
+id   = "key.pc.select.word-left"
+on   = "key"
+keys = "Ctrl+Shift+Left"
+do   = "select.word-left"
+platform = "pc"
+
+[[rule]]
+id   = "key.pc.cursor.word-right"
+on   = "key"
+keys = "Ctrl+Right"
+do   = "cursor.word-right"
+platform = "pc"
+
+[[rule]]
+id   = "key.pc.select.word-right"
+on   = "key"
+keys = "Ctrl+Shift+Right"
+do   = "select.word-right"
+platform = "pc"
+
+[[rule]]
+id   = "key.pc.cursor.doc-start"
+on   = "key"
+keys = "Ctrl+Home"
+do   = "cursor.doc-start"
+platform = "pc"
+
+[[rule]]
+id   = "key.pc.select.doc-start"
+on   = "key"
+keys = "Ctrl+Shift+Home"
+do   = "select.doc-start"
+platform = "pc"
+
+[[rule]]
+id   = "key.pc.cursor.doc-end"
+on   = "key"
+keys = "Ctrl+End"
+do   = "cursor.doc-end"
+platform = "pc"
+
+[[rule]]
+id   = "key.pc.select.doc-end"
+on   = "key"
+keys = "Ctrl+Shift+End"
+do   = "select.doc-end"
+platform = "pc"
+
+[[rule]]
+id   = "key.pc.edit.delete-word-backward"
+on   = "key"
+keys = "Ctrl+Backspace"
+do   = "edit.delete-word-backward"
+platform = "pc"
+
+[[rule]]
+id   = "key.pc.edit.delete-word-forward"
+on   = "key"
+keys = "Ctrl+Delete"
+do   = "edit.delete-word-forward"
+platform = "pc"
+
+[[rule]]
+id   = "key.pc.edit.redo"
+on   = "key"
+keys = "Ctrl+Y"
+do   = "edit.redo"
+platform = "pc"
+
 # ---- Hover-to-reveal file sidebar (Mod+\ is its keyboard twin). ----
 
 [[rule]]

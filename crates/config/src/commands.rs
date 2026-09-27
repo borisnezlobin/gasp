@@ -97,6 +97,17 @@ const fn spec(id: &'static str, title: &'static str, category: &'static str) -> 
     }
 }
 
+/// A command that only makes sense from its key, such as moving the cursor,
+/// so the palette leaves it out.
+const fn key_only(id: &'static str, title: &'static str, category: &'static str) -> CommandSpec {
+    CommandSpec {
+        id,
+        title,
+        category,
+        palette: false,
+    }
+}
+
 /// Every built-in command.
 pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("format.bold", "Toggle bold", "Formatting"),
@@ -195,6 +206,85 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("sync.now", "Sync now", "App"),
     spec("settings.open", "Open settings", "App"),
     spec("vault.open", "Open another vault", "App"),
+    key_only("cursor.left", "Move left", "Cursor"),
+    key_only("cursor.right", "Move right", "Cursor"),
+    key_only("cursor.up", "Move up", "Cursor"),
+    key_only("cursor.down", "Move down", "Cursor"),
+    key_only("cursor.word-left", "Move to the previous word", "Cursor"),
+    key_only("cursor.word-right", "Move to the next word", "Cursor"),
+    key_only(
+        "cursor.line-start",
+        "Move to the start of the line",
+        "Cursor",
+    ),
+    key_only("cursor.line-end", "Move to the end of the line", "Cursor"),
+    key_only(
+        "cursor.doc-start",
+        "Move to the start of the note",
+        "Cursor",
+    ),
+    key_only("cursor.doc-end", "Move to the end of the note", "Cursor"),
+    key_only("cursor.page-up", "Move up a page", "Cursor"),
+    key_only("cursor.page-down", "Move down a page", "Cursor"),
+    key_only("select.left", "Select left", "Cursor"),
+    key_only("select.right", "Select right", "Cursor"),
+    key_only("select.up", "Select up", "Cursor"),
+    key_only("select.down", "Select down", "Cursor"),
+    key_only("select.word-left", "Select to the previous word", "Cursor"),
+    key_only("select.word-right", "Select to the next word", "Cursor"),
+    key_only(
+        "select.line-start",
+        "Select to the start of the line",
+        "Cursor",
+    ),
+    key_only("select.line-end", "Select to the end of the line", "Cursor"),
+    key_only(
+        "select.doc-start",
+        "Select to the start of the note",
+        "Cursor",
+    ),
+    key_only("select.doc-end", "Select to the end of the note", "Cursor"),
+    key_only("select.page-up", "Select up a page", "Cursor"),
+    key_only("select.page-down", "Select down a page", "Cursor"),
+    spec("select.all", "Select all", "Editing"),
+    key_only(
+        "edit.delete-backward",
+        "Delete the previous character",
+        "Editing",
+    ),
+    key_only(
+        "edit.delete-forward",
+        "Delete the next character",
+        "Editing",
+    ),
+    key_only(
+        "edit.delete-word-backward",
+        "Delete the previous word",
+        "Editing",
+    ),
+    key_only(
+        "edit.delete-word-forward",
+        "Delete the next word",
+        "Editing",
+    ),
+    spec(
+        "edit.delete-to-line-start",
+        "Delete to the start of the line",
+        "Editing",
+    ),
+    spec(
+        "edit.delete-to-line-end",
+        "Delete to the end of the line",
+        "Editing",
+    ),
+    key_only("edit.newline", "New line", "Editing"),
+    spec("edit.indent", "Indent", "Editing"),
+    spec("edit.outdent", "Outdent", "Editing"),
+    spec("edit.undo", "Undo", "Editing"),
+    spec("edit.redo", "Redo", "Editing"),
+    spec("edit.copy", "Copy", "Editing"),
+    spec("edit.cut", "Cut", "Editing"),
+    spec("edit.paste", "Paste", "Editing"),
 ];
 
 /// A registered command's description.

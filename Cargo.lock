@@ -1808,6 +1808,7 @@ name = "editor-desktop"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "editor-config",
  "editor-core",
  "env_logger",
  "gpui",

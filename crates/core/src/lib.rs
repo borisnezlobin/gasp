@@ -4,6 +4,7 @@ pub mod commands;
 pub mod document;
 pub mod footnotes;
 pub mod history;
+pub mod motion;
 pub mod pipeline;
 pub mod render;
 pub mod steps;
