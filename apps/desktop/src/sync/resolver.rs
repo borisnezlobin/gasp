@@ -381,6 +381,8 @@ impl ConflictResolver {
             .flex()
             .flex_col()
             .gap(self.style.card_gap)
+            // Room for the current place's ring, which the scrolling clips.
+            .p(self.style.gap_xs)
             .children(cards)
             .into_any_element()
     }
@@ -438,7 +440,10 @@ impl ConflictResolver {
             .gap(style.control_gap)
             .p(style.gap_sm)
             .rounded(style.radius)
-            .when(ringed, |card| card.shadow(vec![style.focus()]))
+            // Opaque under the ring, which would otherwise fill the card in.
+            .when(ringed, |card| {
+                card.bg(style.background).shadow(vec![style.focus()])
+            })
             .children(context.map(|context| {
                 // Context orients; one line each is enough.
                 let lines = context
