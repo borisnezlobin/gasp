@@ -454,11 +454,11 @@ mod tests {
         assert_eq!(markup_prefix_len("## Heading"), 3);
         assert_eq!(markup_prefix_len("12. Twelfth"), 4);
         assert_eq!(markup_prefix_len("#tag here"), 0);
-        let hits = line_hits("- [ ] schedule the test", &[6..14]);
+        let hits = line_hits("- [ ] schedule the test", std::slice::from_ref(&(6..14)));
         assert_eq!(hits[0].excerpt, "schedule the test");
         assert_eq!(hits[0].ranges, vec![0..8]);
         // A match inside the markup keeps it.
-        let hits = line_hits("- [x] done", &[2..5]);
+        let hits = line_hits("- [x] done", std::slice::from_ref(&(2..5)));
         assert_eq!(hits[0].excerpt, "[x] done");
     }
 
