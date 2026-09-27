@@ -13,7 +13,9 @@ use editor_config::settings::TrashMode;
 use editor_desktop::file_tree::{FileTree, FileTreeEvent, FileTreeOptions, MenuItem};
 use editor_desktop::keymap::RunCommand;
 use editor_desktop::text_input;
-use gpui::{Entity, Focusable, Modifiers, TestAppContext, VisualTestContext};
+use gpui::{
+    Entity, Focusable, Modifiers, MouseButton, Pixels, TestAppContext, VisualTestContext, point, px,
+};
 use tempfile::TempDir;
 
 const FILES: &[(&str, &str)] = &[
@@ -499,4 +501,58 @@ fn outside_changes_refresh_the_tree(cx: &mut TestAppContext) {
         "the tree never showed the new note: {:?}",
         labels(&tree, cx)
     );
+}
+
+/// Where a row was last drawn. The list draws only rows in view, and a
+/// row keeps the place it was last drawn at after it scrolls away.
+fn row_top(cx: &mut VisualTestContext, row: &'static str) -> Option<Pixels> {
+    cx.run_until_parked();
+    cx.debug_bounds(row).map(|bounds| bounds.top())
+}
+
+/// Lets time pass with the pointer held still.
+fn hold(cx: &mut VisualTestContext) {
+    for _ in 0..20 {
+        cx.executor().advance_clock(Duration::from_millis(250));
+        cx.run_until_parked();
+    }
+}
+
+#[gpui::test]
+fn dragging_near_an_edge_scrolls_the_tree_until_the_drop(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    for n in 1..=120 {
+        fs::write(dir.path().join(format!("Note {n}.md")), "").unwrap();
+    }
+    let (_, cx, _) = open(cx, dir.path(), false);
+    let (first, last) = ("tree-row-Note 1", "tree-row-Note 120");
+    assert_eq!(row_top(cx, last), None, "the last note starts out of view");
+    let top = row_top(cx, first).expect("row is drawn");
+    let from = cx.debug_bounds("tree-row-Note 5").unwrap().center();
+    let height = cx.update(|window, _| window.viewport_size().height);
+    let (none, left) = (Modifiers::none(), MouseButton::Left);
+    let bottom = point(from.x, height - px(2.));
+    cx.simulate_mouse_down(from, left, none);
+    cx.simulate_mouse_move(from + point(px(0.), px(10.)), left, none);
+    // Held at the bottom edge, the tree keeps scrolling to its end.
+    cx.simulate_mouse_move(bottom, left, none);
+    hold(cx);
+    let end = row_top(cx, last).expect("the last note came into view");
+    assert!(end > height - px(60.), "scrolled all the way: {end:?}");
+    // Away from the edges it stays put.
+    cx.simulate_mouse_move(point(from.x, height / 2.), left, none);
+    hold(cx);
+    assert_eq!(row_top(cx, last), Some(end));
+    // At the top edge it goes back up.
+    cx.simulate_mouse_move(point(from.x, top + px(2.)), left, none);
+    hold(cx);
+    assert_eq!(row_top(cx, first), Some(top));
+    // Once dropped, the edge no longer scrolls it.
+    cx.simulate_mouse_move(bottom, left, none);
+    cx.simulate_mouse_up(bottom, left, none);
+    let settled = row_top(cx, first);
+    hold(cx);
+    cx.simulate_mouse_move(bottom - point(px(0.), px(1.)), None, none);
+    hold(cx);
+    assert_eq!(row_top(cx, first), settled);
 }

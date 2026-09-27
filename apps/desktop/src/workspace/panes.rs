@@ -192,10 +192,18 @@ impl Workspace {
         cx.notify();
     }
 
-    pub(crate) fn end_drag(&mut self, cx: &mut Context<Self>) {
-        if self.drag.take().is_some() {
-            cx.notify();
+    pub(crate) fn end_drag(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(drag) = self.drag.take() else {
+            return;
+        };
+        // Leaving the panel mid-resize was held back so it couldn't hide;
+        // the usual hide delay starts now if the pointer ended outside.
+        if drag == Drag::Sidebar
+            && let Some(kind) = self.left_panel.end_resize()
+        {
+            self.pointer_event(kind, super::sidebar::PANEL_TARGET, window, cx);
         }
+        cx.notify();
     }
 
     /// Follows the pointer while a divider or the sidebar edge is dragged.

@@ -6,6 +6,7 @@
 use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::time::Duration;
 
 use editor_config::Platform;
 use editor_desktop::actions::bind_keys;
@@ -16,8 +17,8 @@ use editor_desktop::vault_search::VaultSearch;
 use editor_desktop::workspace::help::ShortcutsHelp;
 use editor_desktop::workspace::{OpenIn, Workspace};
 use gpui::{
-    Entity, Focusable, Modifiers, MouseButton, MouseDownEvent, ScrollDelta, ScrollWheelEvent,
-    TestAppContext, VisualTestContext, point,
+    Entity, Focusable, Modifiers, MouseButton, MouseDownEvent, Pixels, ScrollDelta,
+    ScrollWheelEvent, TestAppContext, VisualTestContext, point, px,
 };
 use tempfile::TempDir;
 
@@ -540,4 +541,74 @@ fn the_vault_switcher_offers_another_vault(cx: &mut TestAppContext) {
         items.last().map(String::as_str),
         Some("Open another vault…")
     );
+}
+
+/// Reveals a hover sidebar over the note and puts the pointer in it.
+fn reveal_hover_sidebar(
+    cx: &mut TestAppContext,
+) -> (TempDir, Entity<Workspace>, &mut VisualTestContext) {
+    let vault = vault_with(&[("a.md", "A")]);
+    std::fs::write(
+        vault.path().join(".editor/settings.toml"),
+        "[sidebar.files]\nreveal = \"hover\"\nmode = \"overlay\"\n",
+    )
+    .unwrap();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    assert!(!panel_visible(&workspace, cx));
+    cx.simulate_mouse_move(point(px(1.), px(300.)), None, Modifiers::none());
+    cx.run_until_parked();
+    assert!(panel_visible(&workspace, cx));
+    cx.simulate_mouse_move(point(px(60.), px(300.)), None, Modifiers::none());
+    cx.run_until_parked();
+    (vault, workspace, cx)
+}
+
+fn panel_width(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Pixels {
+    cx.read(|cx| workspace.read(cx).left_panel().width)
+}
+
+/// Waits well past the hover sidebar's hide delay.
+fn wait_out_the_hide_delay(cx: &mut VisualTestContext) {
+    cx.executor().advance_clock(Duration::from_secs(1));
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn the_hover_sidebar_stays_while_its_edge_is_grabbed(cx: &mut TestAppContext) {
+    let (_vault, workspace, cx) = reveal_hover_sidebar(cx);
+    let none = Modifiers::none();
+    // Just past the panel, on the half of the grab strip over the note.
+    let grab = point(panel_width(&workspace, cx) + px(2.), px(300.));
+    cx.simulate_mouse_move(grab, None, none);
+    wait_out_the_hide_delay(cx);
+    assert!(panel_visible(&workspace, cx), "reaching for the edge");
+    // Resizing past the widest it goes leaves the pointer outside.
+    cx.simulate_mouse_down(grab, MouseButton::Left, none);
+    let far = point(px(900.), px(300.));
+    cx.simulate_mouse_move(far, MouseButton::Left, none);
+    wait_out_the_hide_delay(cx);
+    assert!(panel_visible(&workspace, cx), "while resizing");
+    assert!(panel_width(&workspace, cx) > grab.x);
+    // Letting go out there starts the usual hide.
+    cx.simulate_mouse_up(far, MouseButton::Left, none);
+    cx.run_until_parked();
+    assert!(panel_visible(&workspace, cx), "the hide waits its delay");
+    wait_out_the_hide_delay(cx);
+    assert!(!panel_visible(&workspace, cx), "after letting go outside");
+}
+
+#[gpui::test]
+fn a_resize_ending_inside_the_hover_sidebar_keeps_it(cx: &mut TestAppContext) {
+    let (_vault, workspace, cx) = reveal_hover_sidebar(cx);
+    let none = Modifiers::none();
+    let grab = point(panel_width(&workspace, cx), px(300.));
+    cx.simulate_mouse_down(grab, MouseButton::Left, none);
+    cx.simulate_mouse_move(point(px(900.), px(300.)), MouseButton::Left, none);
+    wait_out_the_hide_delay(cx);
+    let inside = point(px(300.), px(300.));
+    cx.simulate_mouse_move(inside, MouseButton::Left, none);
+    cx.simulate_mouse_up(inside, MouseButton::Left, none);
+    wait_out_the_hide_delay(cx);
+    assert!(panel_visible(&workspace, cx));
+    assert_eq!(panel_width(&workspace, cx), px(300.));
 }
