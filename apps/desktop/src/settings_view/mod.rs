@@ -18,6 +18,7 @@ mod menu;
 pub mod model;
 mod render;
 mod rows;
+pub mod snippet_editor;
 pub mod snippets_page;
 pub mod store;
 mod sync_page;

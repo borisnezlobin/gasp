@@ -12,7 +12,7 @@ use editor_config::{Config, ConfigLoader, Platform, RuleSet};
 use editor_desktop::EditorView;
 use editor_desktop::actions::bind_keys;
 use editor_desktop::keymap::editor_bindings;
-use editor_desktop::settings_view::snippets_page::EditorField;
+use editor_desktop::settings_view::snippet_editor::{EditorField, EditorStop, OptionControl};
 use editor_desktop::settings_view::{ControlRow, SettingsEvent, SettingsView};
 use editor_desktop::text_input;
 use gpui::{Entity, Focusable, TestAppContext, VisualTestContext};
@@ -444,14 +444,124 @@ fn a_mistake_is_pointed_out_and_nothing_is_written(cx: &mut TestAppContext) {
     let (view, cx, changed) = open_settings(cx, vault.path());
     focus_row(&view, cx, is_snippet("mk"));
     cx.simulate_keystrokes("enter");
-    type_into(&view, EditorField::Options, "text, sometimes", cx);
+    type_into(&view, EditorField::Expansion, "●1 ●", cx);
     let (_, problem, _) = view
         .read_with(cx, |view, cx| view.snippet_editor_state(cx))
         .unwrap();
-    assert!(problem.unwrap().starts_with("Unknown option `sometimes`"));
+    let problem = problem.expect("the problem is shown");
+    assert!(problem.contains("mix"), "{problem}");
     cx.simulate_keystrokes("enter");
     assert_eq!(snippets_file(&vault), before);
     assert!(changed.borrow().is_empty());
+}
+
+fn editor_line(view: &Entity<SettingsView>, cx: &mut VisualTestContext) -> String {
+    view.read_with(cx, |view, cx| view.snippet_editor_state(cx))
+        .expect("the editor is open")
+        .0
+}
+
+fn editor_stop(view: &Entity<SettingsView>, cx: &mut VisualTestContext) -> Option<EditorStop> {
+    let view = view.clone();
+    cx.update(|window, cx| view.read(cx).snippet_editor_stop(window, cx))
+}
+
+#[gpui::test]
+fn where_and_when_are_controls_the_keyboard_reaches(cx: &mut TestAppContext) {
+    let vault = migrated_vault();
+    let (view, cx, _) = open_settings(cx, vault.path());
+    focus_row(&view, cx, is_snippet("mk"));
+    cx.simulate_keystrokes("enter");
+    assert_eq!(editor_line(&view, cx), "mk → $●$  text, instant");
+    cx.simulate_keystrokes("tab tab");
+    assert_eq!(
+        editor_stop(&view, cx),
+        Some(EditorStop::Control(OptionControl::Place))
+    );
+    cx.simulate_keystrokes("right");
+    assert_eq!(editor_line(&view, cx), "mk → $●$  math, instant");
+    cx.simulate_keystrokes("left left");
+    assert_eq!(editor_line(&view, cx), "mk → $●$  anywhere, instant");
+    cx.simulate_keystrokes("tab right");
+    assert_eq!(editor_line(&view, cx), "mk → $●$  anywhere");
+    cx.simulate_keystrokes("tab space tab space");
+    assert_eq!(
+        editor_line(&view, cx),
+        "mk → $●$  anywhere, whole word, after space"
+    );
+    cx.simulate_keystrokes("tab");
+    assert_eq!(
+        editor_stop(&view, cx),
+        Some(EditorStop::Field(EditorField::Test))
+    );
+    cx.simulate_keystrokes("shift-tab space");
+    assert_eq!(editor_line(&view, cx), "mk → $●$  anywhere, whole word");
+    cx.simulate_keystrokes("shift-tab shift-tab");
+    assert_eq!(
+        editor_stop(&view, cx),
+        Some(EditorStop::Control(OptionControl::Fire))
+    );
+    cx.simulate_keystrokes("enter");
+    let file = snippets_file(&vault);
+    assert!(
+        file.lines().any(|line| line.starts_with("mk ")
+            && line.contains("→ $●$")
+            && line.ends_with("  anywhere, whole word")),
+        "Enter on a control saves: {}",
+        file.lines().find(|l| l.starts_with("mk ")).unwrap_or("")
+    );
+}
+
+#[gpui::test]
+fn the_try_it_box_follows_the_controls(cx: &mut TestAppContext) {
+    let vault = migrated_vault();
+    let (view, cx, _) = open_settings(cx, vault.path());
+    focus_row(&view, cx, is_snippet("mk"));
+    cx.simulate_keystrokes("enter");
+    type_into(&view, EditorField::Test, "a mk", cx);
+    let result = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |view, cx| view.snippet_editor_state(cx))
+            .and_then(|(_, _, result)| result)
+            .expect("the box shows a result")
+    };
+    assert_eq!(result(cx).text, "a $$");
+    view.update(cx, |view, cx| {
+        view.set_snippet_fire(editor_snippets::Fire::OnTab, cx)
+    });
+    let now = result(cx);
+    assert!(now.tab, "on Tab, the box presses Tab after the text");
+    assert_eq!(now.text, "a $$");
+}
+
+#[gpui::test]
+fn an_editor_opened_low_on_a_long_page_scrolls_into_view(cx: &mut TestAppContext) {
+    let vault = migrated_vault();
+    let (view, cx, _) = open_settings(cx, vault.path());
+    let last = rows(&view, cx)
+        .iter()
+        .rposition(|row| matches!(row, ControlRow::Snippet(_)))
+        .unwrap();
+    view.update_in(cx, |view, window, cx| view.focus_control(last, window, cx));
+    cx.run_until_parked();
+    cx.simulate_keystrokes("enter");
+    assert!(
+        view.read_with(cx, |view, cx| view.snippet_editor_state(cx))
+            .is_some(),
+        "the editor opens"
+    );
+    cx.run_until_parked();
+    let editor = cx
+        .debug_bounds("snippet-place")
+        .expect("the editor is drawn");
+    let buttons = cx
+        .debug_bounds("save-snippet")
+        .expect("its buttons are drawn");
+    let window = cx.update(|window, _| window.viewport_size());
+    assert!(editor.top() >= gpui::px(0.), "{editor:?}");
+    assert!(
+        buttons.bottom() <= window.height,
+        "{buttons:?} in {window:?}"
+    );
 }
 
 #[gpui::test]

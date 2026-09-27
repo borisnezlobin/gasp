@@ -11,20 +11,15 @@ use std::path::{Path, PathBuf};
 
 use editor_config::loader::CONFIG_DIR;
 use editor_snippets::{
-    FileLine, InputContext, Preview, ReplacementFire, Replacements, STOP_GLYPH, Scope, Snippet,
-    SnippetEngine, SnippetFile, format_expansion, format_options, format_trigger, parse_snippet,
-    preview,
+    FileLine, InputContext, ReplacementFire, Replacements, Scope, Snippet, SnippetFile,
+    format_expansion, format_trigger,
 };
-use gpui::{
-    AnyElement, AppContext, ClickEvent, Context, Entity, Focusable, Keystroke, SharedString,
-    Subscription, Window, div, prelude::*,
-};
+use gpui::{AnyElement, ClickEvent, Context, SharedString, div, prelude::*};
 
-use super::controls::{button, control_note, field_box, toggle_switch};
+use super::controls::{button, toggle_switch};
 use super::model::words_match;
 use super::store;
-use super::view::{ControlRow, PaneLayout, SettingsEvent, SettingsFocus, SettingsView};
-use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
+use super::view::{ControlRow, PaneLayout, SettingsEvent, SettingsView};
 
 pub const SNIPPETS_FILE: &str = "snippets.txt";
 pub const REPLACEMENTS_FILE: &str = "replacements.toml";
@@ -178,7 +173,7 @@ fn scope_name(scope: Scope) -> String {
 }
 
 /// Where a snippet is tried in the test box: its first place.
-fn test_context(snippet: &Snippet) -> (InputContext, bool) {
+pub(super) fn test_context(snippet: &Snippet) -> (InputContext, bool) {
     match snippet.options.scopes.first() {
         Some(Scope::Context(context)) => (*context, false),
         Some(Scope::InlineMath) => (InputContext::Math, false),
@@ -253,75 +248,14 @@ fn replacement_when(entry: &editor_snippets::Replacement) -> String {
     }
 }
 
-fn capitalised(text: &str) -> String {
+pub(super) fn capitalised(text: &str) -> String {
     let mut chars = text.chars();
     chars.next().map_or_else(String::new, |first| {
         first.to_uppercase().chain(chars).collect()
     })
 }
 
-/// A field of the snippet editor.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EditorField {
-    Trigger,
-    Expansion,
-    Options,
-    Test,
-}
-
-impl EditorField {
-    const ALL: [EditorField; 4] = [
-        EditorField::Trigger,
-        EditorField::Expansion,
-        EditorField::Options,
-        EditorField::Test,
-    ];
-}
-
-/// The snippet open in the editor.
-pub struct SnippetEditor {
-    /// The snippet's line in the file, or `None` for a new one.
-    pub line: Option<usize>,
-    fields: [Entity<TextInput>; 4],
-    /// What's wrong with the snippet as written, and in which field.
-    pub problem: Option<(EditorField, String)>,
-    /// What typing the test text gives.
-    pub result: Option<Preview>,
-    _subscriptions: Vec<Subscription>,
-}
-
-impl SnippetEditor {
-    pub fn field(&self, field: EditorField) -> &Entity<TextInput> {
-        &self.fields[field as usize]
-    }
-}
-
 impl SettingsView {
-    /// The snippet open in the editor as one line of the file, what's
-    /// wrong with it, and what typing the test text gives.
-    pub fn snippet_editor_state(
-        &self,
-        cx: &gpui::App,
-    ) -> Option<(String, Option<String>, Option<Preview>)> {
-        let editor = self.snippet_editor.as_ref()?;
-        let text = |field: EditorField| editor.field(field).read(cx).text().to_string();
-        let line = format!(
-            "{} → {}  {}",
-            text(EditorField::Trigger),
-            text(EditorField::Expansion),
-            text(EditorField::Options)
-        );
-        let problem = editor.problem.as_ref().map(|(_, message)| message.clone());
-        Some((line, problem, editor.result.clone()))
-    }
-
-    /// The editor's field, for tests and for focusing it.
-    pub fn snippet_field(&self, field: EditorField) -> Option<Entity<TextInput>> {
-        self.snippet_editor
-            .as_ref()
-            .map(|editor| editor.field(field).clone())
-    }
-
     // ---- Rows ----
 
     /// The page's rows after its setting cards: the snippets and then the
@@ -366,7 +300,7 @@ impl SettingsView {
         }
     }
 
-    fn editing_line(&self) -> Option<usize> {
+    pub(super) fn editing_line(&self) -> Option<usize> {
         self.snippet_editor.as_ref().and_then(|editor| editor.line)
     }
 
@@ -508,7 +442,7 @@ impl SettingsView {
         true
     }
 
-    fn save_snippets(&mut self, file: SnippetFile, cx: &mut Context<Self>) -> bool {
+    pub(super) fn save_snippets(&mut self, file: SnippetFile, cx: &mut Context<Self>) -> bool {
         if !self.can_write(SNIPPETS_KEY, cx) {
             return false;
         }
@@ -557,392 +491,11 @@ impl SettingsView {
         cx.notify();
         saved
     }
-
-    // ---- The editor ----
-
-    /// Opens the editor on the snippet at `line`, or on a new one.
-    pub fn open_snippet_editor(
-        &mut self,
-        line: Option<usize>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let snippet = line.and_then(|line| match self.typing_lists.snippets.lines.get(line) {
-            Some(FileLine::Snippet(snippet)) => Some(snippet.clone()),
-            _ => None,
-        });
-        let texts = match &snippet {
-            Some(snippet) => [
-                format_trigger(&snippet.trigger),
-                format_expansion(snippet),
-                format_options(&snippet.options),
-                snippet.trigger.literal().unwrap_or_default().to_string(),
-            ],
-            None => [
-                String::new(),
-                String::new(),
-                "math, instant".to_string(),
-                String::new(),
-            ],
-        };
-        let placeholders = ["mk", "\\frac{●}{●}●", "math, instant", "Type to try it"];
-        let code_font = self.style.code_font_family.clone();
-        let fields: [Entity<TextInput>; 4] = std::array::from_fn(|at| {
-            let font = (at != EditorField::Options as usize).then(|| code_font.clone());
-            let field = cx.new(|cx| {
-                let input = TextInput::new(window, cx)
-                    .with_placeholder(placeholders[at])
-                    .with_style(TextInputStyle::Query);
-                match &font {
-                    Some(font) => input.with_font_family(font.clone()),
-                    None => input,
-                }
-            });
-            field.update(cx, |field, cx| field.set_text(&texts[at], cx));
-            field
-        });
-        let subscriptions = EditorField::ALL
-            .iter()
-            .map(|which| {
-                let which = *which;
-                cx.subscribe_in(
-                    &fields[which as usize],
-                    window,
-                    move |view, _, event: &TextInputEvent, window, cx| {
-                        view.on_editor_event(which, event, window, cx)
-                    },
-                )
-            })
-            .collect();
-        window.focus(&fields[0].focus_handle(cx));
-        self.snippet_editor = Some(SnippetEditor {
-            line,
-            fields,
-            problem: None,
-            result: None,
-            _subscriptions: subscriptions,
-        });
-        self.error = None;
-        self.check_snippet(cx);
-        self.invalidate_layouts();
-        if let Some(index) = self
-            .layout()
-            .rows
-            .iter()
-            .position(|row| *row == ControlRow::SnippetEditor)
-        {
-            self.focus = SettingsFocus::Control(index);
-            self.reveal_row(index, cx);
-        }
-        cx.notify();
-    }
-
-    fn on_editor_event(
-        &mut self,
-        _which: EditorField,
-        event: &TextInputEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        match event {
-            TextInputEvent::Changed => self.check_snippet(cx),
-            TextInputEvent::Submitted => self.save_snippet(window, cx),
-            TextInputEvent::Cancelled => self.close_snippet_editor(window, cx),
-            TextInputEvent::Blurred => {}
-        }
-    }
-
-    /// The editor's fields as one snippet line.
-    fn editor_line(&self, cx: &Context<Self>) -> Option<(String, [usize; 3])> {
-        let editor = self.snippet_editor.as_ref()?;
-        let text = |field: EditorField| editor.field(field).read(cx).text().to_string();
-        let trigger = text(EditorField::Trigger);
-        let expansion = text(EditorField::Expansion);
-        let options = text(EditorField::Options);
-        // Where each field starts in the line, in characters, to point an
-        // error at the right one.
-        let starts = [
-            0,
-            trigger.chars().count() + 3,
-            trigger.chars().count() + expansion.chars().count() + 5,
-        ];
-        Some((format!("{trigger} → {expansion}  {options}"), starts))
-    }
-
-    /// Parses the snippet as written and tries it on the test text.
-    fn check_snippet(&mut self, cx: &mut Context<Self>) {
-        let Some((line, starts)) = self.editor_line(cx) else {
-            return;
-        };
-        let parsed = parse_snippet(&line);
-        let test = self
-            .snippet_editor
-            .as_ref()
-            .map(|editor| editor.field(EditorField::Test).read(cx).text().to_string())
-            .unwrap_or_default();
-        let Some(editor) = self.snippet_editor.as_mut() else {
-            return;
-        };
-        match parsed {
-            Ok(snippet) => {
-                let (context, block) = test_context(&snippet);
-                editor.problem = None;
-                editor.result = SnippetEngine::new(vec![snippet])
-                    .ok()
-                    .map(|engine| preview(&engine, &test, context, block));
-            }
-            Err(error) => {
-                let field = match starts.iter().rposition(|start| error.column > *start) {
-                    Some(0) | None => EditorField::Trigger,
-                    Some(1) => EditorField::Expansion,
-                    Some(_) => EditorField::Options,
-                };
-                editor.problem = Some((field, capitalised(&error.message)));
-                editor.result = None;
-            }
-        }
-        cx.notify();
-    }
-
-    /// Writes the snippet in the editor into the file and closes it.
-    pub fn save_snippet(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some((line, _)) = self.editor_line(cx) else {
-            return;
-        };
-        let Ok(snippet) = parse_snippet(&line) else {
-            self.check_snippet(cx);
-            return;
-        };
-        let mut file = self.typing_lists.snippets.clone();
-        match self.editing_line() {
-            Some(at) => file.lines[at] = FileLine::Snippet(snippet),
-            None => add_snippet(&mut file, snippet),
-        }
-        if self.save_snippets(file, cx) {
-            self.close_snippet_editor(window, cx);
-        }
-    }
-
-    /// Removes the snippet in the editor from the file.
-    pub fn delete_snippet(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(line) = self.editing_line() else {
-            self.close_snippet_editor(window, cx);
-            return;
-        };
-        let mut file = self.typing_lists.snippets.clone();
-        file.lines.remove(line);
-        if self.save_snippets(file, cx) {
-            self.close_snippet_editor(window, cx);
-        }
-    }
-
-    pub fn close_snippet_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let line = self.editing_line();
-        self.snippet_editor = None;
-        self.invalidate_layouts();
-        let back = self.layout().rows.iter().position(|row| match row {
-            ControlRow::Snippet(row) => Some(row.line) == line,
-            ControlRow::SnippetsFile => line.is_none(),
-            _ => false,
-        });
-        match back {
-            Some(index) => self.set_focus(SettingsFocus::Control(index), window, cx),
-            None => window.focus(&self.focus_handle),
-        }
-        cx.notify();
-    }
-
-    /// Puts a tab stop at the cursor in the expansion field.
-    fn insert_stop(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(editor) = self.snippet_editor.as_ref() else {
-            return;
-        };
-        let field = editor.field(EditorField::Expansion).clone();
-        field.update(cx, |field, cx| {
-            let range = field.selected_range();
-            field.replace(range, &STOP_GLYPH.to_string(), cx);
-        });
-        window.focus(&field.focus_handle(cx));
-        self.check_snippet(cx);
-    }
-
-    /// Tab and Shift+Tab move between the editor's fields.
-    pub(super) fn snippet_editor_key(
-        &mut self,
-        keystroke: &Keystroke,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> bool {
-        let Some(editor) = self.snippet_editor.as_ref() else {
-            return false;
-        };
-        let focused = EditorField::ALL
-            .iter()
-            .position(|field| editor.field(*field).focus_handle(cx).is_focused(window));
-        let Some(at) = focused else {
-            return false;
-        };
-        if keystroke.key != "tab" || keystroke.modifiers.control || keystroke.modifiers.platform {
-            return false;
-        }
-        let step = if keystroke.modifiers.shift { 3 } else { 1 };
-        let next = EditorField::ALL[(at + step) % EditorField::ALL.len()];
-        window.focus(&editor.field(next).focus_handle(cx));
-        true
-    }
-
-    /// The editor, drawn in place of a row: the three parts of a snippet,
-    /// a box to try it in, and the buttons that save or drop it.
-    pub(super) fn render_snippet_editor(
-        &self,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let Some(editor) = self.snippet_editor.as_ref() else {
-            return div().into_any_element();
-        };
-        let style = &self.style;
-        let stop = button("insert-stop", "Add a tab stop ●", false, false, style)
-            .debug_selector(|| "insert-stop".to_string())
-            .on_click(cx.listener(|view, _: &ClickEvent, window, cx| view.insert_stop(window, cx)));
-        let labelled = |field: EditorField, label: &str, extra: Option<AnyElement>| {
-            let input = editor.field(field);
-            let focused = input.focus_handle(cx).is_focused(window);
-            let note = editor
-                .problem
-                .as_ref()
-                .filter(|(at, _)| *at == field)
-                .map(|(_, message)| control_note(message.clone(), style));
-            div()
-                .flex()
-                .flex_col()
-                .gap(style.gap_sm)
-                .child(
-                    div()
-                        .text_size(style.small_text_size)
-                        .text_color(style.text_muted)
-                        .child(label.to_string()),
-                )
-                .child(
-                    div()
-                        .relative()
-                        .flex()
-                        .items_center()
-                        .gap(style.control_gap)
-                        .child(field_box(input.clone(), None, focused, style).flex_1())
-                        .children(extra)
-                        .children(note),
-                )
-        };
-        div()
-            .debug_selector(|| "snippet-editor".to_string())
-            .w_full()
-            .flex()
-            .flex_col()
-            .gap(style.control_gap)
-            .child(labelled(EditorField::Trigger, "What you type", None))
-            .child(labelled(
-                EditorField::Expansion,
-                "What it becomes. ● marks a tab stop, ␣ a space and ⏎ a new line.",
-                Some(stop.into_any_element()),
-            ))
-            .child(labelled(
-                EditorField::Options,
-                "Where and when: anywhere, text or math; instant or on tab; whole word, after space, off.",
-                None,
-            ))
-            .child(labelled(EditorField::Test, "Try it", None))
-            .child(self.render_test_result(editor))
-            .child(self.render_editor_buttons(editor, cx))
-            .into_any_element()
-    }
-
-    /// What typing the test text gives, with the cursor where it ends up.
-    fn render_test_result(&self, editor: &SnippetEditor) -> AnyElement {
-        let style = &self.style;
-        let caption = match &editor.result {
-            _ if editor.problem.is_some() => "Fix the snippet to try it.",
-            None => "Type in the box above to see what it becomes.",
-            Some(result) if result.expansions == 0 => "It doesn't fire on this text.",
-            Some(result) if result.tab => "With Tab pressed after it, that gives",
-            Some(_) => "That gives",
-        };
-        let shown = editor
-            .result
-            .as_ref()
-            .filter(|result| result.expansions > 0)
-            .map(|result| {
-                let (before, after) = result.text.split_at(result.caret);
-                div()
-                    .debug_selector(|| "snippet-test-result".to_string())
-                    .flex()
-                    .items_center()
-                    .font_family(style.code_font_family.clone())
-                    .child(before.to_string())
-                    .child(
-                        div()
-                            .w(style.hairline * 2.)
-                            .h(style.small_icon_size)
-                            .bg(style.text),
-                    )
-                    .child(after.to_string())
-            });
-        div()
-            .flex()
-            .flex_wrap()
-            .items_center()
-            .gap(style.control_gap)
-            .child(
-                div()
-                    .text_size(style.small_text_size)
-                    .text_color(style.text_muted)
-                    .child(caption),
-            )
-            .children(shown)
-            .into_any_element()
-    }
-
-    fn render_editor_buttons(&self, editor: &SnippetEditor, cx: &mut Context<Self>) -> AnyElement {
-        let style = &self.style;
-        let delete = editor.line.map(|_| {
-            button("delete-snippet", "Delete snippet", false, false, style)
-                .debug_selector(|| "delete-snippet".to_string())
-                .on_click(
-                    cx.listener(|view, _: &ClickEvent, window, cx| view.delete_snippet(window, cx)),
-                )
-        });
-        let cancel = button("cancel-snippet", "Cancel", false, false, style)
-            .debug_selector(|| "cancel-snippet".to_string())
-            .on_click(cx.listener(|view, _: &ClickEvent, window, cx| {
-                view.close_snippet_editor(window, cx)
-            }));
-        let save = button("save-snippet", "Save", true, false, style)
-            .debug_selector(|| "save-snippet".to_string())
-            .on_click(
-                cx.listener(|view, _: &ClickEvent, window, cx| view.save_snippet(window, cx)),
-            );
-        let error = self
-            .error
-            .as_ref()
-            .filter(|(key, _)| key == SNIPPETS_KEY)
-            .map(|(_, message)| control_note(message.clone(), style));
-        div()
-            .relative()
-            .flex()
-            .items_center()
-            .gap(style.control_gap)
-            .children(delete)
-            .child(div().flex_1())
-            .child(cancel)
-            .child(save)
-            .children(error)
-            .into_any_element()
-    }
 }
 
 /// Adds `snippet` at the end of the group new snippets go in, starting
 /// the group when there isn't one yet.
-fn add_snippet(file: &mut SnippetFile, snippet: Snippet) {
+pub(super) fn add_snippet(file: &mut SnippetFile, snippet: Snippet) {
     let heading = FileLine::Comment(ADDED_GROUP.to_string());
     if let Some(at) = file.lines.iter().position(|line| *line == heading) {
         let end = file.lines[at + 1..]
@@ -962,6 +515,7 @@ fn add_snippet(file: &mut SnippetFile, snippet: Snippet) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use editor_snippets::parse_snippet;
 
     const FILE: &str = "\
 # Migrated from Latex Suite.

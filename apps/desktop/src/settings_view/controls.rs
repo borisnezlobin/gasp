@@ -198,6 +198,59 @@ pub fn choice_button(
         .child(label.into())
 }
 
+/// One option of a [`segmented`] control. The chosen one is raised out
+/// of the track; the others are its text alone.
+pub fn segment(
+    id: impl Into<ElementId>,
+    label: impl Into<SharedString>,
+    chosen: bool,
+    style: &SettingsTheme,
+) -> Stateful<Div> {
+    let text = style.text;
+    div()
+        .id(id)
+        .flex_none()
+        .h_full()
+        .flex()
+        .items_center()
+        .px(style.control_padding_x)
+        .rounded(style.radius - style.segment_inset)
+        .whitespace_nowrap()
+        .cursor_pointer()
+        .map(|segment| match chosen {
+            true => segment
+                .bg(style.control_background)
+                .text_color(text)
+                .shadow(vec![style.outline(), style.lift()]),
+            false => segment
+                .text_color(style.text_muted)
+                .hover(move |segment| segment.text_color(text)),
+        })
+        .child(label.into())
+}
+
+/// Two or three choices side by side in one track, such as where a
+/// snippet works. Left and right move the choice; the caller wires them.
+pub fn segmented(
+    id: impl Into<ElementId>,
+    segments: impl IntoIterator<Item = Stateful<Div>>,
+    focused: bool,
+    style: &SettingsTheme,
+) -> Stateful<Div> {
+    let track = div()
+        .id(id)
+        .flex_none()
+        .h(style.control_height)
+        .p(style.segment_inset)
+        .flex()
+        .items_center()
+        .gap(style.segment_inset)
+        .rounded(style.radius)
+        .bg(style.segment_track)
+        .children(segments);
+    with_focus(track, focused, style)
+}
+
 /// A button that can't be pressed right now: the same shape, with its
 /// label faded and no hover.
 pub fn inert_button(
