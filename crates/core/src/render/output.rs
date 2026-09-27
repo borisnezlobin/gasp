@@ -207,6 +207,9 @@ pub enum WidgetKind {
         side: ConflictSide,
     },
     LineBreak,
+    /// The `#` between a wikilink's note and its heading or block, drawn
+    /// as `›` so `[[Waves#Questions]]` reads "Waves › Questions".
+    SubpathSeparator,
     /// A Link Embed `embed` block drawn as a card.
     LinkCard(crate::link_card::LinkCard),
 }

@@ -42,6 +42,9 @@ pub struct Prepainted {
     copy_button: Option<(CopyButton, Hitbox)>,
     /// Where the marker of the task under the pointer starts.
     hovered_task: Option<usize>,
+    /// The line of the link card under the pointer, and whether the
+    /// pointer is on its Open button.
+    hovered_card: Option<(usize, bool)>,
 }
 
 impl IntoElement for EditorElement {
@@ -142,6 +145,7 @@ impl Element for EditorElement {
                 theme: view.theme.clone(),
                 copy_button,
                 hovered_task: view.hovered_task,
+                hovered_card: view.hovered_card,
             }
         })
     }
@@ -246,6 +250,7 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
         text_left: frame.text_left,
         theme,
         hovered_task: prepainted.hovered_task,
+        hovered_card: prepainted.hovered_card,
     };
     for placed in &frame.lines {
         paint_line(placed, &context, window, cx);
@@ -362,9 +367,10 @@ fn paint_surfaces(frame: &FrameLayout, theme: &Theme, window: &mut Window) {
                 .find(|run| same_block(surface, &run.surface))
             {
                 Some(run) => run.bottom = placed.bottom(),
+                // A block starting here keeps its margin outside its fill.
                 None => open.push(OpenSurface {
                     surface: surface.clone(),
-                    top: placed.top,
+                    top: placed.top + placed.visual.decor.margin_top,
                     bottom: placed.bottom(),
                 }),
             }
@@ -493,18 +499,39 @@ struct PaintContext<'a> {
     text_left: Pixels,
     theme: &'a Theme,
     hovered_task: Option<usize>,
+    hovered_card: Option<(usize, bool)>,
 }
 
 fn paint_line(placed: &PlacedLine, context: &PaintContext<'_>, window: &mut Window, cx: &mut App) {
+    let card = context
+        .hovered_card
+        .filter(|(line, _)| *line == placed.visual.line);
     for row in &placed.visual.rows {
         let row_top = placed.top + row.top;
         for piece in &row.pieces {
-            paint_piece(piece, context, row_top, window, cx);
+            if !matches!(piece.hit, Hit::Link { .. }) {
+                paint_piece(piece, context, row_top, window, cx);
+            } else if let Some((_, on_button)) = card {
+                let piece = open_button_piece(piece, on_button, context.theme);
+                paint_piece(&piece, context, row_top, window, cx);
+            }
         }
     }
     for piece in &placed.visual.decor.gutter {
         paint_piece(piece, context, placed.top, window, cx);
     }
+}
+
+/// A piece of a link card's Open button, darker under the pointer as a
+/// code block's copy button is.
+fn open_button_piece(piece: &Piece, on_button: bool, theme: &Theme) -> Piece {
+    let mut piece = piece.clone();
+    match &mut piece.content {
+        PieceContent::Quad { color, .. } if on_button => *color = theme.divider,
+        PieceContent::Icon { color, .. } if on_button => *color = theme.text,
+        _ => {}
+    }
+    piece
 }
 
 /// A task's box: an outline that darkens under the pointer, filled with

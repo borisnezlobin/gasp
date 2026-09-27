@@ -100,6 +100,7 @@ fn replacement_item(range: Range<usize>, kind: WidgetKind) -> Item {
         | WidgetKind::ListBullet { .. }
         | WidgetKind::FootnoteSuperscript { .. }
         | WidgetKind::ConflictLabel { .. }
+        | WidgetKind::SubpathSeparator
         | WidgetKind::CalloutHeader { .. } => Item::Inline { range, kind },
         _ => Item::Block { range, kind },
     }

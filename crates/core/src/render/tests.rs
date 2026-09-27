@@ -700,6 +700,25 @@ fn wikilink_target_shows_with_cursor() {
 }
 
 #[test]
+fn wikilink_headings_read_as_note_then_heading() {
+    check(
+        "[[Waves#Questions]] [[Waves#^ab12]] [[#Local]] [[Waves#Q|shown]]\n‸",
+        &element(),
+        &[
+            "{link:Waves}⟦subpathseparator⟧{link:Questions} {link:Waves}⟦subpathseparator⟧{link:^ab12} {link:Local} {link:shown}",
+            "",
+        ],
+    );
+    check(
+        "[[Waves#Ques‸tions]]",
+        &element(),
+        &[
+            "{link,markup-dimmed:[[}{link:Waves}{link,markup-dimmed:#}{link:Questions}{link,markup-dimmed:]]}",
+        ],
+    );
+}
+
+#[test]
 fn footnote_reference_becomes_superscript() {
     check(
         "text[^1] more\n\n[^1]: the note‸",

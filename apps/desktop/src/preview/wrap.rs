@@ -311,6 +311,20 @@ impl GlyphPositions {
     }
 }
 
+/// The width of the widest word in shaped `text`: the narrowest it can
+/// wrap to without breaking inside a word.
+pub fn widest_word(shaped: &ShapedLine, text: &str) -> Pixels {
+    let positions = GlyphPositions::new(shaped);
+    let mut start = 0;
+    let mut widest = px(0.);
+    for end in break_points(text) {
+        let width = positions.x_at(trim_end(text, start, end)) - positions.x_at(start);
+        widest = widest.max(width);
+        start = end;
+    }
+    widest
+}
+
 /// Offsets where a new word starts after whitespace.
 pub fn break_points(text: &str) -> Vec<usize> {
     let mut points = Vec::new();

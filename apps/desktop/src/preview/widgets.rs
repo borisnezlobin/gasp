@@ -97,6 +97,7 @@ impl LineLayouter<'_, '_> {
             } => self.bullet(range, ordered.then_some(number.unwrap_or(1)), builder),
             WidgetKind::FootnoteSuperscript { label } => self.superscript(range, label, builder),
             WidgetKind::ConflictLabel { side } => self.conflict_label(range, *side, builder),
+            WidgetKind::SubpathSeparator => self.subpath_separator(range, builder),
             WidgetKind::CalloutHeader {
                 kind,
                 title,
@@ -269,6 +270,24 @@ impl LineLayouter<'_, '_> {
         extent.descent -= raise;
         piece.range = range.clone();
         piece.width += theme.space_xs;
+        builder.push_atomic(piece, extent);
+    }
+
+    /// The `›` between a wikilink's note and heading, set in the link's
+    /// own style so it reads as part of the link.
+    fn subpath_separator(&mut self, range: &Range<usize>, builder: &mut RowBuilder) {
+        let at = self.absolute(range).start;
+        let styles = self
+            .plan
+            .runs
+            .iter()
+            .find(|run| run.range.contains(&at))
+            .map(|run| run.styles.clone())
+            .unwrap_or_default();
+        let run = text_run(1, &styles, &self.tone, false, self.theme());
+        let (mut piece, extent) =
+            self.label(" \u{203a} ", run, self.font_size(), self.line_height());
+        piece.range = range.clone();
         builder.push_atomic(piece, extent);
     }
 
