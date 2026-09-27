@@ -163,6 +163,10 @@ fn holding_mod_shows_the_shortcuts_for_where_the_keyboard_is(cx: &mut TestAppCon
     cx.executor().advance_clock(HOLD_DELAY);
     cx.run_until_parked();
     assert_eq!(sheet(cx), Some(FocusArea::Editor));
+    assert!(
+        cx.debug_bounds("shortcut-sheet-palette").is_some(),
+        "it leads with the command palette"
+    );
     cx.simulate_modifiers_change(Modifiers::none());
     cx.run_until_parked();
     assert_eq!(sheet(cx), None, "letting go hides it");

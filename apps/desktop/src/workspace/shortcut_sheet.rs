@@ -387,8 +387,16 @@ impl Workspace {
             .gap(ui.space_md)
             .child(
                 div()
-                    .text_size(ui.font_size + gpui::px(2.))
-                    .child(area.title()),
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .gap(ui.space_xl)
+                    .child(
+                        div()
+                            .text_size(ui.font_size + gpui::px(2.))
+                            .child(area.title()),
+                    )
+                    .children(palette_hint(&ui, cx)),
             )
             .child(
                 div()
@@ -413,6 +421,24 @@ impl Workspace {
                 .into_any_element(),
         )
     }
+}
+
+/// Every command, keyed or not, is in the palette: the sheet leads with
+/// how to open it.
+fn palette_hint(ui: &UiTheme, cx: &App) -> Option<AnyElement> {
+    let key = shortcut("palette.open", cx)?;
+    Some(
+        div()
+            .debug_selector(|| "shortcut-sheet-palette".to_owned())
+            .flex_none()
+            .flex()
+            .items_center()
+            .gap(ui.space_sm)
+            .text_color(ui.text_muted)
+            .child(command_title("palette.open"))
+            .child(crate::ui::keycap::keycap(key, &ui.keycap))
+            .into_any_element(),
+    )
 }
 
 fn render_line(line: SheetLine<'_>, ui: &UiTheme) -> AnyElement {
