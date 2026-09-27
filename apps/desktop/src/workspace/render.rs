@@ -160,11 +160,13 @@ impl Workspace {
             .child(self.render_sidebar_footer(cx))
             .child(self.render_panel_edge(cx));
         let panel = if overlays {
+            // Covers the note, so the wheel and pointer stop here.
             panel
                 .absolute()
                 .top_0()
                 .left_0()
                 .bottom_0()
+                .occlude()
                 .shadow(vec![gpui::BoxShadow {
                     color: ui.overlay_shadow,
                     offset: gpui::point(theme.shadow_offset / 2., gpui::px(0.)),

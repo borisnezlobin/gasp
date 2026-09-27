@@ -16,7 +16,8 @@ use editor_desktop::vault_search::VaultSearch;
 use editor_desktop::workspace::help::ShortcutsHelp;
 use editor_desktop::workspace::{OpenIn, Workspace};
 use gpui::{
-    Entity, Focusable, Modifiers, MouseButton, MouseDownEvent, TestAppContext, VisualTestContext,
+    Entity, Focusable, Modifiers, MouseButton, MouseDownEvent, ScrollDelta, ScrollWheelEvent,
+    TestAppContext, VisualTestContext, point,
 };
 use tempfile::TempDir;
 
@@ -173,6 +174,37 @@ fn the_sidebar_button_moves_to_the_tab_bar_while_hidden(cx: &mut TestAppContext)
             .show_sidebar_toggle
     });
     assert!(!shown);
+}
+
+#[gpui::test]
+fn the_wheel_over_a_sidebar_on_the_note_scrolls_only_the_sidebar(cx: &mut TestAppContext) {
+    let long = "A line of the note.\n\n".repeat(200);
+    let vault = vault_with(&[("a.md", &long)]);
+    std::fs::write(
+        vault.path().join(".editor/settings.toml"),
+        "[sidebar.files]\nreveal = \"always\"\nmode = \"overlay\"\n",
+    )
+    .unwrap();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "a.md", OpenIn::ActiveTab);
+    let row = cx
+        .debug_bounds("tree-row-a")
+        .expect("the tree shows the note");
+    cx.simulate_event(ScrollWheelEvent {
+        position: row.center(),
+        delta: ScrollDelta::Lines(point(0., -10.)),
+        ..Default::default()
+    });
+    cx.run_until_parked();
+    let scrolled = cx.read(|cx| {
+        let editor = workspace.read(cx).active_editor(cx).unwrap();
+        editor.read(cx).scroll_offset()
+    });
+    assert_eq!(
+        scrolled,
+        gpui::px(0.),
+        "the note under the sidebar stays put"
+    );
 }
 
 #[gpui::test]
