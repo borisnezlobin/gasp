@@ -8,7 +8,7 @@ use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 
-use editor_config::RuleSet;
+use editor_config::{KeyChord, Platform, RuleSet};
 use editor_desktop::settings_view::{
     ControlRow, Page, SettingsEvent, SettingsFocus, SettingsRequest, SettingsView, modal_size,
 };
@@ -742,6 +742,14 @@ fn shortcut(
     .unwrap_or_else(|| panic!("no shortcut row for {id}"))
 }
 
+/// A chord as this platform's shortcut rows write it: `Ctrl+N` or `⌘N`.
+fn label(keys: &str) -> String {
+    let platform = Platform::current();
+    KeyChord::parse_for(keys, platform)
+        .unwrap()
+        .display_for(platform)
+}
+
 #[gpui::test]
 fn a_captured_chord_is_added_to_the_rules(cx: &mut TestAppContext) {
     let dir = vault(None);
@@ -761,7 +769,7 @@ fn a_captured_chord_is_added_to_the_rules(cx: &mut TestAppContext) {
     // A plain letter can't be a shortcut; the row says why and keeps waiting.
     cx.simulate_keystrokes("j");
     assert!(view.read_with(cx, |view, _| view.capturing().is_some()));
-    cx.simulate_keystrokes("ctrl-alt-j");
+    cx.simulate_keystrokes("secondary-alt-j");
     assert!(view.read_with(cx, |view, _| view.capturing().is_none()));
     let rules = read_config(root, "rules.toml");
     assert!(rules.contains("id = \"user.key.tab.new\""), "{rules}");
@@ -772,7 +780,7 @@ fn a_captured_chord_is_added_to_the_rules(cx: &mut TestAppContext) {
     let added = row
         .keys
         .iter()
-        .find(|key| key.label == "Ctrl+Alt+J")
+        .find(|key| key.label == label("Mod+Alt+J"))
         .unwrap();
     assert_eq!(added.user_rule.as_deref(), Some("user.key.tab.new"));
     assert!(row.conflicts.is_empty());
@@ -795,16 +803,16 @@ fn a_chord_another_command_uses_is_added_with_a_warning(cx: &mut TestAppContext)
         |row| matches!(row, ControlRow::Shortcut(s) if s.id == "tab.new"),
     );
     click(cx, "add-key-tab.new");
-    cx.simulate_keystrokes("ctrl-,");
+    cx.simulate_keystrokes("secondary-,");
     let row = shortcut(&view, "tab.new", cx);
     assert_eq!(
         row.conflicts,
-        [("Ctrl+,".to_string(), "Open settings".to_string())]
+        [(label("Mod+,"), "Open settings".to_string())]
     );
     let settings = shortcut(&view, "settings.open", cx);
     assert_eq!(
         settings.conflicts,
-        [("Ctrl+,".to_string(), "New tab".to_string())]
+        [(label("Mod+,"), "New tab".to_string())]
     );
     assert!(read_config(root, "rules.toml").contains("keys = \"Mod+,\""));
     cx.run_until_parked();
@@ -814,7 +822,7 @@ fn a_chord_another_command_uses_is_added_with_a_warning(cx: &mut TestAppContext)
         "the warning shows under the title"
     );
     // The same chord again on the same command isn't added twice.
-    cx.simulate_keystrokes("enter ctrl-,");
+    cx.simulate_keystrokes("enter secondary-,");
     let rules = read_config(root, "rules.toml");
     assert_eq!(rules.matches("keys = \"Mod+,\"").count(), 1, "{rules}");
     assert!(view.read_with(cx, |view, _| view.last_error().is_some()));
@@ -850,8 +858,8 @@ fn user_shortcuts_are_removed_by_their_cross_or_delete(cx: &mut TestAppContext) 
     // Delete removes the last shortcut the user added; built-in ones stay.
     cx.simulate_keystrokes("delete");
     let row = shortcut(&view, "note.new", cx);
-    assert_eq!(row.labels(), ["Ctrl+N"]);
+    assert_eq!(row.labels(), [label("Mod+N")]);
     cx.simulate_keystrokes("delete");
-    assert_eq!(shortcut(&view, "note.new", cx).labels(), ["Ctrl+N"]);
+    assert_eq!(shortcut(&view, "note.new", cx).labels(), [label("Mod+N")]);
     assert_eq!(recorded.borrow().changed, ["rules", "rules"]);
 }
