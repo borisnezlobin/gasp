@@ -7,6 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+editor-snippets = { path = "../snippets" }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 notify = "6"

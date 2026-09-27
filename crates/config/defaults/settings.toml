@@ -33,6 +33,15 @@ curl-pasted-quotes = true   # pasted text gets curly quotes too
 auto-pair          = true   # ( [ { and ` add their closing half; * _ ~ = wrap a selection
 code-line-numbers  = false  # number the lines of code blocks; a block's ln: overrides it
 renumber-footnotes = true   # numbered footnotes follow reading order once typing pauses
+snippets           = true   # expand the snippets in snippets.txt, such as mk and //
+replacements       = true   # apply replacements.toml, such as -- to an em dash
+
+[math]
+auto-fraction    = true   # x/ becomes \frac{x}{}
+matrix-shortcuts = true   # Tab adds & and Enter ends the row in pmatrix, cases, align…
+tab-out          = true   # Tab jumps past the next closing bracket, or out of the math
+enlarge-brackets = true   # (\sum …) becomes \left( … \right) after a snippet
+bracket-colours  = true   # matching brackets in math source share a colour
 
 [daily-notes]
 folder   = ""             # from the vault root; "" is the root
