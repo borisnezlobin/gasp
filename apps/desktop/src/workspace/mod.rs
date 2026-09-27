@@ -390,6 +390,12 @@ impl Workspace {
         let root = self.vault.clone();
         let index = self.vault_index.clone();
         let scan = cx.background_spawn(async move { VaultIndex::scan(&root) });
+        // Code block grammars take a moment to load; have them ready
+        // before the first code block is drawn.
+        cx.background_spawn(async {
+            crate::preview::code_highlight::load_syntaxes();
+        })
+        .detach();
         let task = cx.spawn(async move |_, cx| {
             let scanned = scan.await;
             index

@@ -8,6 +8,7 @@ use gpui::{Font, Pixels, TextRun, WindowTextSystem, px};
 
 use crate::images::ImageStore;
 use crate::line_layout::{Hit, Piece, PieceContent, RowKind, TextPiece, VisualLine, VisualRow};
+use crate::preview::code_highlight::{CodeHighlighter, LineSpans, spans_for_line};
 use crate::preview::decor::{LineFrame, line_frame};
 use crate::preview::items::{Item, LineItems, line_items, line_tone};
 use crate::preview::math::MathStore;
@@ -35,6 +36,7 @@ pub struct LayoutResources<'a> {
     pub text_system: &'a WindowTextSystem,
     pub images: &'a mut ImageStore,
     pub math: &'a mut MathStore,
+    pub code: &'a mut CodeHighlighter,
 }
 
 /// Lays out a planned line.
@@ -79,6 +81,8 @@ pub(super) struct LineLayouter<'a, 'b> {
     pub text: &'a str,
     pub tone: LineTone,
     pub frame: LineFrame,
+    /// Syntax colours when the line is code in a fenced block.
+    pub code_spans: Option<LineSpans>,
 }
 
 impl<'a, 'b> LineLayouter<'a, 'b> {
@@ -88,6 +92,7 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         resources: &'a mut LayoutResources<'b>,
     ) -> Self {
         let frame = line_frame(plan, context.source, context.theme, context.column_width);
+        let code_spans = spans_for_line(plan, context.source, resources.code);
         Self {
             plan,
             context,
@@ -95,6 +100,7 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
             text: &context.source.text()[plan.range.clone()],
             tone: line_tone(plan),
             frame,
+            code_spans,
         }
     }
 
@@ -233,17 +239,17 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         (chunk, next)
     }
 
-    /// Runs for `part`, split where the IME composition starts and ends.
+    /// Runs for `part`, split where the IME composition starts and ends
+    /// and where code changes colour.
     fn push_runs(&self, runs: &mut Vec<TextRun>, part: &Range<usize>, styles: &[StyleKey]) {
         let marked = self.marked();
+        let spans = self.code_spans.as_deref().unwrap_or_default();
         let mut cuts = vec![part.start, part.end];
-        if let Some(marked) = &marked {
-            cuts.extend(
-                [marked.start, marked.end]
-                    .into_iter()
-                    .filter(|cut| part.contains(cut)),
-            );
-        }
+        let edges = marked
+            .iter()
+            .chain(spans.iter().map(|(range, _)| range))
+            .flat_map(|range| [range.start, range.end]);
+        cuts.extend(edges.filter(|cut| part.contains(cut)));
         cuts.sort_unstable();
         cuts.dedup();
         for piece in cuts.windows(2) {
@@ -251,7 +257,11 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
                 .as_ref()
                 .is_some_and(|marked| marked.start <= piece[0] && piece[1] <= marked.end);
             let len = piece[1] - piece[0];
-            runs.push(text_run(len, styles, &self.tone, is_marked, self.theme()));
+            let mut run = text_run(len, styles, &self.tone, is_marked, self.theme());
+            if let Some((_, kind)) = spans.iter().find(|(range, _)| range.contains(&piece[0])) {
+                run.color = self.theme().code_color(*kind);
+            }
+            runs.push(run);
         }
     }
 

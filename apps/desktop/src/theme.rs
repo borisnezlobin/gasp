@@ -11,6 +11,8 @@
 use editor_config::Config;
 use editor_config::theme::{Theme as Tokens, TokenValue};
 use editor_core::syntax::CalloutKind;
+
+use crate::preview::code_highlight::CodeKind;
 use gpui::{
     BoxShadow, Font, FontStyle, FontWeight, Hsla, Pixels, Rgba, SharedString, font, hsla, point,
     px, rgb,
@@ -96,6 +98,8 @@ pub struct Theme {
     pub markup_dimmed: Hsla,
     pub code_text: Hsla,
     pub code_background: Hsla,
+    /// Syntax colours in code blocks, one per [`CodeKind`].
+    pub code_syntax: [Hsla; 7],
     pub selection: Hsla,
     pub cursor: Hsla,
     pub accent: Hsla,
@@ -156,7 +160,18 @@ impl Default for Theme {
     }
 }
 
+/// The built-in code colours, in [`CodeKind`] order, for themes that
+/// don't set them.
+const CODE_SYNTAX_DEFAULTS: [u32; 7] = [
+    0x6e6e78, 0x3d6e45, 0x9a5b1e, 0x9a5b1e, 0x7a4390, 0x2f5f93, 0x26707a,
+];
+
 impl Theme {
+    /// The colour of code of this kind.
+    pub fn code_color(&self, kind: CodeKind) -> Hsla {
+        self.code_syntax[kind as usize]
+    }
+
     /// The theme a loaded config describes.
     pub fn from_config(config: &Config) -> Self {
         Self::from_tokens(&config.theme, config.settings.appearance.base_font_size)
@@ -385,6 +400,8 @@ fn read_colors(read: &TokenReader<'_>) -> Theme {
         markup_dimmed: read.color("color.text-faint", 0xa1a1aa),
         code_text: text,
         code_background: read.color("color.code-background", 0xf4f4f5),
+        code_syntax: CodeKind::ALL
+            .map(|kind| read.color(kind.token(), CODE_SYNTAX_DEFAULTS[kind as usize])),
         selection: read.color("color.selection", 0xe4e4e7),
         cursor: read.color("color.accent", 0x000000),
         accent: read.color("color.accent", 0x000000),
@@ -461,6 +478,7 @@ fn zero_sizes() -> Theme {
         markup_dimmed: black,
         code_text: black,
         code_background: black,
+        code_syntax: [black; 7],
         selection: black,
         cursor: black,
         accent: black,
