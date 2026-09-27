@@ -181,6 +181,7 @@ fn build_started_workspace(
         eprintln!("could not open {}: {error}", note.display());
     }
     workspace.watch_vault(window, cx);
+    trace::mark("workspace-built");
     workspace
 }
 
@@ -330,6 +331,17 @@ impl Workspace {
     /// Follows changes to the vault on disk. Watching a folder means
     /// visiting every folder in it, so that happens off the main thread.
     pub fn watch_vault(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if crate::first_frame::is_waiting() {
+            let (this, handle) = (cx.weak_entity(), window.window_handle());
+            crate::first_frame::defer(move |cx| {
+                handle
+                    .update(cx, |_, window, cx| {
+                        this.update(cx, |workspace, cx| workspace.watch_vault(window, cx))
+                    })
+                    .ok();
+            });
+            return;
+        }
         let vault = self.vault.clone();
         let starting = cx.background_spawn(async move {
             let _span = trace::span("watch-vault");

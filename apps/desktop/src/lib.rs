@@ -40,6 +40,7 @@ pub mod theme;
 pub mod trace;
 pub mod ui;
 pub mod vault_search;
+pub mod vault_watch;
 pub mod workspace;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod x11_wake;

@@ -9,15 +9,16 @@ use std::thread::JoinHandle;
 use editor_config::{Config, ConfigLoader};
 
 use super::files::notes_by_recency;
-use super::launcher::RECENT_SCAN_FOLDERS;
+use super::launcher::{MAX_RECENT, RECENT_SCAN_FOLDERS};
 
 /// A vault's config and recent notes, read once.
 pub struct VaultStart {
     /// The vault folder, canonicalized.
     pub vault: PathBuf,
     pub config: Config,
-    /// Notes by modification time, newest first, for the launcher.
-    pub recent: Vec<PathBuf>,
+    /// Notes by modification time, newest first, for the launcher. Left
+    /// unread when the window will reopen saved tabs instead.
+    pub recent: Option<Vec<PathBuf>>,
 }
 
 impl VaultStart {
@@ -29,7 +30,17 @@ impl VaultStart {
         for diagnostic in loader.load_all() {
             eprintln!("{diagnostic:?}");
         }
-        let recent = notes_by_recency(&vault, RECENT_SCAN_FOLDERS);
+        let reopens_tabs = loader
+            .config()
+            .device
+            .open_tabs
+            .iter()
+            .any(|name| vault.join(name).is_file());
+        let recent = (!reopens_tabs).then(|| {
+            let mut notes = notes_by_recency(&vault, RECENT_SCAN_FOLDERS);
+            notes.truncate(MAX_RECENT);
+            notes
+        });
         VaultStart {
             config: loader.config().clone(),
             recent,
@@ -88,8 +99,11 @@ mod tests {
         let direct = VaultStart::load(vault.path());
         let background = VaultStart::spawn(vault.path().to_path_buf()).wait();
         assert_eq!(background.vault, direct.vault);
-        assert_eq!(background.recent, direct.recent);
         assert_eq!(background.config.device.open_tabs, ["a.md"]);
-        assert_eq!(direct.recent, [direct.vault.join("a.md")]);
+        // The saved tab reopens, so there's no launcher to fill.
+        assert_eq!(direct.recent, None);
+        std::fs::remove_file(vault.path().join(".editor/device.toml")).unwrap();
+        let fresh = VaultStart::load(vault.path());
+        assert_eq!(fresh.recent, Some(vec![fresh.vault.join("a.md")]));
     }
 }

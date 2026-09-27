@@ -73,20 +73,27 @@ impl Launcher {
         }
     }
 
-    pub fn recent(&self) -> &[PathBuf] {
-        &self.recent
+    /// A launcher listing `recent` first, then `found`, the vault's notes
+    /// by recency as already read, as when the app starts.
+    pub fn with_found(
+        vault: &Path,
+        recent: Vec<PathBuf>,
+        found: Vec<PathBuf>,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let mut launcher = Launcher {
+            focus_handle: cx.focus_handle(),
+            vault: vault.to_path_buf(),
+            recent: recent.into_iter().take(MAX_RECENT).collect(),
+            selected: 0,
+            _scan: Task::ready(()),
+        };
+        launcher.add_found(found, cx);
+        launcher
     }
 
-    /// Shows `recent` in place of the notes listed, keeping the selection
-    /// in range.
-    pub fn set_recent(&mut self, recent: Vec<PathBuf>, cx: &mut Context<Self>) {
-        let recent: Vec<PathBuf> = recent.into_iter().take(MAX_RECENT).collect();
-        if recent == self.recent {
-            return;
-        }
-        self.recent = recent;
-        self.selected = self.selected.min(self.recent.len().saturating_sub(1));
-        cx.notify();
+    pub fn recent(&self) -> &[PathBuf] {
+        &self.recent
     }
 
     pub fn selected(&self) -> usize {

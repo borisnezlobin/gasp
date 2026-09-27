@@ -5,13 +5,14 @@ use std::path::{Component, Path, PathBuf};
 
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender, unbounded};
 use notify::event::ModifyKind;
-use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{Event, EventKind};
 
 use super::entries::is_hidden;
+use crate::vault_watch::WatchHandle;
 
 /// Keeps the OS watch alive until dropped.
 pub struct VaultWatcher {
-    _watcher: RecommendedWatcher,
+    _watch: WatchHandle,
 }
 
 /// Starts watching `root`. The receiver gets one message per relevant
@@ -22,18 +23,12 @@ pub fn watch(root: &Path) -> notify::Result<(VaultWatcher, UnboundedReceiver<()>
     // vault opened as `/var/…`), so both spellings count as the vault.
     let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     let roots = [root.to_path_buf(), canonical];
-    let mut watcher = notify::recommended_watcher(move |event: notify::Result<Event>| {
-        forward(&roots, event, &sender);
-    })?;
-    watcher.watch(root, RecursiveMode::Recursive)?;
-    Ok((VaultWatcher { _watcher: watcher }, receiver))
+    let watch = crate::vault_watch::watch(root, move |event| forward(&roots, event, &sender))?;
+    Ok((VaultWatcher { _watch: watch }, receiver))
 }
 
-fn forward(roots: &[PathBuf], event: notify::Result<Event>, sender: &UnboundedSender<()>) {
-    let Ok(event) = event else {
-        return;
-    };
-    if roots.iter().any(|root| is_relevant(root, &event)) {
+fn forward(roots: &[PathBuf], event: &Event, sender: &UnboundedSender<()>) {
+    if roots.iter().any(|root| is_relevant(root, event)) {
         let _ = sender.unbounded_send(());
     }
 }

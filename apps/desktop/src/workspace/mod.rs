@@ -108,7 +108,7 @@ pub struct Workspace {
     recent: Vec<PathBuf>,
     /// The vault's notes by modification time, newest first, as read
     /// while the app started, for the first launcher.
-    recency: Vec<PathBuf>,
+    recency: Option<Vec<PathBuf>>,
     left_panel: LeftPanel,
     file_tree: Option<Entity<FileTree>>,
     /// The note the file tree marks as open.
@@ -124,7 +124,7 @@ pub struct Workspace {
     pane_subscriptions: HashMap<EntityId, Vec<Subscription>>,
     window_bounds: Option<WindowBounds>,
     window_title: String,
-    watcher: Option<notify::RecommendedWatcher>,
+    watcher: Option<crate::vault_watch::WatchHandle>,
     rule_clock: Option<sidebar::ExecutorClock>,
     sync: Option<Entity<SyncService>>,
     sync_indicator: Option<AnyView>,
