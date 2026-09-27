@@ -1,0 +1,10 @@
+{
+  "id": "footnotes-plus",
+  "name": "Footnotes Plus",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Insert, auto-number, renumber, and jump between footnotes — on desktop and mobile.",
+  "author": "Boris Nezlobin",
+  "authorUrl": "https://borisnezlobin.com",
+  "isDesktopOnly": false
+}

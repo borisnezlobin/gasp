@@ -1,0 +1,17 @@
+{
+  "mobileToolbarCommands": [
+    "editor:attach-file",
+    "editor:indent-list",
+    "editor:unindent-list",
+    "editor:insert-callout",
+    "editor:toggle-inline-math",
+    "editor:insert-footnote",
+    "musical-text-highlighter:toggle-sentence-highlighting",
+    "editor:insert-table"
+  ],
+  "showInlineTitle": true,
+  "trashOption": "system",
+  "attachmentFolderPath": "./images",
+  "alwaysUpdateLinks": true,
+  "settingsPopoutWindow": false
+}
