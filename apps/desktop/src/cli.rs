@@ -7,6 +7,7 @@ use crate::bench::BenchConfig;
 pub const USAGE: &str = "\
 usage: editor [PATH]
        editor --bench-layout PATH [--keystrokes N] [--scroll-pages N] [--in-code]
+       editor --bench-index VAULT
 
 PATH is a folder of notes (a vault) or a note, which opens its vault
 with that note showing. With no PATH, the last vault opens again.
@@ -15,13 +16,17 @@ with that note showing. With no PATH, the last vault opens again.
 notes are joined into one long note), types into the middle and scrolls
 through it, then prints frame timings and quits. --in-code types in the
 first code block after the middle instead. On Linux without a display,
-run it under xvfb-run.";
+run it under xvfb-run.
+
+--bench-index builds VAULT's link index and prints how long that, a
+save, a backlinks list, an unlinked-mentions search and a rename take.";
 
 /// What the binary was asked to do.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
     Open(Option<PathBuf>),
     Bench { path: PathBuf, config: BenchConfig },
+    BenchIndex(PathBuf),
     Help,
 }
 
@@ -31,6 +36,10 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
         None => Ok(Command::Open(None)),
         Some("-h" | "--help") => Ok(Command::Help),
         Some("--bench-layout") => parse_bench(&args[1..]),
+        Some("--bench-index") => match &args[1..] {
+            [vault] => Ok(Command::BenchIndex(PathBuf::from(vault))),
+            _ => Err("--bench-index needs one vault".to_owned()),
+        },
         Some(flag) if flag.starts_with("--") => Err(format!("unknown option {flag}")),
         Some(path) if args.len() == 1 => Ok(Command::Open(Some(PathBuf::from(path)))),
         Some(_) => Err("expected one path".to_owned()),

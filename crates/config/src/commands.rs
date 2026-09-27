@@ -190,6 +190,19 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     ),
     spec("sidebar.files.show", "Show file sidebar", "Tabs and panels"),
     spec("sidebar.files.hide", "Hide file sidebar", "Tabs and panels"),
+    spec(
+        "sidebar.right.toggle",
+        "Toggle right sidebar",
+        "Tabs and panels",
+    ),
+    spec("sidebar.backlinks", "Show backlinks", "Tabs and panels"),
+    spec(
+        "sidebar.outgoing-links",
+        "Show outgoing links",
+        "Tabs and panels",
+    ),
+    spec("sidebar.outline", "Show outline", "Tabs and panels"),
+    spec("sidebar.tags", "Show tags", "Tabs and panels"),
     spec("file-tree.focus", "Focus file tree", "Tabs and panels"),
     spec(
         "pane.focus-left",
@@ -251,6 +264,12 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
         "Show the current note in the file tree",
         "Notes and navigation",
     ),
+    spec(
+        "daily.open",
+        "Open today’s daily note",
+        "Notes and navigation",
+    ),
+    spec("template.insert", "Insert template", "Editing"),
     spec("note.rename", "Rename note", "Notes and navigation"),
     spec("note.delete", "Move note to trash", "Notes and navigation"),
     spec("note.import-image", "Insert image from file", "Editing"),

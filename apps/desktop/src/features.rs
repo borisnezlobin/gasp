@@ -32,7 +32,7 @@ use crate::workspace::{OpenIn, Workspace};
 const RECENT_COMMANDS: usize = 8;
 
 /// Commands this module gives a handler, for the menus.
-pub const WIRED_COMMANDS: [&str; 15] = [
+pub const WIRED_COMMANDS: [&str; 22] = [
     "palette.open",
     "switcher.open",
     "outline.jump-to-heading",
@@ -48,6 +48,13 @@ pub const WIRED_COMMANDS: [&str; 15] = [
     "file-tree.focus",
     "sync.now",
     "sync.resolve-conflicts",
+    "sidebar.right.toggle",
+    "sidebar.backlinks",
+    "sidebar.outgoing-links",
+    "sidebar.outline",
+    "sidebar.tags",
+    "daily.open",
+    "template.insert",
 ];
 
 /// Binds the keys the standalone views use inside themselves. Their text
@@ -100,6 +107,7 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     workspace.set_reading_probe(reading, cx);
     install_file_tree(workspace, window, cx);
     install_sync(workspace, window, cx);
+    crate::knowledge::install(workspace, window, cx);
     workspace.on_command("palette.open", open_palette);
     workspace.on_command("switcher.open", open_switcher);
     workspace.on_command("outline.jump-to-heading", open_outline);

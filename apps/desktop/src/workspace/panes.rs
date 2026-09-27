@@ -203,6 +203,7 @@ impl Workspace {
         match self.drag {
             Some(Drag::Divider(id)) => self.drag_divider(id, position, cx),
             Some(Drag::Sidebar) => self.drag_sidebar(position),
+            Some(Drag::RightSidebar) => self.drag_right_panel(position.x),
             None => return,
         }
         cx.notify();
