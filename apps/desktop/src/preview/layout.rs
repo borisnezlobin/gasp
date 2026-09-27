@@ -168,11 +168,23 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         run.font
     }
 
+    /// How far the font itself reaches above and below the baseline.
+    fn glyph_extent(&self, font: &Font, font_size: Pixels) -> Extent {
+        let text_system = self.resources.text_system;
+        let font_id = text_system.resolve_font(font);
+        Extent {
+            ascent: text_system.ascent(font_id, font_size),
+            descent: text_system.descent(font_id, font_size).abs(),
+        }
+    }
+
     fn row_builder(&self) -> RowBuilder {
-        let strut = self.strut(&self.line_font(), self.font_size(), self.line_height());
+        let font = self.line_font();
+        let strut = self.strut(&font, self.font_size(), self.line_height());
+        let caret = self.glyph_extent(&font, self.font_size());
         let limit = self.context.column_width - self.frame.right;
         let top = self.frame.pad_top + self.frame.decor.margin_top;
-        RowBuilder::new(self.frame.left, limit, top, strut)
+        RowBuilder::new(self.frame.left, limit, top, strut).with_caret(caret)
     }
 
     fn place_items(&mut self, line: &LineItems, builder: &mut RowBuilder) {

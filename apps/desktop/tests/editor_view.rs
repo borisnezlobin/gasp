@@ -436,3 +436,20 @@ fn select_all_keeps_the_scroll_position(cx: &mut TestAppContext) {
     assert_eq!(selection(&view, cx), 0..long.len());
     assert_eq!(view.read_with(cx, |view, _| view.scroll_offset()), before);
 }
+
+#[gpui::test]
+fn the_caret_spans_the_letters_not_the_line_spacing(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "some text");
+    view.read_with(cx, |view, _| {
+        let frame = view.frame().unwrap();
+        let row = &frame.line(0).unwrap().visual.rows[0];
+        let caret = frame.caret_bounds(0, view.theme()).unwrap();
+        assert!(
+            caret.size.height < row.height,
+            "the line's leading stays out of the caret: {:?} in a {:?} row",
+            caret.size.height,
+            row.height
+        );
+        assert!(caret.size.height >= view.theme().body_font_size);
+    });
+}
