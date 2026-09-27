@@ -1,0 +1,28 @@
+# Built-in settings. A vault's .editor/settings.toml layers on top of this file.
+
+[sidebar.files]
+reveal = "hover"      # "always" | "toggle" | "hover"
+mode   = "overlay"    # "overlay" slides over the text, "push" moves it aside
+
+[markdown.symbols]
+mode  = "around-cursor"   # "always-shown" | "around-cursor" | "always-hidden"
+scope = "element"         # "element" | "line" | "block"
+
+[markdown.symbols.overrides]
+# Per-syntax modes, for example: link-url = "always-hidden"
+
+[prose.sentence-length]
+enabled     = true
+short-below = 7
+long-above  = 18
+
+[files]
+attachments-folder     = "./images"
+update-links-on-rename = true
+trash                  = "system"   # "system" | "vault" | "delete"
+
+[editor]
+show-inline-title = true
+
+[appearance]
+base-font-size = 12

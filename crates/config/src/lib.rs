@@ -1,1 +1,32 @@
 //! Config loading, settings schema, theme tokens, rules engine and command registry.
+//!
+//! A vault's `.editor/` folder holds `settings.toml`, `theme.toml`, `layout.toml` and
+//! `rules.toml`, which layer over the built-in files in `defaults/`, plus a
+//! device-local `device.toml` that never syncs.
+
+pub mod commands;
+pub mod device;
+pub mod diagnostics;
+pub mod keymap;
+pub mod keys;
+pub mod layout;
+pub mod loader;
+pub mod merge;
+pub mod platform;
+pub mod rules;
+pub mod schema;
+pub mod settings;
+pub mod theme;
+pub mod watcher;
+
+pub use commands::{Args, CommandError, CommandInfo, CommandRegistry, CommandSpec};
+pub use diagnostics::{Diagnostic, Severity};
+pub use keys::KeyChord;
+pub use loader::{Config, ConfigFile, ConfigLoader};
+pub use platform::{InputContext, Platform, PlatformFilter};
+pub use rules::{
+    Clock, Dispatch, Event, EventKind, ManualClock, MatchContext, Rule, RuleEngine, RuleSet,
+};
+pub use settings::Settings;
+pub use theme::Theme;
+pub use watcher::{ConfigUpdate, ConfigWatcher};

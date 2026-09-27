@@ -1,0 +1,109 @@
+# Built-in theme. Every visual value in the app is one of these tokens.
+# A value like "{color.black}" refers to another token.
+
+[theme]
+mode = "light"
+
+[color]
+black       = "#000000"
+white       = "#ffffff"
+gray-50     = "#fafafa"
+gray-100    = "#f4f4f5"
+gray-200    = "#e4e4e7"
+gray-400    = "#a1a1aa"
+gray-600    = "#52525b"
+gray-800    = "#27272a"
+accent      = "{color.black}"
+on-accent   = "{color.white}"
+background  = "{color.white}"
+surface     = "{color.gray-50}"
+sidebar     = "{color.gray-100}"
+text        = "{color.gray-800}"
+text-muted  = "{color.gray-600}"
+text-faint  = "{color.gray-400}"
+selection   = "#e4e4e7"
+hover       = "{color.gray-100}"
+divider     = "{color.gray-200}"
+focus-ring  = "{color.accent}"
+shadow      = "rgba(0, 0, 0, 0.12)"
+syncing     = "{color.gray-600}"
+conflict    = "#c62828"
+highlight   = "#fff59d"
+link        = "{color.accent}"
+code-background = "{color.gray-100}"
+
+[color.sentence]
+short  = "#e3f2fd"
+medium = "#fff3e0"
+long   = "#ffebee"
+
+[font]
+text = "Charter"
+ui   = "Charter"
+code = "Courier New"
+
+[font.weight]
+regular = 400
+medium  = 500
+bold    = 700
+
+# Font sizes are multiples of the base font size setting.
+[font.scale]
+body    = 1.0
+small   = 0.875
+ui      = 1.0
+code    = 0.95
+h1      = 1.8
+h2      = 1.5
+h3      = 1.3
+h4      = 1.15
+h5      = 1.0
+h6      = 1.0
+title   = 2.0
+
+[font.line-height]
+body = 1.6
+ui   = 1.3
+code = 1.45
+
+[size]
+sidebar-width   = 260
+tab-height      = 32
+status-height   = 24
+toolbar-height  = 36
+editor-max-width = 720
+hover-edge-width = 8
+icon            = 16
+
+[space]
+xs = 2
+sm = 4
+md = 8
+lg = 12
+xl = 16
+xxl = 24
+
+[radius]
+sm   = 4
+md   = 6
+lg   = 10
+pill = 999
+
+[shadow]
+popover = "0 4px 16px {color.shadow}"
+sidebar = "2px 0 12px {color.shadow}"
+tab     = "0 1px 2px {color.shadow}"
+
+[curve]
+standard   = "cubic-bezier(0.2, 0, 0, 1)"
+decelerate = "cubic-bezier(0, 0, 0, 1)"
+accelerate = "cubic-bezier(0.3, 0, 1, 1)"
+
+[duration]
+fast   = "120ms"
+normal = "200ms"
+slow   = "320ms"
+
+[animation]
+sidebar-reveal = "{duration.normal} {curve.decelerate}"
+sidebar-hide   = "{duration.fast} {curve.accelerate}"
