@@ -399,6 +399,9 @@ impl SettingsView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        if *row == ControlRow::SnippetEditor {
+            return self.render_snippet_editor(window, cx);
+        }
         let focused = self.rings(SettingsFocus::Control(index), window, cx);
         let text = self.row_text(row);
         let control = self.row_control(index, row, focused, window, cx);

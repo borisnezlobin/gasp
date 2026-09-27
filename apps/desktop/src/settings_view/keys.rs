@@ -22,7 +22,9 @@ impl SettingsView {
             self.focus = SettingsFocus::Sections;
         }
         let typing_hex = self.hex_field.focus_handle(cx).is_focused(window);
-        let handled = if self.menu.is_some() {
+        let handled = if self.snippet_editor_key(keystroke, window, cx) {
+            true
+        } else if self.menu.is_some() {
             self.menu_key(&keystroke.key, window, cx)
         } else if typing_hex {
             // The hex field takes typing; only Tab leaves it.
@@ -219,6 +221,9 @@ impl SettingsView {
             ControlRow::MapAdd(_) => self.menu_button_key(index, row, key, window, cx),
             ControlRow::SyncAccount => self.account_key(key, cx),
             ControlRow::ListEntry { list, value } => self.list_entry_key(list, value, key, cx),
+            ControlRow::SnippetsFile | ControlRow::Snippet(_) | ControlRow::Replacement(_) => {
+                self.typing_row_key(row, key, window, cx)
+            }
             _ => false,
         };
         handled || self.type_to_search(keystroke, window, cx)
@@ -365,6 +370,31 @@ impl SettingsView {
         match key {
             "space" | "enter" | "+" | "=" => self.start_capture(command, window, cx),
             "delete" | "backspace" => self.delete_on_shortcut_row(row, cx),
+            _ => return false,
+        }
+        true
+    }
+
+    /// Space switches a snippet or replacement on or off, Enter opens a
+    /// snippet in the editor, and either adds one on the first row.
+    fn typing_row_key(
+        &mut self,
+        row: &ControlRow,
+        key: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        match (row, key) {
+            (ControlRow::SnippetsFile, "space" | "enter") => {
+                self.open_snippet_editor(None, window, cx)
+            }
+            (ControlRow::Snippet(row), "enter") => {
+                self.open_snippet_editor(Some(row.line), window, cx)
+            }
+            (ControlRow::Snippet(row), "space") => self.toggle_snippet(row.line, cx),
+            (ControlRow::Replacement(row), "space" | "enter") => {
+                self.toggle_replacement(row.index, cx)
+            }
             _ => return false,
         }
         true
