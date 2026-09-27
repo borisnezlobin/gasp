@@ -8,10 +8,14 @@
 
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use gpui::{App, Window};
 
 type Work = Box<dyn FnOnce(&mut App)>;
+
+/// The longest work waits for a first frame.
+const MAX_WAIT: Duration = Duration::from_secs(2);
 
 /// Set from launch until the first window's first frame is presented.
 static WAITING: AtomicBool = AtomicBool::new(false);
@@ -27,13 +31,19 @@ pub fn hold() {
     WAITING.store(true, Ordering::Relaxed);
 }
 
-/// Runs the deferred work once `window` has presented a frame.
-pub fn release_when_presented(window: &Window) {
+/// Runs the deferred work once `window` has presented a frame, or after
+/// [`MAX_WAIT`] should no frame come (a window that never maps).
+pub fn release_when_presented(window: &Window, cx: &mut App) {
     window.on_next_frame(|_, cx| {
         // Tasks run once the frame callback returns, which is after the
         // frame is drawn and presented.
         cx.spawn(async move |cx| cx.update(release).ok()).detach();
     });
+    cx.spawn(async move |cx| {
+        cx.background_executor().timer(MAX_WAIT).await;
+        cx.update(release).ok();
+    })
+    .detach();
 }
 
 /// Stops holding work back and runs what was deferred.
