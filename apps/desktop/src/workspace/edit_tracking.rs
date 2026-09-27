@@ -106,6 +106,7 @@ impl Workspace {
     /// spent on each note in it and its recovery snapshots follow it.
     pub(super) fn note_history_moved(&mut self, from: &Path, to: &Path, cx: &mut Context<Self>) {
         crate::recovery::moved(from, to, cx);
+        self.positions_moved(from, to);
         let notes = match to.is_dir() {
             true => crate::file_tree::ops::vault_files(to),
             false => vec![String::new()],

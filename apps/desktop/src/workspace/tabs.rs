@@ -137,10 +137,10 @@ impl Workspace {
         let config = &self.config;
         let editor = doc.update(cx, |doc, cx| doc.new_editor(config, cx));
         let index = self.vault_index().clone();
-        editor.update(cx, |editor, cx| {
-            editor.set_vault_index(index, cx);
-            editor.place_cursor_after_frontmatter(cx);
-        });
+        editor.update(cx, |editor, cx| editor.set_vault_index(index, cx));
+        if !self.restore_position(path, &editor, cx) {
+            editor.update(cx, |editor, cx| editor.place_cursor_after_frontmatter(cx));
+        }
         drop(span);
         let title_text = note_title(path);
         let title = cx.new(|cx| {
@@ -226,9 +226,9 @@ impl Workspace {
         let Some(note) = tab.note().cloned() else {
             return;
         };
-        if let Some(editor) = tab.note().map(|note| note.editor.entity_id()) {
-            self.cursors.remove(&editor);
-        }
+        self.cursors.remove(&note.editor.entity_id());
+        let path = note.doc.read(cx).path().to_path_buf();
+        self.remember_position(&path, &note.editor, cx);
         if save {
             note.doc.update(cx, |doc, cx| doc.save_or_log(cx));
         }

@@ -21,6 +21,20 @@ pub struct DeviceSettings {
     /// the first time the vault opens here.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub device_id: String,
+    /// Where the reader was in recently shown notes, oldest first.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub positions: Vec<NotePosition>,
+}
+
+/// Where the reader was in a note: the cursor, and the start of the line
+/// at the top of the view, both as byte offsets.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct NotePosition {
+    /// The note, vault-relative.
+    pub path: String,
+    pub cursor: usize,
+    pub top: usize,
 }
 
 /// Whether the right sidebar is open, what it shows and how wide it is.

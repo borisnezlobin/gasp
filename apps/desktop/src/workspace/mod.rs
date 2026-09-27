@@ -31,6 +31,7 @@ mod pane_menus;
 pub mod pane_tree;
 mod panel;
 mod panes;
+mod positions;
 pub mod prompt;
 mod render;
 pub mod right_panel;
@@ -116,6 +117,8 @@ pub struct Workspace {
     active_pane: Entity<Pane>,
     docs: Vec<Entity<NoteDoc>>,
     closed_tabs: Vec<PathBuf>,
+    /// Where the reader was in recently shown notes, oldest first.
+    positions: Vec<editor_config::device::NotePosition>,
     recent: Vec<PathBuf>,
     /// The vault's notes by modification time, newest first, as read
     /// while the app started, for the first launcher.
@@ -200,6 +203,7 @@ impl Workspace {
             theme.workspace.sidebar_width,
         );
         let note_texts = NoteTexts::new(&vault);
+        let positions = config.device.positions.clone();
         let right_panel =
             RightPanel::new(&config.device.right_sidebar, theme.workspace.sidebar_width);
         let mut workspace = Workspace {
@@ -210,6 +214,7 @@ impl Workspace {
             active_pane: pane.clone(),
             docs: Vec::new(),
             closed_tabs: Vec::new(),
+            positions,
             recent: Vec::new(),
             recency,
             left_panel,

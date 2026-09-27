@@ -293,6 +293,7 @@ impl Workspace {
             }
         }
         device.panes = Some(self.pane_layout(cx));
+        device.positions = self.positions_now(cx);
         device
     }
 
