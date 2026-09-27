@@ -7,74 +7,138 @@ use gpui::{
 use serde_json::Value;
 
 use super::controls::{
-    button, dropdown_button, field_box, icon_button, keycap, menu_option, menu_panel, popover,
-    row_text, stepper, swatch, toggle_switch,
+    button, capture_field, control_note, dropdown_button, field_box, icon_button, menu_option,
+    menu_panel, popover, removable_keycap, row_text, small_icon_button, stepper, swatch,
+    toggle_switch,
 };
 use super::menu::MenuTarget;
-use super::model::{ACCENT_TOKEN, FontSlot, SettingItem, ShortcutRow, choice_label, map_names};
+use super::model::{
+    ACCENT_TOKEN, FontSlot, SettingItem, ShortcutQuery, ShortcutRow, choice_label, map_names,
+};
 use super::view::{ControlRow, SettingsFocus, SettingsView, theme_key};
 use crate::icons::IconName;
+use crate::picker::shortcut::Shortcut;
 use crate::theme::{ACCENT_CHOICES, parse_color};
+use crate::ui::{Tooltip, keycap};
 
 impl SettingsView {
     /// Title, description and notes for a row.
     pub(super) fn row_text(&self, row: &ControlRow) -> AnyElement {
-        let description = self.row_description(row);
-        let description = (!description.is_empty()).then(|| {
-            let text = div().child(description);
-            match row {
-                ControlRow::Vault => text.font_family(self.style.code_font_family.clone()),
-                _ => text,
+        let description = match row {
+            ControlRow::Shortcut(shortcut) => self.shortcut_default(shortcut),
+            _ => {
+                let description = self.row_description(row);
+                (!description.is_empty()).then(|| {
+                    let text = div().child(description);
+                    match row {
+                        ControlRow::Vault => text.font_family(self.style.code_font_family.clone()),
+                        _ => text,
+                    }
+                    .into_any_element()
+                })
             }
-            .into_any_element()
-        });
+        };
         row_text(row.title(), description, self.row_notes(row), &self.style).into_any_element()
     }
 
-    /// Errors and warnings to show under a row's description.
-    fn row_notes(&self, row: &ControlRow) -> Vec<AnyElement> {
-        let error_key = match row {
+    /// The key an error from the last write is kept under, for each row.
+    fn error_key(row: &ControlRow) -> Option<String> {
+        match row {
             ControlRow::Setting(item) | ControlRow::MapAdd(item) => Some(item.key.clone()),
             ControlRow::MapEntry { item, .. } => Some(item.key.clone()),
             ControlRow::Font(slot) => Some(theme_key(slot.token())),
             ControlRow::Accent => Some(theme_key(ACCENT_TOKEN)),
             ControlRow::Shortcut(shortcut) => Some(shortcut.id.clone()),
             _ => None,
-        };
-        let mut notes: Vec<AnyElement> = self
-            .error
-            .iter()
-            .filter(|(key, _)| Some(key) == error_key.as_ref())
-            .map(|(_, message)| div().child(message.clone()).into_any_element())
-            .collect();
-        match row {
-            ControlRow::Shortcut(shortcut) => notes.extend(self.shortcut_notes(shortcut)),
-            ControlRow::Font(slot) => notes.extend(self.font_note(*slot).map(|note| {
-                div()
-                    .text_color(self.style.text_muted)
-                    .child(note)
-                    .into_any_element()
-            })),
-            _ => {}
         }
-        notes
+    }
+
+    /// Why the last write for this row failed, or why the chord just
+    /// pressed for it was refused.
+    fn row_error(&self, row: &ControlRow) -> Option<String> {
+        if let (ControlRow::Shortcut(shortcut), Some(capture)) = (row, &self.capture)
+            && self.capturing() == Some(shortcut.id.as_str())
+        {
+            return capture.rejection.clone();
+        }
+        let key = Self::error_key(row)?;
+        self.error
+            .as_ref()
+            .filter(|(failed, _)| *failed == key)
+            .map(|(_, message)| message.clone())
+    }
+
+    /// Lasting warnings under a row's description: a shortcut another
+    /// command also uses, or a font that isn't installed.
+    fn row_notes(&self, row: &ControlRow) -> Vec<AnyElement> {
+        match row {
+            ControlRow::Shortcut(shortcut) => self.shortcut_notes(shortcut),
+            ControlRow::Font(slot) => self
+                .font_note(*slot)
+                .map(|note| {
+                    div()
+                        .text_color(self.style.text_muted)
+                        .child(note)
+                        .into_any_element()
+                })
+                .into_iter()
+                .collect(),
+            _ => Vec::new(),
+        }
     }
 
     fn shortcut_notes(&self, shortcut: &ShortcutRow) -> Vec<AnyElement> {
-        let rejection = self
-            .capture
-            .as_ref()
-            .filter(|capture| capture.command == shortcut.id)
-            .and_then(|capture| capture.rejection.clone());
-        let conflicts = shortcut
+        let keycaps = self.keycaps.clone().compact().on_text(self.style.warning);
+        shortcut
             .conflicts
             .iter()
-            .map(|(key, other)| format!("{key} also runs “{other}”."));
-        rejection
-            .into_iter()
-            .chain(conflicts)
-            .map(|note| div().child(note).into_any_element())
+            .filter_map(|(label, other)| {
+                let key = shortcut.keys.iter().find(|key| key.label == *label)?;
+                Some(self.inline_keys(&[key.shortcut], &format!("also runs “{other}”."), &keycaps))
+            })
             .collect()
+    }
+
+    /// What a changed shortcut row comes with, so reset says what it does.
+    fn shortcut_default(&self, shortcut: &ShortcutRow) -> Option<AnyElement> {
+        let defaults = shortcut.changed_from.as_ref()?;
+        if defaults.is_empty() {
+            return Some(
+                div()
+                    .child("It has no shortcut by default.")
+                    .into_any_element(),
+            );
+        }
+        let keycaps = self
+            .keycaps
+            .clone()
+            .compact()
+            .on_text(self.style.text_muted);
+        let line = div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap(self.style.gap_sm)
+            .child("The default is")
+            .children(defaults.iter().map(|shortcut| keycap(*shortcut, &keycaps)));
+        Some(line.into_any_element())
+    }
+
+    /// A line of small key chips followed by `text`.
+    fn inline_keys(
+        &self,
+        shortcuts: &[Shortcut],
+        text: &str,
+        keycaps: &crate::theme::KeycapTheme,
+    ) -> AnyElement {
+        div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap(self.style.gap_sm)
+            .children(shortcuts.iter().map(|shortcut| keycap(*shortcut, keycaps)))
+            .child(text.to_string())
+            .into_any_element()
     }
 
     /// The control on the right of a row, if it has one.
@@ -99,7 +163,17 @@ impl SettingsView {
             ControlRow::Version => return None,
             ControlRow::Shortcut(shortcut) => self.shortcut_control(shortcut, focused, cx),
         };
-        Some(control)
+        // An error hangs under the control rather than pushing rows down.
+        let note = self
+            .row_error(row)
+            .map(|message| control_note(message, &self.style));
+        Some(
+            div()
+                .relative()
+                .child(control)
+                .children(note)
+                .into_any_element(),
+        )
     }
 
     fn setting_control(
@@ -135,8 +209,11 @@ impl SettingsView {
         reset: impl Fn(&mut SettingsView, &mut Context<SettingsView>) + 'static,
     ) -> AnyElement {
         let style = &self.style;
-        let id = SharedString::from(format!("reset-{key}"));
+        let selector = format!("reset-{key}");
+        let id = SharedString::from(selector.clone());
         icon_button(id, IconName::ArrowCounterClockwise, style.text_muted, style)
+            .debug_selector(|| selector)
+            .tooltip(Tooltip::new("Reset to default", None).builder())
             .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
                 cx.stop_propagation();
                 reset(view, cx);
@@ -456,59 +533,94 @@ impl SettingsView {
     ) -> AnyElement {
         let style = &self.style;
         let capturing = self.capturing() == Some(shortcut.id.as_str());
-        let caps = shortcut.keys.iter().map(|key| {
-            let remove = key.user_rule.clone().map(|rule_id| {
-                let selector = format!("remove-key-{rule_id}");
-                icon_button(
-                    SharedString::from(selector.clone()),
-                    IconName::X,
-                    style.text_muted,
-                    style,
-                )
-                .size(style.small_icon_size + style.gap_sm)
-                .debug_selector(|| selector)
-                .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
-                    cx.stop_propagation();
-                    view.remove_shortcut(&rule_id, cx)
-                }))
-            });
-            keycap(key.label.clone(), style).children(remove)
+        let query = ShortcutQuery::new(&self.query);
+        let conflicting: Vec<&str> = shortcut.conflicts.iter().map(|(k, _)| k.as_str()).collect();
+        let caps = shortcut.keys.iter().enumerate().map(|(position, key)| {
+            let marked = query
+                .keys()
+                .is_some_and(|keys| keys.matches(key.shortcut.chord));
+            let warning = conflicting.contains(&key.label.as_str());
+            let id = key
+                .rule
+                .clone()
+                .unwrap_or_else(|| format!("{}-{position}", shortcut.id));
+            let selector = format!("remove-key-{id}");
+            let (chip, remove) = removable_keycap(
+                SharedString::from(selector.clone()),
+                key.shortcut,
+                marked,
+                warning,
+                &self.keycaps,
+                style,
+            );
+            let command = shortcut.id.clone();
+            let key = key.clone();
+            chip.debug_selector(|| format!("key-{id}")).child(
+                remove.debug_selector(|| selector).on_click(cx.listener(
+                    move |view, _: &ClickEvent, _, cx| {
+                        cx.stop_propagation();
+                        view.remove_key(&command, &key, cx)
+                    },
+                )),
+            )
         });
+        let caps: Vec<_> = caps.collect();
         let unbound = (shortcut.keys.is_empty() && !capturing).then(|| {
             div()
                 .text_size(style.small_text_size)
                 .text_color(style.text_faint)
                 .child("No shortcut")
         });
-        let waiting = capturing.then(|| {
-            keycap("Press a shortcut", style)
-                .text_color(style.text_muted)
-                .shadow(vec![style.focus()])
+        let waiting = capturing.then(|| self.capture_box("Press a shortcut", cx));
+        let reset = shortcut.changed_from.is_some().then(|| {
+            let command = shortcut.id.clone();
+            self.reset_button(&shortcut.id, cx, move |view, cx| {
+                view.reset_shortcuts(&command, cx)
+            })
         });
         let command = shortcut.id.clone();
         let selector = format!("add-key-{command}");
-        let add = icon_button(
-            SharedString::from(selector.clone()),
-            IconName::Plus,
-            style.text_muted,
-            style,
-        )
-        .debug_selector(|| selector)
-        .when(focused && !capturing, |add| add.shadow(vec![style.focus()]))
-        .on_click(cx.listener(move |view, _: &ClickEvent, window, cx| {
-            view.start_capture(&command, window, cx)
-        }));
+        let add = (!capturing).then(|| {
+            icon_button(
+                SharedString::from(selector.clone()),
+                IconName::Plus,
+                style.text_muted,
+                style,
+            )
+            .debug_selector(|| selector)
+            .tooltip(Tooltip::new("Add a shortcut", None).builder())
+            .when(focused, |add| {
+                add.bg(style.control_background).shadow(vec![style.focus()])
+            })
+            .on_click(cx.listener(move |view, _: &ClickEvent, window, cx| {
+                view.start_capture(&command, window, cx)
+            }))
+        });
         div()
             .flex()
             .flex_wrap()
             .justify_end()
             .items_center()
             .gap(style.control_gap)
+            .children(reset)
             .children(caps)
             .children(unbound)
             .children(waiting)
-            .child(add)
+            .children(add)
             .into_any_element()
+    }
+
+    /// The ringed box a chord is pressed into, with a cancel button.
+    pub(super) fn capture_box(&self, prompt: &str, cx: &mut Context<Self>) -> AnyElement {
+        let style = &self.style;
+        let cancel = small_icon_button("cancel-capture", IconName::X, style)
+            .debug_selector(|| "cancel-capture".to_string())
+            .tooltip(Tooltip::new("Stop waiting for keys", None).builder())
+            .on_click(cx.listener(|view, _: &ClickEvent, _, cx| {
+                cx.stop_propagation();
+                view.cancel_capture(cx)
+            }));
+        capture_field(prompt.to_string(), cancel, style).into_any_element()
     }
 }
 
