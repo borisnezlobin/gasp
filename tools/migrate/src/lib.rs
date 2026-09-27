@@ -39,6 +39,7 @@ pub const SNIPPETS_FILE: &str = "snippets.txt";
 pub const REPLACEMENTS_FILE: &str = "replacements.toml";
 pub const RULES_FILE: &str = "rules.toml";
 pub const SETTINGS_FILE: &str = "settings.toml";
+pub const THEME_FILE: &str = "theme.toml";
 pub const REPORT_FILE: &str = "migration-report.txt";
 
 const LATEX_SUITE: &str = "plugins/obsidian-latex-suite.json";
@@ -112,6 +113,12 @@ impl Migration {
                 name: SETTINGS_FILE,
                 contents: settings.to_toml(),
             });
+            if let Some(theme) = settings.theme_to_toml() {
+                files.push(OutputFile {
+                    name: THEME_FILE,
+                    contents: theme,
+                });
+            }
         }
         files.push(OutputFile {
             name: REPORT_FILE,
