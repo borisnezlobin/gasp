@@ -4,7 +4,8 @@
 //!  [--vault DIR] [--fonts DIR] [--typ OUT.typ] [--png OUT.png] [--all-pages] [--runs N] [--cold]`
 //!
 //! Memoized layout is cleared before each run, so the times are for a note
-//! seen for the first time (fonts are parsed once, before the runs).
+//! seen for the first time. Each run is preceded by the warm-up the export
+//! dialog does when it opens, unless `--cold` is given.
 //! `--png` renders page 1 at 2x (every page with `--all-pages`); `--typ` writes the generated Typst source.
 
 use std::path::PathBuf;
@@ -105,9 +106,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let started = Instant::now();
     if args.cold {
-        println!("cold start: no warm-up");
-    } else {
-        warm_up(&options);
+        println!("cold: no warm-up before each run");
     }
     let mut fonts = load_fonts(&args.fonts);
     fonts.extend(fonts_for(&options));
@@ -119,6 +118,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut output = None;
     for run in 0..args.runs.max(1) {
         evict_memory(0);
+        // What the app does when the export dialog opens; untimed.
+        if !args.cold {
+            warm_up(&options);
+        }
         let started = Instant::now();
         let note = typst_source(&markdown, Some(&args.note), args.vault.as_deref(), &options);
         let converted = Instant::now();

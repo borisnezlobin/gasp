@@ -1,11 +1,12 @@
 //! Export and print: a corpus note becomes a PDF, and the export dialog
-//! saves one where the save prompt says.
+//! saves a PDF where the save prompt says, then offers to open it; its
+//! HTML choice makes the website article, copies it and saves it.
 
 use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use editor_desktop::export_ui::{self, ExportDialog, ExportFormat};
+use editor_desktop::export_ui::{self, ExportDialog, ExportFormat, ExportState};
 use gpui::{
     Context, DismissEvent, Entity, IntoElement, Render, TestAppContext, VisualTestContext, Window,
     div, prelude::*,
@@ -37,6 +38,20 @@ fn open_dialog<'a>(
     (dialog, window)
 }
 
+/// Records whether the dialog asked to close.
+fn watch_dismissal(
+    dialog: &Entity<ExportDialog>,
+    window: &mut VisualTestContext,
+) -> Rc<Cell<bool>> {
+    let dismissed = Rc::new(Cell::new(false));
+    let seen = dismissed.clone();
+    window.update(|_, cx| {
+        cx.subscribe(dialog, move |_, _: &DismissEvent, _| seen.set(true))
+            .detach();
+    });
+    dismissed
+}
+
 fn corpus_note() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/corpus/Course Notes/Classical Mechanics/Harmonic Oscillator.md")
@@ -54,12 +69,13 @@ fn a_corpus_note_exports_to_pdf() {
     let text = std::fs::read_to_string(&note).unwrap();
     let out = tempfile::tempdir().unwrap();
     let destination = out.path().join("note.pdf");
-    export_ui::write_pdf(&text, Some(&note), &destination).unwrap();
+    let pages = export_ui::write_pdf(&text, Some(&note), &destination).unwrap();
+    assert!(pages > 1);
     assert_pdf(&destination);
 }
 
 #[gpui::test]
-fn the_dialog_saves_a_pdf_where_the_prompt_says(cx: &mut TestAppContext) {
+fn the_dialog_saves_a_pdf_and_offers_to_open_it(cx: &mut TestAppContext) {
     let out = tempfile::tempdir().unwrap();
     let destination = out.path().join("chosen.pdf");
     let (dialog, window) = open_dialog(
@@ -67,22 +83,26 @@ fn the_dialog_saves_a_pdf_where_the_prompt_says(cx: &mut TestAppContext) {
         "# Title\n\nSome text with $x^2$.",
         Some(PathBuf::from("Lemma.md")),
     );
-    let dismissed = Rc::new(Cell::new(false));
-    let seen = dismissed.clone();
-    window.update(|_, cx| {
-        cx.subscribe(&dialog, move |_, _: &DismissEvent, _| seen.set(true))
-            .detach();
-    });
+    let dismissed = watch_dismissal(&dialog, window);
     dialog.read_with(window, |dialog, _| {
         assert_eq!(dialog.selected_format(), ExportFormat::Pdf)
     });
-    // HTML is disabled, so moving down stays on PDF.
-    window.simulate_keystrokes("down enter");
+    window.simulate_keystrokes("enter");
     assert!(window.did_prompt_for_new_path());
     let chosen = destination.clone();
     window.simulate_new_path_selection(move |_| Some(chosen));
     window.run_until_parked();
     assert_pdf(&destination);
+    dialog.read_with(window, |dialog, _| match dialog.state() {
+        ExportState::Saved(saved) => {
+            assert_eq!(saved.path, destination);
+            assert_eq!(saved.detail, "1 page");
+        }
+        _ => panic!("the dialog should show the saved file"),
+    });
+    // The dialog stays until it's closed, so the file can be opened.
+    assert!(!dismissed.get());
+    window.simulate_keystrokes("escape");
     assert!(dismissed.get());
 }
 
@@ -93,6 +113,48 @@ fn cancelling_the_save_prompt_writes_nothing(cx: &mut TestAppContext) {
     window.simulate_new_path_selection(|_| None);
     window.run_until_parked();
     dialog.read_with(window, |dialog, _| {
-        assert_eq!(*dialog.state(), export_ui::ExportState::Choosing)
+        assert!(matches!(dialog.state(), ExportState::Choosing))
+    });
+}
+
+#[gpui::test]
+fn the_html_choice_makes_an_article_to_copy_and_save(cx: &mut TestAppContext) {
+    let note = "---\ntitle: Waves\n---\nA wave has speed $v = f\\lambda$.[^1]\n\n[^1]: Always.";
+    let (dialog, window) = open_dialog(cx, note, Some(PathBuf::from("Wave note.md")));
+    window.simulate_keystrokes("down");
+    dialog.read_with(window, |dialog, _| {
+        assert_eq!(dialog.selected_format(), ExportFormat::Html)
+    });
+    window.simulate_keystrokes("enter");
+    window.run_until_parked();
+    let html = dialog.read_with(window, |dialog, _| match dialog.state() {
+        ExportState::Article(article) => {
+            assert_eq!(article.export.title, "Waves");
+            assert_eq!(article.export.slug, "waves");
+            article.export.html.clone()
+        }
+        _ => panic!("the dialog should show the article"),
+    });
+    assert!(
+        html.starts_with("<article>") && html.contains("<math>"),
+        "{html}"
+    );
+
+    // Enter copies it.
+    window.simulate_keystrokes("enter");
+    let copied = window.read_from_clipboard().and_then(|item| item.text());
+    assert_eq!(copied.as_deref(), Some(html.as_str()));
+
+    // Mod-S saves it.
+    let out = tempfile::tempdir().unwrap();
+    let destination = out.path().join("waves.html");
+    window.simulate_keystrokes("secondary-s");
+    assert!(window.did_prompt_for_new_path());
+    let chosen = destination.clone();
+    window.simulate_new_path_selection(move |_| Some(chosen));
+    window.run_until_parked();
+    assert_eq!(std::fs::read_to_string(&destination).unwrap(), html);
+    dialog.read_with(window, |dialog, _| {
+        assert!(matches!(dialog.state(), ExportState::Saved(_)))
     });
 }
