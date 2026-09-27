@@ -1571,8 +1571,11 @@ impl InputTheme {
 }
 
 impl InputTheme {
-    /// Takes `other`'s colours and keeps this input's sizes.
+    /// Takes `other`'s colours and font and keeps this input's sizes, so
+    /// an input follows a theme or font change, or the installed fonts
+    /// arriving after startup.
     pub fn recolor(&mut self, other: &InputTheme) {
+        self.font_family = other.font_family.clone();
         self.background = other.background;
         self.focused_background = other.focused_background;
         self.error_background = other.error_background;

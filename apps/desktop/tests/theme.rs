@@ -7,6 +7,7 @@ use editor_config::RuleSet;
 use editor_desktop::actions::bind_keys;
 use editor_desktop::features;
 use editor_desktop::settings_view::SettingsView;
+use editor_desktop::text_input::TextInput;
 use editor_desktop::ui::{
     installed_fonts, is_dark, set_installed_fonts, set_system_dark, ui_theme,
 };
@@ -188,4 +189,26 @@ fn fonts_listed_after_startup_replace_missing_theme_fonts(cx: &mut TestAppContex
     hand_over_fonts(&fallbacks, cx);
     let code = note_fonts(&workspace, cx)[2].clone();
     assert!(fallbacks.contains(&code.as_ref()), "code font {code}");
+}
+
+#[gpui::test]
+fn text_inputs_follow_the_fonts_listed_after_startup(cx: &mut TestAppContext) {
+    let vault = vault("");
+    let (_, cx) = open_workspace(cx, vault.path());
+    let named = cx.update(|_, cx| ui_theme(cx).font_family);
+    let input = cx.update(|window, cx| cx.new(|cx| TextInput::new(window, cx)));
+    let family =
+        |cx: &mut VisualTestContext| input.read_with(cx, |input, _| input.font_family().clone());
+    assert_eq!(family(cx), named);
+    // The interface font isn't installed: the theme falls back, and an
+    // input drawn earlier follows it on its next draw.
+    hand_over_fonts(&["DejaVu Sans", "Liberation Serif", "Liberation Mono"], cx);
+    let fallback = cx.update(|_, cx| ui_theme(cx).font_family);
+    assert_ne!(fallback, named, "the theme swapped the missing font");
+    cx.update(|window, cx| {
+        input.update(cx, |input, cx| {
+            let _ = gpui::Render::render(input, window, cx);
+        })
+    });
+    assert_eq!(family(cx), fallback);
 }
