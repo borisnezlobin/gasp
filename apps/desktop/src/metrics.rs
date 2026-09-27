@@ -1,24 +1,20 @@
-//! Row heights for every line. Lines don't soft-wrap in the spike, so a
-//! row's height follows from its style alone and needs no shaping, which
-//! keeps scrolling and hit testing cheap on long notes.
+//! Heights of every line, for scrolling and hit testing without laying out
+//! the whole note.
+//!
+//! Lines wrap, so a line's true height needs shaping. Lines that have been
+//! laid out keep their measured height; the rest carry an estimate from
+//! their length and heading level. Visible lines are laid out every frame,
+//! so estimates are corrected as they scroll into view.
 
 use std::ops::Range;
 
-use editor_core::document::Document;
 use gpui::{Pixels, px};
 
-use crate::styling::{heading_level, line_has_image};
+use crate::preview::source::Source;
 use crate::theme::Theme;
 
-/// The first visible line and where its row starts.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct VisibleLines {
-    pub first: usize,
-    /// Top of the first line's row, relative to the viewport top.
-    pub first_top: Pixels,
-    /// One past the last visible line.
-    pub end: usize,
-}
+/// An average character's width as a share of the font size.
+const AVERAGE_CHARACTER_WIDTH: f32 = 0.5;
 
 /// Row heights for every line of a document.
 #[derive(Clone, Debug, Default)]
@@ -26,19 +22,41 @@ pub struct LineMetrics {
     heights: Vec<Pixels>,
 }
 
-/// The row height for a line of text.
-pub fn row_height(text: &str, theme: &Theme) -> Pixels {
-    let text_height = theme.line_height(theme.font_size(heading_level(text)));
-    if line_has_image(text) {
-        return text_height.max(theme.image_height + theme.image_gap * 2.);
+/// What an estimate depends on.
+#[derive(Clone, Copy, Debug)]
+pub struct Estimator<'a> {
+    pub theme: &'a Theme,
+    pub column_width: Pixels,
+}
+
+impl Estimator<'_> {
+    /// A guess at a line's height before it has been laid out.
+    pub fn estimate(&self, text: &str) -> Pixels {
+        let theme = self.theme;
+        let font_size = theme.font_size(heading_level(text));
+        let line_height = theme.line_height(font_size);
+        let text_width = font_size * AVERAGE_CHARACTER_WIDTH * text.len() as f32;
+        let rows = (text_width / self.column_width.max(px(1.))).ceil().max(1.);
+        line_height * rows
     }
-    text_height
+}
+
+/// Heading level from the line's `#` prefix.
+pub fn heading_level(text: &str) -> u8 {
+    let hashes = text.bytes().take_while(|byte| *byte == b'#').count();
+    let spaced = matches!(text.as_bytes().get(hashes), Some(b' ') | None);
+    if (1..=6).contains(&hashes) && spaced {
+        hashes as u8
+    } else {
+        0
+    }
 }
 
 impl LineMetrics {
-    pub fn build(doc: &Document, theme: &Theme) -> Self {
-        let heights = (0..doc.line_count())
-            .map(|line| row_height(&doc.line_text(line), theme))
+    /// Estimates for every line.
+    pub fn build(source: &Source, estimator: &Estimator<'_>) -> Self {
+        let heights = (0..source.line_count())
+            .map(|line| estimator.estimate(source.line_text(line)))
             .collect();
         Self { heights }
     }
@@ -51,18 +69,25 @@ impl LineMetrics {
         self.heights.get(line).copied().unwrap_or_default()
     }
 
-    /// Replaces the rows for `old_lines` with freshly measured rows for
-    /// `new_lines` of the edited document.
+    /// Records a line's measured height.
+    pub fn set(&mut self, line: usize, height: Pixels) {
+        if let Some(slot) = self.heights.get_mut(line) {
+            *slot = height;
+        }
+    }
+
+    /// Replaces the rows for `old_lines` with estimates for `new_lines` of
+    /// the edited source.
     pub fn splice(
         &mut self,
         old_lines: Range<usize>,
         new_lines: Range<usize>,
-        doc: &Document,
-        theme: &Theme,
+        source: &Source,
+        estimator: &Estimator<'_>,
     ) {
-        let old_lines =
-            old_lines.start.min(self.heights.len())..old_lines.end.min(self.heights.len());
-        let fresh = new_lines.map(|line| row_height(&doc.line_text(line), theme));
+        let len = self.heights.len();
+        let old_lines = old_lines.start.min(len)..old_lines.end.min(len);
+        let fresh = new_lines.map(|line| estimator.estimate(source.line_text(line)));
         self.heights.splice(old_lines, fresh);
     }
 
@@ -80,34 +105,19 @@ impl LineMetrics {
             .fold(px(0.), |sum, height| sum + *height)
     }
 
-    /// The line whose row contains `y` (document coordinates), clamped to
-    /// the first and last lines.
-    pub fn line_at_y(&self, y: Pixels) -> usize {
+    /// The line whose rows contain `y` (document coordinates), and the
+    /// line's top, clamped to the first and last lines. Collapsed lines
+    /// are skipped.
+    pub fn line_at_y(&self, y: Pixels) -> (usize, Pixels) {
         let mut top = px(0.);
         for (line, height) in self.heights.iter().enumerate() {
             if y < top + *height {
-                return line;
+                return (line, top);
             }
             top += *height;
         }
-        self.heights.len().saturating_sub(1)
-    }
-
-    /// The lines that show in a viewport scrolled to `scroll_y`.
-    pub fn visible(&self, scroll_y: Pixels, viewport_height: Pixels) -> VisibleLines {
-        let first = self.line_at_y(scroll_y);
-        let first_top = self.top_of(first) - scroll_y;
-        let mut end = first;
-        let mut bottom = first_top;
-        while end < self.heights.len() && bottom < viewport_height {
-            bottom += self.heights[end];
-            end += 1;
-        }
-        VisibleLines {
-            first,
-            first_top,
-            end,
-        }
+        let last = self.heights.len().saturating_sub(1);
+        (last, top - self.height(last))
     }
 }
 
@@ -115,50 +125,63 @@ impl LineMetrics {
 mod tests {
     use super::*;
 
-    fn metrics(text: &str) -> (LineMetrics, Theme) {
+    fn metrics(text: &str, width: f32) -> (LineMetrics, Theme) {
         let theme = Theme::default();
-        (LineMetrics::build(&Document::from(text), &theme), theme)
+        let estimator = Estimator {
+            theme: &theme,
+            column_width: px(width),
+        };
+        let metrics = LineMetrics::build(&Source::new(text), &estimator);
+        (metrics, theme.clone())
     }
 
     #[test]
-    fn headings_and_images_make_taller_rows() {
-        let (metrics, theme) = metrics("# Title\nbody\nsee ![[a.png]] here");
-        let body = theme.line_height(theme.body_font_size);
+    fn headings_and_long_lines_are_estimated_taller() {
+        let long = "word ".repeat(100);
+        let (metrics, theme) = metrics(&format!("# Title\nbody\n{long}"), 600.);
+        let body = theme.body_line_height();
         assert!(metrics.height(0) > body);
         assert_eq!(metrics.height(1), body);
-        assert_eq!(metrics.height(2), theme.image_height + theme.image_gap * 2.);
+        assert!(metrics.height(2) >= body * 3.);
     }
 
     #[test]
     fn finds_lines_by_y() {
-        let (metrics, theme) = metrics("a\nb\nc");
-        let row = theme.line_height(theme.body_font_size);
-        assert_eq!(metrics.line_at_y(px(0.)), 0);
-        assert_eq!(metrics.line_at_y(row * 1.5), 1);
-        assert_eq!(metrics.line_at_y(row * 10.), 2);
+        let (metrics, theme) = metrics("a\nb\nc", 600.);
+        let row = theme.body_line_height();
+        assert_eq!(metrics.line_at_y(px(0.)), (0, px(0.)));
+        assert_eq!(metrics.line_at_y(row * 1.5), (1, row));
+        assert_eq!(metrics.line_at_y(row * 10.).0, 2);
         assert_eq!(metrics.top_of(2), row * 2.);
         assert_eq!(metrics.total_height(), row * 3.);
     }
 
     #[test]
-    fn visible_lines_cover_the_viewport() {
-        let text = vec!["line"; 100].join("\n");
-        let (metrics, theme) = metrics(&text);
-        let row = theme.line_height(theme.body_font_size);
-        let visible = metrics.visible(row * 10.5, row * 5.);
-        assert_eq!(visible.first, 10);
-        assert_eq!(visible.first_top, -row * 0.5);
-        assert_eq!(visible.end, 16);
+    fn measured_heights_replace_estimates() {
+        let (mut metrics, theme) = metrics("a\nb\nc", 600.);
+        metrics.set(0, px(0.));
+        assert_eq!(metrics.line_at_y(px(1.)), (1, px(0.)));
+        assert_eq!(metrics.total_height(), theme.body_line_height() * 2.);
     }
 
     #[test]
     fn splice_updates_edited_rows() {
         let theme = Theme::default();
-        let mut doc = Document::from("a\nb");
-        let mut metrics = LineMetrics::build(&doc, &theme);
-        doc = Document::from("a\n# b\nc");
-        metrics.splice(1..2, 1..3, &doc, &theme);
+        let estimator = Estimator {
+            theme: &theme,
+            column_width: px(600.),
+        };
+        let mut metrics = LineMetrics::build(&Source::new("a\nb"), &estimator);
+        let source = Source::new("a\n# b\nc");
+        metrics.splice(1..2, 1..3, &source, &estimator);
         assert_eq!(metrics.line_count(), 3);
         assert!(metrics.height(1) > metrics.height(2));
+    }
+
+    #[test]
+    fn heading_levels_need_a_space() {
+        assert_eq!(heading_level("## a"), 2);
+        assert_eq!(heading_level("#tag"), 0);
+        assert_eq!(heading_level("####### seven"), 0);
     }
 }

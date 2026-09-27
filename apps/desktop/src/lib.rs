@@ -18,6 +18,7 @@ pub mod line_layout;
 pub mod metrics;
 pub mod navigation;
 pub mod note;
+pub mod preview;
 pub mod stats;
 pub mod styling;
 pub mod text_offsets;

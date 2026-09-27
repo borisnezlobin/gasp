@@ -1,15 +1,18 @@
 //! The lines laid out for the last frame, in window coordinates, and the
-//! geometry the view needs from them: the caret, selection rectangles and
-//! the bounds an input method places its candidate window at.
+//! geometry the view needs from them: the caret, selection and highlight
+//! rectangles, hit testing, and the bounds an input method places its
+//! candidate window at. All of it works row by row, so it follows soft
+//! wraps.
 
 use std::ops::Range;
 
-use gpui::{Bounds, Pixels, point, px, size};
+use gpui::{Bounds, Pixels, Point, point, px, size};
 
-use crate::line_layout::VisualLine;
+use crate::editor::HighlightKind;
+use crate::line_layout::{Piece, VisualLine, VisualRow};
 use crate::theme::Theme;
 
-/// A laid-out line and the window y of its row's top.
+/// A laid-out line and the window y of its top.
 #[derive(Clone, Debug)]
 pub struct PlacedLine {
     pub top: Pixels,
@@ -17,13 +20,33 @@ pub struct PlacedLine {
 }
 
 impl PlacedLine {
-    /// Top of the text, which sits at the bottom of a row grown by an image.
+    /// Top of the first row's text.
     pub fn text_top(&self) -> Pixels {
-        self.top + self.visual.height - self.visual.text_height
+        self.visual
+            .caret_rows()
+            .next()
+            .map_or(self.top, |(_, row)| self.top + row.top + row.caret_top)
+    }
+
+    pub fn bottom(&self) -> Pixels {
+        self.top + self.visual.height
     }
 
     pub fn contains_offset(&self, offset: usize) -> bool {
         self.visual.start <= offset && offset <= self.visual.end()
+    }
+
+    fn row_bounds(
+        &self,
+        row: &VisualRow,
+        text_left: Pixels,
+        left: Pixels,
+        right: Pixels,
+    ) -> Bounds<Pixels> {
+        Bounds::from_corners(
+            point(text_left + left, self.top + row.top),
+            point(text_left + right, self.top + row.bottom()),
+        )
     }
 }
 
@@ -31,9 +54,12 @@ impl PlacedLine {
 #[derive(Clone, Debug)]
 pub struct FrameLayout {
     pub bounds: Bounds<Pixels>,
-    /// Window x where line text starts.
+    /// Window x of the text column's left edge.
     pub text_left: Pixels,
+    pub column_width: Pixels,
     pub lines: Vec<PlacedLine>,
+    /// Highlight rectangles painted behind the text, by kind.
+    pub highlights: Vec<(HighlightKind, Bounds<Pixels>)>,
 }
 
 impl FrameLayout {
@@ -50,76 +76,106 @@ impl FrameLayout {
     /// The caret at a document offset, if its line is on screen.
     pub fn caret_bounds(&self, offset: usize, theme: &Theme) -> Option<Bounds<Pixels>> {
         let placed = self.line_containing(offset)?;
-        let x = self.text_left + placed.visual.x_for_offset(offset - placed.visual.start);
+        let visual = &placed.visual;
+        let relative = offset - visual.start;
+        let row = &visual.rows[visual.row_for_offset(relative)?];
         Some(Bounds::new(
-            point(x, placed.text_top()),
-            size(theme.cursor_width, placed.visual.text_height),
+            point(
+                self.text_left + row.x_for(relative),
+                placed.top + row.top + row.caret_top,
+            ),
+            size(theme.cursor_width, row.caret_height),
         ))
     }
 
-    /// Bounds of a range on the line where it starts; used for the IME
+    /// Bounds of a range on the row where it starts; used for the IME
     /// candidate window.
     pub fn range_bounds(&self, range: &Range<usize>) -> Option<Bounds<Pixels>> {
         let placed = self.line_containing(range.start)?;
         let visual = &placed.visual;
-        let end = range.end.min(visual.end()).max(range.start);
-        let left = self.text_left + visual.x_for_offset(range.start - visual.start);
-        let right = self.text_left + visual.x_for_offset(end - visual.start);
+        let start = range.start - visual.start;
+        let row = &visual.rows[visual.row_for_offset(start)?];
+        let end =
+            (range.end.min(visual.end()) - visual.start).clamp(start, row.range.end.max(start));
+        let left = self.text_left + row.x_for(start);
+        let right = self.text_left + row.x_for(end);
         Some(Bounds::from_corners(
-            point(left, placed.text_top()),
-            point(right, placed.top + visual.height),
+            point(left, placed.top + row.top + row.caret_top),
+            point(right.max(left), placed.top + row.bottom()),
         ))
     }
 
-    /// One rectangle per visible line the selection touches.
-    pub fn selection_rects(&self, range: &Range<usize>, theme: &Theme) -> Vec<Bounds<Pixels>> {
+    /// Rectangles covering a range, one per row it touches. A range that
+    /// runs past a line's end also covers a sliver for the line break.
+    pub fn range_rects(&self, range: &Range<usize>, theme: &Theme) -> Vec<Bounds<Pixels>> {
         if range.is_empty() {
             return Vec::new();
         }
-        self.lines
-            .iter()
-            .filter_map(|placed| self.selection_rect(placed, range, theme))
-            .collect()
-    }
-
-    fn selection_rect(
-        &self,
-        placed: &PlacedLine,
-        range: &Range<usize>,
-        theme: &Theme,
-    ) -> Option<Bounds<Pixels>> {
-        let visual = &placed.visual;
-        if range.end < visual.start || range.start > visual.end() {
-            return None;
+        let mut rects = Vec::new();
+        for placed in &self.lines {
+            let visual = &placed.visual;
+            if range.end < visual.start || range.start > visual.end() {
+                continue;
+            }
+            let from = range.start.max(visual.start) - visual.start;
+            let to = range.end.min(visual.end()) - visual.start;
+            let breaks_line = range.end > visual.end();
+            let last_row = visual.caret_rows().last().map(|(index, _)| index);
+            for (index, row) in visual.caret_rows() {
+                if to < row.range.start || from > row.range.end {
+                    continue;
+                }
+                let left = row.x_for(from.max(row.range.start));
+                let mut right = row.x_for(to.min(row.range.end));
+                if breaks_line && Some(index) == last_row {
+                    right += theme.newline_selection_width;
+                }
+                if right > left {
+                    rects.push(placed.row_bounds(row, self.text_left, left, right));
+                }
+            }
         }
-        let from = range.start.max(visual.start) - visual.start;
-        let to = range.end.min(visual.end()) - visual.start;
-        let includes_newline = range.end > visual.end();
-        let newline_width = if includes_newline {
-            theme.newline_selection_width
-        } else {
-            px(0.)
-        };
-        let left = visual.x_for_offset(from);
-        let right = visual.x_for_offset(to) + newline_width;
-        (right > left).then(|| {
-            Bounds::from_corners(
-                point(self.text_left + left, placed.top),
-                point(self.text_left + right, placed.top + visual.height),
-            )
-        })
+        rects
     }
 
-    /// The visible line whose row contains window y, clamped to the first
-    /// and last visible lines.
+    /// The visible line under window y, clamped to the first and last
+    /// visible lines. Collapsed lines are never hit.
     pub fn line_at_y(&self, y: Pixels) -> Option<&PlacedLine> {
-        let first = self.lines.first()?;
+        let mut shown = self
+            .lines
+            .iter()
+            .filter(|placed| !placed.visual.is_collapsed());
+        let first = shown.clone().next()?;
         if y < first.top {
             return Some(first);
         }
-        self.lines
+        shown
+            .clone()
+            .find(|placed| y < placed.bottom())
+            .or_else(|| shown.next_back())
+    }
+
+    /// The document offset under a window position.
+    pub fn offset_at(&self, position: Point<Pixels>) -> Option<usize> {
+        let placed = self.line_at_y(position.y)?;
+        let x = position.x - self.text_left;
+        let y = position.y - placed.top;
+        Some(placed.visual.start + placed.visual.offset_for_point(x, y))
+    }
+
+    /// The piece under a window position, and the line it is in.
+    pub fn piece_at(&self, position: Point<Pixels>) -> Option<(&PlacedLine, &Piece)> {
+        let placed = self
+            .lines
             .iter()
-            .find(|placed| y < placed.top + placed.visual.height)
-            .or(self.lines.last())
+            .find(|placed| placed.top <= position.y && position.y < placed.bottom())?;
+        let x = position.x - self.text_left;
+        let piece = placed.visual.piece_at_point(x, position.y - placed.top)?;
+        Some((placed, piece))
+    }
+
+    /// Where the text column ends.
+    pub fn text_right(&self) -> Pixels {
+        self.text_left + self.column_width.max(px(0.))
     }
 }
