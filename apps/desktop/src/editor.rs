@@ -108,9 +108,22 @@ impl EditorView {
     /// A view of `text` with the built-in settings and theme. Images are
     /// looked up in `image_dirs`.
     pub fn new(text: &str, image_dirs: Vec<PathBuf>, cx: &mut Context<Self>) -> Self {
-        let config = Config::defaults();
-        let mut base_theme = Theme::from_config(&config);
-        base_theme.resolve_fonts(&cx.text_system().all_font_names());
+        Self::with_config(text, image_dirs, &Config::defaults(), cx)
+    }
+
+    /// A view of `text` styled by `config`, as [`EditorView::apply_config`]
+    /// would, without measuring the text twice.
+    pub fn with_config(
+        text: &str,
+        image_dirs: Vec<PathBuf>,
+        config: &Config,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let span = crate::trace::span("editor-theme");
+        let mut base_theme = Theme::from_config(config);
+        base_theme.resolve_fonts(&crate::ui::installed_fonts(cx));
+        drop(span);
+        let span = crate::trace::span("editor-parse");
         let source = Source::new(text);
         let column_width = px(INITIAL_COLUMN_WIDTH);
         let estimator = Estimator {
@@ -118,6 +131,7 @@ impl EditorView {
             column_width,
         };
         let symbols = config.settings.markdown.symbols.clone();
+        drop(span);
         Self {
             focus_handle: cx.focus_handle(),
             metrics: LineMetrics::build(&source, &estimator),
@@ -155,7 +169,7 @@ impl EditorView {
     /// as when the config folder changes.
     pub fn apply_config(&mut self, config: &Config, cx: &mut Context<Self>) {
         let mut theme = Theme::from_config(config);
-        theme.resolve_fonts(&cx.text_system().all_font_names());
+        theme.resolve_fonts(&crate::ui::installed_fonts(cx));
         self.base_theme = theme;
         self.symbols = config.settings.markdown.symbols.clone();
         self.reveal = reveal_settings(&self.symbols);

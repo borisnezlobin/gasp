@@ -12,6 +12,8 @@ pub mod keycap;
 pub mod menu;
 pub mod tooltip;
 
+use std::sync::Arc;
+
 use gpui::{App, Global};
 
 pub use breadcrumbs::{Breadcrumbs, Crumb};
@@ -26,13 +28,29 @@ struct ThemeGlobal(UiTheme);
 
 impl Global for ThemeGlobal {}
 
+struct FontNames(Arc<[String]>);
+
+impl Global for FontNames {}
+
+/// The installed font families. Listing them walks every font the
+/// platform knows, so it happens once and every theme shares the list.
+pub fn installed_fonts(cx: &mut App) -> Arc<[String]> {
+    if let Some(names) = cx.try_global::<FontNames>() {
+        return names.0.clone();
+    }
+    let _span = crate::trace::span("font-names");
+    let names: Arc<[String]> = cx.text_system().all_font_names().into();
+    cx.set_global(FontNames(names.clone()));
+    names
+}
+
 /// The UI tokens, with the UI font resolved against the installed fonts
 /// the first time they're asked for.
 pub fn ui_theme(cx: &mut App) -> UiTheme {
     if let Some(theme) = cx.try_global::<ThemeGlobal>() {
         return theme.0.clone();
     }
-    let installed = cx.text_system().all_font_names();
+    let installed = installed_fonts(cx);
     let theme = UiTheme::with_installed_fonts(&installed);
     cx.set_global(ThemeGlobal(theme.clone()));
     theme

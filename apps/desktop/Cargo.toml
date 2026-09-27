@@ -41,6 +41,10 @@ resvg = { version = "0.45", default-features = false }
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 x11rb = "0.13"
 
+[target.'cfg(unix)'.dependencies]
+# Per-thread CPU time for startup tracing (`EDITOR_TRACE_STARTUP`).
+rustix = { version = "1", default-features = false, features = ["std", "time"] }
+
 [dev-dependencies]
 gpui = { version = "=0.2.2", features = ["test-support"] }
 tempfile = "3"

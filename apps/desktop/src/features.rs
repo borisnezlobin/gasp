@@ -13,7 +13,7 @@ use gpui::{
 use crate::commands::handles;
 use crate::editor::EditorView;
 use crate::export_ui::{self, ExportDialog};
-use crate::file_tree::{FileTree, FileTreeEvent};
+use crate::file_tree::{FileTree, FileTreeEvent, FileTreeOptions};
 use crate::find::{FindBar, FindBarEvent};
 use crate::keymap::{
     KEY_CONTEXT, RunCommand, WORKSPACE_CONTEXT, keystroke_for, keystroke_variants,
@@ -84,7 +84,9 @@ fn features(cx: &mut App) -> &mut Features {
 pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Context<Workspace>) {
     // The vault's rules.toml can add, change or remove shortcuts.
     let rules = workspace.config().rules.clone();
+    let span = crate::trace::span("bind-all-keys");
     bind_all_keys(&rules, cx);
+    drop(span);
     // The note header's reading-view button shows a book while Markdown
     // symbols are hidden everywhere.
     let reading: crate::workspace::pane::ReadingProbe = std::rc::Rc::new(|editor| {
@@ -121,8 +123,10 @@ fn install_file_tree(
     window: &mut Window,
     cx: &mut gpui::Context<Workspace>,
 ) {
+    let _span = crate::trace::span("file-tree");
     let vault = workspace.vault().to_path_buf();
-    let tree = cx.new(|cx| FileTree::new(vault, window, cx));
+    let options = FileTreeOptions::from_settings(&workspace.config().settings.files);
+    let tree = cx.new(|cx| FileTree::with_options(vault, options, window, cx));
     workspace.set_file_tree(tree.clone(), cx);
     let subscription = cx.subscribe_in(&tree, window, on_tree_event);
     features(cx).subscriptions.push(subscription);

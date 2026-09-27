@@ -77,6 +77,7 @@ impl Element for EditorElement {
         cx: &mut App,
     ) -> Self::PrepaintState {
         let started = Instant::now();
+        let _span = crate::trace::span("editor-prepaint");
         self.view.update(cx, |view, cx| {
             let mut frame = view.layout_frame(bounds, window);
             frame.highlights = view.highlight_rects(&frame);
@@ -86,7 +87,14 @@ impl Element for EditorElement {
                 .flat_map(|range| frame.range_rects(range, &view.theme))
                 .collect();
             let caret = frame.caret_bounds(view.cursor(), &view.theme);
-            view.start_math_renders(cx);
+            if crate::first_frame::is_waiting() {
+                let view = cx.entity().downgrade();
+                crate::first_frame::defer(move |cx| {
+                    view.update(cx, |view, cx| view.start_math_renders(cx)).ok();
+                });
+            } else {
+                view.start_math_renders(cx);
+            }
             view.timings.layout.push(started.elapsed());
             Prepainted {
                 frame,

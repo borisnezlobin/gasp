@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::paste::{PasteContext, set_paste_context};
 use std::time::Duration;
 
+use editor_config::Config;
 use gpui::{AppContext, Context, Entity, Subscription, Task, WeakEntity};
 
 use super::files::{LineEnding, atomic_write};
@@ -114,10 +115,10 @@ impl NoteDoc {
     }
 
     /// A new editor on this note. Edits in any editor reach the others.
-    pub fn new_editor(&mut self, cx: &mut Context<Self>) -> Entity<EditorView> {
+    pub fn new_editor(&mut self, config: &Config, cx: &mut Context<Self>) -> Entity<EditorView> {
         let text = self.current_text(cx);
         let image_dirs = self.image_dirs.clone();
-        let editor = cx.new(|cx| EditorView::new(&text, image_dirs, cx));
+        let editor = cx.new(|cx| EditorView::with_config(&text, image_dirs, config, cx));
         set_paste_context(&editor, self.paste_context(), cx);
         let subscription = cx.subscribe(&editor, |doc, editor, event, cx| {
             if *event == EditorEvent::Edited {

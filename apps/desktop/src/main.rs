@@ -4,10 +4,12 @@ use editor_desktop::app::{has_display, launch, launch_bench};
 use editor_desktop::bench::BenchConfig;
 use editor_desktop::cli::{self, Command, USAGE};
 use editor_desktop::note::{self, LONG_NOTE_LINES};
+use editor_desktop::trace;
 use editor_desktop::workspace::state::AppState;
 use editor_desktop::workspace::window::LaunchTarget;
 
 fn main() -> ExitCode {
+    trace::init();
     env_logger::init();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let command = match cli::parse(&args) {
@@ -28,7 +30,11 @@ fn main() -> ExitCode {
 }
 
 fn open(path: Option<&std::path::Path>) -> ExitCode {
-    let target = match LaunchTarget::resolve(path, AppState::last_vault()) {
+    let resolved = {
+        let _span = trace::span("resolve-target");
+        LaunchTarget::resolve(path, AppState::last_vault())
+    };
+    let target = match resolved {
         Ok(target) => target,
         Err(message) => {
             eprintln!("{message}");

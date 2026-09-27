@@ -33,6 +33,7 @@ pub mod prompt;
 mod render;
 pub mod sidebar;
 mod sidebar_chrome;
+pub mod startup;
 pub mod state;
 pub mod status;
 pub mod tab_bar;
@@ -45,7 +46,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use editor_config::{Config, ConfigLoader};
+use editor_config::Config;
 use gpui::{
     AnyView, App, AppContext, Context, Entity, EntityId, FocusHandle, Focusable, ManagedView,
     Subscription, Task, Window, WindowBounds,
@@ -57,6 +58,7 @@ use self::note_doc::NoteDoc;
 pub use self::pane::{Pane, ReadingProbe};
 use self::pane_tree::{PaneTree, SplitId};
 use self::sidebar::LeftPanel;
+use self::startup::VaultStart;
 use self::status::StatusInfo;
 use crate::editor::EditorView;
 use crate::file_tree::FileTree;
@@ -103,6 +105,9 @@ pub struct Workspace {
     docs: Vec<Entity<NoteDoc>>,
     closed_tabs: Vec<PathBuf>,
     recent: Vec<PathBuf>,
+    /// The vault's notes by modification time, newest first, as last read
+    /// for the launcher.
+    recency: Vec<PathBuf>,
     left_panel: LeftPanel,
     file_tree: Option<Entity<FileTree>>,
     /// The note the file tree marks as open.
@@ -148,12 +153,17 @@ impl Workspace {
     /// from `.editor/`. Call [`Workspace::watch_vault`] to follow changes
     /// on disk and [`Workspace::restore_session`] to reopen saved tabs.
     pub fn new(vault: &Path, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let vault = std::fs::canonicalize(vault).unwrap_or_else(|_| vault.to_path_buf());
-        let mut loader = ConfigLoader::for_vault(&vault);
-        for diagnostic in loader.load_all() {
-            eprintln!("{diagnostic:?}");
-        }
-        let config = loader.config().clone();
+        Self::from_start(VaultStart::load(vault), window, cx)
+    }
+
+    /// A workspace on a vault whose config and recent notes are already
+    /// read, as when they were read while the app started.
+    pub fn from_start(start: VaultStart, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let VaultStart {
+            vault,
+            config,
+            recent: recency,
+        } = start;
         let theme = Theme::default();
         let show_title = config.settings.editor.show_inline_title;
         crate::ui::hints::set_rules(config.rules.clone(), cx);
@@ -172,6 +182,7 @@ impl Workspace {
             docs: Vec::new(),
             closed_tabs: Vec::new(),
             recent: Vec::new(),
+            recency,
             left_panel,
             file_tree: None,
             tree_active: None,
@@ -193,7 +204,7 @@ impl Workspace {
         };
         workspace.subscribe_to_pane(&pane, window, cx);
         workspace.observe_window(window, cx);
-        workspace.add_launcher_tab(&pane, window, cx);
+        workspace.insert_launcher_tab(&pane, window, cx);
         workspace
     }
 

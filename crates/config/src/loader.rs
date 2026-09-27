@@ -6,6 +6,7 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use toml::Table;
 
@@ -86,9 +87,17 @@ pub struct Config {
     pub device: DeviceSettings,
 }
 
+/// The built-in config, parsed once: every editor and config load starts
+/// from it.
+static DEFAULTS: LazyLock<Config> = LazyLock::new(Config::parse_defaults);
+
 impl Config {
     /// The built-in config with no user files.
     pub fn defaults() -> Config {
+        DEFAULTS.clone()
+    }
+
+    fn parse_defaults() -> Config {
         Config {
             settings: built_or_default(build_settings("settings.toml", None)),
             theme: built_or_default(build_theme("theme.toml", None)),

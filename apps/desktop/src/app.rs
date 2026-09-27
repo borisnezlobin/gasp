@@ -10,6 +10,7 @@ use crate::bench::BenchConfig;
 use crate::editor::EditorView;
 use crate::icons::Assets;
 use crate::note::LoadedNote;
+use crate::trace;
 use crate::workspace::menus::{built_in_available, set_app_menus};
 use crate::workspace::prompt::use_in_window_prompts;
 use crate::workspace::window::{LaunchTarget, open_target};
@@ -33,12 +34,26 @@ pub fn has_display() -> bool {
 /// Opens `target` (a vault, or the empty state) and runs until the last
 /// window closes or the app quits.
 pub fn launch(target: LaunchTarget) {
-    Application::new().with_assets(Assets).run(move |cx| {
-        bind_keys(cx);
-        crate::features::bind_view_keys(cx);
-        set_app_menus(cx, &built_in_available(&crate::features::WIRED_COMMANDS));
-        use_in_window_prompts(cx);
-        if let Err(error) = open_target(target, cx) {
+    let reading = target.start_reading();
+    crate::first_frame::hold();
+    let application = {
+        let _span = trace::span("gpui-platform");
+        Application::new().with_assets(Assets)
+    };
+    application.run(move |cx| {
+        trace::mark("gpui-ready");
+        {
+            let _span = trace::span("bind-keys");
+            bind_keys(cx);
+            crate::features::bind_view_keys(cx);
+        }
+        {
+            let _span = trace::span("app-menus");
+            set_app_menus(cx, &built_in_available(&crate::features::WIRED_COMMANDS));
+            use_in_window_prompts(cx);
+        }
+        let _span = trace::span("open-window-total");
+        if let Err(error) = open_target(target, reading, cx) {
             eprintln!("could not open a window: {error}");
             std::process::exit(1);
         }

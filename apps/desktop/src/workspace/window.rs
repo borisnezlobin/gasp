@@ -4,9 +4,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use editor_config::ConfigLoader;
 use editor_config::device::DeviceSettings;
-use editor_config::loader::ConfigFile;
 use futures::StreamExt;
 use gpui::{
     App, AppContext, Bounds, Context, PathPromptOptions, Pixels, TitlebarOptions, Window,
@@ -14,10 +12,12 @@ use gpui::{
 };
 
 use super::files::{is_note, vault_for_note};
+use super::startup::{PendingStart, VaultStart};
 use super::state::{AppState, save_device, window_bounds, window_size, window_state};
 use super::watcher::{DiskChange, normalize, watch};
 use super::welcome::Welcome;
 use super::{OpenIn, Workspace};
+use crate::trace;
 
 /// How long to gather a burst of file events before acting on them.
 const WATCH_SETTLE: Duration = Duration::from_millis(100);
@@ -66,11 +66,32 @@ impl LaunchTarget {
     }
 }
 
-/// Opens a window for `target`.
-pub fn open_target(target: LaunchTarget, cx: &mut App) -> anyhow::Result<()> {
-    match target {
-        LaunchTarget::Vault { vault, note } => open_vault_window(&vault, note, cx).map(|_| ()),
-        LaunchTarget::Welcome => open_welcome_window(cx),
+impl LaunchTarget {
+    /// Starts reading what the target's window needs, on a background
+    /// thread, so it's ready by the time the app can open the window.
+    pub fn start_reading(&self) -> Option<PendingStart> {
+        match self {
+            LaunchTarget::Vault { vault, .. } => Some(VaultStart::spawn(vault.clone())),
+            LaunchTarget::Welcome => None,
+        }
+    }
+}
+
+/// Opens a window for `target`, with what [`LaunchTarget::start_reading`]
+/// read when given.
+pub fn open_target(
+    target: LaunchTarget,
+    reading: Option<PendingStart>,
+    cx: &mut App,
+) -> anyhow::Result<()> {
+    match (target, reading) {
+        (LaunchTarget::Vault { note, .. }, Some(reading)) => {
+            open_started_vault_window(reading.wait(), note, cx).map(|_| ())
+        }
+        (LaunchTarget::Vault { vault, note }, None) => {
+            open_vault_window(&vault, note, cx).map(|_| ())
+        }
+        (LaunchTarget::Welcome, _) => open_welcome_window(cx),
     }
 }
 
@@ -81,25 +102,46 @@ pub fn open_vault_window(
     note: Option<PathBuf>,
     cx: &mut App,
 ) -> anyhow::Result<WindowHandle<Workspace>> {
-    let device = load_device(vault);
-    let options = window_options(&device, cx);
-    let vault = vault.to_path_buf();
-    let window = cx.open_window(options, move |window, cx| {
-        cx.new(|cx| build_workspace(&vault, note.as_deref(), window, cx))
-    })?;
+    open_started_vault_window(VaultStart::load(vault), note, cx)
+}
+
+fn open_started_vault_window(
+    start: VaultStart,
+    note: Option<PathBuf>,
+    cx: &mut App,
+) -> anyhow::Result<WindowHandle<Workspace>> {
+    let options = window_options(&start.config.device, cx);
+    let window = {
+        let _span = trace::span("open-window");
+        cx.open_window(options, move |window, cx| {
+            cx.new(|cx| build_started_workspace(start, note.as_deref(), window, cx))
+        })?
+    };
     window.update(cx, |workspace, window, cx| {
-        AppState::remember_vault(workspace.vault());
+        remember_vault(workspace.vault().to_path_buf(), cx);
         workspace.focus_active(window, cx);
         cx.activate(true);
+        trace::on_first_frame(window);
+        crate::first_frame::release_when_presented(window);
     })?;
     Ok(window)
+}
+
+/// Records `vault` as the last one opened, off the main thread: nothing
+/// on screen depends on it.
+fn remember_vault(vault: PathBuf, cx: &mut App) {
+    cx.background_spawn(async move { AppState::remember_vault(&vault) })
+        .detach();
 }
 
 /// Opens the empty state, which asks for a folder.
 pub fn open_welcome_window(cx: &mut App) -> anyhow::Result<()> {
     let options = window_options(&DeviceSettings::default(), cx);
     let window = cx.open_window(options, |window, cx| cx.new(|cx| Welcome::new(window, cx)))?;
-    window.update(cx, |_, _, cx| cx.activate(true))?;
+    window.update(cx, |_, window, cx| {
+        crate::first_frame::release_when_presented(window);
+        cx.activate(true);
+    })?;
     Ok(())
 }
 
@@ -110,9 +152,28 @@ pub fn build_workspace(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> Workspace {
-    let mut workspace = Workspace::new(vault, window, cx);
-    crate::features::install(&mut workspace, window, cx);
-    workspace.restore_session(window, cx);
+    build_started_workspace(VaultStart::load(vault), note, window, cx)
+}
+
+fn build_started_workspace(
+    start: VaultStart,
+    note: Option<&Path>,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Workspace {
+    trace::mark("window-created");
+    let mut workspace = {
+        let _span = trace::span("workspace-new");
+        Workspace::from_start(start, window, cx)
+    };
+    {
+        let _span = trace::span("features-install");
+        crate::features::install(&mut workspace, window, cx);
+    }
+    {
+        let _span = trace::span("restore-session");
+        workspace.restore_session(window, cx);
+    }
     if let Some(note) = note
         && let Err(error) = open_or_create(&mut workspace, note, window, cx)
     {
@@ -134,12 +195,6 @@ fn open_or_create(
         super::files::atomic_write(note, "")?;
     }
     workspace.open_path(note, OpenIn::ActiveTab, window, cx)
-}
-
-fn load_device(vault: &Path) -> DeviceSettings {
-    let mut loader = ConfigLoader::for_vault(vault);
-    loader.reload(ConfigFile::Device);
-    loader.config().device.clone()
 }
 
 fn window_options(device: &DeviceSettings, cx: &App) -> WindowOptions {
@@ -271,17 +326,29 @@ impl Workspace {
         }
     }
 
-    /// Follows changes to the vault on disk.
+    /// Follows changes to the vault on disk. Watching a folder means
+    /// visiting every folder in it, so that happens off the main thread.
     pub fn watch_vault(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (watcher, mut receiver) = match watch(&self.vault) {
-            Ok(watching) => watching,
-            Err(error) => {
-                eprintln!("could not watch {}: {error}", self.vault.display());
-                return;
-            }
-        };
-        self.watcher = Some(watcher);
+        let vault = self.vault.clone();
+        let starting = cx.background_spawn(async move {
+            let _span = trace::span("watch-vault");
+            watch(&vault).map_err(|error| (vault, error))
+        });
         let task = cx.spawn_in(window, async move |workspace, cx| {
+            let mut receiver = match starting.await {
+                Ok((watcher, receiver)) => {
+                    let stored =
+                        workspace.update(cx, |workspace, _| workspace.watcher = Some(watcher));
+                    if stored.is_err() {
+                        return;
+                    }
+                    receiver
+                }
+                Err((vault, error)) => {
+                    eprintln!("could not watch {}: {error}", vault.display());
+                    return;
+                }
+            };
             while let Some(first) = receiver.next().await {
                 cx.background_executor().timer(WATCH_SETTLE).await;
                 let mut batch: Vec<DiskChange> = first;
