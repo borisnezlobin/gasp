@@ -28,7 +28,7 @@ pub use button::{Button, ButtonKind};
 pub use icon_button::IconButton;
 pub use keycap::keycap;
 pub use menu::{DropdownMenu, HasMenuSlot, MenuAnchor, MenuHandler, MenuItem, MenuSlot};
-pub use suggestions::{RowGlyph, SuggestionRow, suggestion_list};
+pub use suggestions::{ListHandlers, RowGlyph, SuggestionRow, suggestion_list};
 pub use surface::{dialog, popover};
 pub use tooltip::Tooltip;
 pub use truncated::{Truncated, truncated};

@@ -311,6 +311,104 @@ fn clicking_a_checkbox_toggles_the_task(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn checkboxes_draw_their_state_and_know_the_pointer(cx: &mut TestAppContext) {
+    let note = "- [ ] open\n- [x] done\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    let state = |line: &VisualLine| {
+        line.pieces().find_map(|piece| match piece.content {
+            PieceContent::Checkbox { checked } => Some(checked),
+            _ => None,
+        })
+    };
+    assert_eq!(state(&visual(&view, cx, 0)), Some(false));
+    assert_eq!(state(&visual(&view, cx, 1)), Some(true));
+    let hovered = |view: &Entity<EditorView>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |view, _| view.hovered_task())
+    };
+    assert_eq!(hovered(&view, cx), None);
+    let checkbox = piece_center(&view, cx, 0, |piece| {
+        matches!(piece.hit, Hit::Checkbox { .. })
+    });
+    cx.simulate_mouse_move(checkbox, None, Modifiers::none());
+    assert_eq!(hovered(&view, cx), Some(2), "the open task's marker");
+    cx.simulate_mouse_move(point(px(1.), px(1.)), None, Modifiers::none());
+    assert_eq!(hovered(&view, cx), None);
+}
+
+#[gpui::test]
+fn inline_code_gets_room_for_its_rounded_fill(cx: &mut TestAppContext) {
+    let note = "see `x` and ==y== now\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    let line = visual(&view, cx, 0);
+    let pieces: Vec<&Piece> = line.pieces().collect();
+    let fills = |piece: &Piece| match &piece.content {
+        PieceContent::Text(text) => text.backgrounds.clone(),
+        _ => Vec::new(),
+    };
+    let code = pieces
+        .iter()
+        .position(|piece| fills(piece).iter().any(|fill| fill.padded))
+        .expect("the code has a padded fill");
+    assert!(pieces[code].x > pieces[code - 1].right(), "room before");
+    assert!(pieces[code + 1].x > pieces[code].right(), "room after");
+    let highlight = pieces
+        .iter()
+        .flat_map(|piece| fills(piece))
+        .find(|fill| !fill.padded)
+        .expect("the highlight has a fill");
+    assert_eq!(
+        highlight.range.len(),
+        1,
+        "the fill covers just the highlight"
+    );
+}
+
+#[gpui::test]
+fn list_numbers_end_where_bullets_end(cx: &mut TestAppContext) {
+    let note = "- a\n\n1. b\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    let marker_right = |line: &VisualLine| line.pieces().next().unwrap().right();
+    let text_x = |line: &VisualLine| line.pieces().nth(1).unwrap().x;
+    let (bullet, number) = (visual(&view, cx, 0), visual(&view, cx, 2));
+    assert!((marker_right(&bullet) - marker_right(&number)).abs() < px(0.5));
+    assert_eq!(text_x(&bullet), text_x(&number));
+}
+
+#[gpui::test]
+fn headings_have_room_above_them(cx: &mut TestAppContext) {
+    let note = "text\n## Heading\ntext\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    assert!(visual(&view, cx, 1).rows[0].top > px(0.));
+    assert_eq!(visual(&view, cx, 2).rows[0].top, px(0.));
+}
+
+#[gpui::test]
+fn frontmatter_lines_up_property_values(cx: &mut TestAppContext) {
+    let note = "---\ntitle: Waves\nsubject: physics\ntags:\n  - a\n---\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    let value_x = |line: &VisualLine| line.pieces().last().unwrap().x;
+    let title = visual(&view, cx, 1);
+    assert_eq!(title.pieces().count(), 2, "the colon hides");
+    assert_eq!(value_x(&title), value_x(&visual(&view, cx, 2)));
+    let item = visual(&view, cx, 4);
+    assert!(
+        value_x(&item) >= value_x(&title),
+        "list items sit in the value column"
+    );
+    place_cursor(&view, cx, 5);
+    let colon = note.find(':').unwrap();
+    assert!(
+        shows_text_at(&visual(&view, cx, 1), colon),
+        "the cursor shows the source"
+    );
+}
+
+#[gpui::test]
 fn clicking_a_callout_header_folds_it(cx: &mut TestAppContext) {
     let note = "> [!note]+ Title\n> body\n\nend";
     let (view, cx) = open(cx, note);
@@ -506,6 +604,102 @@ fn tables_render_as_a_grid_until_the_cursor_enters(cx: &mut TestAppContext) {
     place_cursor(&view, cx, 3);
     assert!(!visual(&view, cx, 2).is_collapsed());
     assert!(shows_text_at(&visual(&view, cx, 0), 0));
+}
+
+#[gpui::test]
+fn table_cells_show_rendered_math_on_the_text_baseline(cx: &mut TestAppContext) {
+    let wide = "a+b+c+d+e+f+g+h+i+j";
+    let note = format!("| h | v |\n| --- | --- |\n| x ${wide}$ | 2 |\n\nend");
+    let (view, cx) = open(cx, &note);
+    place_cursor(&view, cx, note.len());
+    cx.run_until_parked();
+    let line = visual(&view, cx, 0);
+    let math = line
+        .pieces()
+        .find(|piece| matches!(piece.content, PieceContent::Image { .. }))
+        .expect("the equation in the cell is drawn");
+    assert_eq!(math.width, px(4. * wide.len() as f32));
+    let texts: Vec<&Piece> = line
+        .pieces()
+        .filter(|piece| piece.is_text() && piece.top + piece.height > math.top)
+        .collect();
+    let x_label = texts
+        .iter()
+        .find(|piece| piece.right() <= math.x)
+        .expect("the text before the equation shares its cell");
+    let PieceContent::Text(shaped) = &x_label.content else {
+        unreachable!()
+    };
+    let ascent = shaped.shaped.ascent;
+    let descent = shaped.shaped.descent.abs();
+    let baseline = x_label.top + (shaped.line_height - ascent - descent) / 2. + ascent;
+    let gap = (math.top + px(8.) - baseline).abs();
+    assert!(
+        gap < px(0.01),
+        "math sits on the text baseline, {gap:?} off"
+    );
+    let two = texts
+        .iter()
+        .find(|piece| piece.x > math.x)
+        .expect("the second column");
+    assert!(
+        two.x >= math.right(),
+        "the column after the equation starts past it"
+    );
+}
+
+#[gpui::test]
+fn table_cells_set_each_style_in_its_own_font(cx: &mut TestAppContext) {
+    let note = "| h |\n| --- |\n| *it* and `code` |\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    let line = visual(&view, cx, 0);
+    let header = line.pieces().find(|piece| piece.is_text()).unwrap();
+    let body_cells = line
+        .pieces()
+        .filter(|piece| piece.is_text() && piece.top > header.top + header.height)
+        .count();
+    assert_eq!(body_cells, 3, "italic, plain and code are shaped apart");
+}
+
+#[gpui::test]
+fn sync_conflicts_show_two_labelled_versions(cx: &mut TestAppContext) {
+    let note = "a\n<<<<<<< this device\nmine\n=======\ntheirs\n>>>>>>> other device\nb\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    let open_marker = visual(&view, cx, 1);
+    let pieces: Vec<&Piece> = open_marker.pieces().collect();
+    assert_eq!(pieces.len(), 1);
+    assert_eq!(
+        pieces[0].hit,
+        Hit::Widget,
+        "a label stands in for the marker"
+    );
+    let mine = visual(&view, cx, 2);
+    let theirs = visual(&view, cx, 4);
+    let plain = visual(&view, cx, 6);
+    assert!(mine.pieces().next().unwrap().x > plain.pieces().next().unwrap().x);
+    let group = |line: &VisualLine| line.decor.surfaces[0].group;
+    assert_ne!(
+        group(&mine),
+        group(&theirs),
+        "each version is its own block"
+    );
+    assert_eq!(group(&open_marker), group(&mine));
+    assert!(
+        visual(&view, cx, 5).is_collapsed(),
+        "the closing marker hides"
+    );
+    let text_height = |line: &VisualLine| line.rows[0].height;
+    assert_eq!(
+        text_height(&mine),
+        text_height(&plain),
+        "the separator doesn't make a heading"
+    );
+
+    let separator = note.find("=======").unwrap();
+    place_cursor(&view, cx, separator);
+    assert!(shows_text_at(&visual(&view, cx, 3), separator));
 }
 
 #[gpui::test]

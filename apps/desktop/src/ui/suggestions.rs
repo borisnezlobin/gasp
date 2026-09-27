@@ -4,8 +4,8 @@
 //! the highlight itself, so typing carries on filtering the list.
 
 use gpui::{
-    AnyElement, Context, Div, ElementId, HighlightStyle, MouseButton, SharedString, Stateful,
-    Window, div, prelude::*,
+    AnyElement, Context, Div, ElementId, HighlightStyle, MouseButton, Pixels, ScrollWheelEvent,
+    SharedString, Stateful, Window, div, prelude::*,
 };
 
 use super::menu::menu_row;
@@ -39,18 +39,35 @@ pub struct RowGlyph {
 /// What a row does when the pointer acts on it.
 pub type RowHandler<V> = fn(&mut V, usize, &mut Window, &mut Context<V>);
 
+/// What the list does with the wheel: the distance to scroll, positive
+/// towards the end.
+pub type ScrollHandler<V> = fn(&mut V, Pixels, &mut Window, &mut Context<V>);
+
+/// What the pointer does to a suggestion list.
+pub struct ListHandlers<V> {
+    /// A row was clicked.
+    pub choose: RowHandler<V>,
+    /// The pointer moved onto a row.
+    pub hover: RowHandler<V>,
+    pub scroll: ScrollHandler<V>,
+}
+
 /// The rows `first..first + theme.suggestion_rows` of a suggestion list,
-/// with row `highlighted` marked. Clicking a row calls `on_choose` and
-/// hovering one calls `on_hover`, both with the row's index in `rows`.
+/// with row `highlighted` marked, and a thumb at the side when there are
+/// more. Handlers get a row's index in `rows`.
 pub fn suggestion_list<V: 'static>(
     rows: &[SuggestionRow],
     first: usize,
     highlighted: usize,
     theme: &UiTheme,
     cx: &mut Context<V>,
-    on_choose: RowHandler<V>,
-    on_hover: RowHandler<V>,
+    handlers: ListHandlers<V>,
 ) -> Stateful<Div> {
+    let ListHandlers {
+        choose: on_choose,
+        hover: on_hover,
+        scroll: on_scroll,
+    } = handlers;
     let end = rows.len().min(first + theme.suggestion_rows);
     let glyph_column = rows.iter().any(|row| row.glyph.is_some());
     let rendered: Vec<AnyElement> = (first..end)
@@ -94,12 +111,51 @@ pub fn suggestion_list<V: 'static>(
             .into_any_element()
         })
         .collect();
+    let row_height = theme.menu_row_height;
     popover(theme)
         .id("suggestions")
         .occlude()
+        .relative()
         .min_w(theme.menu_min_width)
         .max_w(theme.menu_max_width)
+        .on_scroll_wheel(
+            cx.listener(move |view, event: &ScrollWheelEvent, window, cx| {
+                cx.stop_propagation();
+                let delta = event.delta.pixel_delta(row_height);
+                on_scroll(view, -delta.y, window, cx);
+            }),
+        )
         .children(rendered)
+        .children(scroll_thumb(rows.len(), first, theme))
+}
+
+/// A slim thumb on the right edge, as long as the share of rows showing,
+/// when not every row fits.
+fn scroll_thumb(count: usize, first: usize, theme: &UiTheme) -> Option<Div> {
+    let visible = theme.suggestion_rows;
+    if count <= visible {
+        return None;
+    }
+    let track = theme.menu_row_height * visible as f32;
+    let length = track * (visible as f32 / count as f32);
+    let top = theme.menu_padding + track * (first as f32 / count as f32);
+    Some(
+        div()
+            .absolute()
+            .top(top)
+            .right((theme.menu_padding - theme.scroll_thumb_width) / 2.)
+            .w(theme.scroll_thumb_width)
+            .h(length)
+            .rounded(theme.scroll_thumb_width)
+            .bg(theme.scroll_thumb),
+    )
+}
+
+/// The first visible row after scrolling `rows` rows from `first`, kept
+/// within a list of `count` rows showing `visible` at a time.
+pub fn scrolled(first: usize, rows: isize, count: usize, visible: usize) -> usize {
+    let last = count.saturating_sub(visible);
+    first.saturating_add_signed(rows).min(last)
 }
 
 /// The fixed-width cell a row's glyph sits in, so the names line up
@@ -153,6 +209,15 @@ pub fn list_height(rows: usize, theme: &UiTheme) -> gpui::Pixels {
 #[cfg(test)]
 mod tests {
     use super::scroll_to_show;
+
+    #[test]
+    fn scrolling_stays_within_the_list() {
+        use super::scrolled;
+        assert_eq!(scrolled(0, 3, 20, 8), 3);
+        assert_eq!(scrolled(10, 5, 20, 8), 12);
+        assert_eq!(scrolled(2, -5, 20, 8), 0);
+        assert_eq!(scrolled(0, 4, 5, 8), 0);
+    }
 
     #[test]
     fn the_window_follows_the_highlight() {

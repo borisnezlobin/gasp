@@ -24,13 +24,15 @@ type LinkDefs = HashMap<String, (String, String)>;
 /// everything pulldown-cmark reports for the Markdown segments.
 pub(crate) fn build_nodes(text: &str) -> Vec<Node> {
     let segments = segments::split(text);
-    let defs = shared_link_defs(text, &segments);
+    let markdown = markdown_ranges(&segments);
+    let defs = shared_link_defs(text, &markdown);
     let mut builder = Builder {
         nodes: vec![Node::new(NodeKind::Document, 0..text.len())],
         stack: vec![NodeId(0)],
         text,
         overflowed: false,
         skipping: 0,
+        footnotes: shared_footnotes(text, &markdown),
     };
     for segment in segments {
         builder.add_segment(segment, &defs);
@@ -48,6 +50,7 @@ pub(crate) fn build_region(text: &str, region: Range<usize>, context: &str) -> O
         text,
         overflowed: false,
         skipping: 0,
+        footnotes: String::new(),
     };
     let source = format!("{}{context}", &text[region.clone()]);
     builder.add_source(&source, region, &LinkDefs::new());
@@ -62,23 +65,30 @@ fn clamp_end(source: &str, end: usize, limit: usize) -> Option<usize> {
     source[limit..end].trim().is_empty().then_some(limit)
 }
 
+/// The ranges parsed as Markdown, each on its own.
+fn markdown_ranges(segments: &[Segment]) -> Vec<Range<usize>> {
+    segments
+        .iter()
+        .flat_map(|segment| match segment {
+            Segment::Markdown(range) => vec![range.clone()],
+            Segment::Conflict(conflict) => {
+                vec![conflict.this_device.clone(), conflict.other_device.clone()]
+            }
+            _ => Vec::new(),
+        })
+        .collect()
+}
+
 /// Link reference definitions of every segment, so a reference in one
 /// segment resolves against a definition in another. Only needed when a
-/// comment block or frontmatter splits the document.
-fn shared_link_defs(text: &str, segments: &[Segment]) -> LinkDefs {
-    let markdown: Vec<_> = segments
-        .iter()
-        .filter_map(|segment| match segment {
-            Segment::Markdown(range) => Some(range.clone()),
-            _ => None,
-        })
-        .collect();
+/// comment block, frontmatter or a sync conflict splits the document.
+fn shared_link_defs(text: &str, markdown: &[Range<usize>]) -> LinkDefs {
     if markdown.len() < 2 {
         return LinkDefs::new();
     }
     let mut defs = LinkDefs::new();
     for range in markdown {
-        let parser = Parser::new_ext(&text[range], options());
+        let parser = Parser::new_ext(&text[range.clone()], options());
         for (label, def) in parser.reference_definitions().iter() {
             let title = def.title.as_deref().unwrap_or_default().to_owned();
             defs.insert(label.to_lowercase(), (def.dest.to_string(), title));
@@ -87,10 +97,35 @@ fn shared_link_defs(text: &str, segments: &[Segment]) -> LinkDefs {
     defs
 }
 
+/// Every footnote definition's label, as Markdown to parse after each
+/// segment so a reference in one finds its definition in another, as an
+/// incremental reparse does. Empty when the document is one segment.
+fn shared_footnotes(text: &str, markdown: &[Range<usize>]) -> String {
+    if markdown.len() < 2 {
+        return String::new();
+    }
+    let mut context = String::new();
+    for line in markdown
+        .iter()
+        .flat_map(|range| text[range.clone()].lines())
+    {
+        let trimmed = line.trim_start();
+        let label = trimmed
+            .strip_prefix("[^")
+            .and_then(|rest| rest.find("]:").map(|end| &rest[..end]));
+        if let Some(label) = label.filter(|_| line.len() - trimmed.len() <= 3) {
+            context.push_str(&format!("\n\n[^{label}]: x"));
+        }
+    }
+    context
+}
+
 struct Builder<'a> {
     nodes: Vec<Node>,
     stack: Vec<NodeId>,
     text: &'a str,
+    /// Footnote definitions from other segments; see [`shared_footnotes`].
+    footnotes: String,
     /// Set when a region parse produced a node past the region's end.
     overflowed: bool,
     /// Depth of a dropped subtree being skipped.
@@ -107,13 +142,44 @@ impl Builder<'_> {
                 self.push_leaf(NodeKind::CommentBlock, range);
             }
             Segment::Markdown(range) => self.add_markdown(range, defs),
+            Segment::Conflict(conflict) => self.add_conflict(conflict, defs),
         }
         self.stack.truncate(1);
     }
 
+    /// A conflict node holding each version's blocks, parsed apart.
+    fn add_conflict(&mut self, conflict: segments::ConflictRegion, defs: &LinkDefs) {
+        let id = self.push_leaf(NodeKind::Conflict, conflict.range);
+        self.stack.push(id);
+        for side in [conflict.this_device, conflict.other_device] {
+            if !side.is_empty() {
+                self.add_markdown(side, defs);
+            }
+            self.stack.truncate(2);
+        }
+    }
+
+    /// Parses a Markdown segment, with the other segments' footnote
+    /// definitions after it. A segment whose last block would run on into
+    /// them, such as an unclosed code fence, is parsed again without.
     fn add_markdown(&mut self, range: Range<usize>, defs: &LinkDefs) {
-        let source = &self.text[range.clone()];
-        self.add_source(source, range, defs);
+        let text = self.text;
+        if self.footnotes.is_empty() {
+            return self.add_source(&text[range.clone()], range, defs);
+        }
+        let parent = *self.stack.last().expect("the root stays on the stack");
+        let saved = (self.nodes.len(), self.nodes[parent.0].children.len());
+        let depth = self.stack.len();
+        let source = format!("{}{}", &text[range.clone()], self.footnotes);
+        self.add_source(&source, range.clone(), defs);
+        if self.overflowed {
+            self.overflowed = false;
+            self.skipping = 0;
+            self.nodes.truncate(saved.0);
+            self.nodes[parent.0].children.truncate(saved.1);
+            self.stack.truncate(depth);
+            self.add_source(&text[range.clone()], range, defs);
+        }
     }
 
     /// Parses `source`, whose first `range.len()` bytes are `range` of the
@@ -122,6 +188,7 @@ impl Builder<'_> {
     fn add_source(&mut self, source: &str, range: Range<usize>, defs: &LinkDefs) {
         let base = range.start;
         let limit = range.len();
+        let depth = self.stack.len();
         let callback = |link: BrokenLink<'_>| {
             defs.get(&link.reference.to_lowercase())
                 .map(|(dest, title)| (CowStr::from(dest.clone()), CowStr::from(title.clone())))
@@ -129,7 +196,7 @@ impl Builder<'_> {
         let mut events = Parser::new_with_broken_link_callback(source, options(), Some(callback))
             .into_offset_iter();
         for (event, span) in events.by_ref() {
-            if span.start >= limit && self.stack.len() == 1 {
+            if span.start >= limit && self.stack.len() == depth {
                 break;
             }
             let Some(end) = clamp_end(source, span.end, limit).filter(|_| span.start <= limit)

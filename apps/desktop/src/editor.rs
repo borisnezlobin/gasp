@@ -92,6 +92,9 @@ pub struct EditorView {
     pub(crate) header_height: Pixels,
     pub(crate) goal_x: Option<Pixels>,
     pub(crate) is_selecting: bool,
+    /// Where the marker of the task under the pointer starts, so its box
+    /// can show it's clickable.
+    pub(crate) hovered_task: Option<usize>,
     pub(crate) click_unit: ClickUnit,
     pub(crate) click_origin: Range<usize>,
     pub(crate) autoscroll: bool,
@@ -190,6 +193,7 @@ impl EditorView {
             header_height: px(0.),
             goal_x: None,
             is_selecting: false,
+            hovered_task: None,
             click_unit: ClickUnit::Character,
             click_origin: 0..0,
             autoscroll: false,
@@ -282,6 +286,11 @@ impl EditorView {
 
     pub fn cursor(&self) -> usize {
         self.state.selection().primary().head
+    }
+
+    /// Where the marker of the task under the pointer starts.
+    pub fn hovered_task(&self) -> Option<usize> {
+        self.hovered_task
     }
 
     pub fn anchor(&self) -> usize {
