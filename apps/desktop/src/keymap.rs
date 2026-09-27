@@ -28,7 +28,8 @@ pub fn bind_keys(cx: &mut App) {
     bind_rules(&RuleSet::defaults(), cx);
 }
 
-/// Binds the key rules in `rules` for this platform.
+/// Binds the key rules in `rules` for this platform, in the editor, the
+/// workspace and every text input.
 pub fn bind_rules(rules: &RuleSet, cx: &mut App) {
     let bindings = all_bindings(rules, Platform::current())
         .into_iter()
@@ -43,6 +44,7 @@ pub fn bind_rules(rules: &RuleSet, cx: &mut App) {
                 })
         });
     cx.bind_keys(bindings);
+    crate::text_input::bind_keys(rules, cx);
     // The app menu normally owns Quit; without one, Cmd+Q or Ctrl+Q quits.
     cx.bind_keys([KeyBinding::new("secondary-q", Quit, None)]);
     cx.on_action(|_: &Quit, cx| cx.quit());

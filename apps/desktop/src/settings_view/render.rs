@@ -79,7 +79,6 @@ impl SettingsView {
                         view.set_focus(SettingsFocus::Sections, window, cx);
                     }))
             });
-        let search_ring = self.focus == SettingsFocus::Search;
         div()
             .flex_none()
             .w(theme.sidebar_width)
@@ -89,15 +88,7 @@ impl SettingsView {
             .flex_col()
             .gap(theme.gap)
             .bg(theme.background)
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(theme.gap)
-                    .rounded(theme.radius)
-                    .when(search_ring, |row| row.shadow(vec![theme.focus_ring()]))
-                    .child(self.search.clone()),
-            )
+            .child(self.search.clone())
             .child(
                 div()
                     .id("settings-sections")
@@ -120,7 +111,10 @@ impl SettingsView {
             .iter()
             .enumerate()
             .map(|(index, row)| {
-                let is_focused = focused && self.focus == SettingsFocus::Control(index);
+                // A text field shows its own focus ring, so its row doesn't.
+                let is_focused = focused
+                    && self.focus == SettingsFocus::Control(index)
+                    && self.field_for(row).is_none();
                 let element = self.render_row(index, row, is_focused, cx);
                 let previous = index.checked_sub(1).and_then(|i| rows.get(i));
                 match new_category(row, previous) {
@@ -387,9 +381,6 @@ impl SettingsView {
         div()
             .flex_none()
             .w(self.theme.sidebar_width)
-            .rounded(self.theme.radius)
-            .bg(self.theme.control_background)
-            .p(self.theme.control_inset)
             .child(field)
             .into_any_element()
     }

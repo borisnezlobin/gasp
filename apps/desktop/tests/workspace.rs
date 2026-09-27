@@ -351,6 +351,35 @@ fn a_taken_title_is_refused(cx: &mut TestAppContext) {
     assert!(vault.path().join("a.md").is_file());
 }
 
+fn title_text(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> String {
+    cx.read(|cx| {
+        let pane = workspace.read(cx).active_pane().read(cx);
+        let note = pane.active_tab().unwrap().note().unwrap();
+        note.title.read(cx).text().to_owned()
+    })
+}
+
+#[gpui::test]
+fn escape_reverts_the_title_and_tab_leaves_it_renamed(cx: &mut TestAppContext) {
+    let vault = vault_with(&[("a.md", "")]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    cx.update(|window, _| window.activate_window());
+    open(&workspace, cx, "a.md", OpenIn::ActiveTab);
+    run(&workspace, cx, "note.rename");
+    cx.simulate_input("draft");
+    cx.simulate_keystrokes("escape");
+    assert_eq!(title_text(&workspace, cx), "a");
+    assert_eq!(titles(&workspace, cx), vec!["a"]);
+    run(&workspace, cx, "note.rename");
+    cx.simulate_input("Ideas");
+    cx.simulate_keystrokes("tab");
+    assert_eq!(titles(&workspace, cx), vec!["Ideas"]);
+    assert!(vault.path().join("Ideas.md").is_file());
+    // Tab moved the cursor into the note.
+    cx.simulate_input("body");
+    assert_eq!(editor_text(&workspace, cx), "body");
+}
+
 #[gpui::test]
 fn deleting_asks_then_moves_the_note_away(cx: &mut TestAppContext) {
     let vault = vault_with(&[

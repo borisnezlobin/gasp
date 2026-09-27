@@ -136,8 +136,6 @@ pub struct PickerTheme {
     pub corner_radius: Pixels,
     pub input_padding_x: Pixels,
     pub input_padding_y: Pixels,
-    pub input_font_size: Pixels,
-    pub input_line_height: Pixels,
     pub row_font_size: Pixels,
     pub detail_font_size: Pixels,
     pub icon_size: Pixels,
@@ -146,15 +144,12 @@ pub struct PickerTheme {
     pub keycap_padding_x: Pixels,
     pub keycap_padding_y: Pixels,
     pub keycap_corner_radius: Pixels,
-    pub cursor_width: Pixels,
-    pub composition_underline_thickness: Pixels,
     pub shadow_blur: Pixels,
     pub shadow_offset_y: Pixels,
     pub background: Hsla,
     pub shadow: Hsla,
     pub text: Hsla,
     pub detail_text: Hsla,
-    pub placeholder_text: Hsla,
     pub match_text: Hsla,
     pub match_weight: FontWeight,
     pub icon: Hsla,
@@ -162,8 +157,6 @@ pub struct PickerTheme {
     pub hovered_row: Hsla,
     pub keycap_background: Hsla,
     pub keycap_text: Hsla,
-    pub cursor: Hsla,
-    pub selection: Hsla,
     pub warning_text: Hsla,
 }
 
@@ -183,8 +176,6 @@ impl Default for PickerTheme {
             corner_radius: px(10.),
             input_padding_x: px(16.),
             input_padding_y: px(14.),
-            input_font_size: px(16.),
-            input_line_height: px(24.),
             row_font_size: px(14.),
             detail_font_size: px(12.),
             icon_size: px(16.),
@@ -192,15 +183,12 @@ impl Default for PickerTheme {
             keycap_padding_x: px(6.),
             keycap_padding_y: px(2.),
             keycap_corner_radius: px(4.),
-            cursor_width: px(2.),
-            composition_underline_thickness: px(1.),
             shadow_blur: px(32.),
             shadow_offset_y: px(8.),
             background: hsla(0., 0., 1., 1.),
             shadow: hsla(0., 0., 0., 0.18),
             text: hsla(0., 0., 0.13, 1.),
             detail_text: hsla(0., 0., 0.5, 1.),
-            placeholder_text: hsla(0., 0., 0.6, 1.),
             match_text: hsla(0., 0., 0., 1.),
             match_weight: FontWeight::BOLD,
             icon: hsla(0., 0., 0.45, 1.),
@@ -208,8 +196,6 @@ impl Default for PickerTheme {
             hovered_row: hsla(0., 0., 0.96, 1.),
             keycap_background: hsla(0., 0., 0.94, 1.),
             keycap_text: hsla(0., 0., 0.4, 1.),
-            cursor: hsla(0., 0., 0.13, 1.),
-            selection: hsla(0.6, 0.9, 0.6, 0.3),
             warning_text: hsla(0.03, 0.7, 0.42, 1.),
         }
     }
@@ -229,7 +215,6 @@ impl PickerTheme {
 pub struct WorkspaceTheme {
     pub ui_font_size: Pixels,
     pub ui_small_font_size: Pixels,
-    pub title_font_size: Pixels,
     pub tab_height: Pixels,
     pub tab_min_width: Pixels,
     pub tab_max_width: Pixels,
@@ -275,8 +260,6 @@ pub struct WorkspaceTheme {
     pub conflict: Hsla,
     pub shadow: Hsla,
     pub backdrop: Hsla,
-    pub selection: Hsla,
-    pub cursor: Hsla,
 }
 
 impl Default for WorkspaceTheme {
@@ -284,7 +267,6 @@ impl Default for WorkspaceTheme {
         Self {
             ui_font_size: px(13.),
             ui_small_font_size: px(12.),
-            title_font_size: px(34.),
             tab_height: px(32.),
             tab_min_width: px(96.),
             tab_max_width: px(200.),
@@ -327,8 +309,6 @@ impl Default for WorkspaceTheme {
             conflict: rgb(0xc62828).into(),
             shadow: hsla(0., 0., 0., 0.12),
             backdrop: hsla(0., 0., 0., 0.08),
-            selection: rgb(0xe4e4e7).into(),
-            cursor: rgb(0x000000).into(),
         }
     }
 }
@@ -379,12 +359,6 @@ pub struct PanelTheme {
     pub menu_shadow_blur: Pixels,
     pub menu_shadow_offset: Pixels,
     pub menu_width: Pixels,
-    pub input_background: Hsla,
-    pub input_height: Pixels,
-    pub text_selection: Hsla,
-    pub caret: Hsla,
-    pub caret_width: Pixels,
-    pub composition_underline_thickness: Pixels,
     /// Space between a control's track and what sits in it.
     pub control_inset: Pixels,
     pub control_background: Hsla,
@@ -440,12 +414,6 @@ impl Default for PanelTheme {
             menu_shadow_blur: px(16.),
             menu_shadow_offset: px(4.),
             menu_width: px(220.),
-            input_background: hsla(0., 0., 1., 1.),
-            input_height: px(24.),
-            text_selection: hsla(0.6, 0.9, 0.6, 0.3),
-            caret: hsla(0., 0., 0.1, 1.),
-            caret_width: px(1.5),
-            composition_underline_thickness: px(1.),
             control_inset: px(2.),
             control_background: hsla(0., 0., 0., 0.07),
             control_selected: hsla(0., 0., 0.08, 1.),
@@ -526,16 +494,6 @@ pub struct FindUiTheme {
     pub panel_padding: Pixels,
     pub gap: Pixels,
     pub radius: Pixels,
-    pub input_height: Pixels,
-    pub input_padding_x: Pixels,
-    pub input_background: Hsla,
-    pub input_focus_ring: Hsla,
-    pub input_ring_width: Pixels,
-    pub input_error_background: Hsla,
-    pub input_selection: Hsla,
-    pub placeholder: Hsla,
-    pub caret: Hsla,
-    pub caret_width: Pixels,
     pub button_size: Pixels,
     pub button_padding_x: Pixels,
     pub icon_size: Pixels,
@@ -571,16 +529,6 @@ impl Default for FindUiTheme {
             panel_padding: px(8.),
             gap: px(6.),
             radius: px(6.),
-            input_height: px(28.),
-            input_padding_x: px(8.),
-            input_background: hsla(0., 0., 1., 1.),
-            input_focus_ring: hsla(0., 0., 0.1, 1.),
-            input_ring_width: px(1.5),
-            input_error_background: hsla(0.0, 0.8, 0.95, 1.),
-            input_selection: hsla(0.6, 0.9, 0.6, 0.3),
-            placeholder: hsla(0., 0., 0.6, 1.),
-            caret: hsla(0., 0., 0.1, 1.),
-            caret_width: px(1.5),
             button_size: px(28.),
             button_padding_x: px(10.),
             icon_size: px(16.),
@@ -596,6 +544,91 @@ impl Default for FindUiTheme {
             dialog_width: px(320.),
             dialog_top_offset: px(96.),
             backdrop: hsla(0., 0., 0., 0.18),
+        }
+    }
+}
+
+// Text inputs ------------------------------------------------------------
+
+/// Tokens for every one-line text input (`crate::text_input::TextInput`):
+/// the picker query, find and search fields, settings fields, inline
+/// renames and the note's title. Each input style picks from these.
+#[derive(Clone, Debug)]
+pub struct InputTheme {
+    pub font_family: &'static str,
+    /// Field and inline inputs.
+    pub font_size: Pixels,
+    /// The picker's query.
+    pub query_font_size: Pixels,
+    /// The note's title.
+    pub title_font_size: Pixels,
+    pub title_weight: FontWeight,
+    /// Line height as a multiple of the font size.
+    pub line_height_factor: f32,
+    /// A field in a form or bar.
+    pub field_height: Pixels,
+    /// A field inside a list row.
+    pub inline_height: Pixels,
+    pub padding_x: Pixels,
+    pub radius: Pixels,
+    /// A field's fill. Translucent, so it reads on white and grey surfaces.
+    pub background: Hsla,
+    /// A field's fill while its text isn't valid.
+    pub error_background: Hsla,
+    pub focus_ring: Hsla,
+    pub ring_width: Pixels,
+    pub ring_blur: Pixels,
+    pub text: Hsla,
+    pub title_text: Hsla,
+    pub placeholder: Hsla,
+    pub selection: Hsla,
+    pub caret: Hsla,
+    pub caret_width: Pixels,
+    pub composition_underline_thickness: Pixels,
+}
+
+impl Default for InputTheme {
+    fn default() -> Self {
+        Self {
+            font_family: PLATFORM_FONTS.0,
+            font_size: px(13.),
+            query_font_size: px(16.),
+            title_font_size: px(34.),
+            title_weight: FontWeight::BOLD,
+            line_height_factor: 1.5,
+            field_height: px(28.),
+            inline_height: px(24.),
+            padding_x: px(8.),
+            radius: px(6.),
+            background: hsla(0., 0., 0., 0.06),
+            error_background: hsla(0.0, 0.8, 0.95, 1.),
+            focus_ring: hsla(0., 0., 0.1, 0.55),
+            ring_width: px(1.5),
+            ring_blur: px(0.5),
+            text: hsla(0., 0., 0.13, 1.),
+            title_text: hsla(0., 0., 0.07, 1.),
+            placeholder: hsla(0., 0., 0.6, 1.),
+            selection: hsla(0.6, 0.9, 0.6, 0.3),
+            caret: hsla(0., 0., 0.1, 1.),
+            caret_width: px(1.5),
+            composition_underline_thickness: px(1.),
+        }
+    }
+}
+
+impl InputTheme {
+    /// Height of one line of input text at `font_size`.
+    pub fn line_height(&self, font_size: Pixels) -> Pixels {
+        font_size * self.line_height_factor
+    }
+
+    /// The ring around a focused field.
+    pub fn focus_ring(&self) -> BoxShadow {
+        BoxShadow {
+            color: self.focus_ring,
+            offset: point(px(0.), px(0.)),
+            blur_radius: self.ring_blur,
+            spread_radius: self.ring_width,
         }
     }
 }

@@ -15,7 +15,7 @@ use gpui::{
 use crate::picker::fuzzy::{Candidate, Matcher, Query};
 use crate::picker::shortcut::{chord_text, shortcut_label};
 use crate::picker::{Confirmed, Picker, PickerDelegate, highlighted_text, keycap, surface_shadow};
-use crate::theme::PickerTheme;
+use crate::theme::{InputTheme, PickerTheme};
 
 /// Extra score for the most recently used command, falling by
 /// [`RECENT_STEP`] per place in the recent list.
@@ -420,7 +420,7 @@ impl CommandPalette {
             .shadow(vec![surface_shadow(theme)])
             .child(
                 div()
-                    .text_size(theme.input_font_size)
+                    .text_size(InputTheme::default().query_font_size)
                     .child(format!("Press the new shortcut for “{}”", capture.title)),
             )
             .child(div().text_size(theme.detail_font_size).child(hint))

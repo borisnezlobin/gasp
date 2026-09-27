@@ -10,9 +10,9 @@ use super::history::Location;
 use super::launcher::{Launcher, MAX_RECENT, OpenRecent};
 use super::note_doc::NoteDoc;
 use super::pane::{NoteTab, Pane, Tab, TabContent};
-use super::title_input::TitleInput;
 use super::{MAX_CLOSED_TABS, OpenIn, Workspace};
 use crate::editor::EditorView;
+use crate::text_input::{TextInput, TextInputStyle};
 
 /// Folders the launcher reads at most when looking for recent notes.
 const RECENT_SCAN_FOLDERS: usize = 200;
@@ -136,7 +136,13 @@ impl Workspace {
         let doc = self.doc(path, cx)?;
         let editor = doc.update(cx, |doc, cx| doc.new_editor(cx));
         let title_text = note_title(path);
-        let title = cx.new(|cx| TitleInput::new(&title_text, window, cx));
+        let title = cx.new(|cx| {
+            let mut title = TextInput::new(window, cx)
+                .with_style(TextInputStyle::Title)
+                .with_placeholder(super::files::UNTITLED);
+            title.set_text(&title_text, cx);
+            title
+        });
         self.cursors
             .insert(editor.entity_id(), super::CursorSeen::default());
         let subscriptions = vec![

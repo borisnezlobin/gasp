@@ -8,9 +8,11 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Duration;
 
+use editor_config::RuleSet;
 use editor_config::settings::TrashMode;
 use editor_desktop::file_tree::{FileTree, FileTreeEvent, FileTreeOptions, MenuItem};
 use editor_desktop::keymap::RunCommand;
+use editor_desktop::text_input;
 use gpui::{Entity, Focusable, Modifiers, TestAppContext, VisualTestContext};
 use tempfile::TempDir;
 
@@ -50,6 +52,7 @@ fn open<'a>(
     root: &Path,
     watch: bool,
 ) -> (Entity<FileTree>, &'a mut VisualTestContext, Events) {
+    cx.update(|cx| text_input::bind_keys(&RuleSet::defaults(), cx));
     let root = root.to_path_buf();
     let (tree, cx) = cx.add_window_view(move |window, cx| {
         FileTree::with_options(root.clone(), options(watch), window, cx)

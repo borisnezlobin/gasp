@@ -9,12 +9,10 @@
 //! Call [`bind_keys`] once at startup, next to `keymap::bind_rules`.
 
 pub mod fuzzy;
-pub mod input;
 pub mod shortcut;
 
 use std::ops::Range;
 
-use editor_config::{Platform, RuleSet};
 use gpui::{
     AnyElement, App, BoxShadow, ClickEvent, Context, DismissEvent, Entity, EventEmitter,
     FocusHandle, Focusable, HighlightStyle, KeyBinding, ParentElement, Render, ScrollStrategy,
@@ -22,9 +20,8 @@ use gpui::{
     prelude::*, px, uniform_list,
 };
 
-use crate::keymap::{RunCommand, keystroke_for};
+use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
 use crate::theme::PickerTheme;
-use input::{INPUT_CONTEXT, QueryEvent, QueryInput, input_command_ids};
 
 /// The key context the picker sets around its input and list.
 pub const PICKER_CONTEXT: &str = "Picker";
@@ -42,9 +39,9 @@ gpui::actions!(
     ]
 );
 
-/// Binds the picker's list keys, and the query input's editing keys from
-/// the editing rules in `rules` (so the input edits like the editor).
-pub fn bind_keys(rules: &RuleSet, cx: &mut App) {
+/// Binds the picker's list keys. The query input's editing keys come from
+/// the rules, bound by `keymap::bind_rules`.
+pub fn bind_keys(cx: &mut App) {
     let context = Some(PICKER_CONTEXT);
     cx.bind_keys([
         KeyBinding::new("down", SelectNext, context),
@@ -57,30 +54,6 @@ pub fn bind_keys(rules: &RuleSet, cx: &mut App) {
         KeyBinding::new("secondary-enter", SecondaryConfirm, context),
         KeyBinding::new("escape", Dismiss, context),
     ]);
-    let platform = Platform::current();
-    let bindings = input_keystrokes(rules, platform)
-        .into_iter()
-        .map(|(keystroke, id)| {
-            KeyBinding::new(
-                &keystroke,
-                RunCommand { id: id.into() },
-                Some(INPUT_CONTEXT),
-            )
-        });
-    cx.bind_keys(bindings);
-}
-
-/// (GPUI keystroke, command id) for every editing rule the query input runs.
-pub fn input_keystrokes(rules: &RuleSet, platform: Platform) -> Vec<(String, String)> {
-    rules
-        .key_rules(platform)
-        .filter(|rule| rule.when.is_none())
-        .filter(|rule| input_command_ids().any(|id| id == rule.command))
-        .filter_map(|rule| {
-            let chord = rule.chord_for(platform)?;
-            Some((keystroke_for(chord, platform), rule.command.clone()))
-        })
-        .collect()
 }
 
 /// What a picker's owner supplies: the items, how to filter and draw them,
@@ -126,7 +99,7 @@ pub struct Confirmed<E>(pub E);
 /// [`DismissEvent`] on Escape.
 pub struct Picker<D: PickerDelegate> {
     delegate: D,
-    query: Entity<QueryInput>,
+    query: Entity<TextInput>,
     selected: usize,
     scroll: UniformListScrollHandle,
     theme: PickerTheme,
@@ -148,11 +121,16 @@ impl<D: PickerDelegate> Picker<D> {
     pub fn new(mut delegate: D, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let theme = PickerTheme::default();
         let placeholder = delegate.placeholder();
-        let query_theme = theme.clone();
-        let query = cx.new(|cx| QueryInput::new(placeholder, query_theme, cx));
-        let subscription = cx.subscribe(&query, |picker, _, event: &QueryEvent, cx| {
-            let QueryEvent::Changed = event;
-            picker.refresh(cx);
+        let query = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .with_style(TextInputStyle::Query)
+                .with_placeholder(placeholder)
+                .bubble_enter_and_escape()
+        });
+        let subscription = cx.subscribe(&query, |picker, _, event: &TextInputEvent, cx| {
+            if *event == TextInputEvent::Changed {
+                picker.refresh(cx);
+            }
         });
         delegate.update_matches("");
         let selected = delegate.default_selection("");
@@ -185,7 +163,7 @@ impl<D: PickerDelegate> Picker<D> {
         self.selected
     }
 
-    pub fn query_input(&self) -> &Entity<QueryInput> {
+    pub fn query_input(&self) -> &Entity<TextInput> {
         &self.query
     }
 
@@ -196,6 +174,7 @@ impl<D: PickerDelegate> Picker<D> {
     /// Replaces the query, which filters the list.
     pub fn set_query(&mut self, text: &str, cx: &mut Context<Self>) {
         self.query.update(cx, |query, cx| query.set_text(text, cx));
+        self.refresh(cx);
     }
 
     /// Filters again, as after the items changed.
@@ -449,19 +428,5 @@ mod tests {
         assert_eq!(match_ranges("notes", &[0, 1, 3]), vec![0..2, 3..4]);
         assert_eq!(match_ranges("café", &[3]), vec![3..5]);
         assert_eq!(match_ranges("ab", &[5]), Vec::<Range<usize>>::new());
-    }
-
-    #[test]
-    fn input_keys_come_from_the_editing_rules() {
-        let keys = input_keystrokes(&RuleSet::defaults(), Platform::Macos);
-        let bound = |keystroke: &str, id: &str| {
-            keys.iter()
-                .any(|(candidate, command)| candidate == keystroke && command == id)
-        };
-        assert!(bound("backspace", "edit.delete-backward"));
-        assert!(bound("alt-backspace", "edit.delete-word-backward"));
-        assert!(bound("cmd-v", "edit.paste"));
-        assert!(!keys.iter().any(|(_, id)| id == "cursor.up"));
-        assert!(!keys.iter().any(|(_, id)| id == "edit.newline"));
     }
 }
