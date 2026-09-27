@@ -101,6 +101,16 @@ struct ConflictVersions {
     other_device: Option<Vec<u8>>,
 }
 
+/// Notes must sync byte for byte on every device. Without this, a machine
+/// whose global git config sets `core.autocrlf` (the default on Windows)
+/// would rewrite line endings on checkout and merge.
+fn keep_bytes_as_committed(repo: &Repository) -> SyncResult<()> {
+    let mut config = repo.config()?;
+    config.set_bool("core.autocrlf", false)?;
+    config.set_str("core.eol", "lf")?;
+    Ok(())
+}
+
 impl Vault {
     /// Opens an existing clone whose HEAD is on the configured branch.
     pub fn open(path: impl AsRef<Path>, config: VaultConfig) -> SyncResult<Self> {
@@ -126,11 +136,18 @@ impl Vault {
     ) -> SyncResult<Self> {
         let mut fetch_options = FetchOptions::new();
         fetch_options.remote_callbacks(remote_callbacks(token.as_ref()));
+        // Check out only after the line-ending settings are pinned, so the
+        // first checkout already writes files byte for byte.
+        let mut no_checkout = CheckoutBuilder::new();
+        no_checkout.dry_run();
         let repo = RepoBuilder::new()
             .branch(&config.branch)
             .fetch_options(fetch_options)
+            .with_checkout(no_checkout)
             .clone(url, path.as_ref())
             .map_err(SyncError::from_transport)?;
+        keep_bytes_as_committed(&repo)?;
+        repo.checkout_head(Some(CheckoutBuilder::new().force()))?;
         Self::from_repo(repo, config, token)
     }
 
@@ -140,6 +157,7 @@ impl Vault {
                 "a vault needs a work tree",
             )));
         }
+        keep_bytes_as_committed(&repo)?;
         config.device_only.write_exclude(repo.path())?;
         let vault = Self {
             repo,
