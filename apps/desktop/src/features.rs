@@ -32,7 +32,7 @@ use crate::workspace::{OpenIn, Workspace};
 const RECENT_COMMANDS: usize = 8;
 
 /// Commands this module gives a handler, for the menus.
-pub const WIRED_COMMANDS: [&str; 22] = [
+pub const WIRED_COMMANDS: [&str; 23] = [
     "palette.open",
     "switcher.open",
     "outline.jump-to-heading",
@@ -49,6 +49,7 @@ pub const WIRED_COMMANDS: [&str; 22] = [
     "sync.now",
     "sync.resolve-conflicts",
     "sidebar.right.toggle",
+    "sidebar.right.focus",
     "sidebar.backlinks",
     "sidebar.outgoing-links",
     "sidebar.outline",
@@ -60,6 +61,7 @@ pub const WIRED_COMMANDS: [&str; 22] = [
 /// Binds the keys the standalone views use inside themselves. Their text
 /// inputs' editing keys come from the rules, bound by `keymap::bind_rules`.
 pub fn bind_view_keys(cx: &mut App) {
+    crate::ui::focus_visible::install(cx);
     crate::picker::bind_keys(cx);
     crate::find::bind_keys(cx);
     crate::vault_search::bind_keys(cx);

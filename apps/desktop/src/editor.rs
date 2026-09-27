@@ -120,6 +120,10 @@ pub struct EditorView {
     /// A read-only view's content height when last drawn, to notice when
     /// laying out lines changed it.
     drawn_height: std::cell::Cell<Pixels>,
+    /// Whether code blocks number their lines unless a block says.
+    pub(crate) code_line_numbers: bool,
+    /// The copy button on the code block under the pointer.
+    pub(crate) code_copy: crate::code_copy::CodeCopy,
     clock: Instant,
 }
 
@@ -211,6 +215,8 @@ impl EditorView {
             cards: LinkCards::default(),
             pinned_top: None,
             drawn_height: std::cell::Cell::new(px(0.)),
+            code_line_numbers: config.settings.editor.code_line_numbers,
+            code_copy: crate::code_copy::CodeCopy::default(),
             clock: Instant::now(),
         };
         view.check_footnotes_soon(cx);
@@ -227,6 +233,7 @@ impl EditorView {
         self.reveal = reveal_settings(&self.symbols);
         self.apply_typing_settings(&config.settings.editor);
         self.clear_preview_cache();
+        self.code_line_numbers = config.settings.editor.code_line_numbers;
         self.set_zoom(self.zoom, cx);
     }
 
@@ -658,6 +665,7 @@ impl EditorView {
             zoom: self.zoom,
             scale_factor: window.scale_factor(),
             marked: self.marked.clone(),
+            code_line_numbers: self.code_line_numbers,
         };
         let mut resources = LayoutResources {
             text_system: window.text_system(),

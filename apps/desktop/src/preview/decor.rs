@@ -29,16 +29,26 @@ struct FrameBuilder<'a> {
     source: &'a Source,
     theme: &'a Theme,
     column: Pixels,
+    /// Whether code blocks number their lines unless a block says.
+    line_numbers: bool,
     frame: LineFrame,
 }
 
-/// The frame for a planned line.
-pub fn line_frame(plan: &LinePlan, source: &Source, theme: &Theme, column: Pixels) -> LineFrame {
+/// The frame for a planned line. Code blocks number their lines when
+/// `line_numbers` is set, unless a block's `ln:` says otherwise.
+pub fn line_frame(
+    plan: &LinePlan,
+    source: &Source,
+    theme: &Theme,
+    column: Pixels,
+    line_numbers: bool,
+) -> LineFrame {
     let mut builder = FrameBuilder {
         plan,
         source,
         theme,
         column,
+        line_numbers,
         frame: LineFrame::default(),
     };
     for style in &plan.line_styles {
@@ -189,10 +199,19 @@ impl<'a> FrameBuilder<'a> {
         };
         let left = self.frame.left;
         self.surface(node.range.start, left, theme.code_background);
-        let numbered = info.line_numbers == Some(true);
+        let numbered = info.line_numbers.unwrap_or(self.line_numbers);
         let closing_fence = node.markup.len() > 1 && self.is_last_line(node);
-        if numbered && index > 0 && !closing_fence {
+        let code_line = index > 0 && !closing_fence;
+        if numbered && code_line {
             self.frame.line_number = Some(index);
+        }
+        if code_line && is_highlighted(&info.highlighted_lines, index) {
+            self.frame.decor.bands.push(Surface {
+                group: node.range.start,
+                left,
+                width: (self.column - left).max(px(0.)),
+                color: theme.code_highlight,
+            });
         }
         let gutter = if numbered {
             theme.body_font_size * 2.
@@ -218,6 +237,13 @@ impl<'a> FrameBuilder<'a> {
     }
 }
 
+/// Whether code line `index` (from 1) is in one of the fence's ranges.
+fn is_highlighted(ranges: &[(u32, u32)], index: usize) -> bool {
+    ranges
+        .iter()
+        .any(|&(first, last)| (first as usize..=last as usize).contains(&index))
+}
+
 #[cfg(test)]
 mod tests {
     use editor_core::render::{RenderInput, RevealSettings, plan};
@@ -237,7 +263,7 @@ mod tests {
         let theme = Theme::default();
         plan.lines
             .iter()
-            .map(|line| line_frame(line, &source, &theme, px(600.)))
+            .map(|line| line_frame(line, &source, &theme, px(600.), false))
             .collect()
     }
 

@@ -58,6 +58,8 @@ pub struct StatusInfo {
     /// One-based line and column of the cursor.
     pub line: usize,
     pub column: usize,
+    /// Seconds spent editing the note, on every device.
+    pub edited_seconds: u64,
 }
 
 impl StatusInfo {
@@ -82,6 +84,7 @@ impl StatusInfo {
             for_selection,
             line: line + 1,
             column: column + 1,
+            edited_seconds: 0,
         }
     }
 
@@ -127,9 +130,11 @@ impl StatusInfo {
             return vec![self.selection_label(), self.position_label()];
         }
         let reading = (self.stats.reading_minutes() > 0).then(|| self.reading_label());
+        let editing = crate::edit_time::edit_time_label(self.edited_seconds);
         [self.words_label(), self.characters_label()]
             .into_iter()
             .chain(reading)
+            .chain(editing)
             .chain([self.position_label()])
             .collect()
     }
@@ -198,6 +203,7 @@ mod tests {
             for_selection,
             line: 3,
             column: 7,
+            edited_seconds: 0,
         }
     }
 
@@ -213,6 +219,20 @@ mod tests {
             ["0 words", "0 characters", "3:7"]
         );
         assert_eq!(info(300, 1500, false).items()[2], "2 min read");
+        let edited = StatusInfo {
+            edited_seconds: 12 * 60,
+            ..info(300, 1500, false)
+        };
+        assert_eq!(edited.items()[3], "12 min editing");
+        let selected = StatusInfo {
+            edited_seconds: 12 * 60,
+            ..info(3, 18, true)
+        };
+        assert_eq!(
+            selected.items().len(),
+            2,
+            "a selection is about the selection"
+        );
     }
 
     #[test]

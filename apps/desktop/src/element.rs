@@ -4,12 +4,13 @@
 use std::time::Instant;
 
 use gpui::{
-    App, AvailableSpace, BorderStyle, Bounds, BoxShadow, ContentMask, Corners, Element, ElementId,
-    ElementInputHandler, Entity, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId,
-    Pixels, Style, TransformationMatrix, Window, fill, point, px, quad, relative, size,
-    transparent_black,
+    App, AvailableSpace, BorderStyle, Bounds, BoxShadow, ContentMask, Corners, CursorStyle,
+    Element, ElementId, ElementInputHandler, Entity, GlobalElementId, Hitbox, HitboxBehavior, Hsla,
+    InspectorElementId, IntoElement, LayoutId, Pixels, SharedString, Style, TextRun,
+    TransformationMatrix, Window, fill, point, px, quad, relative, size, transparent_black,
 };
 
+use crate::code_copy::{CopyButton, blocks_on_screen, copied_width, copy_icon_size};
 use crate::editor::{EditorView, HighlightKind};
 use crate::frame::{FrameLayout, PlacedLine};
 use crate::icons::IconName;
@@ -37,6 +38,8 @@ pub struct Prepainted {
     selection: Vec<Bounds<Pixels>>,
     caret: Option<Bounds<Pixels>>,
     theme: Theme,
+    /// The code block copy button, with its hitbox for the pointer.
+    copy_button: Option<(CopyButton, Hitbox)>,
     /// Where the marker of the task under the pointer starts.
     hovered_task: Option<usize>,
 }
@@ -127,12 +130,17 @@ impl Element for EditorElement {
                 view.start_code_loads(cx);
                 view.start_remote_images(cx);
             }
+            let copy_button = view.copy_button_for(&frame, bounds).map(|button| {
+                let hitbox = window.insert_hitbox(button.bounds, HitboxBehavior::Normal);
+                (button, hitbox)
+            });
             view.timings.layout.push(started.elapsed());
             Prepainted {
                 frame,
                 selection,
                 caret,
                 theme: view.theme.clone(),
+                copy_button,
                 hovered_task: view.hovered_task,
             }
         })
@@ -158,6 +166,10 @@ impl Element for EditorElement {
         let focused = focus_handle.is_focused(window);
         window.with_content_mask(Some(ContentMask { bounds }), |window| {
             paint_contents(prepainted, focused, window, cx);
+            if let Some((button, hitbox)) = &prepainted.copy_button {
+                window.set_cursor_style(CursorStyle::PointingHand, hitbox);
+                paint_copy_button(button, &prepainted.theme, window, cx);
+            }
         });
         let frame = prepainted.frame.clone();
         self.view
@@ -172,6 +184,21 @@ impl Element for EditorElement {
 }
 
 impl EditorView {
+    /// The copy button to draw over this frame: only while the pointer is
+    /// over the editor or a block was just copied, so typing pays nothing.
+    fn copy_button_for(
+        &mut self,
+        frame: &FrameLayout,
+        bounds: Bounds<Pixels>,
+    ) -> Option<CopyButton> {
+        if !self.code_copy.is_active() {
+            return None;
+        }
+        let blocks = blocks_on_screen(frame, self.source.tree());
+        self.code_copy.set_blocks(blocks, bounds);
+        self.code_copy.button(&self.theme)
+    }
+
     /// Background rectangles for every highlight kind, weaker kinds first
     /// so the active match paints on top.
     pub(crate) fn highlight_rects(
@@ -199,6 +226,7 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
     let theme = &prepainted.theme;
     let frame = &prepainted.frame;
     paint_surfaces(frame, theme, window);
+    paint_bands(frame, theme, window);
     paint_text_backgrounds(frame, theme, window);
     for (kind, rect) in &frame.highlights {
         let color = match kind {
@@ -240,6 +268,67 @@ fn paint_problem_underline(rect: Bounds<Pixels>, theme: &Theme, window: &mut Win
     };
     window.paint_quad(fill(line, theme.error).corner_radii(thickness / 2.));
 }
+
+/// The copy button: a copy icon on the code's own fill, which a check and
+/// "Copied" replace for a moment after a copy.
+fn paint_copy_button(button: &CopyButton, theme: &Theme, window: &mut Window, cx: &mut App) {
+    let icon_size = copy_icon_size(theme);
+    let label = button.copied.then(|| {
+        let run = TextRun {
+            len: COPIED.len(),
+            font: theme.ui_font(),
+            color: theme.text_muted,
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        };
+        window.text_system().shape_line(
+            SharedString::new_static(COPIED),
+            theme.small_font_size,
+            &[run],
+            None,
+        )
+    });
+    let mut bounds = button.bounds;
+    if let Some(label) = &label {
+        let width = copied_width(label.width, theme);
+        bounds.origin.x = bounds.right() - width;
+        bounds.size.width = width;
+    }
+    let background = if button.pressed_on {
+        theme.divider
+    } else {
+        theme.code_background
+    };
+    window.paint_quad(fill(bounds, background).corner_radii(theme.radius_sm));
+    let inset = (button.bounds.size.height - icon_size) / 2.;
+    let icon_origin = point(bounds.left() + inset, bounds.top() + inset);
+    let (icon, color) = if button.copied {
+        (IconName::Check, theme.text)
+    } else if button.pressed_on {
+        (IconName::Copy, theme.text)
+    } else {
+        (IconName::Copy, theme.text_muted)
+    };
+    let icon_bounds = Bounds::new(icon_origin, size(icon_size, icon_size));
+    report(window.paint_svg(
+        icon_bounds,
+        icon.path(),
+        TransformationMatrix::unit(),
+        color,
+        cx,
+    ));
+    if let Some(label) = label {
+        let line_height = theme.small_font_size * theme.ui_line_height_factor;
+        let origin = point(
+            icon_origin.x + icon_size + theme.space_sm,
+            bounds.top() + (bounds.size.height - line_height) / 2.,
+        );
+        report(label.paint(origin, line_height, window, cx));
+    }
+}
+
+const COPIED: &str = "Copied";
 
 /// A surface being drawn across consecutive lines.
 struct OpenSurface {
@@ -290,6 +379,23 @@ fn paint_surfaces(frame: &FrameLayout, theme: &Theme, window: &mut Window) {
     }
     for run in &open {
         paint_surface(run, frame.text_left, theme, window);
+    }
+}
+
+/// Paints each line's bands over the block surfaces, with a bar at the
+/// band's left edge so a highlighted line reads without relying on tint.
+fn paint_bands(frame: &FrameLayout, theme: &Theme, window: &mut Window) {
+    for placed in &frame.lines {
+        for band in &placed.visual.decor.bands {
+            let origin = point(frame.text_left + band.left, placed.top);
+            let height = placed.visual.height;
+            window.paint_quad(fill(
+                Bounds::new(origin, size(band.width, height)),
+                band.color,
+            ));
+            let edge = Bounds::new(origin, size(theme.quote_bar_width, height));
+            window.paint_quad(fill(edge, theme.text_faint));
+        }
     }
 }
 

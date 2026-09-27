@@ -5,8 +5,8 @@
 
 use editor_config::device::RightSidebarState;
 use gpui::{
-    AnyElement, AnyView, Context, CursorStyle, MouseButton, MouseDownEvent, Pixels, div,
-    prelude::*, px,
+    AnyElement, AnyView, Context, CursorStyle, FocusHandle, MouseButton, MouseDownEvent, Pixels,
+    div, prelude::*, px,
 };
 
 use super::{Drag, Workspace};
@@ -15,6 +15,9 @@ use crate::ui::ui_theme;
 /// The right panel's state.
 pub struct RightPanel {
     view: Option<AnyView>,
+    /// Where the hosted view takes the keyboard, so the workspace knows
+    /// when it has it.
+    focus: Option<FocusHandle>,
     pub width: Pixels,
     visible: bool,
     /// Which of the hosted view's views shows, remembered for next time.
@@ -27,6 +30,7 @@ impl RightPanel {
     pub fn new(state: &RightSidebarState, default_width: Pixels) -> RightPanel {
         RightPanel {
             view: None,
+            focus: None,
             width: state.width.map_or(default_width, |width| px(width as f32)),
             visible: state.open,
             view_key: state.view.clone(),
@@ -59,6 +63,19 @@ impl Workspace {
     pub fn set_right_panel(&mut self, view: AnyView, cx: &mut Context<Self>) {
         self.right_panel.view = Some(view);
         cx.notify();
+    }
+
+    /// Tells the workspace where the right panel's view takes the keyboard.
+    pub fn set_right_panel_focus(&mut self, focus: FocusHandle) {
+        self.right_panel.focus = Some(focus);
+    }
+
+    /// Whether the right panel's view has the keyboard.
+    pub fn right_panel_has_focus(&self, window: &gpui::Window, cx: &gpui::App) -> bool {
+        self.right_panel
+            .focus
+            .as_ref()
+            .is_some_and(|focus| focus.contains_focused(window, cx))
     }
 
     pub fn right_panel(&self) -> &RightPanel {

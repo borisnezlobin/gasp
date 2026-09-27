@@ -55,6 +55,8 @@ fn kind_icon(entry: &Entry, expanded: bool) -> IconName {
 struct RowState {
     selected: bool,
     focused: bool,
+    /// Whether the keyboard is driving, so the focused row shows its ring.
+    keyboard: bool,
     active: bool,
     cut: bool,
 }
@@ -156,19 +158,23 @@ impl FileTree {
             .into_any_element()
     }
 
-    fn row_state(&self, path: &Path, window: &Window) -> RowState {
+    fn row_state(&self, path: &Path, window: &Window, cx: &gpui::App) -> RowState {
         RowState {
             selected: self.selected.as_deref() == Some(path),
             focused: self.focus_handle.is_focused(window),
+            keyboard: crate::ui::focus_visible::keyboard_driving(cx),
             active: self.active.as_deref() == Some(path),
             cut: self.cut.as_deref() == Some(path),
         }
     }
 
     fn row_shell(&self, depth: usize, state: RowState, ui: &UiTheme) -> gpui::Div {
-        let ringed = state.selected && state.focused;
+        // The row the keys act on keeps a fill whichever way it was
+        // reached; the ring shows only while the keyboard is driving.
+        let current = state.selected && state.focused;
+        let ringed = current && state.keyboard;
         // Opaque under the ring, which would otherwise darken the fill.
-        let background = match (ringed, state.active) {
+        let background = match (current, state.active) {
             (true, _) => Some(crate::theme::over(
                 ui.tree_active_background,
                 ui.app_background,
@@ -206,7 +212,7 @@ impl FileTree {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let row = self.model.rows()[index].clone();
-        let state = self.row_state(&row.entry.path, window);
+        let state = self.row_state(&row.entry.path, window, cx);
         let content = self.row_content(&row, state, ui);
         let menu = self
             .menu
