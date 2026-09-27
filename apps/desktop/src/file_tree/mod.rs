@@ -4,6 +4,7 @@
 //! [`FileTree`] is a GPUI view. It reports what the user did through
 //! [`FileTreeEvent`] and never touches tabs or editors itself.
 
+mod autoscroll;
 mod entries;
 mod keys;
 mod menu;

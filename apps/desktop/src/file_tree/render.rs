@@ -5,8 +5,8 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use gpui::{
-    AnyElement, ClickEvent, Context, Entity, MouseButton, MouseDownEvent, Render, SharedString,
-    Window, anchored, deferred, div, prelude::*, uniform_list,
+    AnyElement, ClickEvent, Context, Entity, MouseButton, MouseDownEvent, MouseMoveEvent, Render,
+    SharedString, Window, anchored, deferred, div, prelude::*, uniform_list,
 };
 
 use super::entries::{Entry, EntryKind};
@@ -109,6 +109,9 @@ impl FileTree {
                 MouseButton::Right,
                 cx.listener(Self::on_background_right_click),
             )
+            .on_mouse_move(cx.listener(|tree, _: &MouseMoveEvent, window, cx| {
+                tree.autoscroll_on_move(window, cx);
+            }))
             .drag_over::<DraggedEntry>({
                 let drop = ui.drop_target;
                 move |style, _, _, _| style.bg(drop)

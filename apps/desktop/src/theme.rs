@@ -1847,6 +1847,14 @@ pub struct UiTheme {
     pub tree_indent: Pixels,
     pub tree_row_radius: Pixels,
     pub tree_row_gap: Pixels,
+    /// How close to the tree's top or bottom a drag has to come for the
+    /// tree to scroll toward it.
+    pub tree_autoscroll_band: Pixels,
+    /// How far the tree scrolls in a second with a drag at its very edge;
+    /// it slows toward the band's inner side.
+    pub tree_autoscroll_speed: Pixels,
+    /// How often the tree scrolls a step while a drag waits at its edge.
+    pub tree_autoscroll_frame: std::time::Duration,
     pub tree_active_background: Hsla,
     pub tree_hover_background: Hsla,
     pub indent_guide: Hsla,
@@ -2047,6 +2055,10 @@ impl UiTheme {
             tree_indent: px(18.),
             tree_row_radius: px(6.),
             tree_row_gap: px(7.),
+            // About two rows.
+            tree_autoscroll_band: px(60.),
+            tree_autoscroll_speed: px(900.),
+            tree_autoscroll_frame: std::time::Duration::from_millis(16),
             tree_active_background: p.fill_strong,
             tree_hover_background: p.fill_faint,
             indent_guide: p.indent_guide,
