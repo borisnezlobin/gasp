@@ -1,0 +1,16 @@
+[package]
+name = "editor-desktop"
+description = "Desktop app, plus headless CLI modes for tests and agents."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "editor"
+path = "src/main.rs"
+
+[dependencies]
+
+[lints]
+workspace = true

@@ -1,0 +1,12 @@
+[package]
+name = "editor-mcp"
+description = "MCP server."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

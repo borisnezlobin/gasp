@@ -1,0 +1,12 @@
+[package]
+name = "editor-sync"
+description = "Git sync engine, merge policy and conflict model."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

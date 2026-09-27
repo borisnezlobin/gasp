@@ -1,0 +1,12 @@
+[package]
+name = "editor-config"
+description = "Config loading, settings schema, theme tokens, rules engine and command registry."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

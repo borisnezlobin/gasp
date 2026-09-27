@@ -1,0 +1,12 @@
+[package]
+name = "editor-ffi"
+description = "UniFFI surface for the iPhone app."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true
