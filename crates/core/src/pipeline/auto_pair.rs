@@ -52,6 +52,9 @@ impl Default for AutoPairStep {
 
 impl PipelineStep for AutoPairStep {
     fn run(&self, request: EditRequest, cx: &StepContext<'_>) -> StepOutcome {
+        if cx.context == InputContext::Code {
+            return close_code_span(request, cx);
+        }
         match &request {
             EditRequest::InsertText(text) => match single_char(text) {
                 Some(typed) if self.handles(typed) => {
@@ -65,6 +68,19 @@ impl PipelineStep for AutoPairStep {
             _ => StepOutcome::Continue(request),
         }
     }
+}
+
+/// Inside code nothing pairs, but typing the closing backtick of a code
+/// span steps over the one paired when the span was opened.
+fn close_code_span(request: EditRequest, cx: &StepContext<'_>) -> StepOutcome {
+    let is_backtick = matches!(&request, EditRequest::InsertText(text) if text == "`");
+    let [range] = cx.selection.ranges() else {
+        return StepOutcome::Continue(request);
+    };
+    if is_backtick && range.is_empty() && cx.doc.char_after(range.head) == Some('`') {
+        return StepOutcome::Emit(plan_each(cx, |range| RangePlan::move_caret(range.head + 1)));
+    }
+    StepOutcome::Continue(request)
 }
 
 fn single_char(text: &str) -> Option<char> {

@@ -150,7 +150,7 @@ const SYNC_LINES: usize = 24;
 
 /// Bytes in the longest line highlighted during layout. Parsing costs
 /// grow with the line, and code lines are rarely this long.
-const SYNC_LINE_LENGTH: usize = 160;
+const SYNC_LINE_LENGTH: usize = 120;
 
 /// A block to highlight in the background.
 pub struct HighlightJob {

@@ -91,6 +91,7 @@ pub fn suggestion_list<V: 'static>(
 fn label_text(row: &SuggestionRow, theme: &UiTheme) -> Truncated {
     let style = HighlightStyle {
         font_weight: Some(theme.match_weight),
+        color: Some(theme.match_text),
         ..HighlightStyle::default()
     };
     let highlights = match_ranges(&row.label, &row.positions)

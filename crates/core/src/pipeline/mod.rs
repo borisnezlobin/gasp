@@ -227,10 +227,11 @@ impl Pipeline {
                 Box::new(ListContinuationStep),
                 ContextFilter::except(&[Code, Math, Frontmatter, Table]),
             ),
+            // Auto-pair runs in code too, where it only closes code spans.
             StepSlot::new(
                 AUTO_PAIR,
                 Box::new(AutoPairStep::default()),
-                ContextFilter::except(&[Code]),
+                ContextFilter::any(),
             ),
             StepSlot::new(APPLY, Box::new(ApplyStep), ContextFilter::any()),
         ];

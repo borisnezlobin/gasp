@@ -350,10 +350,10 @@ impl EditorView {
         if self.state.apply(transaction).is_err() {
             return;
         }
-        // One edit, as typing makes, updates the source in place; anything
-        // else finds what changed by comparing the whole text.
         self.goal_x = None;
         self.timings.input_started.get_or_insert_with(Instant::now);
+        // One edit, as typing makes, updates the source in place; anything
+        // else finds what changed by comparing the whole text.
         match single_edit {
             Some(edit) => {
                 let change = self.source.replace(edit.range, &edit.insert);

@@ -260,6 +260,16 @@ fn a_code_fence_types_three_backticks() {
 }
 
 #[test]
+fn the_closing_backtick_of_a_code_span_steps_over() {
+    let pipeline = Pipeline::builtin();
+    let in_code = |marked: &str| run_in(&pipeline, marked, typed("`"), InputContext::Code);
+    assert_eq!(in_code("`code|`"), "`code`|");
+    assert_eq!(in_code("```\nx|\n```"), "```\nx`|\n```");
+    let bracket = run_in(&pipeline, "f(|)", typed(")"), InputContext::Code);
+    assert_eq!(bracket, "f()|)", "only backticks step over in code");
+}
+
+#[test]
 fn backspace_deletes_empty_pair() {
     assert_eq!(run("(|)", EditRequest::DeleteBackward), "|");
     assert_eq!(run("x(|)y", EditRequest::DeleteBackward), "x|y");

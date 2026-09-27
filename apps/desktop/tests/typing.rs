@@ -143,3 +143,10 @@ fn toggle_task_checks_the_line(cx: &mut TestAppContext) {
     });
     assert_eq!(text(&view, cx), "- [x] milk");
 }
+
+#[gpui::test]
+fn typing_a_code_span_leaves_no_stray_backtick(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "");
+    cx.simulate_input("in `code \"x\"` they stay.");
+    assert_eq!(text(&view, cx), "in `code \"x\"` they stay.");
+}
