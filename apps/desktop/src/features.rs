@@ -168,7 +168,7 @@ fn on_tree_event(
             tree.update(cx, |tree, cx| tree.set_active_path(Some(path), cx));
         }
         FileTreeEvent::Renamed { from, to } => workspace.entry_moved(from, to, cx),
-        FileTreeEvent::Dismissed => workspace.focus_active(window, cx),
+        FileTreeEvent::Dismissed => workspace.leave_left_panel(window, cx),
         FileTreeEvent::Failed { message } => eprintln!("{message}"),
         _ => {}
     }

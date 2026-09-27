@@ -113,6 +113,13 @@ impl LeftPanel {
         self.pinned || self.revealed
     }
 
+    /// Whether the panel is only showing for now: revealed by hover or
+    /// the keyboard, or open over the note it covers.
+    pub fn is_passing(&self) -> bool {
+        let covering = self.overlays() && self.reveal != SidebarReveal::Always;
+        self.revealed || (covering && self.pinned)
+    }
+
     /// Whether the panel covers the notes rather than moving them aside.
     pub fn overlays(&self) -> bool {
         self.mode == SidebarMode::Overlay

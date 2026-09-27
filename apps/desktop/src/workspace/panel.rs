@@ -39,6 +39,15 @@ impl Workspace {
         cx.notify();
     }
 
+    /// Escape in the panel: back to the note. A panel that was only
+    /// showing for now, revealed or covering the note, hides with it.
+    pub fn leave_left_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.left_panel.is_passing() {
+            self.hide_left_panel(window, cx);
+        }
+        self.focus_active(window, cx);
+    }
+
     /// `file-tree.focus`: shows the panel and gives it the keyboard.
     pub(crate) fn focus_left_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.left_panel.show();
