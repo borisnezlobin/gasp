@@ -511,6 +511,6 @@ mod tests {
                 new_len: 0,
             },
         );
-        assert_eq!(ranges(&flags), [0..4]);
+        assert_eq!(ranges(&flags), vec![0..4]);
     }
 }
