@@ -113,7 +113,27 @@ pub fn manifest_json(vault: &Vault) -> String {
         "footnote_problems": footnote_problems(&scans),
         "notes": notes_json(vault, &scans),
     });
-    let mut text = serde_json::to_string_pretty(&value).expect("manifest serialises");
+    let mut text = serde_json::to_string_pretty(&sorted_keys(value)).expect("manifest serialises");
     text.push('\n');
     text
+}
+
+/// Rebuilds every object with its keys in sorted order. serde_json keeps
+/// insertion order when any crate in the build enables `preserve_order`, and
+/// the manifest must be byte-identical either way.
+fn sorted_keys(value: Value) -> Value {
+    match value {
+        Value::Object(map) => {
+            let mut entries: Vec<(String, Value)> = map.into_iter().collect();
+            entries.sort_by(|a, b| a.0.cmp(&b.0));
+            Value::Object(
+                entries
+                    .into_iter()
+                    .map(|(key, value)| (key, sorted_keys(value)))
+                    .collect(),
+            )
+        }
+        Value::Array(items) => Value::Array(items.into_iter().map(sorted_keys).collect()),
+        other => other,
+    }
 }
