@@ -1,12 +1,13 @@
 //! Suggestions while typing: note names after `[[`, a note's headings
 //! after `[[Note#`, and tags after `#`, from the workspace's
-//! [`VaultIndex`]. They show in one popover under the text, drawn by
-//! [`crate::ui::suggestions`].
+//! [`VaultIndex`], and emoji and symbols after `:` from [`emoji`]. They
+//! show in one popover under the text, drawn by [`crate::ui::suggestions`].
 //!
 //! Up and Down move the highlight, Enter or Tab accept it, and Escape
 //! hides the list until the cursor leaves what it was completing. The
 //! editor keeps the keyboard throughout, so typing keeps filtering.
 
+pub mod emoji;
 pub mod trigger;
 
 use std::collections::{HashMap, HashSet};
@@ -17,7 +18,7 @@ use editor_core::pipeline::InputContext;
 use editor_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{
     AnyElement, AppContext, Context, Corner, Entity, IntoElement, ParentElement, SharedString,
-    Subscription, Window, anchored, point,
+    Subscription, Window, anchored, point, px,
 };
 
 use self::trigger::{Trigger, TriggerKind, find_trigger};
@@ -26,7 +27,7 @@ use crate::frame::FrameLayout;
 use crate::outline::{Heading, headings, headings_in};
 use crate::picker::fuzzy::{Candidate, Matcher, Query};
 use crate::ui::suggestions::{list_height, scroll_to_show};
-use crate::ui::{SuggestionRow, suggestion_list};
+use crate::ui::{RowGlyph, SuggestionRow, suggestion_list};
 use crate::vault_index::VaultIndex;
 
 /// The most suggestions a list holds; the popover scrolls through them.
@@ -124,7 +125,7 @@ impl EditorView {
 
     fn current_trigger(&self) -> Option<Trigger> {
         let range = self.selected_range();
-        if !range.is_empty() || self.marked.is_some() || self.suggest.index.is_none() {
+        if !range.is_empty() || self.marked.is_some() || self.read_only {
             return None;
         }
         let cursor = range.start;
@@ -136,11 +137,19 @@ impl EditorView {
             &text[cursor..line_range.end],
             line_range.start,
         )?;
+        // Notes and tags come from the vault; emoji need nothing but the
+        // catalogue.
+        if trigger.kind != TriggerKind::Emoji && self.suggest.index.is_none() {
+            return None;
+        }
         let context = self.source.tree().context_at(cursor);
         allowed_in(&trigger.kind, context).then_some(trigger)
     }
 
     fn suggestions_for(&mut self, trigger: &Trigger, cx: &mut Context<Self>) -> Vec<Suggestion> {
+        if trigger.kind == TriggerKind::Emoji {
+            return emoji_suggestions(&trigger.query);
+        }
         let Some(index) = self.suggest.index.clone() else {
             return Vec::new();
         };
@@ -151,6 +160,7 @@ impl EditorView {
                 let found = self.headings_of(note, &index, cx);
                 heading_suggestions(&found.unwrap_or_default(), &trigger.query)
             }
+            TriggerKind::Emoji => Vec::new(),
         }
     }
 
@@ -254,6 +264,7 @@ impl EditorView {
         let chosen = &open.items[open.highlighted];
         let mut text = chosen.insert.clone();
         let cursor = match (&trigger.kind, trigger.closed) {
+            (TriggerKind::Emoji, _) => trigger.replace.start + text.len(),
             (TriggerKind::Tag, _) => {
                 let next = self.doc().char_after(trigger.replace.end);
                 if next.is_none_or(|next| next == '\n' || next == '\r') {
@@ -291,10 +302,16 @@ impl EditorView {
         let caret = frame.caret_bounds(open.trigger.anchor(), &self.theme)?;
         let theme = crate::ui::ui_theme(cx);
         let height = list_height(open.items.len(), &theme);
+        // Rows with a glyph column line their names up with the query.
+        let glyph_column = if open.items.iter().any(|item| item.row.glyph.is_some()) {
+            theme.suggestion_glyph_width + theme.space_lg
+        } else {
+            px(0.)
+        };
         // Below the line when it fits inside the note, so it never covers
         // the status bar; above it otherwise.
         let fits_below = caret.bottom() + theme.suggestion_gap + height <= frame.bounds.bottom();
-        let x = caret.left() - theme.menu_padding - theme.menu_row_padding_x;
+        let x = caret.left() - theme.menu_padding - theme.menu_row_padding_x - glyph_column;
         let (corner, y) = if fits_below {
             (Corner::TopLeft, caret.bottom() + theme.suggestion_gap)
         } else {
@@ -320,10 +337,13 @@ impl EditorView {
     }
 }
 
-/// Links complete in text and in links being edited; tags only in text.
+/// Links complete in text and in links being edited; tags and emoji only
+/// in text, never in math, code, URLs or frontmatter.
 fn allowed_in(kind: &TriggerKind, context: InputContext) -> bool {
     match kind {
-        TriggerKind::Tag => matches!(context, InputContext::Text | InputContext::Table),
+        TriggerKind::Tag | TriggerKind::Emoji => {
+            matches!(context, InputContext::Text | InputContext::Table)
+        }
         _ => matches!(
             context,
             InputContext::Text | InputContext::Link | InputContext::Table
@@ -349,6 +369,7 @@ fn note_suggestions(index: &VaultIndex, query: &str) -> Vec<Suggestion> {
                     positions: hit.name_positions,
                     detail: (!folder.is_empty()).then(|| folder.to_owned().into()),
                     indent: 0,
+                    glyph: None,
                 },
                 insert: insert.to_owned(),
             }
@@ -369,6 +390,7 @@ fn tag_suggestions(index: &VaultIndex, query: &str) -> Vec<Suggestion> {
                 positions: hit.positions.iter().map(|p| p + 1).collect(),
                 detail: None,
                 indent: 0,
+                glyph: None,
             },
             insert: hit.tag,
         })
@@ -402,8 +424,36 @@ fn heading_suggestions(found: &[Heading], query: &str) -> Vec<Suggestion> {
                     positions,
                     detail: None,
                     indent: usize::from(heading.level - top).min(3),
+                    glyph: None,
                 },
                 insert: heading.title.clone(),
+            }
+        })
+        .collect()
+}
+
+/// Emoji and symbols by name. A glyph goes in the row's glyph column; an
+/// emoticon is too wide for it and shows on the right instead.
+fn emoji_suggestions(query: &str) -> Vec<Suggestion> {
+    emoji::search(query, MAX_SUGGESTIONS)
+        .into_iter()
+        .map(|hit| {
+            let entry = hit.entry;
+            let wide = entry.kind == emoji::EntryKind::Emoticon;
+            let glyph = SharedString::from(entry.glyph);
+            let row_glyph = RowGlyph {
+                text: glyph.clone(),
+                emoji: entry.kind == emoji::EntryKind::Emoji,
+            };
+            Suggestion {
+                row: SuggestionRow {
+                    label: SharedString::from(entry.name),
+                    positions: hit.positions,
+                    detail: wide.then(|| glyph.clone()),
+                    indent: 0,
+                    glyph: (!wide).then_some(row_glyph),
+                },
+                insert: entry.glyph.to_owned(),
             }
         })
         .collect()

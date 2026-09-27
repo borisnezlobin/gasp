@@ -1,6 +1,57 @@
-//! Finding the link at an offset, for following it.
+//! Finding the link at an offset, for following it or previewing it.
 
-use editor_core::syntax::{NodeKind, SyntaxTree, WikiInfo};
+use std::ops::Range;
+
+use editor_core::syntax::{LinkKind, NodeKind, SyntaxTree, WikiInfo};
+
+/// Something a hover preview can show.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum HoverTarget {
+    /// A note, as a wikilink target (`note#heading`) or a Markdown link
+    /// destination.
+    Note { link: String },
+    /// A footnote reference's label.
+    Footnote { label: String },
+    /// An underlined footnote problem, such as an unused definition.
+    Problem { message: String },
+}
+
+/// URL schemes that never point at a note.
+const WEB_SCHEMES: [&str; 3] = ["http://", "https://", "mailto:"];
+
+/// What the innermost link or footnote reference containing `offset`
+/// would preview, and the node's range. Web links preview nothing.
+pub fn hover_target_at(tree: &SyntaxTree, offset: usize) -> Option<(HoverTarget, Range<usize>)> {
+    tree.path_at(offset).into_iter().rev().find_map(|id| {
+        let node = tree.node(id);
+        let target = match &node.kind {
+            NodeKind::WikiLink(info) => HoverTarget::Note {
+                link: wiki_target(info),
+            },
+            NodeKind::Link(info) if is_note_link(info.kind, &info.destination) => {
+                HoverTarget::Note {
+                    link: info.destination.clone(),
+                }
+            }
+            NodeKind::FootnoteReference { label } => HoverTarget::Footnote {
+                label: label.clone(),
+            },
+            _ => return None,
+        };
+        Some((target, node.range.clone()))
+    })
+}
+
+fn is_note_link(kind: LinkKind, destination: &str) -> bool {
+    let web = WEB_SCHEMES
+        .iter()
+        .any(|scheme| destination.starts_with(scheme));
+    let bare = matches!(
+        kind,
+        LinkKind::BareUrl | LinkKind::Autolink | LinkKind::Email
+    );
+    !web && !bare && !destination.contains("://") && !destination.is_empty()
+}
 
 /// The target of the innermost link or wikilink containing `offset`: a URL
 /// or path for Markdown links, and `note#heading` for wikilinks.
@@ -43,5 +94,24 @@ mod tests {
         assert_eq!(link_target_at(&tree, 40).as_deref(), Some("Note#Part"));
         assert_eq!(link_target_at(&tree, 65).as_deref(), Some("https://x.org"));
         assert_eq!(link_target_at(&tree, 1), None);
+    }
+
+    #[test]
+    fn hover_targets_are_notes_and_footnotes_not_web_pages() {
+        let text =
+            "[[Note#Part|alias]] [doc](Folder/Doc%20Two.md) [web](https://x.org) a[^1]\n\n[^1]: x";
+        let tree = parse(text);
+        let note = |link: &str| HoverTarget::Note { link: link.into() };
+        assert_eq!(hover_target_at(&tree, 3), Some((note("Note#Part"), 0..19)));
+        assert_eq!(
+            hover_target_at(&tree, 22).map(|found| found.0),
+            Some(note("Folder/Doc%20Two.md"))
+        );
+        assert_eq!(hover_target_at(&tree, 50), None);
+        let footnote = HoverTarget::Footnote { label: "1".into() };
+        assert_eq!(
+            hover_target_at(&tree, 71).map(|found| found.0),
+            Some(footnote)
+        );
     }
 }

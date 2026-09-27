@@ -136,3 +136,81 @@ fn no_suggestions_in_code(cx: &mut TestAppContext) {
     cx.simulate_input("#ph [[w");
     assert!(labels(&view, cx).is_empty());
 }
+
+fn open_without_vault<'a>(
+    cx: &'a mut TestAppContext,
+    text: &str,
+) -> (Entity<EditorView>, &'a mut VisualTestContext) {
+    cx.update(bind_keys);
+    let end = text.len();
+    let text = text.to_owned();
+    let (view, cx) = cx.add_window_view(move |_, cx| EditorView::new(&text, Vec::new(), cx));
+    cx.update(|window, cx| window.focus(&view.focus_handle(cx)));
+    view.update(cx, |view, cx| view.move_to(end, false, cx));
+    cx.run_until_parked();
+    (view, cx)
+}
+
+fn first_glyph(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> Option<String> {
+    view.read_with(cx, |view, _| {
+        let open = view.suggestions()?;
+        Some(open.items[0].insert.clone())
+    })
+}
+
+#[gpui::test]
+fn a_colon_and_a_letter_offer_emoji(cx: &mut TestAppContext) {
+    let (view, cx) = open_without_vault(cx, "Nice ");
+    cx.simulate_input(":smi");
+    assert_eq!(labels(&view, cx)[0], "smile");
+    assert_eq!(first_glyph(&view, cx).as_deref(), Some("😄"));
+    cx.simulate_keystrokes("enter");
+    assert_eq!(text(&view, cx), "Nice 😄");
+    assert!(labels(&view, cx).is_empty());
+    cx.simulate_input(" :arrow_ri");
+    cx.simulate_keystrokes("down");
+    let second = view.read_with(cx, |view, _| {
+        view.suggestions().unwrap().items[1].insert.clone()
+    });
+    cx.simulate_keystrokes("tab");
+    assert_eq!(text(&view, cx), format!("Nice 😄 {second}"));
+}
+
+#[gpui::test]
+fn a_typed_closing_colon_is_replaced_too(cx: &mut TestAppContext) {
+    let (view, cx) = open_without_vault(cx, ":tada: done");
+    view.update(cx, |view, cx| view.move_to(5, false, cx));
+    cx.simulate_keystrokes("enter");
+    assert_eq!(text(&view, cx), "🎉 done");
+}
+
+#[gpui::test]
+fn colons_stay_quiet_in_times_math_code_and_urls(cx: &mut TestAppContext) {
+    // The text, where the cursor goes, and what's typed there.
+    for (text, at, typed) in [
+        ("At ", 3, "10:30"),
+        ("$$", 1, "f:A"),
+        ("$x $", 3, ":alpha"),
+        ("$$\n\n$$", 3, ":alpha"),
+        ("``", 1, ":smile"),
+        ("```\n\n```", 4, ":smile"),
+        ("see https://example.com/", 24, ":smile"),
+        ("---\ntitle: \n---\n", 11, ":smile"),
+    ] {
+        let (view, cx) = open_without_vault(cx, text);
+        view.update(cx, |view, cx| view.move_to(at, false, cx));
+        cx.simulate_input(typed);
+        assert!(labels(&view, cx).is_empty(), "{text}{typed}");
+    }
+}
+
+#[gpui::test]
+fn escape_dismisses_the_emoji_list(cx: &mut TestAppContext) {
+    let (view, cx) = open_without_vault(cx, "");
+    cx.simulate_input(":hea");
+    assert!(!labels(&view, cx).is_empty());
+    cx.simulate_keystrokes("escape");
+    assert!(labels(&view, cx).is_empty());
+    cx.simulate_keystrokes("enter");
+    assert_eq!(text(&view, cx), ":hea\n");
+}

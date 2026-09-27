@@ -86,6 +86,10 @@ pub enum Hit {
         header: usize,
         folded: bool,
     },
+    /// Opens this address, as a link card does.
+    Link {
+        url: String,
+    },
 }
 
 /// A laid-out piece of a row.

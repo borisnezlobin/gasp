@@ -347,6 +347,7 @@ impl LineLayouter<'_, '_> {
             | WidgetKind::InlineMath { tex, .. }
             | WidgetKind::MathPreview { tex, .. } => self.math_block(range, tex, left, width),
             WidgetKind::CodeBlock { title, .. } => self.code_header(range, title.as_deref(), left),
+            WidgetKind::LinkCard(card) => self.link_card(range, card, left, width),
             WidgetKind::Table { alignments, rows } => self.table(
                 range,
                 &super::table::TableSpec { alignments, rows },

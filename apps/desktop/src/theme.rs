@@ -230,6 +230,15 @@ pub struct Theme {
     /// Extra width that shows a selected line break.
     pub newline_selection_width: Pixels,
     pub composition_underline_thickness: Pixels,
+    /// The line under a footnote problem.
+    pub problem_underline_thickness: Pixels,
+    /// A web page drawn as a card.
+    pub link_card_height: Pixels,
+    pub link_card_max_width: Pixels,
+    pub link_card_ring: Pixels,
+    pub link_card_icon_size: Pixels,
+    /// Width over height of the card's preview image.
+    pub link_card_image_aspect: f32,
     pub rule_thickness: Pixels,
     pub quote_bar_width: Pixels,
     /// Horizontal room each quote or callout level takes.
@@ -372,6 +381,12 @@ impl Theme {
             cursor_width: px(2.),
             newline_selection_width: space("space.sm", 4.) * 1.5,
             composition_underline_thickness: px(1.),
+            problem_underline_thickness: px(1.5),
+            link_card_height: px(112.),
+            link_card_max_width: px(640.),
+            link_card_ring: px(1.),
+            link_card_icon_size: px(14.),
+            link_card_image_aspect: 1.5,
             rule_thickness: px(1.),
             quote_bar_width: px(3.),
             quote_indent: space("space.xl", 16.),
@@ -394,7 +409,7 @@ impl Theme {
         scaled
     }
 
-    fn sizes_mut(&mut self) -> [&mut Pixels; 25] {
+    fn sizes_mut(&mut self) -> [&mut Pixels; 29] {
         [
             &mut self.body_font_size,
             &mut self.title_font_size,
@@ -416,6 +431,10 @@ impl Theme {
             &mut self.cursor_width,
             &mut self.newline_selection_width,
             &mut self.composition_underline_thickness,
+            &mut self.problem_underline_thickness,
+            &mut self.link_card_height,
+            &mut self.link_card_max_width,
+            &mut self.link_card_icon_size,
             &mut self.rule_thickness,
             &mut self.quote_bar_width,
             &mut self.quote_indent,
@@ -601,6 +620,12 @@ fn zero_sizes() -> Theme {
         cursor_width: zero,
         newline_selection_width: zero,
         composition_underline_thickness: zero,
+        problem_underline_thickness: zero,
+        link_card_height: zero,
+        link_card_max_width: zero,
+        link_card_ring: zero,
+        link_card_icon_size: zero,
+        link_card_image_aspect: 1.,
         rule_thickness: zero,
         quote_bar_width: zero,
         quote_indent: zero,
@@ -1457,6 +1482,16 @@ pub const KEY_FONT_CANDIDATES: [&str; 6] = [
     "FreeSans",
 ];
 
+/// The colour emoji face, first installed one wins. Linux's text system
+/// falls back to whichever font has a glyph first, often a black and
+/// white one, so rows that show an emoji name the face outright.
+#[cfg(target_os = "macos")]
+pub const EMOJI_FONT_CANDIDATES: [&str; 1] = ["Apple Color Emoji"];
+#[cfg(target_os = "windows")]
+pub const EMOJI_FONT_CANDIDATES: [&str; 1] = ["Segoe UI Emoji"];
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+pub const EMOJI_FONT_CANDIDATES: [&str; 3] = ["Noto Color Emoji", "Twemoji", "JoyPixels"];
+
 /// The first of `candidates` among `installed`, or the first candidate.
 fn first_installed(candidates: &[&str], installed: &[String]) -> SharedString {
     candidates
@@ -1619,6 +1654,27 @@ pub struct UiTheme {
     pub suggestion_rows: usize,
     /// Space between the line being typed and its suggestions.
     pub suggestion_gap: Pixels,
+    /// The column an emoji or symbol sits in before its name.
+    pub suggestion_glyph_width: Pixels,
+    pub suggestion_glyph_size: Pixels,
+    pub emoji_font_family: SharedString,
+    /// The chip beside a pasted address that offers to make a card.
+    pub card_chip_height: Pixels,
+    /// The popover a link shows its note in when hovered.
+    pub hover_preview_width: Pixels,
+    pub hover_preview_height: Pixels,
+    pub hover_preview_header_height: Pixels,
+    /// Space between the preview's edge and the note's text.
+    pub hover_preview_padding: Pixels,
+    /// How much smaller than the editor the previewed note is drawn.
+    pub hover_preview_zoom: f32,
+    /// A hovered footnote's text, and short notices.
+    pub hover_footnote_width: Pixels,
+    /// How long the pointer rests on a link before its preview opens.
+    pub hover_preview_delay: std::time::Duration,
+    /// How long the preview stays after the pointer leaves, so it can
+    /// cross the gap to the popover.
+    pub hover_preview_grace: std::time::Duration,
     pub tab_bar_height: Pixels,
     /// Room at the window's top-left for the platform's own window
     /// buttons, where they're drawn over the app (macOS).
@@ -1796,6 +1852,18 @@ impl UiTheme {
             match_weight: FontWeight::BOLD,
             suggestion_rows: 8,
             suggestion_gap: px(4.),
+            suggestion_glyph_width: px(20.),
+            suggestion_glyph_size: px(16.),
+            emoji_font_family: EMOJI_FONT_CANDIDATES[0].into(),
+            card_chip_height: px(26.),
+            hover_preview_width: px(480.),
+            hover_preview_height: px(360.),
+            hover_preview_header_height: px(32.),
+            hover_preview_padding: px(16.),
+            hover_preview_zoom: 0.875,
+            hover_footnote_width: px(360.),
+            hover_preview_delay: std::time::Duration::from_millis(350),
+            hover_preview_grace: std::time::Duration::from_millis(250),
             tab_bar_height: px(40.),
             window_buttons_width: if cfg!(target_os = "macos") {
                 px(72.)
@@ -1914,6 +1982,7 @@ impl UiTheme {
     pub fn themed(palette: &Palette, installed: &[String]) -> UiTheme {
         UiTheme {
             font_family: first_installed(&UI_FONT_CANDIDATES, installed),
+            emoji_font_family: first_installed(&EMOJI_FONT_CANDIDATES, installed),
             keycap: KeycapTheme::with_installed_fonts(installed).on_text(palette.text),
             ..UiTheme::from_palette(palette)
         }

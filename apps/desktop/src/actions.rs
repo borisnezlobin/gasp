@@ -5,8 +5,8 @@ use std::ops::Range;
 
 use editor_core::motion;
 use gpui::{
-    Context, CursorStyle, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    Pixels, Point, ScrollWheelEvent, Window, div, prelude::*,
+    Context, CursorStyle, KeyDownEvent, ModifiersChangedEvent, MouseButton, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, Pixels, Point, ScrollWheelEvent, Window, div, prelude::*,
 };
 
 use crate::editor::{EditorEvent, EditorView};
@@ -48,10 +48,13 @@ impl EditorView {
     /// workspace.
     fn on_key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         let keystroke = &event.keystroke;
-        if keystroke.key == "escape"
-            && !keystroke.modifiers.modified()
-            && self.dismiss_suggestions(cx)
-        {
+        if keystroke.key != "escape" || keystroke.modifiers.modified() {
+            return;
+        }
+        let previewing = self.hover.open.is_some();
+        self.close_preview(cx);
+        let offered = self.dismiss_card_offer(cx);
+        if self.dismiss_suggestions(cx) || previewing || offered {
             cx.stop_propagation();
         }
     }
@@ -71,7 +74,10 @@ impl EditorView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        window.focus(&self.focus_handle);
+        self.close_preview(cx);
+        if !self.read_only {
+            window.focus(&self.focus_handle);
+        }
         if self.click_widget(event.position, cx) {
             return;
         }
@@ -80,6 +86,9 @@ impl EditorView {
             && let Some(target) = self.link_at(offset)
         {
             cx.emit(EditorEvent::OpenLink(target));
+            return;
+        }
+        if self.read_only {
             return;
         }
         self.is_selecting = true;
@@ -115,8 +124,10 @@ impl EditorView {
             .and_then(|frame| frame.piece_at(position))
             .map(|(_, piece)| piece.hit.clone());
         match hit {
+            Some(Hit::Checkbox { .. }) if self.read_only => {}
             Some(Hit::Checkbox { marker }) => self.toggle_task(marker, cx),
             Some(Hit::Fold { header, folded }) => self.toggle_fold(header, folded, cx),
+            Some(Hit::Link { url }) => cx.emit(EditorEvent::OpenLink(url)),
             _ => return false,
         }
         true
@@ -135,10 +146,29 @@ impl EditorView {
         if self.is_selecting {
             let offset = self.offset_for_point(event.position, window);
             self.extend_by_unit(offset, cx);
+            return;
+        }
+        let over = self.hover_target_at_point(event.position);
+        self.hover_moved(over, event.modifiers.secondary(), cx);
+    }
+
+    fn on_hover_editor(&mut self, hovered: &bool, _: &mut Window, cx: &mut Context<Self>) {
+        if !*hovered {
+            self.hover_left(cx);
         }
     }
 
+    fn on_modifiers_changed(
+        &mut self,
+        event: &ModifiersChangedEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.hover_modifiers_changed(event.modifiers.secondary(), cx);
+    }
+
     fn on_scroll(&mut self, event: &ScrollWheelEvent, _: &mut Window, cx: &mut Context<Self>) {
+        self.close_preview(cx);
         let delta = event.delta.pixel_delta(self.theme.body_line_height());
         self.scroll_by(-delta.y, cx);
     }
@@ -146,7 +176,17 @@ impl EditorView {
 
 impl Render for EditorView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.read_only {
+            return div()
+                .id("preview")
+                .size_full()
+                .bg(self.theme.background)
+                .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+                .on_scroll_wheel(cx.listener(Self::on_scroll))
+                .child(EditorElement::new(cx.entity()));
+        }
         div()
+            .id("editor")
             .size_full()
             .key_context(KEY_CONTEXT)
             .track_focus(&self.focus_handle)
@@ -158,6 +198,8 @@ impl Render for EditorView {
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
+            .on_hover(cx.listener(Self::on_hover_editor))
+            .on_modifiers_changed(cx.listener(Self::on_modifiers_changed))
             .on_scroll_wheel(cx.listener(Self::on_scroll))
             .on_drop(cx.listener(Self::on_drop_paths))
             .child(EditorElement::new(cx.entity()))

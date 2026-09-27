@@ -1,5 +1,7 @@
 //! Images for inline widgets: decoded from the note's folder when found,
-//! otherwise a generated placeholder.
+//! otherwise a generated placeholder. Images on the web, such as a link
+//! card's preview, are downloaded in the background and show once they
+//! arrive.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -16,6 +18,17 @@ pub struct ImageStore {
     search_dirs: Vec<PathBuf>,
     by_target: HashMap<String, Arc<RenderImage>>,
     placeholder: Arc<RenderImage>,
+    /// Web images by URL: `None` while downloading or after failing.
+    remote: HashMap<String, Option<Arc<RenderImage>>>,
+    remote_requests: Vec<RemoteImage>,
+}
+
+/// A web image to download, cropped to `aspect` (width over height) when
+/// given, as a card's thumbnail is.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RemoteImage {
+    pub url: String,
+    pub aspect: Option<f32>,
 }
 
 impl ImageStore {
@@ -25,7 +38,32 @@ impl ImageStore {
             search_dirs,
             by_target: HashMap::new(),
             placeholder: Arc::new(render_image(placeholder_pixels())),
+            remote: HashMap::new(),
+            remote_requests: Vec::new(),
         }
+    }
+
+    /// The web image at `url` once it has downloaded. The first ask
+    /// queues the download for [`ImageStore::take_remote_requests`].
+    pub fn remote_image(&mut self, url: &str, aspect: Option<f32>) -> Option<Arc<RenderImage>> {
+        if let Some(image) = self.remote.get(url) {
+            return image.clone();
+        }
+        self.remote.insert(url.to_owned(), None);
+        self.remote_requests.push(RemoteImage {
+            url: url.to_owned(),
+            aspect,
+        });
+        None
+    }
+
+    pub fn take_remote_requests(&mut self) -> Vec<RemoteImage> {
+        std::mem::take(&mut self.remote_requests)
+    }
+
+    /// Keeps a downloaded image; `None` leaves the card without it.
+    pub fn finish_remote(&mut self, url: String, image: Option<RenderImage>) {
+        self.remote.insert(url, image.map(Arc::new));
     }
 
     pub fn image(&mut self, target: &str) -> Arc<RenderImage> {
@@ -76,7 +114,7 @@ fn decode(path: &Path) -> Option<RenderImage> {
 }
 
 /// GPUI wants BGRA.
-fn render_image(mut pixels: RgbaImage) -> RenderImage {
+pub(crate) fn render_image(mut pixels: RgbaImage) -> RenderImage {
     for pixel in pixels.chunks_exact_mut(4) {
         pixel.swap(0, 2);
     }

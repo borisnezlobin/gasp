@@ -23,6 +23,17 @@ pub struct SuggestionRow {
     pub detail: Option<SharedString>,
     /// Nesting depth, such as a heading's level below the top one.
     pub indent: usize,
+    /// A character drawn in a column before the label, such as the emoji
+    /// a name stands for.
+    pub glyph: Option<RowGlyph>,
+}
+
+/// A row's glyph, and whether it's an emoji, which takes the colour
+/// emoji face.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RowGlyph {
+    pub text: SharedString,
+    pub emoji: bool,
 }
 
 /// What a row does when the pointer acts on it.
@@ -41,6 +52,7 @@ pub fn suggestion_list<V: 'static>(
     on_hover: RowHandler<V>,
 ) -> Stateful<Div> {
     let end = rows.len().min(first + theme.suggestion_rows);
+    let glyph_column = rows.iter().any(|row| row.glyph.is_some());
     let rendered: Vec<AnyElement> = (first..end)
         .map(|index| {
             let row = &rows[index];
@@ -66,6 +78,9 @@ pub fn suggestion_list<V: 'static>(
                     on_hover(view, index, window, cx);
                 }
             }))
+            .when(glyph_column, |row_div| {
+                row_div.child(glyph_cell(row.glyph.clone(), theme))
+            })
             .child(label_text(row, theme).grow())
             .children(row.detail.clone().map(|detail| {
                 div()
@@ -73,7 +88,7 @@ pub fn suggestion_list<V: 'static>(
                     .min_w_0()
                     .max_w(theme.menu_min_width / 2.)
                     .text_size(theme.small_font_size)
-                    .text_color(theme.text_faint)
+                    .text_color(theme.text_detail)
                     .child(truncated(detail))
             }))
             .into_any_element()
@@ -85,6 +100,23 @@ pub fn suggestion_list<V: 'static>(
         .min_w(theme.menu_min_width)
         .max_w(theme.menu_max_width)
         .children(rendered)
+}
+
+/// The fixed-width cell a row's glyph sits in, so the names line up
+/// whether or not a row has one.
+fn glyph_cell(glyph: Option<RowGlyph>, theme: &UiTheme) -> Div {
+    let emoji = glyph.as_ref().is_some_and(|glyph| glyph.emoji);
+    div()
+        .flex_none()
+        .w(theme.suggestion_glyph_width)
+        .flex()
+        .justify_center()
+        .text_size(theme.suggestion_glyph_size)
+        .text_color(theme.text)
+        .when(emoji, |cell| {
+            cell.font_family(theme.emoji_font_family.clone())
+        })
+        .children(glyph.map(|glyph| glyph.text))
 }
 
 /// The label, its matched characters in the match weight.

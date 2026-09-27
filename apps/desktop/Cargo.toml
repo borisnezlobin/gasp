@@ -43,6 +43,12 @@ resvg = { version = "0.45", default-features = false }
 # they add no new crates.
 syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy"] }
 two-face = { version = "0.4.3", default-features = false, features = ["syntect-fancy"] }
+# Emoji names and GitHub shortcodes for the `:` picker: generated tables
+# with no dependencies.
+emojis = "0.9"
+# Link card metadata. GPUI already builds this reqwest fork with rustls and
+# the system's roots; `blocking` adds no crates.
+reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["blocking", "rustls-tls-native-roots"] }
 
 # The system's credential store for sync tokens. Linux keeps them in a
 # private file instead, since the Secret Service needs D-Bus libraries.

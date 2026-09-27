@@ -15,8 +15,8 @@ use crate::frame::{FrameLayout, PlacedLine};
 use crate::line_layout::{Piece, PieceContent, Surface};
 use crate::theme::Theme;
 
-/// Suggestions draw above the text and the editor's own overlays, below
-/// menus.
+/// Suggestions and hover previews draw above the text and the editor's
+/// own overlays, below menus.
 const SUGGESTION_LAYER: usize = 1;
 
 /// Draws an [`EditorView`].
@@ -97,6 +97,17 @@ impl Element for EditorElement {
                 popover.layout_as_root(AvailableSpace::min_size(), window, cx);
                 window.defer_draw(popover, window.element_offset(), SUGGESTION_LAYER);
             }
+            if let Some(mut chip) = view.card_offer_chip(&frame, cx) {
+                chip.layout_as_root(AvailableSpace::min_size(), window, cx);
+                window.defer_draw(chip, window.element_offset(), SUGGESTION_LAYER);
+            }
+            if let Some(mut popover) = view.hover_popover(&frame, window, cx) {
+                // Laid out at its natural width, so a message wraps inside
+                // its box rather than past it.
+                let natural = gpui::size(AvailableSpace::MaxContent, AvailableSpace::MaxContent);
+                popover.layout_as_root(natural, window, cx);
+                window.defer_draw(popover, window.element_offset(), SUGGESTION_LAYER);
+            }
             // Math and code highlighting can wait for the first frame.
             if crate::first_frame::is_waiting() {
                 let view = cx.entity().downgrade();
@@ -104,12 +115,14 @@ impl Element for EditorElement {
                     view.update(cx, |view, cx| {
                         view.start_math_renders(cx);
                         view.start_code_loads(cx);
+                        view.start_remote_images(cx);
                     })
                     .ok();
                 });
             } else {
                 view.start_math_renders(cx);
                 view.start_code_loads(cx);
+                view.start_remote_images(cx);
             }
             view.timings.layout.push(started.elapsed());
             Prepainted {
@@ -145,6 +158,11 @@ impl Element for EditorElement {
         let frame = prepainted.frame.clone();
         self.view
             .update(cx, |view, _| view.finish_frame(frame, started));
+        // A preview's popover is as tall as its note, which is only known
+        // once the lines are laid out: draw again until it settles.
+        if self.view.read(cx).take_height_change() {
+            window.request_animation_frame();
+        }
         EditorView::schedule_bench_step(&self.view, window, cx);
     }
 }
@@ -181,6 +199,10 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
         let color = match kind {
             HighlightKind::SearchMatch => theme.search_match,
             HighlightKind::ActiveSearchMatch => theme.active_search_match,
+            HighlightKind::FootnoteProblem => {
+                paint_problem_underline(*rect, theme, window);
+                continue;
+            }
         };
         window.paint_quad(fill(*rect, color).corner_radii(theme.radius_sm / 2.));
     }
@@ -196,6 +218,17 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
     for placed in &frame.lines {
         paint_overlays(placed, frame.text_left, theme, window);
     }
+}
+
+/// A footnote problem's underline: a line in the error colour just under
+/// the text, like a spelling mark, so the text itself stays readable.
+fn paint_problem_underline(rect: Bounds<Pixels>, theme: &Theme, window: &mut Window) {
+    let thickness = theme.problem_underline_thickness;
+    let line = Bounds {
+        origin: point(rect.left(), rect.bottom() - thickness - theme.space_xs),
+        size: size(rect.size.width, thickness),
+    };
+    window.paint_quad(fill(line, theme.error).corner_radii(thickness / 2.));
 }
 
 /// A surface being drawn across consecutive lines.

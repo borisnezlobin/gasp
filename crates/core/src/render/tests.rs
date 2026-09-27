@@ -1048,3 +1048,21 @@ fn style_keys_are_sorted_and_runs_merge() {
 fn the_empty_document_has_one_empty_line() {
     check("", &element(), &[""]);
 }
+
+#[test]
+fn link_embed_blocks_become_cards_away_from_the_cursor() {
+    let block = "```embed\ntitle: \"Rust\"\nurl: \"https://rust-lang.org\"\n```\n\n";
+    let away = render(&format!("{block}‸"), &element());
+    let lines: Vec<&str> = away.lines().collect();
+    assert!(lines[0].starts_with("⟦linkcard("), "{away}");
+    assert!(lines[0].contains("https://rust-lang.org"), "{away}");
+    assert_eq!(lines[1..4], ["~collapsed~", "~collapsed~", "~collapsed~"]);
+    let inside = render(&block.replacen("Rust", "R‸ust", 1), &element());
+    assert!(!inside.contains("linkcard"), "the source shows: {inside}");
+}
+
+#[test]
+fn embed_blocks_without_a_url_stay_code() {
+    let away = render("```embed\ntitle: \"x\"\n```\n\n‸", &element());
+    assert!(!away.contains("linkcard"), "{away}");
+}

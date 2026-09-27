@@ -6,6 +6,7 @@ use crate::syntax::{HtmlKind, Markup, MarkupKind, Node, NodeId, NodeKind};
 
 use super::output::WidgetKind;
 use super::reveal::Revealer;
+use crate::link_card::LinkCard;
 
 /// Standalone HTML tags that become widgets.
 pub(crate) fn html_replaceable(kind: HtmlKind) -> bool {
@@ -46,6 +47,7 @@ pub(crate) fn replacement(revealer: &Revealer<'_>, id: NodeId) -> Option<WidgetK
             alignments: alignments.clone(),
             rows: table_rows(revealer, id),
         },
+        NodeKind::CodeBlock(_) => return link_card(text, node),
         _ => return simple_replacement(node, text),
     };
     Some(kind)
@@ -204,6 +206,18 @@ pub(crate) fn code_lines(node: &Node) -> Option<Range<usize>> {
         None => node.range.end,
     };
     (start < end).then_some(start..end)
+}
+
+/// The card an `embed` code block describes, when it names a URL.
+pub(crate) fn link_card(text: &str, node: &Node) -> Option<WidgetKind> {
+    let NodeKind::CodeBlock(info) = &node.kind else {
+        return None;
+    };
+    if info.language.as_deref() != Some(crate::link_card::LANGUAGE) {
+        return None;
+    }
+    let body = code_lines(node).map_or("", |range| &text[range]);
+    LinkCard::parse(body).map(WidgetKind::LinkCard)
 }
 
 pub(crate) fn code_block(node: &Node) -> WidgetKind {

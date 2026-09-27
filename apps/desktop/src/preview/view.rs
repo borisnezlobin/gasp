@@ -134,6 +134,26 @@ impl EditorView {
         }
     }
 
+    /// Downloads the web images the last layout asked for, such as link
+    /// card previews, redrawing as each arrives.
+    pub(crate) fn start_remote_images(&mut self, cx: &mut Context<Self>) {
+        for request in self.images.take_remote_requests() {
+            let download = cx.background_spawn(async move {
+                let image = crate::link_cards::images::load(&request);
+                (request.url, image)
+            });
+            cx.spawn(async move |this, cx| {
+                let (url, image) = download.await;
+                this.update(cx, |view, cx| {
+                    view.images.finish_remote(url, image);
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach();
+        }
+    }
+
     /// Whether every equation asked for has been rendered.
     pub fn is_math_idle(&self) -> bool {
         self.math.is_idle()
