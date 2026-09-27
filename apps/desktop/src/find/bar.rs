@@ -557,6 +557,8 @@ impl FindBar {
 
 impl Render for FindBar {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // The theme can change while the bar is open.
+        self.theme = ui_theme(cx);
         let theme = self.theme.clone();
         popover(&theme)
             .key_context(FIND_BAR_CONTEXT)

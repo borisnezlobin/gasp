@@ -94,6 +94,11 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Give pasted text curly quotes too. Paste as plain text always keeps quotes as they are.",
     ),
     (
+        "appearance.theme",
+        "Theme",
+        "Light or dark. Match system follows your computer as it switches.",
+    ),
+    (
         "appearance.base-font-size",
         "Font size",
         "The size of body text in points. Headings scale with it.",
@@ -141,6 +146,9 @@ const CHOICE_LABELS: &[(&str, &str)] = &[
     ("system", "System trash"),
     ("vault", "The vault's .trash folder"),
     ("delete", "Delete for good"),
+    ("light", "Light"),
+    ("dark", "Dark"),
+    ("match-system", "Match system"),
 ];
 
 /// Settings the desktop app doesn't read yet, by key prefix. Showing them
@@ -217,8 +225,10 @@ impl FontSlot {
     }
 }
 
-/// The theme token the accent row edits.
+/// The theme token the accent row edits in light mode.
 pub const ACCENT_TOKEN: &str = "color.accent";
+/// The theme token the accent row edits in dark mode, which has its own.
+pub const DARK_ACCENT_TOKEN: &str = "dark.color.accent";
 pub const ACCENT_TITLE: &str = "Accent colour";
 pub const ACCENT_DESCRIPTION: &str = "Used for the cursor, links and switches that are on.";
 
@@ -285,6 +295,7 @@ pub const PAGES: &[PageSpec] = &[
         icon: IconName::Palette,
         group: "App",
         cards: &[
+            &[setting("appearance.theme"), RowSpec::Accent],
             &[
                 RowSpec::Font(FontSlot::Text),
                 RowSpec::Font(FontSlot::Interface),
@@ -299,7 +310,6 @@ pub const PAGES: &[PageSpec] = &[
                 setting("theme.font.scale.h2"),
                 setting("theme.font.line-height.code"),
             ],
-            &[RowSpec::Accent],
         ],
     },
     PageSpec {

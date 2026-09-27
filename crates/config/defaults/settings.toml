@@ -29,6 +29,7 @@ auto-pair          = true   # ( [ { and ` add their closing half; * _ ~ = wrap a
 
 [appearance]
 base-font-size = 12
+theme          = "match-system"   # "light" | "dark" | "match-system"
 
 [sync]
 auto             = true
