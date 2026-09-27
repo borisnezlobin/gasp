@@ -22,6 +22,7 @@ pub mod stats;
 pub mod styling;
 pub mod text_offsets;
 pub mod theme;
+pub mod workspace;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod x11_wake;
 

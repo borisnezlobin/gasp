@@ -20,12 +20,19 @@ editor-config = { path = "../../crates/config" }
 editor-core = { path = "../../crates/core" }
 gpui = "=0.2.2"
 image = "0.25"
+notify = "6"
+futures = "0.3"
+dirs = "5"
+trash = "5"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 x11rb = "0.13"
 
 [dev-dependencies]
 gpui = { version = "=0.2.2", features = ["test-support"] }
+tempfile = "3"
 
 [lints]
 workspace = true
