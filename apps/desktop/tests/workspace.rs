@@ -223,6 +223,33 @@ fn edits_in_one_pane_show_in_the_other(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn lines_added_in_one_pane_are_drawn_in_the_other(cx: &mut TestAppContext) {
+    let vault = vault_with(&[("a.md", "first\n\nsecond")]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "a.md", OpenIn::ActiveTab);
+    run(&workspace, cx, "pane.split-right");
+    let right = cx.read(|cx| workspace.read(cx).active_editor(cx).unwrap());
+    run(&workspace, cx, "pane.focus-left");
+    cx.update(|_, cx| {
+        let left = workspace.read(cx).active_editor(cx).unwrap();
+        left.update(cx, |editor, cx| {
+            let end = editor.text().len();
+            editor.move_to(end, false, cx);
+        });
+    });
+    cx.simulate_input("\n\nthird");
+    cx.run_until_parked();
+    let drawn = right.read_with(cx, |editor, _| {
+        editor.frame().map(|frame| frame.lines.len()).unwrap_or(0)
+    });
+    assert_eq!(
+        right.read_with(cx, |editor, _| editor.text()),
+        "first\n\nsecond\n\nthird"
+    );
+    assert_eq!(drawn, 5, "the other pane draws the new lines");
+}
+
+#[gpui::test]
 fn autosave_waits_for_typing_to_pause(cx: &mut TestAppContext) {
     let vault = vault_with(&[("a.md", "note")]);
     let (workspace, cx) = open_workspace(cx, vault.path());

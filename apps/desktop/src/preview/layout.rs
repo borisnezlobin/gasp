@@ -163,7 +163,7 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         }
     }
 
-    fn line_font(&self) -> Font {
+    pub(super) fn line_font(&self) -> Font {
         let run = text_run(1, &[], &self.tone, false, self.theme());
         run.font
     }

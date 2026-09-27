@@ -12,7 +12,9 @@ use editor_config::typing::TypingTables;
 use editor_core::document::{Document, Selection, SelectionRange};
 use editor_core::history::EditorState;
 use editor_core::pipeline::{EditRequest, Pipeline, TabStops};
-use editor_core::render::{LinePlan, RenderInput, RevealSettings, plan_lines};
+use editor_core::render::{
+    LinePlan, Placement, RenderInput, RevealSettings, Widget, WidgetKind, plan_lines,
+};
 use editor_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{App, Bounds, Context, EventEmitter, FocusHandle, Focusable, Pixels, Point, Window, px};
 
@@ -738,7 +740,37 @@ impl EditorView {
         let mut plans = plan_lines(&input, lines).lines;
         self.folds
             .apply(&mut plans, self.source.tree(), &selections);
+        self.place_empty_tab_stops(&mut plans);
         plans
+    }
+
+    /// Gives each empty tab stop of the snippet being filled in room of
+    /// its own on its line, unless its text is hidden there.
+    fn place_empty_tab_stops(&self, plans: &mut [LinePlan]) {
+        let Some(stops) = self.tab_stops.as_ref() else {
+            return;
+        };
+        for at in stops.pending().filter(|range| range.is_empty()) {
+            let at = at.start;
+            let plan = plans
+                .iter_mut()
+                .find(|plan| plan.range.start <= at && at <= plan.range.end);
+            let Some(plan) = plan.filter(|plan| !plan.collapsed) else {
+                continue;
+            };
+            if plan
+                .hidden
+                .iter()
+                .any(|hidden| hidden.start < at && at < hidden.end)
+            {
+                continue;
+            }
+            plan.widgets.push(Widget {
+                kind: WidgetKind::EmptyTabStop,
+                range: at..at,
+                placement: Placement::Replace,
+            });
+        }
     }
 
     /// Lays out a planned line against the current column, or takes it

@@ -102,6 +102,7 @@ impl LineLayouter<'_, '_> {
             WidgetKind::PropertyList { items, tags } => {
                 self.property_list(range, items, *tags, builder)
             }
+            WidgetKind::EmptyTabStop => self.empty_tab_stop(range, builder),
             WidgetKind::CalloutHeader {
                 kind,
                 title,
@@ -293,6 +294,24 @@ impl LineLayouter<'_, '_> {
             self.label(" \u{203a} ", run, self.font_size(), self.line_height());
         piece.range = range.clone();
         builder.push_atomic(piece, extent);
+    }
+
+    /// The block an empty snippet tab stop waits in, as tall as the
+    /// caret, with room of its own so it never covers the characters
+    /// around it.
+    fn empty_tab_stop(&mut self, range: &Range<usize>, builder: &mut RowBuilder) {
+        let theme = self.theme();
+        let line_height = self.line_height();
+        let extent = self.strut(&self.line_font(), self.font_size(), line_height);
+        let piece = blank_piece(
+            range.clone(),
+            theme.tab_stop_width,
+            line_height,
+            PieceContent::TabStop,
+        );
+        builder.advance(theme.tab_stop_gap);
+        builder.push_atomic(piece, extent);
+        builder.advance(theme.tab_stop_gap);
     }
 
     /// A block list property's items as chips after its name, wrapping

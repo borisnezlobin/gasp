@@ -112,6 +112,30 @@ fn the_migrated_file_loads_every_active_snippet(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn an_empty_tab_stop_has_room_of_its_own(cx: &mut TestAppContext) {
+    use editor_desktop::line_layout::PieceContent;
+    let (view, cx) = open(cx, "");
+    cx.simulate_input("mk//");
+    let line = view.read_with(cx, |view, _| {
+        view.frame().unwrap().line(0).unwrap().visual.clone()
+    });
+    let pieces: Vec<_> = line.pieces().collect();
+    let slots: Vec<usize> = (0..pieces.len())
+        .filter(|&at| matches!(pieces[at].content, PieceContent::TabStop))
+        .collect();
+    assert_eq!(slots.len(), 2, "the denominator and the end wait in blocks");
+    let slot = pieces[slots[0]];
+    let (before, after) = (pieces[slots[0] - 1], pieces[slots[0] + 1]);
+    assert!(before.right() < slot.x, "the `{{` before it stays clear");
+    assert!(slot.right() < after.x, "the `}}` after it stays clear");
+    let caret = line.x_for_offset("$\\frac{}{".len());
+    assert!(
+        slot.x < caret && caret < slot.right(),
+        "the caret stands in it"
+    );
+}
+
+#[gpui::test]
 fn a_fraction_fills_in_with_tab(cx: &mut TestAppContext) {
     let (view, cx) = open(cx, "");
     cx.simulate_input("mk//");
