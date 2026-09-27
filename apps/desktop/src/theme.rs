@@ -1038,7 +1038,8 @@ mod tests {
 /// renames and the note's title. Each input style picks from these.
 #[derive(Clone, Debug)]
 pub struct InputTheme {
-    pub font_family: &'static str,
+    /// Replaced by the resolved UI font when an input is made.
+    pub font_family: SharedString,
     /// Field and inline inputs.
     pub font_size: Pixels,
     /// The picker's query.
@@ -1073,7 +1074,7 @@ pub struct InputTheme {
 impl Default for InputTheme {
     fn default() -> Self {
         Self {
-            font_family: PLATFORM_FONTS.0,
+            font_family: PLATFORM_FONTS.0.into(),
             font_size: px(13.),
             query_font_size: px(16.),
             title_font_size: px(34.),
@@ -1361,6 +1362,223 @@ impl UiTheme {
             offset: point(px(0.), px(0.)),
             blur_radius: px(0.),
             spread_radius: self.surface_ring_width,
+        }
+    }
+}
+
+// Settings screen ---------------------------------------------------------
+
+/// Accent colours the settings screen offers as swatches, as written to
+/// `color.accent` in `theme.toml`. The first is the built-in accent.
+pub const ACCENT_CHOICES: [&str; 6] = [
+    "#000000", "#2f5fd0", "#7048c8", "#1f8a4c", "#c2541b", "#c02b4a",
+];
+
+/// Tokens for the settings screen: the modal, its section list, the
+/// grouped rows and their controls. Fonts and colours come from the
+/// config theme's `font.*` and `color.*` tokens and spacing from
+/// `space.*`, `radius.*` and `size.*`, like [`Theme::from_tokens`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct SettingsTheme {
+    pub font_family: SharedString,
+    pub code_font_family: SharedString,
+    pub text_size: Pixels,
+    pub small_text_size: Pixels,
+    pub page_title_size: Pixels,
+    pub strong_weight: FontWeight,
+    pub line_height_factor: f32,
+    /// Share of the window the modal takes, up to the maximums.
+    pub modal_fraction: f32,
+    pub modal_max_width: Pixels,
+    pub modal_max_height: Pixels,
+    pub modal_radius: Pixels,
+    pub nav_width: Pixels,
+    pub nav_padding: Pixels,
+    pub nav_item_height: Pixels,
+    pub nav_group_gap: Pixels,
+    pub content_padding_x: Pixels,
+    pub content_padding_y: Pixels,
+    pub content_max_width: Pixels,
+    pub card_gap: Pixels,
+    pub card_padding_x: Pixels,
+    pub card_radius: Pixels,
+    pub row_padding_y: Pixels,
+    /// Space between a row's text column and its control column.
+    pub row_gap: Pixels,
+    /// The narrowest a row's text column gets before its controls wrap.
+    pub text_min_width: Pixels,
+    /// The section list's share of the modal in narrow windows.
+    pub nav_fraction: f32,
+    pub text_gap: Pixels,
+    pub control_gap: Pixels,
+    pub gap_xs: Pixels,
+    pub gap_sm: Pixels,
+    pub radius: Pixels,
+    pub icon_size: Pixels,
+    pub small_icon_size: Pixels,
+    pub hairline: Pixels,
+    pub control_height: Pixels,
+    pub control_padding_x: Pixels,
+    pub toggle_width: Pixels,
+    pub toggle_height: Pixels,
+    pub toggle_knob_inset: Pixels,
+    pub swatch_size: Pixels,
+    pub stepper_value_width: Pixels,
+    pub field_width: Pixels,
+    pub hex_field_width: Pixels,
+    pub menu_width: Pixels,
+    pub menu_max_height: Pixels,
+    pub menu_offset: Pixels,
+    pub keycap_padding_x: Pixels,
+    pub keycap_padding_y: Pixels,
+    pub ring_width: Pixels,
+    /// Rings need a little blur to be drawn at all.
+    pub ring_blur: Pixels,
+    pub shadow_blur: Pixels,
+    pub shadow_offset: Pixels,
+    pub background: Hsla,
+    pub card_background: Hsla,
+    pub hover: Hsla,
+    pub selected: Hsla,
+    pub text: Hsla,
+    pub text_muted: Hsla,
+    pub text_faint: Hsla,
+    pub divider: Hsla,
+    pub accent: Hsla,
+    pub on_accent: Hsla,
+    pub control_background: Hsla,
+    /// The hairline ring that outlines buttons, keycaps and menus.
+    pub control_ring: Hsla,
+    pub toggle_off: Hsla,
+    pub knob: Hsla,
+    pub focus_ring: Hsla,
+    pub warning: Hsla,
+    pub shadow: Hsla,
+}
+
+impl Default for SettingsTheme {
+    fn default() -> Self {
+        Self::from_tokens(&Config::defaults().theme)
+    }
+}
+
+impl SettingsTheme {
+    /// Builds the tokens from a resolved config theme. Missing or
+    /// malformed tokens fall back to the built-in value.
+    pub fn from_tokens(tokens: &Tokens) -> Self {
+        let read = TokenReader { tokens };
+        let space = |name: &str, default: f32| px(read.number(name, default));
+        let mut focus_ring = read.color("color.focus-ring", 0x000000);
+        focus_ring.a *= 0.6;
+        Self {
+            font_family: read.text("font.ui", "Charter").into(),
+            code_font_family: read.text("font.code", "Courier New").into(),
+            text_size: px(15.),
+            small_text_size: px(13.5),
+            page_title_size: px(21.),
+            strong_weight: FontWeight(read.number("font.weight.medium", 500.)),
+            line_height_factor: read.number("font.line-height.ui", 1.3),
+            modal_fraction: 0.8,
+            modal_max_width: px(1080.),
+            modal_max_height: px(780.),
+            modal_radius: space("radius.lg", 10.) * 1.4,
+            nav_width: px(236.),
+            nav_padding: space("space.lg", 12.),
+            nav_item_height: px(30.),
+            nav_group_gap: space("space.xl", 16.),
+            content_padding_x: space("space.xxl", 24.) * 1.5,
+            content_padding_y: space("space.xxl", 24.),
+            content_max_width: px(820.),
+            card_gap: space("space.xxl", 24.),
+            card_padding_x: space("space.xl", 16.) * 1.25,
+            card_radius: space("radius.lg", 10.) * 1.2,
+            row_padding_y: space("space.lg", 12.) * 1.25,
+            row_gap: space("space.xxl", 24.),
+            text_min_width: px(140.),
+            nav_fraction: 0.3,
+            text_gap: space("space.xs", 2.),
+            control_gap: space("space.md", 8.),
+            gap_xs: space("space.xs", 2.),
+            gap_sm: space("space.sm", 4.),
+            radius: space("radius.md", 6.),
+            icon_size: space("size.icon", 16.) * 1.125,
+            small_icon_size: space("size.icon", 16.) * 0.875,
+            hairline: px(1.),
+            control_height: px(30.),
+            control_padding_x: space("space.lg", 12.),
+            toggle_width: px(40.),
+            toggle_height: px(22.),
+            toggle_knob_inset: space("space.xs", 2.),
+            swatch_size: px(22.),
+            stepper_value_width: px(34.),
+            field_width: px(220.),
+            hex_field_width: px(92.),
+            menu_width: px(260.),
+            menu_max_height: px(320.),
+            menu_offset: space("space.sm", 4.),
+            keycap_padding_x: space("space.md", 8.) * 0.75,
+            keycap_padding_y: space("space.xs", 2.),
+            ring_width: px(1.),
+            ring_blur: px(0.5),
+            shadow_blur: px(12.),
+            shadow_offset: px(2.),
+            background: read.color("color.background", 0xffffff),
+            card_background: read.color("color.sidebar", 0xf4f4f5),
+            hover: read.color("color.hover", 0xf4f4f5),
+            selected: read.color("color.selection", 0xe4e4e7),
+            text: read.color("color.text", 0x27272a),
+            text_muted: read.color("color.text-muted", 0x52525b),
+            text_faint: read.color("color.text-faint", 0xa1a1aa),
+            divider: read.color("color.divider", 0xe4e4e7),
+            accent: read.color("color.accent", 0x000000),
+            on_accent: read.color("color.on-accent", 0xffffff),
+            control_background: read.color("color.background", 0xffffff),
+            control_ring: read.color("color.shadow", 0x0000001f),
+            toggle_off: read.color("color.text-faint", 0xa1a1aa),
+            knob: read.color("color.background", 0xffffff),
+            focus_ring,
+            warning: read.color("color.conflict", 0xc62828),
+            shadow: read.color("color.shadow", 0x0000001f),
+        }
+    }
+
+    /// The hairline ring that outlines buttons, keycaps and menus.
+    pub fn outline(&self) -> BoxShadow {
+        BoxShadow {
+            color: self.control_ring,
+            offset: point(px(0.), px(0.)),
+            blur_radius: self.ring_blur,
+            spread_radius: self.ring_width,
+        }
+    }
+
+    /// A soft drop shadow under raised controls.
+    pub fn lift(&self) -> BoxShadow {
+        BoxShadow {
+            color: self.shadow,
+            offset: point(px(0.), self.ring_width),
+            blur_radius: self.ring_width * 2.,
+            spread_radius: px(0.),
+        }
+    }
+
+    /// The ring around whatever has keyboard focus.
+    pub fn focus(&self) -> BoxShadow {
+        BoxShadow {
+            color: self.focus_ring,
+            offset: point(px(0.), px(0.)),
+            blur_radius: self.ring_blur,
+            spread_radius: self.ring_width * 2.,
+        }
+    }
+
+    /// The shadow under the modal and menus.
+    pub fn popover_shadow(&self) -> BoxShadow {
+        BoxShadow {
+            color: self.shadow,
+            offset: point(px(0.), self.shadow_offset * 2.),
+            blur_radius: self.shadow_blur * 2.,
+            spread_radius: px(0.),
         }
     }
 }
