@@ -1,17 +1,25 @@
 //! A table drawn as an aligned grid while the cursor is outside it.
+//!
+//! Each cell is planned on its own with every symbol hidden, then set as
+//! a row of fragments: text shaped at its own size (inline code is
+//! smaller) and rendered equations, all sharing one baseline, as inline
+//! math does in a paragraph.
 
 use std::ops::Range;
+use std::sync::Arc;
 
 use editor_core::render::{
-    LinePlan, RenderInput, RevealMode, RevealSettings, StyleKey, plan_lines,
+    LinePlan, RenderInput, RevealMode, RevealSettings, StyleKey, WidgetKind, plan_lines,
 };
 use editor_core::syntax::{Alignment, SyntaxKind};
-use gpui::{Pixels, ShapedLine, TextRun, px};
+use gpui::{Hsla, Pixels, TextRun, px};
 
-use crate::line_layout::{Hit, Piece, PieceContent, TextPiece};
-use crate::preview::items::visible_parts;
-use crate::preview::layout::LineLayouter;
-use crate::styling::{LineTone, text_run};
+use crate::line_layout::{Background, Hit, Piece, PieceContent, TextPiece};
+use crate::preview::items::{Item, line_items};
+use crate::preview::layout::{LineLayouter, take_backgrounds};
+use crate::preview::math::{MathImage, MathState};
+use crate::preview::wrap::Extent;
+use crate::styling::{LineTone, run_font_size, text_run};
 
 /// The planner's description of a table.
 pub struct TableSpec<'a> {
@@ -20,10 +28,51 @@ pub struct TableSpec<'a> {
     pub rows: &'a [Vec<Range<usize>>],
 }
 
-/// A cell's visible text and its runs.
-struct CellText {
+/// Something drawn in a cell.
+enum FragmentContent {
+    Text(Box<TextPiece>),
+    Math(Arc<MathImage>),
+}
+
+/// One piece of a cell, placed left to right from the cell's start.
+struct Fragment {
+    content: FragmentContent,
+    x: Pixels,
+    width: Pixels,
+    extent: Extent,
+}
+
+/// A cell's fragments and the box they make together.
+#[derive(Default)]
+struct Cell {
+    fragments: Vec<Fragment>,
+    width: Pixels,
+    extent: Extent,
+}
+
+impl Cell {
+    fn push(&mut self, content: FragmentContent, width: Pixels, extent: Extent) {
+        self.fragments.push(Fragment {
+            content,
+            x: self.width,
+            width,
+            extent,
+        });
+        self.width += width;
+        self.extent = Extent {
+            ascent: self.extent.ascent.max(extent.ascent),
+            descent: self.extent.descent.max(extent.descent),
+        };
+    }
+}
+
+/// Text waiting to be shaped: consecutive runs at one size.
+#[derive(Default)]
+struct PendingText {
     text: String,
     runs: Vec<TextRun>,
+    backgrounds: Vec<Background>,
+    font_size: Option<Pixels>,
 }
 
 impl LineLayouter<'_, '_> {
@@ -37,26 +86,29 @@ impl LineLayouter<'_, '_> {
         let theme = self.theme();
         let pad_x = theme.space_md;
         let pad_y = theme.space_xs * 2.;
-        let line_height = self.line_height();
-        let shaped: Vec<Vec<ShapedLine>> = self
-            .cell_texts(spec)
-            .into_iter()
-            .map(|row| {
-                row.into_iter()
-                    .map(|cell| {
-                        self.shaper()
-                            .shape(&cell.text, self.font_size(), &cell.runs)
-                    })
-                    .collect()
-            })
-            .collect();
-        let columns = column_widths(&shaped, pad_x, width);
-        let row_height = line_height + pad_y * 2.;
+        let strut = self.strut(&self.body_font(), self.font_size(), self.line_height());
+        let cells = self.cells(spec);
+        let columns = column_widths(&cells, pad_x, width);
         let table_width = columns.iter().fold(px(0.), |sum, column| sum + *column);
-        let mut pieces =
-            vec![self.quad(range, left, px(0.), table_width, row_height, theme.surface)];
-        for (row_index, row) in shaped.into_iter().enumerate() {
-            let top = row_height * row_index as f32;
+        let mut pieces = Vec::new();
+        let mut top = px(0.);
+        for (row_index, row) in cells.into_iter().enumerate() {
+            let extent = row.iter().fold(strut, |extent, cell| Extent {
+                ascent: extent.ascent.max(cell.extent.ascent),
+                descent: extent.descent.max(cell.extent.descent),
+            });
+            let row_height = extent.ascent + extent.descent + pad_y * 2.;
+            if row_index == 0 {
+                pieces.push(quad(
+                    range,
+                    left,
+                    top,
+                    table_width,
+                    row_height,
+                    theme.surface,
+                ));
+            }
+            let baseline = top + pad_y + extent.ascent;
             let mut x = left;
             for (column, cell) in row.into_iter().enumerate() {
                 let column_width = columns.get(column).copied().unwrap_or(px(0.));
@@ -66,54 +118,54 @@ impl LineLayouter<'_, '_> {
                     .copied()
                     .unwrap_or(Alignment::None);
                 let offset = aligned(alignment, column_width - pad_x * 2., cell.width);
-                pieces.push(cell_piece(
-                    range,
-                    cell,
-                    x + pad_x + offset,
-                    top + pad_y,
-                    line_height,
-                ));
+                let origin = x + pad_x + offset;
+                pieces.extend(cell_pieces(range, cell, origin, baseline));
                 x += column_width;
             }
-            let rule_top = top + row_height - theme.rule_thickness;
-            pieces.push(self.quad(
+            top += row_height;
+            let rule = theme.rule_thickness;
+            pieces.push(quad(
                 range,
                 left,
-                rule_top,
+                top - rule,
                 table_width,
-                theme.rule_thickness,
+                rule,
                 theme.divider,
             ));
         }
         pieces
     }
 
-    fn quad(
-        &self,
-        range: &Range<usize>,
-        x: Pixels,
-        top: Pixels,
-        width: Pixels,
-        height: Pixels,
-        color: gpui::Hsla,
-    ) -> Piece {
-        Piece {
-            range: range.clone(),
-            x,
-            top,
-            width,
-            height,
-            content: PieceContent::Quad {
-                color,
-                radius: px(0.),
-            },
-            hit: Hit::Widget,
-        }
+    fn body_font(&self) -> gpui::Font {
+        text_run(1, &[], &self.tone, false, self.theme()).font
     }
 
-    /// Each cell's text with inline markup hidden, planned on its own so
-    /// the table's source shows nowhere.
-    fn cell_texts(&self, spec: &TableSpec<'_>) -> Vec<Vec<CellText>> {
+    /// Every cell's contents, planned with inline markup hidden so the
+    /// table's source shows nowhere.
+    fn cells(&mut self, spec: &TableSpec<'_>) -> Vec<Vec<Cell>> {
+        let plans = self.cell_plans(spec);
+        let items: Vec<(Range<usize>, Vec<Item>)> = plans
+            .iter()
+            .map(|plan| (plan.range.clone(), line_items(plan).items))
+            .collect();
+        spec.rows
+            .iter()
+            .enumerate()
+            .map(|(index, row)| {
+                row.iter()
+                    .map(|cell| {
+                        let line = items.iter().find(|(line, _)| line.contains(&cell.start));
+                        match line {
+                            Some((line, items)) => self.cell(line.start, items, cell, index == 0),
+                            None => Cell::default(),
+                        }
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    fn cell_plans(&self, spec: &TableSpec<'_>) -> Vec<LinePlan> {
         let source = self.context.source;
         let cells = spec.rows.iter().flatten();
         let (Some(first), Some(last)) = (
@@ -124,7 +176,7 @@ impl LineLayouter<'_, '_> {
         };
         let settings = RevealSettings::new(RevealMode::AlwaysHidden)
             .with_override(SyntaxKind::Table, RevealMode::AlwaysShown);
-        let plan = plan_lines(
+        plan_lines(
             &RenderInput {
                 text: source.text(),
                 tree: source.tree(),
@@ -132,48 +184,156 @@ impl LineLayouter<'_, '_> {
                 settings: &settings,
             },
             source.line_of(first)..source.line_of(last) + 1,
-        );
-        spec.rows
-            .iter()
-            .enumerate()
-            .map(|(index, row)| {
-                row.iter()
-                    .map(|cell| self.cell_text(&plan.lines, cell, index == 0))
-                    .collect()
-            })
-            .collect()
+        )
+        .lines
     }
 
-    fn cell_text(&self, lines: &[LinePlan], cell: &Range<usize>, header: bool) -> CellText {
+    /// Lays out one cell from its line's items. `line_start` is the
+    /// document offset the items are relative to.
+    fn cell(
+        &mut self,
+        line_start: usize,
+        items: &[Item],
+        cell: &Range<usize>,
+        header: bool,
+    ) -> Cell {
         let text = self.context.source.text();
-        let mut result = CellText {
-            text: String::new(),
-            runs: Vec::new(),
-        };
-        let Some(line) = lines.iter().find(|line| line.range.contains(&cell.start)) else {
-            return result;
-        };
-        for run in &line.runs {
-            let clipped = run.range.start.max(cell.start)..run.range.end.min(cell.end);
-            if clipped.is_empty() {
-                continue;
-            }
-            let mut styles = run.styles.clone();
-            if header {
-                styles.push(StyleKey::Strong);
-            }
-            for part in visible_parts(&clipped, &line.hidden) {
-                result.text.push_str(&text[part.clone()]);
-                let run = text_run(part.len(), &styles, &LineTone::PLAIN, false, self.theme());
-                result.runs.push(run);
+        let cell = cell.start - line_start..cell.end - line_start;
+        let mut result = Cell::default();
+        let mut pending = PendingText::default();
+        for item in items {
+            match item {
+                Item::Text { range, styles } => {
+                    let clipped = range.start.max(cell.start)..range.end.min(cell.end);
+                    if clipped.is_empty() {
+                        continue;
+                    }
+                    let mut styles = styles.clone();
+                    if header {
+                        styles.push(StyleKey::Strong);
+                    }
+                    let absolute = clipped.start + line_start..clipped.end + line_start;
+                    self.push_text(&mut result, &mut pending, &text[absolute], &styles, None);
+                }
+                Item::Inline {
+                    range,
+                    kind: WidgetKind::InlineMath { tex, .. },
+                } if cell.contains(&range.start) => {
+                    self.flush(&mut result, &mut pending);
+                    self.cell_math(&mut result, &mut pending, tex);
+                }
+                _ => {}
             }
         }
+        self.flush(&mut result, &mut pending);
         result
+    }
+
+    /// Adds text to the pending fragment, shaping what came before first
+    /// if the size or font changes. The main text shapes one font per
+    /// chunk too: a line shaped with several fonts comes out in the first
+    /// one on Linux.
+    fn push_text(
+        &self,
+        cell: &mut Cell,
+        pending: &mut PendingText,
+        text: &str,
+        styles: &[StyleKey],
+        color: Option<Hsla>,
+    ) {
+        let font_size = run_font_size(styles, &LineTone::PLAIN, self.theme());
+        let mut run = text_run(text.len(), styles, &LineTone::PLAIN, false, self.theme());
+        if let Some(color) = color {
+            run.color = color;
+        }
+        let same_font = pending.runs.last().is_none_or(|last| last.font == run.font);
+        if pending.font_size.is_some_and(|size| size != font_size) || !same_font {
+            self.flush(cell, pending);
+        }
+        pending.font_size = Some(font_size);
+        let mut runs = [run];
+        take_backgrounds(
+            &mut runs,
+            pending.text.len(),
+            styles,
+            &mut pending.backgrounds,
+        );
+        pending.text.push_str(text);
+        pending.runs.extend(runs);
+    }
+
+    fn flush(&self, cell: &mut Cell, pending: &mut PendingText) {
+        let pending = std::mem::take(pending);
+        let Some(font_size) = pending.font_size.filter(|_| !pending.text.is_empty()) else {
+            return;
+        };
+        let text = pending.text.replace('\t', " ");
+        let shaped = self.shaper().shape(&text, font_size, &pending.runs);
+        let line_height = font_size * self.theme().line_height_factor;
+        let extent = Extent::of_text(&shaped, line_height);
+        let width = shaped.width;
+        let height = extent.ascent + extent.descent;
+        let padding = match pending
+            .backgrounds
+            .iter()
+            .any(|background| background.padded)
+        {
+            true => self.theme().inline_code_padding,
+            false => px(0.),
+        };
+        let text = TextPiece::whole(shaped, height).with_backgrounds(pending.backgrounds);
+        cell.width += padding;
+        cell.push(FragmentContent::Text(Box::new(text)), width, extent);
+        cell.width += padding;
+    }
+
+    /// An equation in a cell: rendered when ready, its source until then,
+    /// in the error colour when it can't render.
+    fn cell_math(&mut self, cell: &mut Cell, pending: &mut PendingText, tex: &str) {
+        let source = |layouter: &Self, cell: &mut Cell, pending: &mut PendingText, color| {
+            let styles = [StyleKey::MathSource];
+            layouter.push_text(cell, pending, tex, &styles, color);
+            layouter.flush(cell, pending);
+        };
+        match self.math(tex, false, self.font_size()) {
+            MathState::Ready(image) => {
+                let extent = Extent {
+                    ascent: image.baseline,
+                    descent: image.height - image.baseline,
+                };
+                let width = image.width;
+                cell.push(FragmentContent::Math(image), width, extent);
+            }
+            MathState::Pending => source(self, cell, pending, None),
+            MathState::Failed(_) => source(self, cell, pending, Some(self.theme().error)),
+        }
+    }
+}
+
+fn quad(
+    range: &Range<usize>,
+    x: Pixels,
+    top: Pixels,
+    width: Pixels,
+    height: Pixels,
+    color: Hsla,
+) -> Piece {
+    Piece {
+        range: range.clone(),
+        x,
+        top,
+        width,
+        height,
+        content: PieceContent::Quad {
+            color,
+            radius: px(0.),
+        },
+        hit: Hit::Widget,
     }
 }
 
 /// Column widths from the widest cell in each, shrunk to fit `available`.
-fn column_widths(rows: &[Vec<ShapedLine>], padding: Pixels, available: Pixels) -> Vec<Pixels> {
+fn column_widths(rows: &[Vec<Cell>], padding: Pixels, available: Pixels) -> Vec<Pixels> {
     let count = rows.iter().map(Vec::len).max().unwrap_or(0);
     let widths: Vec<Pixels> = (0..count)
         .map(|column| {
@@ -184,6 +344,10 @@ fn column_widths(rows: &[Vec<ShapedLine>], padding: Pixels, available: Pixels) -
                 + padding * 2.
         })
         .collect();
+    fit_widths(widths, available)
+}
+
+fn fit_widths(widths: Vec<Pixels>, available: Pixels) -> Vec<Pixels> {
     let total = widths.iter().fold(px(0.), |sum, width| sum + *width);
     if total <= available || total <= px(0.) {
         return widths;
@@ -201,26 +365,46 @@ fn aligned(alignment: Alignment, room: Pixels, width: Pixels) -> Pixels {
     }
 }
 
-fn cell_piece(
+/// The pieces of a cell whose content starts at `x`, sitting on
+/// `baseline`.
+fn cell_pieces(
     range: &Range<usize>,
-    shaped: ShapedLine,
+    cell: Cell,
     x: Pixels,
-    top: Pixels,
-    line_height: Pixels,
-) -> Piece {
-    Piece {
-        range: range.clone(),
-        x,
-        top,
-        width: shaped.width,
-        height: line_height,
-        content: PieceContent::Text(Box::new(TextPiece::whole(shaped, line_height))),
-        hit: Hit::Widget,
-    }
+    baseline: Pixels,
+) -> impl Iterator<Item = Piece> {
+    let range = range.clone();
+    cell.fragments.into_iter().map(move |fragment| {
+        let top = baseline - fragment.extent.ascent;
+        let (content, height) = match fragment.content {
+            FragmentContent::Text(text) => {
+                let height = text.line_height;
+                (PieceContent::Text(text), height)
+            }
+            FragmentContent::Math(image) => (
+                PieceContent::Image {
+                    image: image.image.clone(),
+                    radius: px(0.),
+                },
+                image.height,
+            ),
+        };
+        Piece {
+            range: range.clone(),
+            x: x + fragment.x,
+            top,
+            width: fragment.width,
+            height,
+            content,
+            hit: Hit::Widget,
+        }
+    })
 }
 
 #[cfg(test)]
 mod tests {
+    use gpui::ShapedLine;
+
     use super::*;
 
     #[test]
@@ -229,5 +413,45 @@ mod tests {
         assert_eq!(aligned(Alignment::Center, px(100.), px(40.)), px(30.));
         assert_eq!(aligned(Alignment::Left, px(100.), px(40.)), px(0.));
         assert_eq!(aligned(Alignment::Right, px(10.), px(40.)), px(0.));
+    }
+
+    #[test]
+    fn columns_shrink_to_fit_in_proportion() {
+        let fitted = fit_widths(vec![px(100.), px(300.)], px(200.));
+        assert_eq!(fitted, vec![px(50.), px(150.)]);
+        let roomy = fit_widths(vec![px(100.), px(300.)], px(500.));
+        assert_eq!(roomy, vec![px(100.), px(300.)]);
+    }
+
+    #[test]
+    fn cells_place_fragments_side_by_side_on_one_baseline() {
+        let mut cell = Cell::default();
+        let tall = Extent {
+            ascent: px(12.),
+            descent: px(4.),
+        };
+        let short = Extent {
+            ascent: px(8.),
+            descent: px(2.),
+        };
+        cell.push(
+            FragmentContent::Text(Box::new(TextPiece::whole(ShapedLine::default(), px(10.)))),
+            px(10.),
+            short,
+        );
+        cell.push(
+            FragmentContent::Text(Box::new(TextPiece::whole(ShapedLine::default(), px(10.)))),
+            px(5.),
+            tall,
+        );
+        assert_eq!(cell.width, px(15.));
+        assert_eq!(cell.fragments[1].x, px(10.));
+        assert_eq!(
+            cell.extent,
+            Extent {
+                ascent: px(12.),
+                descent: px(4.)
+            }
+        );
     }
 }

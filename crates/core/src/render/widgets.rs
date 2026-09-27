@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use crate::syntax::{HtmlKind, Markup, MarkupKind, Node, NodeId, NodeKind};
+use crate::syntax::{ConflictSide, HtmlKind, Markup, MarkupKind, Node, NodeId, NodeKind};
 
 use super::output::WidgetKind;
 use super::reveal::Revealer;
@@ -262,8 +262,21 @@ pub(crate) fn marker_widget(
                 label: label.clone(),
             })
         }
+        (MarkupKind::ConflictMarker, NodeKind::Conflict) => conflict_label(&node.markup, token),
         _ => None,
     }
+}
+
+/// The opening marker names this device's version and the separator the
+/// other device's; the closing marker just hides.
+fn conflict_label(markers: &[Markup], token: &Markup) -> Option<WidgetKind> {
+    let index = markers.iter().position(|marker| marker == token)?;
+    let side = match index {
+        0 => ConflictSide::ThisDevice,
+        _ if index + 1 < markers.len() => ConflictSide::OtherDevice,
+        _ => return None,
+    };
+    Some(WidgetKind::ConflictLabel { side })
 }
 
 fn list_bullet(revealer: &Revealer<'_>, id: NodeId) -> WidgetKind {

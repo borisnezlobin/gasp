@@ -4,7 +4,10 @@
 use editor_desktop::EditorView;
 use editor_desktop::actions::bind_keys;
 use editor_desktop::vault_index::{NoteScan, VaultIndex};
-use gpui::{AppContext, Entity, Focusable, TestAppContext, VisualTestContext};
+use gpui::{
+    AppContext, Entity, Focusable, Modifiers, ScrollDelta, ScrollWheelEvent, TestAppContext,
+    VisualTestContext, point,
+};
 
 fn open<'a>(
     cx: &'a mut TestAppContext,
@@ -213,4 +216,65 @@ fn escape_dismisses_the_emoji_list(cx: &mut TestAppContext) {
     assert!(labels(&view, cx).is_empty());
     cx.simulate_keystrokes("enter");
     assert_eq!(text(&view, cx), ":hea\n");
+}
+
+fn open_with_many_notes(cx: &mut TestAppContext) -> (Entity<EditorView>, &mut VisualTestContext) {
+    let (view, cx) = open(cx, "See ");
+    let index = cx.new(|_| {
+        let mut index = VaultIndex::default();
+        for number in 1..=20 {
+            index.upsert(NoteScan {
+                path: format!("Note {number:02}.md"),
+                tags: Vec::new(),
+            });
+        }
+        index
+    });
+    view.update(cx, |view, cx| view.set_vault_index(index, cx));
+    cx.simulate_input("[[note");
+    (view, cx)
+}
+
+fn first_visible(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> usize {
+    view.read_with(cx, |view, _| view.suggestions().unwrap().first_visible)
+}
+
+#[gpui::test]
+fn the_wheel_scrolls_the_list_and_keeps_the_highlight_in_view(cx: &mut TestAppContext) {
+    let (view, cx) = open_with_many_notes(cx);
+    assert_eq!(labels(&view, cx).len(), 20);
+    let row = cx
+        .debug_bounds("suggestion-Note 01")
+        .expect("the first row is drawn");
+    cx.simulate_event(ScrollWheelEvent {
+        position: row.center(),
+        delta: ScrollDelta::Lines(point(0., -3.)),
+        ..Default::default()
+    });
+    cx.run_until_parked();
+    assert_eq!(first_visible(&view, cx), 3, "three rows per three lines");
+    assert_eq!(highlighted(&view, cx), 3, "the highlight stays in view");
+    assert_eq!(
+        text(&view, cx),
+        "See [[note]]",
+        "the note doesn't scroll or change"
+    );
+    cx.simulate_event(ScrollWheelEvent {
+        position: row.center(),
+        delta: ScrollDelta::Lines(point(0., -40.)),
+        ..Default::default()
+    });
+    cx.run_until_parked();
+    assert_eq!(first_visible(&view, cx), 12, "it stops at the last page");
+}
+
+#[gpui::test]
+fn clicking_a_row_accepts_it(cx: &mut TestAppContext) {
+    let (view, cx) = open_with_many_notes(cx);
+    let row = cx
+        .debug_bounds("suggestion-Note 03")
+        .expect("the third row is drawn");
+    cx.simulate_click(row.center(), Modifiers::none());
+    assert_eq!(text(&view, cx), "See [[Note 03]]");
+    assert!(labels(&view, cx).is_empty());
 }

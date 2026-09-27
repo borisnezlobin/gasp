@@ -6,7 +6,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use editor_core::render::{StyleKey, WidgetKind};
-use editor_core::syntax::{CalloutKind, Fold};
+use editor_core::syntax::{CalloutKind, ConflictSide, Fold};
 use gpui::{Pixels, RenderImage, SharedString, px};
 
 use crate::icons::IconName;
@@ -59,7 +59,7 @@ impl LineLayouter<'_, '_> {
         self.plan.range.start + range.start..self.plan.range.start + range.end
     }
 
-    fn math(&mut self, tex: &str, display: bool, font_size: Pixels) -> MathState {
+    pub(super) fn math(&mut self, tex: &str, display: bool, font_size: Pixels) -> MathState {
         let key = MathKey::new(
             tex,
             display,
@@ -96,6 +96,7 @@ impl LineLayouter<'_, '_> {
                 ordered, number, ..
             } => self.bullet(range, ordered.then_some(number.unwrap_or(1)), builder),
             WidgetKind::FootnoteSuperscript { label } => self.superscript(range, label, builder),
+            WidgetKind::ConflictLabel { side } => self.conflict_label(range, *side, builder),
             WidgetKind::CalloutHeader {
                 kind,
                 title,
@@ -154,6 +155,7 @@ impl LineLayouter<'_, '_> {
             font_size,
             line_height: self.line_height(),
             runs: vec![run],
+            backgrounds: Vec::new(),
         };
         builder.push_chunk(&chunk, &self.shaper());
     }
@@ -194,29 +196,23 @@ impl LineLayouter<'_, '_> {
         self.theme().list_marker_width * (self.font_size() / self.theme().body_font_size)
     }
 
+    /// A task's box, centred on the text's x-height like a bullet.
     fn checkbox(&mut self, range: &Range<usize>, checked: bool, builder: &mut RowBuilder) {
         let theme = self.theme();
-        let size = self.font_size();
-        let (icon, color) = if checked {
-            (IconName::CheckSquare, theme.accent)
-        } else {
-            (IconName::Square, theme.text_muted)
-        };
+        let side = theme.checkbox_size * (self.font_size() / theme.body_font_size);
         let mut piece = blank_piece(
             range.clone(),
             self.marker_slot(),
-            size,
-            PieceContent::Icon {
-                path: icon.path(),
-                color,
-            },
+            side,
+            PieceContent::Checkbox { checked },
         );
         piece.hit = Hit::Checkbox {
             marker: self.absolute(range),
         };
+        let lift = self.font_size() * 0.3;
         let extent = Extent {
-            ascent: size * 0.85,
-            descent: size * 0.15,
+            ascent: lift + side / 2.,
+            descent: side / 2. - lift,
         };
         builder.push_atomic(piece, extent);
     }
@@ -253,8 +249,14 @@ impl LineLayouter<'_, '_> {
             self.line_height(),
         );
         piece.range = range.clone();
-        piece.width = piece.width.max(slot);
+        // Numbers end where a bullet does and the text starts at the same
+        // place after either; a long number hangs out to the left, as
+        // numbers set outside a list do.
+        let bullet = theme.bullet_size * (self.font_size() / theme.body_font_size);
+        let marker_end = (slot + bullet) / 2.;
+        builder.advance(marker_end - piece.width);
         builder.push_atomic(piece, extent);
+        builder.advance(slot - marker_end);
     }
 
     fn superscript(&mut self, range: &Range<usize>, label: &str, builder: &mut RowBuilder) {
@@ -267,6 +269,29 @@ impl LineLayouter<'_, '_> {
         extent.descent -= raise;
         piece.range = range.clone();
         piece.width += theme.space_xs;
+        builder.push_atomic(piece, extent);
+    }
+
+    /// "This device" or "Other device" above a sync conflict's version,
+    /// small and in the version's colour, where its marker line was.
+    fn conflict_label(
+        &mut self,
+        range: &Range<usize>,
+        side: ConflictSide,
+        builder: &mut RowBuilder,
+    ) {
+        let theme = self.theme();
+        let mut run = text_run(1, &[], &self.tone, false, theme);
+        run.font = theme.ui_font();
+        run.font.weight = theme.medium_weight;
+        run.color = theme.conflict_color(side);
+        let size = theme.small_font_size;
+        let text = match side {
+            ConflictSide::ThisDevice => "This device",
+            ConflictSide::OtherDevice => "Other device",
+        };
+        let (mut piece, extent) = self.label(text, run, size, self.line_height());
+        piece.range = range.clone();
         builder.push_atomic(piece, extent);
     }
 

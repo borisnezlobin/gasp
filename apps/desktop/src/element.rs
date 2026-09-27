@@ -5,14 +5,15 @@ use std::time::Instant;
 
 use gpui::{
     App, AvailableSpace, BorderStyle, Bounds, BoxShadow, ContentMask, Corners, Element, ElementId,
-    ElementInputHandler, Entity, GlobalElementId, InspectorElementId, IntoElement, LayoutId,
+    ElementInputHandler, Entity, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId,
     Pixels, Style, TransformationMatrix, Window, fill, point, px, quad, relative, size,
     transparent_black,
 };
 
 use crate::editor::{EditorView, HighlightKind};
 use crate::frame::{FrameLayout, PlacedLine};
-use crate::line_layout::{Piece, PieceContent, Surface};
+use crate::icons::IconName;
+use crate::line_layout::{Hit, Piece, PieceContent, Surface};
 use crate::theme::Theme;
 
 /// Suggestions and hover previews draw above the text and the editor's
@@ -36,6 +37,8 @@ pub struct Prepainted {
     selection: Vec<Bounds<Pixels>>,
     caret: Option<Bounds<Pixels>>,
     theme: Theme,
+    /// Where the marker of the task under the pointer starts.
+    hovered_task: Option<usize>,
 }
 
 impl IntoElement for EditorElement {
@@ -130,6 +133,7 @@ impl Element for EditorElement {
                 selection,
                 caret,
                 theme: view.theme.clone(),
+                hovered_task: view.hovered_task,
             }
         })
     }
@@ -195,6 +199,7 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
     let theme = &prepainted.theme;
     let frame = &prepainted.frame;
     paint_surfaces(frame, theme, window);
+    paint_text_backgrounds(frame, theme, window);
     for (kind, rect) in &frame.highlights {
         let color = match kind {
             HighlightKind::SearchMatch => theme.search_match,
@@ -209,8 +214,13 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
     for rect in &prepainted.selection {
         window.paint_quad(fill(*rect, theme.selection));
     }
+    let context = PaintContext {
+        text_left: frame.text_left,
+        theme,
+        hovered_task: prepainted.hovered_task,
+    };
     for placed in &frame.lines {
-        paint_line(placed, frame.text_left, window, cx);
+        paint_line(placed, &context, window, cx);
     }
     if let Some(caret) = prepainted.caret.filter(|_| focused) {
         window.paint_quad(fill(caret, theme.cursor));
@@ -283,6 +293,83 @@ fn paint_surfaces(frame: &FrameLayout, theme: &Theme, window: &mut Window) {
     }
 }
 
+/// Rounded fills behind inline code, highlights and tags, under the
+/// selection so it shows over them. Fills that meet in a row, such as a
+/// highlight across a bold word, join into one.
+fn paint_text_backgrounds(frame: &FrameLayout, theme: &Theme, window: &mut Window) {
+    for placed in &frame.lines {
+        for row in &placed.visual.rows {
+            let row_top = placed.top + row.top;
+            let fills: Vec<(Bounds<Pixels>, Hsla)> = row
+                .pieces
+                .iter()
+                .flat_map(|piece| piece_fills(piece, frame.text_left, row_top, theme))
+                .collect();
+            for (bounds, color) in join_fills(fills) {
+                window.paint_quad(fill(bounds, color).corner_radii(theme.radius_sm));
+            }
+        }
+    }
+}
+
+/// The fills of a text piece: as tall as its glyphs plus a little, and
+/// reaching past inline code's ends into the room layout left.
+fn piece_fills(
+    piece: &Piece,
+    text_left: Pixels,
+    row_top: Pixels,
+    theme: &Theme,
+) -> Vec<(Bounds<Pixels>, Hsla)> {
+    let PieceContent::Text(text) = &piece.content else {
+        return Vec::new();
+    };
+    let glyphs = text.shaped.ascent + text.shaped.descent.abs();
+    let top = row_top + piece.top + (text.line_height - glyphs) / 2. - theme.space_xs;
+    let height = glyphs + theme.space_xs * 2.;
+    let left = text_left + piece.x - text.slice_x;
+    text.backgrounds
+        .iter()
+        .filter_map(|background| {
+            let start = background.range.start.max(text.slice.start);
+            let end = background.range.end.min(text.slice.end);
+            if start >= end {
+                return None;
+            }
+            let pad = |at_edge: bool| match background.padded && at_edge {
+                true => theme.inline_code_padding,
+                false => px(0.),
+            };
+            let x0 = left + text.shaped.x_for_index(start) - pad(start == background.range.start);
+            let x1 = left + text.shaped.x_for_index(end) + pad(end == background.range.end);
+            let bounds = Bounds::from_corners(point(x0, top), point(x1, top + height));
+            Some((bounds, background.color))
+        })
+        .collect()
+}
+
+/// Joins fills of one colour that touch, left to right.
+fn join_fills(mut fills: Vec<(Bounds<Pixels>, Hsla)>) -> Vec<(Bounds<Pixels>, Hsla)> {
+    fills.sort_by(|a, b| f32::from(a.0.left()).total_cmp(&f32::from(b.0.left())));
+    let mut joined: Vec<(Bounds<Pixels>, Hsla)> = Vec::with_capacity(fills.len());
+    for (bounds, color) in fills {
+        match joined.last_mut() {
+            Some((last, last_color))
+                if *last_color == color && bounds.left() <= last.right() + px(0.5) =>
+            {
+                *last = Bounds::from_corners(
+                    point(last.left(), last.top().min(bounds.top())),
+                    point(
+                        last.right().max(bounds.right()),
+                        last.bottom().max(bounds.bottom()),
+                    ),
+                );
+            }
+            _ => joined.push((bounds, color)),
+        }
+    }
+    joined
+}
+
 fn same_block(a: &Surface, b: &Surface) -> bool {
     a.group == b.group && a.left == b.left
 }
@@ -295,33 +382,82 @@ fn paint_surface(run: &OpenSurface, text_left: Pixels, theme: &Theme, window: &m
     window.paint_quad(fill(bounds, run.surface.color).corner_radii(theme.radius_md));
 }
 
-fn paint_line(placed: &PlacedLine, text_left: Pixels, window: &mut Window, cx: &mut App) {
+/// What painting a piece needs besides the piece.
+struct PaintContext<'a> {
+    text_left: Pixels,
+    theme: &'a Theme,
+    hovered_task: Option<usize>,
+}
+
+fn paint_line(placed: &PlacedLine, context: &PaintContext<'_>, window: &mut Window, cx: &mut App) {
     for row in &placed.visual.rows {
         let row_top = placed.top + row.top;
         for piece in &row.pieces {
-            paint_piece(piece, text_left, row_top, window, cx);
+            paint_piece(piece, context, row_top, window, cx);
         }
     }
     for piece in &placed.visual.decor.gutter {
-        paint_piece(piece, text_left, placed.top, window, cx);
+        paint_piece(piece, context, placed.top, window, cx);
     }
+}
+
+/// A task's box: an outline that darkens under the pointer, filled with
+/// the accent and checked when done.
+fn paint_checkbox(
+    piece: &Piece,
+    bounds: Bounds<Pixels>,
+    checked: bool,
+    context: &PaintContext<'_>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let theme = context.theme;
+    let side = piece.height;
+    let bounds = Bounds::new(bounds.origin, size(side, side));
+    let hovered = matches!(&piece.hit, Hit::Checkbox { marker } if Some(marker.start) == context.hovered_task);
+    let radius = theme.radius_sm * (side / theme.checkbox_size).min(1.);
+    if checked {
+        window.paint_quad(fill(bounds, theme.accent).corner_radii(radius));
+        // Phosphor's regular check is a hairline at this size, so it's
+        // drawn twice, a fraction of a pixel apart, to read as a mark.
+        let inset = side * 0.1;
+        for nudge in [px(0.), side * 0.03] {
+            let mark = Bounds::new(
+                point(bounds.left() + inset + nudge, bounds.top() + inset),
+                size(side - inset * 2., side - inset * 2.),
+            );
+            let check = IconName::Check.path();
+            let transform = TransformationMatrix::unit();
+            report(window.paint_svg(mark, check, transform, theme.background, cx));
+        }
+        return;
+    }
+    let (border, background) = match hovered {
+        true => (theme.text_muted, theme.tag_background),
+        false => (theme.text_faint, transparent_black()),
+    };
+    window.paint_quad(quad(
+        bounds,
+        radius,
+        background,
+        theme.checkbox_border_width,
+        border,
+        BorderStyle::default(),
+    ));
 }
 
 fn paint_piece(
     piece: &Piece,
-    text_left: Pixels,
+    context: &PaintContext<'_>,
     row_top: Pixels,
     window: &mut Window,
     cx: &mut App,
 ) {
+    let text_left = context.text_left;
     let origin = point(text_left + piece.x, row_top + piece.top);
     let bounds = Bounds::new(origin, size(piece.width, piece.height));
     match &piece.content {
         PieceContent::Text(text) if text.is_whole() => {
-            report(
-                text.shaped
-                    .paint_background(origin, text.line_height, window, cx),
-            );
             report(text.shaped.paint(origin, text.line_height, window, cx));
         }
         PieceContent::Text(text) => {
@@ -333,10 +469,6 @@ fn paint_piece(
                 size(piece.width, text.line_height * 3.),
             );
             window.with_content_mask(Some(ContentMask { bounds: mask }), |window| {
-                report(
-                    text.shaped
-                        .paint_background(shifted, text.line_height, window, cx),
-                );
                 report(text.shaped.paint(shifted, text.line_height, window, cx));
             });
         }
@@ -351,6 +483,9 @@ fn paint_piece(
             window.paint_quad(fill(bounds, *color).corner_radii(*radius));
         }
         PieceContent::Quad { .. } => {}
+        PieceContent::Checkbox { checked } => {
+            paint_checkbox(piece, bounds, *checked, context, window, cx);
+        }
     }
 }
 

@@ -146,10 +146,22 @@ impl EditorView {
         if self.is_selecting {
             let offset = self.offset_for_point(event.position, window);
             self.extend_by_unit(offset, cx);
-            return;
+        } else {
+            let over = self.hover_target_at_point(event.position);
+            self.hover_moved(over, event.modifiers.secondary(), cx);
         }
-        let over = self.hover_target_at_point(event.position);
-        self.hover_moved(over, event.modifiers.secondary(), cx);
+        let hovered = self
+            .frame
+            .as_ref()
+            .and_then(|frame| frame.piece_at(event.position))
+            .and_then(|(_, piece)| match &piece.hit {
+                Hit::Checkbox { marker } => Some(marker.start),
+                _ => None,
+            });
+        if hovered != self.hovered_task {
+            self.hovered_task = hovered;
+            cx.notify();
+        }
     }
 
     fn on_hover_editor(&mut self, hovered: &bool, _: &mut Window, cx: &mut Context<Self>) {

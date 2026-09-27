@@ -42,6 +42,8 @@ impl LineTone {
     pub fn line_height_factor(&self, theme: &Theme) -> f32 {
         if self.code {
             theme.code_line_height_factor
+        } else if self.heading_level > 0 {
+            theme.heading_line_height_factor
         } else {
             theme.line_height_factor
         }
@@ -118,7 +120,7 @@ const COLOR_STYLES: [StyleKey; 8] = [
     StyleKey::Link,
     StyleKey::FootnoteRef,
     StyleKey::Tag,
-    StyleKey::Frontmatter,
+    StyleKey::FrontmatterKey,
 ];
 
 fn run_color(styles: &[StyleKey], tone: &LineTone, theme: &Theme) -> Hsla {
@@ -168,13 +170,16 @@ fn run_underline(
     let underlined = marked
         || styles.contains(&StyleKey::Underline)
         || styles.contains(&StyleKey::Link) && !styles.contains(&StyleKey::MarkupDimmed);
+    let color = if marked {
+        theme.composition_underline
+    } else if styles.contains(&StyleKey::Link) {
+        theme.link_underline
+    } else {
+        color
+    };
     underlined.then_some(UnderlineStyle {
         thickness: theme.composition_underline_thickness,
-        color: Some(if marked {
-            theme.composition_underline
-        } else {
-            color
-        }),
+        color: Some(color),
         wavy: false,
     })
 }
