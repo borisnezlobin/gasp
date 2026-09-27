@@ -1,0 +1,407 @@
+/*
+ * The article stylesheet for borisnezlobin.com.
+ *
+ * HTML export writes plain semantic markup (see crates/export/src/html) and
+ * this file is the one stylesheet that styles it. It replaces obsidian.css,
+ * mjx.css and code-styler.css for articles. Everything is scoped to
+ * `article`, colours are custom properties, and `.dark` on any ancestor
+ * switches them, as the site's Tailwind setup does.
+ */
+
+article {
+  --article-ink: #1c1c1c;
+  --article-muted: #6b6b6b;
+  --article-rule: #dcdcdc;
+  --article-accent: #cc2a26;
+  --article-mark: #fff59d;
+  --article-code-bg: #f4f4f2;
+  --article-note: #d0eefc;
+  --article-tip: #d7f5e0;
+  --article-warning: #fde8d4;
+  --article-danger: #fde2e2;
+  --article-quiet: #f0f0f0;
+  --code-comment: #6e6e78;
+  --code-string: #3d6e45;
+  --code-number: #9a5b1e;
+  --code-constant: #9a5b1e;
+  --code-keyword: #7a4390;
+  --code-function: #2f5f93;
+  --code-type: #26707a;
+
+  color: var(--article-ink);
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  font-size: 1.1875rem;
+  line-height: 1.75;
+  overflow-wrap: break-word;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dark article {
+  --article-ink: #e8e6e3;
+  --article-muted: #9c9892;
+  --article-rule: #3a3a3a;
+  --article-accent: #f0625b;
+  --article-mark: #4f4418;
+  --article-code-bg: #1f1f1f;
+  --article-note: #0d2538;
+  --article-tip: #0c310c;
+  --article-warning: #3a2610;
+  --article-danger: #3e1313;
+  --article-quiet: #242424;
+  --code-comment: #958f86;
+  --code-string: #a3c48e;
+  --code-number: #e2ab77;
+  --code-constant: #e2ab77;
+  --code-keyword: #c9a3e2;
+  --code-function: #92b6e4;
+  --code-type: #80c6ca;
+}
+
+/* Text */
+
+article p {
+  margin: 0 0 1.1em;
+  text-wrap: pretty;
+}
+
+article :is(h1, h2, h3, h4, h5, h6) {
+  margin: 2.2em 0 0.6em;
+  font-weight: 700;
+  line-height: 1.25;
+  text-wrap: balance;
+  scroll-margin-top: 5rem;
+}
+
+article h1 { font-size: 1.75em; }
+article h2 { font-size: 1.45em; }
+article h3 { font-size: 1.2em; }
+article :is(h4, h5, h6) { font-size: 1em; }
+
+article > :first-child { margin-top: 0; }
+
+article a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--article-accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+article a:hover { color: var(--article-accent); }
+
+article mark {
+  background: var(--article-mark);
+  color: inherit;
+  padding: 0 0.1em;
+  border-radius: 2px;
+}
+
+article kbd {
+  font: inherit;
+  font-size: 0.85em;
+  padding: 0 0.35em;
+  border: 1px solid var(--article-rule);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+}
+
+article hr {
+  border: 0;
+  border-top: 1px solid var(--article-rule);
+  margin: 2.5em 0;
+}
+
+/* Lists */
+
+article :is(ul, ol) {
+  margin: 0 0 1.1em;
+  padding-left: 1.5em;
+}
+
+article li { margin: 0.25em 0; }
+article li > :is(ul, ol) { margin: 0.25em 0 0; }
+article li::marker { color: var(--article-muted); }
+
+article li.task { list-style: none; }
+
+article li.task > input,
+article li.task > p > input {
+  margin: 0 0.5em 0 -1.4em;
+  accent-color: var(--article-accent);
+  vertical-align: -0.05em;
+}
+
+/* Quotes and callouts */
+
+article blockquote {
+  margin: 1.5em 0;
+  padding-left: 1.1em;
+  border-left: 2px solid var(--article-rule);
+  color: var(--article-muted);
+}
+
+article aside.callout {
+  margin: 1.5em 0;
+  padding: 0.9em 1.2em;
+  border-radius: 6px;
+  background: var(--article-note);
+}
+
+article aside.callout > :last-child { margin-bottom: 0; }
+
+article .callout-title {
+  margin: 0 0 0.3em;
+  font-weight: 700;
+}
+
+article .callout:is([data-callout="tip"], [data-callout="hint"], [data-callout="important"],
+  [data-callout="success"], [data-callout="check"], [data-callout="done"],
+  [data-callout="question"], [data-callout="help"], [data-callout="faq"]) {
+  background: var(--article-tip);
+}
+
+article .callout:is([data-callout="warning"], [data-callout="caution"],
+  [data-callout="attention"]) {
+  background: var(--article-warning);
+}
+
+article .callout:is([data-callout="danger"], [data-callout="error"], [data-callout="bug"],
+  [data-callout="failure"], [data-callout="fail"], [data-callout="missing"]) {
+  background: var(--article-danger);
+}
+
+article .callout:is([data-callout="quote"], [data-callout="cite"],
+  [data-callout="example"], [data-callout="definition"]) {
+  background: var(--article-quiet);
+}
+
+/* Code */
+
+article :is(code, pre) {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+article code {
+  font-size: 0.82em;
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+  background: var(--article-code-bg);
+}
+
+article pre {
+  margin: 1.5em 0;
+  padding: 1em 1.2em;
+  overflow-x: auto;
+  border-radius: 6px;
+  background: var(--article-code-bg);
+  font-size: 0.78em;
+  line-height: 1.6;
+  tab-size: 4;
+  text-align: left;
+}
+
+article pre code {
+  padding: 0;
+  font-size: inherit;
+  background: none;
+}
+
+article figure.code {
+  margin: 1.5em 0;
+  text-align: left;
+}
+
+article figure.code pre { margin: 0; }
+
+article figure.code figcaption {
+  margin-bottom: 0.4em;
+  color: var(--article-muted);
+  font-size: 0.85em;
+  font-style: italic;
+}
+
+article .hl-comment { color: var(--code-comment); font-style: italic; }
+article .hl-string { color: var(--code-string); }
+article .hl-number { color: var(--code-number); }
+article .hl-constant { color: var(--code-constant); }
+article .hl-keyword { color: var(--code-keyword); }
+article .hl-function { color: var(--code-function); }
+article .hl-type { color: var(--code-type); }
+
+/* Tables */
+
+article table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 1.5em 0;
+  border-collapse: collapse;
+  font-size: 0.9em;
+  font-variant-numeric: tabular-nums;
+}
+
+article :is(th, td) {
+  padding: 0.45em 0.9em;
+  border-bottom: 1px solid var(--article-rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+article :is(th, td):first-child { padding-left: 0; }
+article :is(th, td):last-child { padding-right: 0; }
+
+article th {
+  font-weight: 700;
+  border-bottom: 1.5px solid var(--article-ink);
+}
+
+/* Images */
+
+article figure {
+  margin: 1.75em 0;
+  text-align: center;
+}
+
+article img {
+  max-width: 100%;
+  max-height: 36rem;
+  height: auto;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+article figure img { display: inline-block; }
+
+/* Math. Browsers render MathML natively; the font carries the look. */
+
+article math {
+  font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", math;
+  font-size: 1.05em;
+}
+
+article math[display="block"] {
+  display: block math;
+  margin: 1.2em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+article .math-error {
+  color: var(--article-accent);
+}
+
+/* Footnotes */
+
+article sup.footnote-ref {
+  line-height: 0;
+}
+
+article sup.footnote-ref a {
+  padding: 0 0.1em;
+  color: var(--article-accent);
+  font-size: 0.8em;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+article section.footnotes {
+  margin-top: 3em;
+  padding-top: 1.2em;
+  border-top: 1px solid var(--article-rule);
+  color: var(--article-muted);
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+
+article section.footnotes ol { padding-left: 1.3em; }
+article section.footnotes li { margin: 0 0 0.6em; }
+article section.footnotes p { margin: 0; }
+article section.footnotes li:target { color: var(--article-ink); }
+
+article .footnote-back {
+  margin-left: 0.2em;
+  text-decoration: none;
+  color: var(--article-accent);
+}
+
+/*
+ * Typst's MathML rules, so browsers lay out equations as Typst's PDFs do.
+ * They come from typst-html (Apache-2.0); a test checks this copy against
+ * what the export emits, so a Typst upgrade that changes them fails CI.
+ */
+
+/* Alignment */
+mtable.right-align mtd,
+mtable mtd.right-align,
+mtable.left-align mtd.right-align,
+mtable.aligned mtd:nth-child(odd) {
+  justify-items: end;
+  text-align: right;
+}
+mtable.cases mtd,
+mtable.left-align mtd,
+mtable mtd.left-align,
+mtable.aligned mtd:nth-child(even),
+math:is(:not([display])) > mtable.multiline-equation mtd {
+  justify-items: start;
+  text-align: left;
+}
+mtable.cases mtd,
+mtable.aligned mtd,
+mtable mtd.flushed,
+mtable mtd.left-flush {
+  padding-left: 0;
+}
+mtable.cases mtd,
+mtable.aligned mtd,
+mtable mtd.flushed,
+mtable mtd.right-flush {
+  padding-right: 0;
+}
+
+/* Tables */
+mtable {
+  math-style: inherit;
+}
+mtd {
+  math-depth: auto-add;
+  math-style: compact;
+  math-shift: compact;
+}
+
+/* Equations */
+mtable.multiline-equation mtd {
+  math-depth: inherit;
+  math-style: inherit;
+  math-shift: inherit;
+  padding: 0;
+}
+math > mtable.multiline-equation mtr:not(:last-child) mtd {
+  padding-bottom: 0.5em;
+}
+
+/* Fractions */
+mfrac {
+  padding-inline: 0;
+  margin-inline: 0.1em;
+}
+
+/* Accents */
+mover[accent="true" i] > :first-child {
+  font-feature-settings: "dtls";
+}
+mover.dotted[accent="true" i] > :first-child {
+  font-feature-settings: "dtls" 0;
+}
+
+/* Other rules for scriptlevel, displaystyle and math-shift */
+munder > :nth-child(2),
+munderover > :nth-child(2) {
+  math-shift: compact
+}
+munder[accentunder="true" i] > :not(:first-child),
+mover[accent="true" i] > :not(:first-child) {
+  math-depth: inherit;
+  math-style: inherit;
+  math-shift: inherit;
+}

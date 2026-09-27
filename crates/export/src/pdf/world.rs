@@ -2,7 +2,7 @@
 //! vendored mitex package, the page template, one main source and the note's
 //! images read from disk on demand.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
 
@@ -17,6 +17,16 @@ use typst::{Library, LibraryExt, World};
 pub(crate) const MAIN_PATH: &str = "/main.typ";
 /// Virtual path of the page template.
 pub(crate) const TEMPLATE_PATH: &str = "/editor/template.typ";
+/// The standard library with HTML output switched on, for typesetting
+/// equations as MathML.
+static HTML_LIBRARY: LazyLock<LazyHash<Library>> = LazyLock::new(|| {
+    LazyHash::new(
+        Library::builder()
+            .with_features([typst::Feature::Html].into_iter().collect())
+            .build(),
+    )
+});
+
 struct Embedded {
     library: LazyHash<Library>,
     fonts: Vec<Font>,
@@ -34,9 +44,22 @@ static EMBEDDED: LazyLock<Embedded> = LazyLock::new(|| Embedded {
         .collect(),
 });
 
-/// Parses the embedded fonts and sources ahead of the first export.
-pub fn warm_up() {
-    LazyLock::force(&EMBEDDED);
+/// Normalised family names of the embedded fonts.
+static EMBEDDED_FAMILIES: LazyLock<HashSet<String>> = LazyLock::new(|| {
+    EMBEDDED
+        .fonts
+        .iter()
+        .map(|font| super::system_fonts::normalise(&font.info().family))
+        .collect()
+});
+
+/// Parses the embedded fonts and sources.
+pub(crate) fn load_embedded() {
+    LazyLock::force(&EMBEDDED_FAMILIES);
+}
+
+pub(crate) fn embedded_families() -> &'static HashSet<String> {
+    &EMBEDDED_FAMILIES
 }
 
 pub(crate) fn file_id(path: &str) -> FileId {
@@ -72,7 +95,7 @@ fn collect_fonts(path: &Path, fonts: &mut Vec<Font>) {
     }
 }
 
-fn is_font_file(path: &Path) -> bool {
+pub(crate) fn is_font_file(path: &Path) -> bool {
     let extension = path
         .extension()
         .and_then(|extension| extension.to_str())
@@ -83,6 +106,7 @@ fn is_font_file(path: &Path) -> bool {
 /// A world for one export: the main source plus a map from virtual image
 /// paths to files on disk.
 pub(crate) struct ExportWorld {
+    library: &'static LazyHash<Library>,
     main: Source,
     book: LazyHash<FontBook>,
     extra_fonts: Vec<Font>,
@@ -101,6 +125,7 @@ impl ExportWorld {
             book.push(font.info().clone());
         }
         Self {
+            library: &EMBEDDED.library,
             main: Source::new(file_id(MAIN_PATH), main_text),
             book: LazyHash::new(book),
             extra_fonts,
@@ -109,6 +134,14 @@ impl ExportWorld {
                 .map(|(virtual_path, disk)| (file_id(virtual_path), disk.clone()))
                 .collect(),
             loaded: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// A world whose library has HTML output switched on.
+    pub(crate) fn html(main_text: String) -> Self {
+        Self {
+            library: &HTML_LIBRARY,
+            ..Self::new(main_text, &[], Vec::new())
         }
     }
 
@@ -137,7 +170,7 @@ impl ExportWorld {
 
 impl World for ExportWorld {
     fn library(&self) -> &LazyHash<Library> {
-        &EMBEDDED.library
+        self.library
     }
 
     fn book(&self) -> &LazyHash<FontBook> {

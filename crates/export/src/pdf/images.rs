@@ -15,6 +15,16 @@ pub(crate) enum ResolvedImage {
     NotAnImage,
 }
 
+/// Where an embedded image lives.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Located {
+    File(PathBuf),
+    /// A web address, kept as it is.
+    Remote(String),
+    Missing,
+    NotAnImage,
+}
+
 /// Finds images relative to the note, its `images/` attachment folder and the
 /// vault root, and assigns each one a virtual path.
 #[derive(Debug, Default)]
@@ -38,14 +48,25 @@ impl ImageResolver {
         self.assets
     }
 
-    pub(crate) fn resolve(&mut self, target: &str) -> ResolvedImage {
+    /// Where an embed target is, without registering it as an asset.
+    pub(crate) fn locate(&self, target: &str) -> Located {
         let target = clean_target(target);
-        let Some(extension) = image_extension(&target) else {
-            return ResolvedImage::NotAnImage;
+        if image_extension(&target).is_none() {
+            return Located::NotAnImage;
+        }
+        if is_remote(&target) {
+            return Located::Remote(target);
+        }
+        self.find(&target).map_or(Located::Missing, Located::File)
+    }
+
+    pub(crate) fn resolve(&mut self, target: &str) -> ResolvedImage {
+        let path = match self.locate(target) {
+            Located::File(path) => path,
+            Located::NotAnImage => return ResolvedImage::NotAnImage,
+            Located::Remote(_) | Located::Missing => return ResolvedImage::Missing,
         };
-        let Some(path) = self.find(&target) else {
-            return ResolvedImage::Missing;
-        };
+        let extension = image_extension(&path.to_string_lossy()).unwrap_or_default();
         if let Some((virtual_path, _)) = self.assets.iter().find(|(_, known)| *known == path) {
             return ResolvedImage::Found(virtual_path.clone());
         }
@@ -104,7 +125,7 @@ fn percent_decode(text: &str) -> String {
     String::from_utf8(decoded).unwrap_or_else(|_| text.to_owned())
 }
 
-fn image_extension(target: &str) -> Option<String> {
+pub(crate) fn image_extension(target: &str) -> Option<String> {
     let extension = Path::new(target)
         .extension()?
         .to_str()?

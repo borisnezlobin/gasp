@@ -6,7 +6,7 @@ use super::{Converter, Open, OpenKind};
 use crate::pdf::escape;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Token<'s> {
+pub(crate) enum Token<'s> {
     Open {
         name: String,
         attrs: &'s str,
@@ -16,7 +16,7 @@ enum Token<'s> {
     Text(&'s str),
 }
 
-fn tokenize(html: &str) -> Vec<Token<'_>> {
+pub(crate) fn tokenize(html: &str) -> Vec<Token<'_>> {
     let mut tokens = Vec::new();
     let mut rest = html;
     while !rest.is_empty() {
@@ -68,7 +68,7 @@ fn tag_token(inner: &str) -> Option<Token<'_>> {
 }
 
 /// The value of attribute `name`, quoted or bare.
-fn attribute(attrs: &str, name: &str) -> Option<String> {
+pub(crate) fn attribute(attrs: &str, name: &str) -> Option<String> {
     let lower = attrs.to_ascii_lowercase();
     let mut search = 0;
     while let Some(found) = lower[search..].find(name) {
@@ -97,20 +97,20 @@ fn attribute_value(text: &str) -> String {
 }
 
 /// The value of CSS property `name` in a `style` attribute.
-fn css_property(style: &str, name: &str) -> Option<String> {
+pub(crate) fn css_property(style: &str, name: &str) -> Option<String> {
     style.split(';').find_map(|declaration| {
         let (property, value) = declaration.split_once(':')?;
         (property.trim().eq_ignore_ascii_case(name)).then(|| value.trim().to_ascii_lowercase())
     })
 }
 
-fn is_hex_color(value: &str) -> bool {
+pub(crate) fn is_hex_color(value: &str) -> bool {
     value.strip_prefix('#').is_some_and(|hex| {
         matches!(hex.len(), 3 | 6 | 8) && hex.chars().all(|c| c.is_ascii_hexdigit())
     })
 }
 
-fn is_page_break(attrs: &str) -> bool {
+pub(crate) fn is_page_break(attrs: &str) -> bool {
     let class = attribute(attrs, "class").unwrap_or_default();
     let style = attribute(attrs, "style").unwrap_or_default();
     class.split_whitespace().any(|name| name == "page-break")
@@ -171,7 +171,7 @@ fn is_void(name: &str) -> bool {
     )
 }
 
-pub(super) fn decode_entities(text: &str) -> String {
+pub(crate) fn decode_entities(text: &str) -> String {
     const ENTITIES: [(&str, &str); 7] = [
         ("&nbsp;", "\u{a0}"),
         ("&lt;", "<"),

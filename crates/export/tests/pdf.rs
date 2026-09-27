@@ -513,3 +513,44 @@ fn non_math_errors_are_reported() {
     };
     assert!(compile_note(&note, &[]).is_err());
 }
+
+#[test]
+fn title_is_not_repeated_when_the_note_opens_with_it() {
+    let options = ConvertOptions {
+        title: Some("Lemma".to_owned()),
+        ..ConvertOptions::default()
+    };
+    let converted = markdown_to_typst("# lemma\n\nBody", &options);
+    assert!(
+        converted.markup.starts_with("#heading(level: 1)[lemma];"),
+        "{}",
+        converted.markup
+    );
+    let converted = markdown_to_typst("# Another heading\n\nBody", &options);
+    assert!(converted.markup.starts_with("#note-title[Lemma];"));
+}
+
+/// A short table moves to the next page whole instead of leaving its first
+/// rows behind, wherever the page break falls.
+#[test]
+fn short_tables_are_not_split() {
+    let table = "| a | b |\n|---|---|\n| Alpharow | 1 |\n| Betarow | 2 |\n| Gammarow | 3 |\n";
+    let options = PdfOptions {
+        include_title: false,
+        ..PdfOptions::default()
+    };
+    let mut crossed_a_page = false;
+    for lines in 16..40 {
+        let filler = "Filler line.\n\n".repeat(lines);
+        let pages = texts_by_page(&compile_markdown(&format!("{filler}{table}"), &options));
+        let first = find(&pages, "Alpharow").map(|(page, _)| page);
+        let last = find(&pages, "Gammarow").map(|(page, _)| page);
+        assert!(first.is_some());
+        assert_eq!(first, last, "table split after {lines} filler lines");
+        crossed_a_page |= first == Some(1);
+    }
+    assert!(
+        crossed_a_page,
+        "the filler never pushed the table to page two"
+    );
+}
