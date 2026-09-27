@@ -5,9 +5,11 @@
 
 use gpui::{
     AnyElement, Context, Div, ElementId, HighlightStyle, MouseButton, SharedString, Stateful,
-    StyledText, Window, div, prelude::*,
+    Window, div, prelude::*,
 };
 
+use super::menu::menu_row;
+use super::{Truncated, popover, truncated};
 use crate::picker::match_ranges;
 use crate::theme::UiTheme;
 
@@ -43,67 +45,50 @@ pub fn suggestion_list<V: 'static>(
         .map(|index| {
             let row = &rows[index];
             let selector = format!("suggestion-{}", row.label);
-            div()
-                .id(ElementId::NamedInteger("suggestion".into(), index as u64))
-                .debug_selector(|| selector)
-                .flex()
-                .flex_row()
-                .items_center()
-                .gap(theme.space_lg)
-                .h(theme.menu_row_height)
-                .pl(theme.menu_row_padding_x + theme.space_lg * row.indent as f32)
-                .pr(theme.menu_row_padding_x)
-                .rounded(theme.menu_row_radius)
-                .when(index == highlighted, |row| row.bg(theme.menu_highlight))
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |view, _, window, cx| {
-                        cx.stop_propagation();
-                        on_choose(view, index, window, cx);
-                    }),
-                )
-                .on_hover(cx.listener(move |view, hovered: &bool, window, cx| {
-                    if *hovered {
-                        on_hover(view, index, window, cx);
-                    }
-                }))
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .truncate()
-                        .child(label_text(row, theme)),
-                )
-                .children(row.detail.clone().map(|detail| {
-                    div()
-                        .flex_none()
-                        .max_w(theme.menu_min_width / 2.)
-                        .truncate()
-                        .text_size(theme.small_font_size)
-                        .text_color(theme.text_faint)
-                        .child(detail)
-                }))
-                .into_any_element()
+            menu_row(
+                ElementId::NamedInteger("suggestion".into(), index as u64),
+                index == highlighted,
+                false,
+                theme,
+            )
+            .debug_selector(|| selector)
+            .gap(theme.space_lg)
+            .pl(theme.menu_row_padding_x + theme.space_lg * row.indent as f32)
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |view, _, window, cx| {
+                    cx.stop_propagation();
+                    on_choose(view, index, window, cx);
+                }),
+            )
+            .on_hover(cx.listener(move |view, hovered: &bool, window, cx| {
+                if *hovered {
+                    on_hover(view, index, window, cx);
+                }
+            }))
+            .child(label_text(row, theme).grow())
+            .children(row.detail.clone().map(|detail| {
+                div()
+                    .flex_shrink()
+                    .min_w_0()
+                    .max_w(theme.menu_min_width / 2.)
+                    .text_size(theme.small_font_size)
+                    .text_color(theme.text_faint)
+                    .child(truncated(detail))
+            }))
+            .into_any_element()
         })
         .collect();
-    div()
+    popover(theme)
         .id("suggestions")
         .occlude()
-        .flex()
-        .flex_col()
         .min_w(theme.menu_min_width)
         .max_w(theme.menu_max_width)
-        .p(theme.menu_padding)
-        .rounded(theme.menu_radius)
-        .bg(theme.menu_background)
-        .shadow(theme.menu_shadows())
-        .font_family(theme.font_family.clone())
-        .text_size(theme.font_size)
-        .text_color(theme.text)
         .children(rendered)
 }
 
-fn label_text(row: &SuggestionRow, theme: &UiTheme) -> StyledText {
+/// The label, its matched characters in the match weight.
+fn label_text(row: &SuggestionRow, theme: &UiTheme) -> Truncated {
     let style = HighlightStyle {
         font_weight: Some(theme.match_weight),
         ..HighlightStyle::default()
@@ -111,7 +96,7 @@ fn label_text(row: &SuggestionRow, theme: &UiTheme) -> StyledText {
     let highlights = match_ranges(&row.label, &row.positions)
         .into_iter()
         .map(|range| (range, style));
-    StyledText::new(row.label.clone()).with_highlights(highlights)
+    truncated(row.label.clone()).with_highlights(highlights)
 }
 
 /// The first visible row that keeps `highlighted` on screen, moving the

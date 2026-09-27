@@ -33,6 +33,7 @@ pub mod stats;
 pub mod styling;
 pub mod suggest;
 pub mod switcher;
+pub mod sync;
 pub mod text_input;
 pub mod text_offsets;
 pub mod theme;

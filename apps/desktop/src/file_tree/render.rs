@@ -14,8 +14,9 @@ use super::menu::ContextMenu;
 use super::model::Row;
 use super::view::{DisplayRow, EditTarget, FileTree};
 use crate::icons::{IconName, icon};
-use crate::theme::{PanelTheme, UiTheme};
-use crate::ui::ui_theme;
+use crate::theme::UiTheme;
+use crate::ui::menu::{menu_icon, menu_row};
+use crate::ui::{Button, popover, ui_theme};
 
 /// What's being dragged: an entry's path relative to the vault.
 #[derive(Clone, Debug)]
@@ -27,21 +28,14 @@ pub struct DraggedEntry {
 /// The label that follows the pointer while dragging.
 struct DragPreview {
     label: SharedString,
-    theme: PanelTheme,
 }
 
 impl Render for DragPreview {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let theme = &self.theme;
-        div()
-            .px(theme.padding_x)
-            .py(theme.padding_y)
-            .rounded(theme.radius)
-            .bg(theme.menu_background)
-            .shadow(vec![theme.menu_shadow()])
-            .text_size(theme.font_size)
-            .text_color(theme.text)
-            .font_family(theme.font_family.clone())
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let ui = ui_theme(cx);
+        popover(&ui)
+            .px(ui.menu_row_padding_x)
+            .py(ui.space_sm)
             .child(self.label.clone())
     }
 }
@@ -92,7 +86,7 @@ impl Render for FileTree {
 
 impl FileTree {
     fn render_list(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = &self.theme;
+        let ui = ui_theme(cx);
         let rows = uniform_list(
             "file-tree-rows",
             self.display_row_count(),
@@ -108,14 +102,13 @@ impl FileTree {
             .id("file-tree-list")
             .flex_1()
             .min_h_0()
-            .px(theme.padding_y)
-            .py(theme.padding_y)
+            .py(ui.space_sm)
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(Self::on_background_right_click),
             )
             .drag_over::<DraggedEntry>({
-                let drop = theme.drop_target;
+                let drop = ui.drop_target;
                 move |style, _, _, _| style.bg(drop)
             })
             .on_drop(cx.listener(|tree, dragged: &DraggedEntry, _, cx| {
@@ -152,12 +145,12 @@ impl FileTree {
             }
         };
         // Room around the row so the list's clipping doesn't cut its focus ring.
-        let inset = self.theme.ring_width * 2.;
+        let inset = ui.space_xs;
         div()
             .relative()
             .w_full()
             .px(inset)
-            .py(self.theme.ring_width)
+            .py(ui.hairline)
             .children(indent_guides(depth, inset, &ui))
             .child(row)
             .into_any_element()
@@ -173,9 +166,13 @@ impl FileTree {
     }
 
     fn row_shell(&self, depth: usize, state: RowState, ui: &UiTheme) -> gpui::Div {
-        let theme = &self.theme;
-        let background = match (state.selected && state.focused, state.active) {
-            (true, _) => Some(theme.selected_focused),
+        let ringed = state.selected && state.focused;
+        // Opaque under the ring, which would otherwise darken the fill.
+        let background = match (ringed, state.active) {
+            (true, _) => Some(crate::theme::over(
+                ui.tree_active_background,
+                ui.app_background,
+            )),
             (false, true) => Some(ui.tree_active_background),
             _ => None,
         };
@@ -194,11 +191,9 @@ impl FileTree {
             .when(background.is_none(), |row| {
                 row.hover(move |style| style.bg(hover))
             })
-            .when(state.selected && state.focused, |row| {
-                row.shadow(vec![ui.ring(ui.tree_focus_ring)])
-            });
+            .when(ringed, |row| row.shadow(vec![ui.focus()]));
         if state.cut {
-            shell = shell.opacity(theme.cut_opacity);
+            shell = shell.opacity(ui.cut_opacity);
         }
         shell
     }
@@ -212,7 +207,6 @@ impl FileTree {
     ) -> AnyElement {
         let row = self.model.rows()[index].clone();
         let state = self.row_state(&row.entry.path, window);
-        let theme = self.theme.clone();
         let content = self.row_content(&row, state, ui);
         let menu = self
             .menu
@@ -249,11 +243,10 @@ impl FileTree {
             )
             .on_drag(dragged, move |dragged, _, _, cx| {
                 let label = dragged.label.clone();
-                let theme = theme.clone();
-                cx.new(|_| DragPreview { label, theme })
+                cx.new(|_| DragPreview { label })
             })
             .drag_over::<DraggedEntry>({
-                let drop = self.theme.drop_target;
+                let drop = ui.drop_target;
                 move |style, _, _, _| style.bg(drop)
             })
             .on_drop(cx.listener(move |tree, dragged: &DraggedEntry, _, cx| {
@@ -276,24 +269,19 @@ impl FileTree {
             .flex_none()
             .size(ui.icon_size)
             .text_color(color);
-        vec![kind.into_any_element(), self.row_label(row)]
+        vec![kind.into_any_element(), self.row_label(row, ui)]
     }
 
-    fn row_label(&self, row: &Row) -> AnyElement {
+    fn row_label(&self, row: &Row, ui: &UiTheme) -> AnyElement {
         let renaming = self
             .edit
             .as_ref()
             .filter(|edit| matches!(&edit.target, EditTarget::Rename(entry) if entry.path == row.entry.path));
         if let Some(edit) = renaming {
-            return self.name_field(&edit.field, edit.error.clone());
+            return self.name_field(&edit.field, edit.error.clone(), ui);
         }
-        div()
-            .flex_1()
-            .min_w_0()
-            .overflow_hidden()
-            .whitespace_nowrap()
-            .text_ellipsis()
-            .child(row.entry.label().to_string())
+        crate::ui::truncated(row.entry.label().to_string())
+            .grow()
             .into_any_element()
     }
 
@@ -301,25 +289,23 @@ impl FileTree {
         &self,
         field: &Entity<crate::text_input::TextInput>,
         error: Option<String>,
+        ui: &UiTheme,
     ) -> AnyElement {
-        let theme = &self.theme;
         div()
             .flex_1()
             .min_w_0()
             .relative()
             .child(field.clone())
             .children(error.map(|message| {
-                div()
+                popover(ui)
                     .absolute()
                     .top_full()
                     .left_0()
-                    .px(theme.padding_x)
-                    .py(theme.padding_y)
-                    .rounded(theme.radius)
-                    .bg(theme.menu_background)
-                    .shadow(vec![theme.menu_shadow()])
-                    .text_size(theme.small_font_size)
-                    .text_color(theme.error_text)
+                    .mt(ui.space_sm)
+                    .px(ui.menu_row_padding_x)
+                    .py(ui.space_sm)
+                    .text_size(ui.small_font_size)
+                    .text_color(ui.error)
                     .child(message)
             }))
             .into_any_element()
@@ -341,47 +327,35 @@ impl FileTree {
         };
         self.row_shell(depth, state, ui)
             .child(icon)
-            .child(self.name_field(&edit.field, edit.error.clone()))
+            .child(self.name_field(&edit.field, edit.error.clone(), ui))
             .into_any_element()
     }
 
+    /// The context menu, drawn like every other menu in the app. The tree
+    /// keeps its own state for it because the menu belongs to the tree's
+    /// keyboard: arrows move in it while the tree has focus.
     fn render_menu(&self, menu: &ContextMenu, cx: &mut Context<Self>) -> AnyElement {
-        let theme = &self.theme;
+        let ui = ui_theme(cx);
         let items = menu.items.iter().enumerate().map(|(index, item)| {
             let item = *item;
-            let highlighted = index == menu.highlighted;
-            div()
-                .id(("file-tree-menu-item", index))
-                .debug_selector(|| format!("tree-menu-{}", item.label()))
-                .h(theme.row_height)
-                .px(theme.padding_x)
-                .flex()
-                .items_center()
-                .gap(theme.gap)
-                .rounded(theme.radius)
-                .when(highlighted, |row| row.bg(theme.selected_focused))
-                .hover(|style| style.bg(theme.hover))
-                .child(
-                    icon(item.icon())
-                        .size(theme.icon_size)
-                        .text_color(theme.icon),
-                )
-                .child(item.label())
-                .on_click(cx.listener(move |tree, _: &ClickEvent, window, cx| {
-                    tree.run_menu_item(item, window, cx);
-                }))
+            menu_row(
+                ("file-tree-menu-item", index),
+                index == menu.highlighted,
+                false,
+                &ui,
+            )
+            .debug_selector(|| format!("tree-menu-{}", item.label()))
+            .hover(|style| style.bg(ui.menu_highlight))
+            .child(menu_icon(Some(item.icon()), false, &ui))
+            .child(item.label())
+            .on_click(cx.listener(move |tree, _: &ClickEvent, window, cx| {
+                tree.run_menu_item(item, window, cx);
+            }))
         });
-        let panel = div()
+        let panel = popover(&ui)
             .id("file-tree-menu")
             .occlude()
-            .w(theme.menu_width)
-            .p(theme.padding_y)
-            .rounded(theme.radius)
-            .bg(theme.menu_background)
-            .shadow(vec![theme.menu_shadow()])
-            .font_family(theme.font_family.clone())
-            .text_size(theme.font_size)
-            .text_color(theme.text)
+            .min_w(ui.menu_min_width)
             .on_mouse_down_out(cx.listener(|tree, _: &MouseDownEvent, _, cx| tree.close_menu(cx)))
             .children(items);
         match menu.position {
@@ -391,16 +365,18 @@ impl FileTree {
             // From the keyboard, the menu opens just under its row.
             None => div()
                 .absolute()
-                .top(theme.row_height)
-                .left(theme.indent * 2.)
+                .top(ui.tree_row_height)
+                .left(ui.tree_indent * 2.)
                 .child(deferred(anchored().snap_to_window().child(panel)).with_priority(1))
                 .into_any_element(),
         }
     }
 
+    /// Asks before moving an entry to the trash. Enter confirms and Escape
+    /// cancels, so the tree keeps the keyboard.
     fn render_trash_prompt(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let path = self.pending_trash.as_ref()?;
-        let theme = &self.theme;
+        let ui = ui_theme(cx);
         let name = self
             .model
             .index_of(path)
@@ -409,47 +385,28 @@ impl FileTree {
                 || path.to_string_lossy().into_owned(),
                 |row| row.entry.label().to_string(),
             );
-        let button = |id: &'static str, label: &'static str, primary: bool| {
-            div()
-                .id(id)
-                .px(theme.padding_x)
-                .py(theme.padding_y)
-                .rounded(theme.radius)
-                .bg(if primary {
-                    theme.control_selected
-                } else {
-                    theme.control_background
-                })
-                .text_color(if primary {
-                    theme.control_selected_text
-                } else {
-                    theme.text
-                })
-                .child(label)
-        };
-        let prompt = div()
-            .m(theme.padding_y)
-            .p(theme.padding_x)
-            .flex()
-            .flex_col()
-            .gap(theme.gap)
-            .rounded(theme.radius)
-            .bg(theme.menu_background)
-            .shadow(vec![theme.menu_shadow()])
-            .child(format!("Move “{name}” to the trash?"))
-            .child(
-                div()
-                    .flex()
-                    .gap(theme.gap)
-                    .child(
-                        button("file-tree-trash-confirm", "Move to trash", true).on_click(
-                            cx.listener(|tree, _: &ClickEvent, _, cx| tree.confirm_trash(cx)),
+        let prompt =
+            popover(&ui)
+                .m(ui.space_md)
+                .p(ui.space_lg)
+                .gap(ui.space_lg)
+                .child(format!("Move “{name}” to the trash?"))
+                .child(
+                    div()
+                        .flex()
+                        .justify_end()
+                        .gap(ui.space_md)
+                        .child(Button::new("file-tree-trash-cancel", "Cancel").on_click(
+                            cx.listener(|tree, _: &ClickEvent, _, cx| tree.cancel_trash(cx)),
+                        ))
+                        .child(
+                            Button::new("file-tree-trash-confirm", "Move to trash")
+                                .primary()
+                                .on_click(cx.listener(|tree, _: &ClickEvent, _, cx| {
+                                    tree.confirm_trash(cx)
+                                })),
                         ),
-                    )
-                    .child(button("file-tree-trash-cancel", "Cancel", false).on_click(
-                        cx.listener(|tree, _: &ClickEvent, _, cx| tree.cancel_trash(cx)),
-                    )),
-            );
+                );
         Some(prompt.into_any_element())
     }
 }

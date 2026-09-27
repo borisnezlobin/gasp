@@ -175,6 +175,51 @@ pub fn button(
     with_focus(button, focused, style)
 }
 
+/// One of a few options side by side. The chosen one is filled and
+/// checked, so it reads as picked rather than focused.
+pub fn choice_button(
+    id: impl Into<ElementId>,
+    label: impl Into<SharedString>,
+    chosen: bool,
+    style: &SettingsTheme,
+) -> Stateful<Div> {
+    let check = chosen.then(|| {
+        icon(IconName::Check)
+            .flex_none()
+            .size(style.small_icon_size)
+            .text_color(style.text)
+    });
+    raised(id, style)
+        .gap(style.gap_sm)
+        .px(style.control_padding_x)
+        .whitespace_nowrap()
+        .when(chosen, |button| button.bg(style.selected))
+        .children(check)
+        .child(label.into())
+}
+
+/// A button that can't be pressed right now: the same shape, with its
+/// label faded and no hover.
+pub fn inert_button(
+    id: impl Into<ElementId>,
+    label: impl Into<SharedString>,
+    style: &SettingsTheme,
+) -> Stateful<Div> {
+    div()
+        .id(id)
+        .flex_none()
+        .h(style.control_height)
+        .flex()
+        .items_center()
+        .px(style.control_padding_x)
+        .rounded(style.radius)
+        .bg(style.control_background)
+        .shadow(vec![style.outline()])
+        .whitespace_nowrap()
+        .text_color(style.text_faint)
+        .child(label.into())
+}
+
 /// A borderless square button holding one icon.
 pub fn icon_button(
     id: impl Into<ElementId>,

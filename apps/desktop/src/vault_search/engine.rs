@@ -369,6 +369,58 @@ fn trim_excerpt(hit: &mut LineHit) {
         .filter(|range| !range.is_empty())
         .collect();
     hit.excerpt = format!("{prefix}{}{suffix}", &text[start..end]);
+    strip_inline_markup(hit);
+}
+
+/// Inline markup an excerpt drops so it reads as text: emphasis, strike,
+/// highlight and code marks. Table pipes become spaces.
+const INLINE_MARKS: [&str; 5] = ["**", "__", "~~", "==", "`"];
+
+/// Removes inline markup from a hit's excerpt, moving its match ranges
+/// with the text. A mark inside a match stays, so the match still reads.
+fn strip_inline_markup(hit: &mut LineHit) {
+    let text = std::mem::take(&mut hit.excerpt);
+    let in_match = |at: usize| hit.ranges.iter().any(|range| range.contains(&at));
+    let mut out = String::with_capacity(text.len());
+    // `map[i]` is where byte `i` of the old excerpt lands in the new one:
+    // a kept char's bytes point at its start, a dropped mark's at the next
+    // char to be written.
+    let mut map = vec![0; text.len() + 1];
+    let mut at = 0;
+    while at < text.len() {
+        let start = out.len();
+        let mark = INLINE_MARKS
+            .iter()
+            .find(|mark| text[at..].starts_with(*mark) && !in_match(at));
+        let taken = match mark {
+            Some(mark) => mark.len(),
+            None => push_char(&text[at..], &mut out),
+        };
+        map[at..at + taken].fill(start);
+        at += taken;
+    }
+    map[text.len()] = out.len();
+    hit.ranges = hit
+        .ranges
+        .iter()
+        .map(|range| map[range.start]..map[range.end])
+        .filter(|range| !range.is_empty())
+        .collect();
+    hit.excerpt = out;
+}
+
+/// Copies the char at the start of `rest` and returns its length in
+/// bytes. A pipe counts as a space, and a space never follows another or
+/// starts the excerpt.
+fn push_char(rest: &str, out: &mut String) -> usize {
+    let ch = rest.chars().next().unwrap_or(' ');
+    let blank = ch == '|' || ch.is_whitespace();
+    if !blank {
+        out.push(ch);
+    } else if !out.is_empty() && !out.ends_with(' ') {
+        out.push(' ');
+    }
+    ch.len_utf8()
 }
 
 /// `text` with every match of the (unfolded) `query` replaced, and how
@@ -460,6 +512,16 @@ mod tests {
         // A match inside the markup keeps it.
         let hits = line_hits("- [x] done", std::slice::from_ref(&(2..5)));
         assert_eq!(hits[0].excerpt, "[x] done");
+    }
+
+    #[test]
+    fn excerpts_leave_out_inline_markup() {
+        let text = "| a | ~~struck~~ **wave** `code` |";
+        let at = text.find("wave").unwrap();
+        let hits = line_hits(text, std::slice::from_ref(&(at..at + 4)));
+        assert_eq!(hits[0].excerpt, "a struck wave code ");
+        let range = hits[0].ranges[0].clone();
+        assert_eq!(&hits[0].excerpt[range], "wave");
     }
 
     #[test]

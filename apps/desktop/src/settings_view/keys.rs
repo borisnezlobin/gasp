@@ -217,6 +217,8 @@ impl SettingsView {
             ControlRow::Vault => self.button_key(key, cx),
             ControlRow::Shortcut(shortcut) => self.shortcut_key(row, &shortcut.id, key, window, cx),
             ControlRow::MapAdd(_) => self.menu_button_key(index, row, key, window, cx),
+            ControlRow::SyncAccount => self.account_key(key, cx),
+            ControlRow::ListEntry { list, value } => self.list_entry_key(list, value, key, cx),
             _ => false,
         };
         handled || self.type_to_search(keystroke, window, cx)

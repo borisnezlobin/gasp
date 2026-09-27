@@ -1,10 +1,9 @@
 //! The status bar: word and character counts, reading time, cursor
-//! position and the sync indicator's slot.
+//! position and the sync indicator.
 
-use gpui::{IntoElement, ParentElement, SharedString, Styled, div, prelude::*};
+use gpui::{AnyView, IntoElement, ParentElement, SharedString, Styled, div, prelude::*};
 
 use crate::editor::EditorView;
-use crate::icons::{IconName, icon};
 use crate::theme::UiTheme;
 
 /// Average adult silent-reading speed.
@@ -20,13 +19,28 @@ pub struct TextStats {
 
 impl TextStats {
     pub fn of(text: &str) -> TextStats {
-        TextStats {
-            words: text
-                .split_whitespace()
-                .filter(|word| word.chars().any(char::is_alphanumeric))
-                .count(),
-            characters: text.chars().filter(|ch| !matches!(ch, '\n' | '\r')).count(),
+        TextStats::of_chars(text.chars())
+    }
+
+    /// Counts in one pass without copying the text, so the status bar can
+    /// read a long note's rope on every keystroke. A word is a run of
+    /// non-space characters with at least one letter or digit in it.
+    pub fn of_chars(chars: impl Iterator<Item = char>) -> TextStats {
+        let mut stats = TextStats::default();
+        let mut word_has_text = false;
+        for ch in chars {
+            if !matches!(ch, '\n' | '\r') {
+                stats.characters += 1;
+            }
+            if ch.is_whitespace() {
+                stats.words += usize::from(word_has_text);
+                word_has_text = false;
+            } else {
+                word_has_text |= ch.is_alphanumeric();
+            }
         }
+        stats.words += usize::from(word_has_text);
+        stats
     }
 
     /// Whole minutes to read, rounded up, and zero for an empty note.
@@ -50,14 +64,19 @@ impl StatusInfo {
     pub fn of_editor(editor: &EditorView) -> StatusInfo {
         let selection = editor.selected_range();
         let doc = editor.doc();
-        let (stats, for_selection) = if selection.is_empty() {
-            (TextStats::of(&editor.text()), false)
+        let for_selection = !selection.is_empty();
+        let range = if for_selection {
+            selection
         } else {
-            (TextStats::of(&doc.slice(selection)), true)
+            0..doc.len()
         };
+        let stats = TextStats::of_chars(doc.rope().byte_slice(range).chars());
         let cursor = editor.cursor();
         let line = doc.line_of_offset(cursor);
-        let column = doc.slice(doc.line_start(line)..cursor).chars().count();
+        let column = doc
+            .rope()
+            .byte_slice(doc.line_start(line)..cursor)
+            .len_chars();
         StatusInfo {
             stats,
             for_selection,
@@ -114,9 +133,14 @@ pub fn group_thousands(number: usize) -> String {
     out
 }
 
-/// Draws the status bar: small muted counts at the bottom right. `info`
-/// is `None` when no note is open.
-pub fn render_status_bar(info: Option<&StatusInfo>, theme: &UiTheme) -> impl IntoElement {
+/// Draws the status bar: small muted counts at the bottom right, then the
+/// sync indicator. `info` is `None` when no note is open; `sync` is
+/// `None` when the vault doesn't sync.
+pub fn render_status_bar(
+    info: Option<&StatusInfo>,
+    sync: Option<AnyView>,
+    theme: &UiTheme,
+) -> impl IntoElement {
     let item = |text: String| -> gpui::Div { div().child(SharedString::from(text)) };
     let mut bar = div()
         .id("status-bar")
@@ -137,15 +161,7 @@ pub fn render_status_bar(info: Option<&StatusInfo>, theme: &UiTheme) -> impl Int
             .child(item(info.reading_label()))
             .child(item(info.position_label()));
     }
-    bar.child(
-        // The sync indicator's slot. Sync isn't wired yet, so it shows the
-        // idle cloud.
-        div().id("sync-indicator").child(
-            icon(IconName::CloudCheck)
-                .size(theme.small_icon_size)
-                .text_color(theme.text_faint),
-        ),
-    )
+    bar.children(sync)
 }
 
 #[cfg(test)]
@@ -158,6 +174,17 @@ mod tests {
         assert_eq!(stats.words, 5);
         assert_eq!(stats.characters, 32);
         assert_eq!(TextStats::of("").words, 0);
+    }
+
+    #[test]
+    fn counting_chars_matches_splitting_the_string() {
+        for text in ["", "one", "  two  words ", "a\r\nb - c\n", "émigré café 12"] {
+            let words = text
+                .split_whitespace()
+                .filter(|word| word.chars().any(char::is_alphanumeric))
+                .count();
+            assert_eq!(TextStats::of(text).words, words, "{text:?}");
+        }
     }
 
     #[test]

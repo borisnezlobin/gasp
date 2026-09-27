@@ -21,6 +21,14 @@ pub enum DiskChange {
 }
 
 impl DiskChange {
+    /// Every path the change touches.
+    pub fn paths(&self) -> Vec<PathBuf> {
+        match self {
+            DiskChange::Changed(path) | DiskChange::Removed(path) => vec![path.clone()],
+            DiskChange::Renamed { from, to } => vec![from.clone(), to.clone()],
+        }
+    }
+
     /// Moves first, so a rename reported as a move and a removal is seen
     /// as the move.
     fn order(&self) -> u8 {

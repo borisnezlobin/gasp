@@ -350,6 +350,10 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.index_disk_changes(&changes, cx);
+        if let Some(sync) = self.sync.clone() {
+            let paths: Vec<PathBuf> = changes.iter().flat_map(DiskChange::paths).collect();
+            sync.update(cx, |sync, cx| sync.files_changed(&paths, cx));
+        }
         for change in changes {
             match change {
                 DiskChange::Renamed { from, to } => self.disk_renamed(&from, &to, cx),

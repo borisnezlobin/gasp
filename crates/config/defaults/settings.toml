@@ -28,3 +28,10 @@ curl-pasted-quotes = true   # pasted text gets curly quotes too
 
 [appearance]
 base-font-size = 12
+
+[sync]
+auto             = true
+interval-minutes = 5
+branch           = "master"   # the branch this app commits to and pushes
+legacy-branch    = "main"     # merged into branch one way until older tools retire; "" turns it off
+device-only      = [".editor/device.toml", ".obsidian/workspace*.json", "**/.DS_Store", ".trash/**"]
