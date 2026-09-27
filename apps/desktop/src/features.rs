@@ -62,7 +62,6 @@ pub fn bind_view_keys(cx: &mut App) {
 struct Features {
     recent_commands: Vec<String>,
     find_bars: HashMap<EntityId, (EntityId, Entity<FindBar>)>,
-    trees: HashMap<EntityId, Entity<FileTree>>,
     subscriptions: Vec<Subscription>,
 }
 
@@ -74,6 +73,12 @@ fn features(cx: &mut App) -> &mut Features {
 
 /// Installs every feature into a new workspace.
 pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Context<Workspace>) {
+    // The note header's reading-view button shows a book while Markdown
+    // symbols are hidden everywhere.
+    let reading: crate::workspace::pane::ReadingProbe = std::rc::Rc::new(|editor| {
+        editor.symbol_mode() == editor_config::settings::SymbolMode::AlwaysHidden
+    });
+    workspace.set_reading_probe(reading, cx);
     install_file_tree(workspace, window, cx);
     workspace.on_command("palette.open", open_palette);
     workspace.on_command("switcher.open", open_switcher);
@@ -106,13 +111,9 @@ fn install_file_tree(
 ) {
     let vault = workspace.vault().to_path_buf();
     let tree = cx.new(|cx| FileTree::new(vault, window, cx));
-    let focus = tree.focus_handle(cx);
-    workspace.set_left_panel(tree.clone().into(), Some(focus), cx);
+    workspace.set_file_tree(tree.clone(), cx);
     let subscription = cx.subscribe_in(&tree, window, on_tree_event);
-    let workspace_id = cx.entity_id();
-    let state = features(cx);
-    state.trees.insert(workspace_id, tree);
-    state.subscriptions.push(subscription);
+    features(cx).subscriptions.push(subscription);
 }
 
 fn on_tree_event(
@@ -146,16 +147,7 @@ fn reveal_active(
     let Some(path) = workspace.active_path(cx) else {
         return;
     };
-    let workspace_id = cx.entity_id();
-    let Some(tree) = features(cx).trees.get(&workspace_id).cloned() else {
-        return;
-    };
-    workspace.run_command("sidebar.files.show", window, cx);
-    tree.update(cx, |tree, cx| {
-        tree.set_active_path(Some(&path), cx);
-        tree.reveal(&path, cx);
-    });
-    window.focus(&tree.focus_handle(cx));
+    workspace.reveal_in_tree(&path, true, window, cx);
 }
 
 fn open_note(
@@ -494,8 +486,7 @@ fn open_settings(
     let subscription = cx.subscribe(&settings, |workspace, _, event: &SettingsEvent, cx| {
         let SettingsEvent::Changed(_) = event;
         let vault = workspace.vault().to_path_buf();
-        let workspace_id = cx.entity_id();
-        if let Some(tree) = features(cx).trees.get(&workspace_id).cloned() {
+        if let Some(tree) = workspace.file_tree().cloned() {
             let options = crate::file_tree::FileTreeOptions::for_vault(&vault);
             tree.update(cx, |tree, _| tree.set_options(options));
         }

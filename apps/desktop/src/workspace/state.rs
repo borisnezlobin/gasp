@@ -28,7 +28,12 @@ const DEVICE_FILE: &str = "device.toml";
 #[serde(default, rename_all = "kebab-case")]
 pub struct AppState {
     pub last_vault: Option<PathBuf>,
+    /// Vaults opened on this device, most recent first.
+    pub recent_vaults: Vec<PathBuf>,
 }
+
+/// Vaults the switcher remembers.
+pub const MAX_RECENT_VAULTS: usize = 10;
 
 impl AppState {
     /// Where the state file lives on this platform.
@@ -57,12 +62,32 @@ impl AppState {
         let Some(path) = AppState::default_path() else {
             return;
         };
-        let state = AppState {
-            last_vault: Some(vault.to_path_buf()),
-        };
+        let mut state = AppState::load(&path);
+        state.opened(vault);
         if let Err(error) = state.save(&path) {
             eprintln!("could not remember the vault: {error}");
         }
+    }
+
+    /// Puts `vault` first in the recent list and makes it the last one.
+    pub fn opened(&mut self, vault: &Path) {
+        self.last_vault = Some(vault.to_path_buf());
+        self.recent_vaults.retain(|recent| recent != vault);
+        self.recent_vaults.insert(0, vault.to_path_buf());
+        self.recent_vaults.truncate(MAX_RECENT_VAULTS);
+    }
+
+    /// Recent vaults that still exist, most recent first.
+    pub fn recent_vaults() -> Vec<PathBuf> {
+        let Some(path) = AppState::default_path() else {
+            return Vec::new();
+        };
+        let mut state = AppState::load(&path);
+        if state.recent_vaults.is_empty() {
+            state.recent_vaults.extend(state.last_vault.clone());
+        }
+        state.recent_vaults.retain(|vault| vault.is_dir());
+        state.recent_vaults
     }
 
     /// The last vault, if it still exists.
@@ -136,6 +161,7 @@ mod tests {
         let path = dir.path().join("nested/state.toml");
         let state = AppState {
             last_vault: Some(PathBuf::from("vaults/notes")),
+            recent_vaults: vec![PathBuf::from("vaults/notes")],
         };
         state.save(&path).unwrap();
         assert_eq!(AppState::load(&path), state);
@@ -143,6 +169,21 @@ mod tests {
             AppState::load(&dir.path().join("missing")),
             AppState::default()
         );
+    }
+
+    #[test]
+    fn opening_a_vault_moves_it_to_the_front() {
+        let mut state = AppState::default();
+        state.opened(Path::new("a"));
+        state.opened(Path::new("b"));
+        state.opened(Path::new("a"));
+        assert_eq!(
+            state.recent_vaults,
+            [PathBuf::from("a"), PathBuf::from("b")]
+        );
+        assert_eq!(state.last_vault, Some(PathBuf::from("a")));
+        let old: AppState = toml::from_str("last-vault = \"x\"\n").unwrap();
+        assert!(old.recent_vaults.is_empty());
     }
 
     #[test]

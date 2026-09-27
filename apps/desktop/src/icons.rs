@@ -13,7 +13,9 @@ pub enum IconName {
     ArrowCounterClockwise,
     ArrowLeft,
     ArrowRight,
+    ArrowSquareOut,
     ArrowsClockwise,
+    ArrowsInLineVertical,
     Article,
     Asterisk,
     BookOpen,
@@ -22,10 +24,13 @@ pub enum IconName {
     CaretLeft,
     CaretRight,
     CaretUp,
+    CaretUpDown,
+    ChatText,
     Check,
     CheckCircle,
     CheckSquare,
     Checks,
+    Clipboard,
     ClipboardText,
     Clock,
     CloudArrowUp,
@@ -39,6 +44,7 @@ pub enum IconName {
     Export,
     Eye,
     EyeSlash,
+    File,
     FileHtml,
     FilePdf,
     FilePlus,
@@ -63,6 +69,7 @@ pub enum IconName {
     MagnifyingGlassPlus,
     Minus,
     NoteBlank,
+    NotePencil,
     PencilSimple,
     Plus,
     Printer,
@@ -70,8 +77,13 @@ pub enum IconName {
     Question,
     Quotes,
     Rows,
+    Scissors,
+    SelectionAll,
     SidebarSimple,
+    SortAscending,
     Square,
+    SquareSplitHorizontal,
+    SquareSplitVertical,
     Swap,
     TextAa,
     TextB,
@@ -87,7 +99,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 76] = [
+const ICONS: [(IconName, &str, &[u8]); 88] = [
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -109,9 +121,19 @@ const ICONS: [(IconName, &str, &[u8]); 76] = [
         include_bytes!("../assets/icons/arrow-right.svg"),
     ),
     (
+        IconName::ArrowSquareOut,
+        "arrow-square-out",
+        include_bytes!("../assets/icons/arrow-square-out.svg"),
+    ),
+    (
         IconName::ArrowsClockwise,
         "arrows-clockwise",
         include_bytes!("../assets/icons/arrows-clockwise.svg"),
+    ),
+    (
+        IconName::ArrowsInLineVertical,
+        "arrows-in-line-vertical",
+        include_bytes!("../assets/icons/arrows-in-line-vertical.svg"),
     ),
     (
         IconName::Article,
@@ -154,6 +176,16 @@ const ICONS: [(IconName, &str, &[u8]); 76] = [
         include_bytes!("../assets/icons/caret-up.svg"),
     ),
     (
+        IconName::CaretUpDown,
+        "caret-up-down",
+        include_bytes!("../assets/icons/caret-up-down.svg"),
+    ),
+    (
+        IconName::ChatText,
+        "chat-text",
+        include_bytes!("../assets/icons/chat-text.svg"),
+    ),
+    (
         IconName::Check,
         "check",
         include_bytes!("../assets/icons/check.svg"),
@@ -172,6 +204,11 @@ const ICONS: [(IconName, &str, &[u8]); 76] = [
         IconName::Checks,
         "checks",
         include_bytes!("../assets/icons/checks.svg"),
+    ),
+    (
+        IconName::Clipboard,
+        "clipboard",
+        include_bytes!("../assets/icons/clipboard.svg"),
     ),
     (
         IconName::ClipboardText,
@@ -237,6 +274,11 @@ const ICONS: [(IconName, &str, &[u8]); 76] = [
         IconName::EyeSlash,
         "eye-slash",
         include_bytes!("../assets/icons/eye-slash.svg"),
+    ),
+    (
+        IconName::File,
+        "file",
+        include_bytes!("../assets/icons/file.svg"),
     ),
     (
         IconName::FileHtml,
@@ -359,6 +401,11 @@ const ICONS: [(IconName, &str, &[u8]); 76] = [
         include_bytes!("../assets/icons/note-blank.svg"),
     ),
     (
+        IconName::NotePencil,
+        "note-pencil",
+        include_bytes!("../assets/icons/note-pencil.svg"),
+    ),
+    (
         IconName::PencilSimple,
         "pencil-simple",
         include_bytes!("../assets/icons/pencil-simple.svg"),
@@ -394,14 +441,39 @@ const ICONS: [(IconName, &str, &[u8]); 76] = [
         include_bytes!("../assets/icons/rows.svg"),
     ),
     (
+        IconName::Scissors,
+        "scissors",
+        include_bytes!("../assets/icons/scissors.svg"),
+    ),
+    (
+        IconName::SelectionAll,
+        "selection-all",
+        include_bytes!("../assets/icons/selection-all.svg"),
+    ),
+    (
         IconName::SidebarSimple,
         "sidebar-simple",
         include_bytes!("../assets/icons/sidebar-simple.svg"),
     ),
     (
+        IconName::SortAscending,
+        "sort-ascending",
+        include_bytes!("../assets/icons/sort-ascending.svg"),
+    ),
+    (
         IconName::Square,
         "square",
         include_bytes!("../assets/icons/square.svg"),
+    ),
+    (
+        IconName::SquareSplitHorizontal,
+        "square-split-horizontal",
+        include_bytes!("../assets/icons/square-split-horizontal.svg"),
+    ),
+    (
+        IconName::SquareSplitVertical,
+        "square-split-vertical",
+        include_bytes!("../assets/icons/square-split-vertical.svg"),
     ),
     (
         IconName::Swap,

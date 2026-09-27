@@ -35,6 +35,7 @@ pub mod switcher;
 pub mod text_input;
 pub mod text_offsets;
 pub mod theme;
+pub mod ui;
 pub mod vault_search;
 pub mod workspace;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
