@@ -325,14 +325,17 @@ impl<'a> Planner<'a> {
 
     /// Property names in the frontmatter are muted. While its symbols are
     /// hidden, each line is a property row: the colon after a name hides
-    /// and the app sets values in a column.
+    /// and the app sets values in a column. A block list under a name,
+    /// `topics:` then `- optics` lines, joins the name's row as chips.
     fn frontmatter_properties(&mut self, id: NodeId) {
         let node = self.node(id);
         let (text, tree) = (self.revealer.text, self.revealer.tree);
         let revealed = self.revealer.revealed(id, SyntaxKind::Frontmatter, None);
         let lines = self.lines_of(&node.range);
+        let body = lines.start + 1..lines.end.saturating_sub(1);
         let mut tags = false;
-        for line in lines.start + 1..lines.end.saturating_sub(1) {
+        let mut joined_until = body.start;
+        for line in body.clone() {
             let range = tree.lines().line_range(text, line);
             let key = property_key(&text[range.clone()]);
             if let Some((name, _)) = key {
@@ -340,7 +343,7 @@ impl<'a> Planner<'a> {
                 let name = range.start..range.start + name;
                 self.effects.spans.push((name, StyleKey::FrontmatterKey));
             }
-            if revealed {
+            if revealed || line < joined_until {
                 continue;
             }
             let value = match key {
@@ -351,12 +354,43 @@ impl<'a> Planner<'a> {
                 }
                 None => range.clone(),
             };
-            self.property_chips(value, key.is_some(), tags);
+            if key.is_some() && value.is_empty() {
+                joined_until = self.join_block_list(line, body.end, tags);
+            }
+            if joined_until <= line {
+                self.property_chips(value, key.is_some(), tags);
+            }
             let style = LineStyle::Property {
                 keyed: key.is_some(),
             };
             self.effects.line_styles.push((line..line + 1, style));
         }
+    }
+
+    /// Draws the block list under the name on `line` as chips on the
+    /// name's row, collapsing the item lines. Answers the first line after
+    /// the list, or `line` itself when no list follows.
+    fn join_block_list(&mut self, line: usize, end: usize, tags: bool) -> usize {
+        let (text, tree) = (self.revealer.text, self.revealer.tree);
+        let items: Vec<String> = (line + 1..end)
+            .map_while(|item| {
+                let range = tree.lines().line_range(text, item);
+                let chip = block_item_chip(&text[range.clone()])?.pop()?;
+                Some(text[range.start + chip.start..range.start + chip.end].to_owned())
+            })
+            .collect();
+        if items.is_empty() {
+            return line;
+        }
+        let after = line + 1 + items.len();
+        let at = tree.lines().line_range(text, line).end;
+        self.effects.widgets.push(Widget {
+            kind: WidgetKind::PropertyList { items, tags },
+            range: at..at,
+            placement: Placement::Replace,
+        });
+        self.effects.collapsed.push(line + 1..after);
+        after
     }
 
     /// A list value, `[physics, review]` after a name or `- physics` on a

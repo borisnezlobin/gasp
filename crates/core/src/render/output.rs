@@ -221,6 +221,12 @@ pub enum WidgetKind {
     SubpathSeparator,
     /// A Link Embed `embed` block drawn as a card.
     LinkCard(crate::link_card::LinkCard),
+    /// The items of a block list property, drawn as chips on its name's
+    /// row while the item lines are collapsed. `tags` draws them as tags.
+    PropertyList {
+        items: Vec<String>,
+        tags: bool,
+    },
 }
 
 /// The plan for one source line.

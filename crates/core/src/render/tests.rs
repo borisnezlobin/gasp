@@ -1125,8 +1125,8 @@ fn frontmatter_reads_as_properties_away_from_the_cursor() {
         &[
             "[frontmatter] ~collapsed~",
             "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:title}{frontmatter:Waves}",
-            "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:tags}",
-            "[frontmatter property { keyed: false }] {tag,frontmatter,property-chip:physics}",
+            "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:tags}⟦propertylist { items: [\"physics\"], tags: true }⟧",
+            "[frontmatter] ~collapsed~",
             "[frontmatter] ~collapsed~",
             "",
             "",
@@ -1163,8 +1163,8 @@ fn list_properties_read_as_chips() {
         &element(),
         &[
             "[frontmatter] ~collapsed~",
-            "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:aliases}",
-            "[frontmatter property { keyed: false }] {frontmatter,property-chip:Waves}",
+            "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:aliases}⟦propertylist { items: [\"waves\"], tags: false }⟧",
+            "[frontmatter] ~collapsed~",
             "[frontmatter property { keyed: false }] {frontmatter:  - \"\"}",
             "[frontmatter] ~collapsed~",
             "",

@@ -654,7 +654,9 @@ fn paint_piece(
     let bounds = Bounds::new(origin, size(piece.width, piece.height));
     match &piece.content {
         PieceContent::Text(text) if text.is_whole() => {
-            report(text.shaped.paint(origin, text.line_height, window, cx));
+            // A chip's text starts its padding in from the piece's edge.
+            let inset = point(origin.x - text.slice_x, origin.y);
+            report(text.shaped.paint(inset, text.line_height, window, cx));
         }
         PieceContent::Text(text) => {
             // A wrapped row paints the whole shaped chunk shifted so its

@@ -400,16 +400,45 @@ fn frontmatter_lines_up_property_values(cx: &mut TestAppContext) {
     let title = visual(&view, cx, 1);
     assert_eq!(title.pieces().count(), 2, "the colon hides");
     assert_eq!(value_x(&title), value_x(&visual(&view, cx, 2)));
-    let item = visual(&view, cx, 4);
+    let tags = visual(&view, cx, 3);
+    assert_eq!(tags.rows.len(), 1, "the list joins its name's row");
     assert!(
-        value_x(&item) >= value_x(&title),
+        value_x(&tags) >= value_x(&title),
         "list items sit in the value column"
+    );
+    assert_eq!(
+        visual(&view, cx, 4).height,
+        px(0.),
+        "the item's line folds away"
     );
     place_cursor(&view, cx, 5);
     let colon = note.find(':').unwrap();
     assert!(
         shows_text_at(&visual(&view, cx, 1), colon),
         "the cursor shows the source"
+    );
+}
+
+#[gpui::test]
+fn a_long_block_list_wraps_in_the_value_column(cx: &mut TestAppContext) {
+    let items: String = (0..40)
+        .map(|at| format!("  - topic number {at}\n"))
+        .collect();
+    let note = format!("---\ntitle: Waves\ntopics:\n{items}---\n\nend");
+    let (view, cx) = open(cx, &note);
+    place_cursor(&view, cx, note.len());
+    let title = visual(&view, cx, 1);
+    let value_x = title.pieces().last().unwrap().x;
+    let topics = visual(&view, cx, 2);
+    assert!(topics.rows.len() > 1, "the chips wrap");
+    for row in &topics.rows[1..] {
+        let first = row.pieces.first().expect("a wrapped row has chips");
+        assert_eq!(first.x, value_x, "wrapped chips start in the value column");
+    }
+    place_cursor(&view, cx, 30);
+    assert!(
+        visual(&view, cx, 3).height > px(0.),
+        "the cursor in the frontmatter shows the item lines"
     );
 }
 
