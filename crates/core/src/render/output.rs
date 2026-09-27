@@ -28,6 +28,8 @@ pub enum StyleKey {
     TaskDone,
     /// Markdown symbols that are shown, drawn fainter than the text.
     MarkupDimmed,
+    /// One item of a list property, drawn as a chip.
+    PropertyChip,
 }
 
 const HEADING_NAMES: [&str; 6] = [
@@ -75,6 +77,7 @@ const STYLE_NAMES: &[(StyleKey, &str)] = &[
     (StyleKey::CalloutTitle, "callout-title"),
     (StyleKey::TaskDone, "task-done"),
     (StyleKey::MarkupDimmed, "markup-dimmed"),
+    (StyleKey::PropertyChip, "property-chip"),
 ];
 
 /// A decoration for a whole line, such as the bar beside a quote.
@@ -248,6 +251,6 @@ mod tests {
         assert_eq!(StyleKey::Heading(2).name(), "heading-2");
         assert_eq!(StyleKey::FootnoteRef.name(), "footnote-ref");
         assert_eq!(StyleKey::MarkupDimmed.name(), "markup-dimmed");
-        assert_eq!(STYLE_NAMES.len(), 18);
+        assert_eq!(STYLE_NAMES.len(), 19);
     }
 }

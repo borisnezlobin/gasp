@@ -431,6 +431,7 @@ impl EditorView {
     /// Forgets kept previews, as when the theme changes.
     pub(crate) fn clear_preview_cache(&mut self) {
         self.hover.cache.clear();
+        self.line_cache.clear();
     }
 }
 

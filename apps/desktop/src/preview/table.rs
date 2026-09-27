@@ -16,7 +16,7 @@ use gpui::{Hsla, Pixels, TextRun, px};
 
 use crate::line_layout::{Background, Hit, Piece, PieceContent, VisualRow};
 use crate::preview::items::{Item, line_items};
-use crate::preview::layout::{LineLayouter, take_backgrounds};
+use crate::preview::layout::{LineLayouter, chunk_padding, take_backgrounds};
 use crate::preview::math::{MathImage, MathState};
 use crate::preview::wrap::{Chunk, Extent, RowBuilder, widest_word};
 use crate::styling::{LineTone, run_font_size, text_run};
@@ -306,7 +306,7 @@ impl LineLayouter<'_, '_> {
         take_backgrounds(
             &mut runs,
             pending.text.len(),
-            styles,
+            crate::styling::fill_padding(styles, self.theme()),
             &mut pending.backgrounds,
         );
         pending.text.push_str(text);
@@ -320,14 +320,7 @@ impl LineLayouter<'_, '_> {
         };
         let text = pending.text.replace('\t', " ");
         let shaped = self.shaper().shape(&text, font_size, &pending.runs);
-        let padding = match pending
-            .backgrounds
-            .iter()
-            .any(|background| background.padded)
-        {
-            true => self.theme().inline_code_padding,
-            false => px(0.),
-        };
+        let padding = chunk_padding(&pending.backgrounds);
         let width = shaped.width + padding * 2.;
         let min_width = widest_word(&shaped, &text) + padding * 2.;
         let chunk = Chunk {

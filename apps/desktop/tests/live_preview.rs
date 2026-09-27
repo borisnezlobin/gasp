@@ -354,14 +354,14 @@ fn inline_code_gets_room_for_its_rounded_fill(cx: &mut TestAppContext) {
     };
     let code = pieces
         .iter()
-        .position(|piece| fills(piece).iter().any(|fill| fill.padded))
+        .position(|piece| fills(piece).iter().any(|fill| fill.padding > px(0.)))
         .expect("the code has a padded fill");
     assert!(pieces[code].x > pieces[code - 1].right(), "room before");
     assert!(pieces[code + 1].x > pieces[code].right(), "room after");
     let highlight = pieces
         .iter()
         .flat_map(|piece| fills(piece))
-        .find(|fill| !fill.padded)
+        .find(|fill| fill.padding == px(0.))
         .expect("the highlight has a fill");
     assert_eq!(
         highlight.range.len(),
@@ -818,4 +818,77 @@ fn quotes_and_callouts_indent_their_text(cx: &mut TestAppContext) {
     let first_x = |line: &VisualLine| line.pieces().next().unwrap().x;
     assert!(first_x(&quoted) > first_x(&plain));
     assert_eq!(quoted.decor.bars.len(), 1);
+}
+
+#[gpui::test]
+fn typing_above_a_task_keeps_its_checkbox_on_the_task(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "intro\n\n- [ ] task\n\nend");
+    place_cursor(&view, cx, 5);
+    // The task's line is reused from the cache after each keystroke, so
+    // its checkbox must move with the text.
+    cx.simulate_input("abc");
+    let marker = view.read_with(cx, |view, _| {
+        let placed = view.frame().unwrap().line(2).unwrap();
+        placed.visual.pieces().find_map(|piece| match &piece.hit {
+            Hit::Checkbox { marker } => Some(marker.clone()),
+            _ => None,
+        })
+    });
+    assert_eq!(marker, Some(12..16), "the marker and the space after it");
+    let checkbox = piece_center(&view, cx, 2, |piece| {
+        matches!(piece.hit, Hit::Checkbox { .. })
+    });
+    click(cx, checkbox, Modifiers::none());
+    assert_eq!(text(&view, cx), "introabc\n\n- [x] task\n\nend");
+}
+
+/// Each drawn line's rows as (kind, range, pieces as (range, x, width)),
+/// and its fills.
+fn geometry(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> Vec<String> {
+    view.read_with(cx, |view, _| {
+        view.frame()
+            .unwrap()
+            .lines
+            .iter()
+            .map(|placed| {
+                let visual = &placed.visual;
+                let rows: Vec<_> = visual
+                    .rows
+                    .iter()
+                    .map(|row| {
+                        let pieces: Vec<_> = row
+                            .pieces
+                            .iter()
+                            .map(|piece| (piece.range.clone(), piece.x, piece.width, &piece.hit))
+                            .collect();
+                        format!("{:?} {:?} {:?} {pieces:?}", row.kind, row.range, row.top)
+                    })
+                    .collect();
+                format!(
+                    "{} {} {:?} {:?} {rows:?}",
+                    visual.line, visual.start, visual.height, visual.decor.surfaces
+                )
+            })
+            .collect()
+    })
+}
+
+#[gpui::test]
+fn reused_lines_match_fresh_layouts(cx: &mut TestAppContext) {
+    let note = "# Title\n\nsome text here\n\n```rust\nlet a = 1;\nlet b = 2;\n```\n\n\
+                > [!note] Callout\n> body\n\n- [ ] task\n- [x] done\n\n| a | b |\n|---|---|\n| 1 | 2 |";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, 22);
+    cx.simulate_input("typed words ");
+    cx.simulate_keystrokes("enter");
+    cx.simulate_input("x");
+    cx.run_until_parked();
+    let reused = geometry(&view, cx);
+    // A zoom to the same size re-measures, which empties the cache.
+    view.update(cx, |view, cx| {
+        let zoom = view.zoom();
+        view.set_zoom(zoom, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(reused, geometry(&view, cx));
 }

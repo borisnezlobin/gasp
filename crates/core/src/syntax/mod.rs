@@ -37,7 +37,11 @@ use inline::{Arena, Delimiter};
 pub fn parse(text: &str) -> SyntaxTree {
     let lines = LineIndex::new(text);
     let nodes = process(build::build_nodes(text), text, &lines);
-    SyntaxTree { nodes, lines }
+    SyntaxTree {
+        nodes,
+        lines,
+        definitions: Default::default(),
+    }
 }
 
 /// Runs every pass after pulldown-cmark on a raw arena.

@@ -95,8 +95,10 @@ impl Element for EditorElement {
     ) -> Self::PrepaintState {
         let started = Instant::now();
         let _span = crate::trace::span("editor-prepaint");
+        let _phase = crate::keytrace::span("(total) prepaint");
         self.view.update(cx, |view, cx| {
             let mut frame = view.layout_frame(bounds, window);
+            let phase = crate::keytrace::span("selection-and-highlights");
             frame.highlights = view.highlight_rects(&frame);
             let selection = view
                 .selected_ranges()
@@ -104,7 +106,11 @@ impl Element for EditorElement {
                 .flat_map(|range| frame.range_rects(range, &view.theme))
                 .collect();
             let caret = frame.caret_bounds(view.cursor(), &view.theme);
+            drop(phase);
+            let phase = crate::keytrace::span("prose");
             let prose = view.prose_frame(&frame, cx);
+            drop(phase);
+            let phase = crate::keytrace::span("popovers");
             if view.focus_handle.is_focused(window)
                 && let Some(mut popover) = view.suggestion_popover(&frame, cx)
             {
@@ -122,6 +128,8 @@ impl Element for EditorElement {
                 popover.layout_as_root(natural, window, cx);
                 window.defer_draw(popover, window.element_offset(), SUGGESTION_LAYER);
             }
+            drop(phase);
+            let phase = crate::keytrace::span("start-loads");
             // Math and code highlighting can wait for the first frame.
             if crate::first_frame::is_waiting() {
                 let view = cx.entity().downgrade();
@@ -138,6 +146,7 @@ impl Element for EditorElement {
                 view.start_code_loads(cx);
                 view.start_remote_images(cx);
             }
+            drop(phase);
             let copy_button = view.copy_button_for(&frame, bounds).map(|button| {
                 let hitbox = window.insert_hitbox(button.bounds, HitboxBehavior::Normal);
                 (button, hitbox)
@@ -167,6 +176,7 @@ impl Element for EditorElement {
         cx: &mut App,
     ) {
         let started = Instant::now();
+        let phase = crate::keytrace::span("paint");
         let focus_handle = self.view.read(cx).focus_handle.clone();
         window.handle_input(
             &focus_handle,
@@ -181,6 +191,7 @@ impl Element for EditorElement {
                 paint_copy_button(button, &prepainted.theme, window, cx);
             }
         });
+        drop(phase);
         let frame = prepainted.frame.clone();
         self.view
             .update(cx, |view, _| view.finish_frame(frame, started));
@@ -470,8 +481,8 @@ fn piece_fills(
             if start >= end {
                 return None;
             }
-            let pad = |at_edge: bool| match background.padded && at_edge {
-                true => theme.inline_code_padding,
+            let pad = |at_edge: bool| match at_edge {
+                true => background.padding,
                 false => px(0.),
             };
             let x0 = left + text.shaped.x_for_index(start) - pad(start == background.range.start);
