@@ -126,6 +126,11 @@ impl EditorView {
         self.marked.clone()
     }
 
+    /// How far the view is scrolled down, in pixels.
+    pub fn scroll_offset(&self) -> Pixels {
+        self.scroll_y
+    }
+
     pub fn timings(&self) -> &Timings {
         &self.timings
     }
