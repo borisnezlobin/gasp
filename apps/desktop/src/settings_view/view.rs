@@ -72,13 +72,26 @@ pub enum ControlRow {
     /// The app's version. It has no control, so focus skips it.
     Version,
     Shortcut(ShortcutRow),
+    /// The address of the repository the vault syncs with.
+    SyncRemote,
+    /// The token sync signs in with.
+    SyncAccount,
+    /// The field that adds an entry to a list setting.
+    ListAdd(SettingItem),
+    /// One entry of a list setting, such as a device-only pattern.
+    ListEntry {
+        list: SettingItem,
+        value: String,
+    },
 }
 
 impl ControlRow {
     /// The setting this row edits.
     pub fn item(&self) -> Option<&SettingItem> {
         match self {
-            ControlRow::Setting(item) | ControlRow::MapAdd(item) => Some(item),
+            ControlRow::Setting(item) | ControlRow::MapAdd(item) | ControlRow::ListAdd(item) => {
+                Some(item)
+            }
             ControlRow::MapEntry { item, .. } => Some(item),
             _ => None,
         }
@@ -89,6 +102,7 @@ impl ControlRow {
         match self {
             ControlRow::Setting(item) => item.kind == SettingKind::Text,
             ControlRow::MapAdd(item) => map_names(&item.key).is_none(),
+            ControlRow::SyncRemote | ControlRow::ListAdd(_) => true,
             _ => false,
         }
     }
@@ -108,6 +122,10 @@ impl ControlRow {
             ControlRow::Vault => "Vault".to_string(),
             ControlRow::Version => format!("Version {}", env!("CARGO_PKG_VERSION")),
             ControlRow::Shortcut(shortcut) => shortcut.title.clone(),
+            ControlRow::SyncRemote => "Notes repository".to_string(),
+            ControlRow::SyncAccount => "GitHub token".to_string(),
+            ControlRow::ListAdd(item) => item.title.clone(),
+            ControlRow::ListEntry { value, .. } => value.clone(),
         }
     }
 }
@@ -167,6 +185,10 @@ pub struct SettingsView {
     pub(super) menu: Option<OpenMenu>,
     pub(super) capture: Option<Capture>,
     pub(super) scroll: ScrollHandle,
+    /// The vault's sync, for the Sync page.
+    pub(super) sync: Option<Entity<crate::sync::SyncService>>,
+    pub(super) remote_cache: Option<String>,
+    pub(super) signed_in_cache: bool,
     pub(super) _subscriptions: Vec<Subscription>,
 }
 
@@ -248,6 +270,9 @@ impl SettingsView {
             menu: None,
             capture: None,
             scroll: ScrollHandle::new(),
+            sync: None,
+            remote_cache: None,
+            signed_in_cache: false,
             _subscriptions: Vec::new(),
         };
         view.restyle();
@@ -281,13 +306,16 @@ impl SettingsView {
             .iter()
             .filter_map(|item| match &item.kind {
                 SettingKind::Text => Some((item.key.clone(), false)),
-                SettingKind::Map(_) => Some((add_field_key(&item.key), true)),
+                SettingKind::Map(_) | SettingKind::List(_) => {
+                    Some((add_field_key(&item.key), true))
+                }
                 _ => None,
             })
+            .chain([(super::sync_page::REMOTE_FIELD.to_string(), false)])
             .collect();
         let mut subscriptions = Vec::new();
         for (key, adds) in keys {
-            let placeholder = if adds { "Add by name" } else { "" };
+            let placeholder = super::sync_page::placeholder(&key, adds);
             let field = cx.new(|cx| {
                 TextInput::new(window, cx)
                     .with_placeholder(placeholder)
@@ -518,6 +546,9 @@ impl SettingsView {
             RowSpec::Accent => ControlRow::Accent,
             RowSpec::Vault => ControlRow::Vault,
             RowSpec::Version => ControlRow::Version,
+            RowSpec::SyncRemote => ControlRow::SyncRemote,
+            RowSpec::SyncAccount if !self.remote_takes_token() => return Vec::new(),
+            RowSpec::SyncAccount => ControlRow::SyncAccount,
         };
         let haystack = format!("{} {}", row.title(), self.row_description(&row));
         if words_match(&haystack, query) {
@@ -528,6 +559,9 @@ impl SettingsView {
     }
 
     fn rows_for_item(&self, item: &SettingItem) -> Vec<ControlRow> {
+        if let SettingKind::List(_) = &item.kind {
+            return self.list_rows(item);
+        }
         let SettingKind::Map(inner) = &item.kind else {
             return vec![ControlRow::Setting(item.clone())];
         };
@@ -553,8 +587,14 @@ impl SettingsView {
     /// The muted line under a row's title.
     pub(super) fn row_description(&self, row: &ControlRow) -> String {
         match row {
-            ControlRow::Setting(item) | ControlRow::MapAdd(item) => item.description.clone(),
-            ControlRow::MapEntry { .. } | ControlRow::Version => String::new(),
+            ControlRow::Setting(item) | ControlRow::MapAdd(item) | ControlRow::ListAdd(item) => {
+                item.description.clone()
+            }
+            ControlRow::MapEntry { .. } | ControlRow::Version | ControlRow::ListEntry { .. } => {
+                String::new()
+            }
+            ControlRow::SyncRemote => self.remote_description(),
+            ControlRow::SyncAccount => self.account_description(),
             ControlRow::Font(slot) => slot.description().to_string(),
             ControlRow::Accent => ACCENT_DESCRIPTION.to_string(),
             ControlRow::Vault => self.vault_root.display().to_string(),
@@ -604,6 +644,10 @@ impl SettingsView {
         let key = match row {
             ControlRow::Setting(item) if item.kind == SettingKind::Text => item.key.clone(),
             ControlRow::MapAdd(item) if map_names(&item.key).is_none() => add_field_key(&item.key),
+            ControlRow::ListAdd(item) => add_field_key(&item.key),
+            ControlRow::SyncRemote if self.sync_remote().is_some() => {
+                super::sync_page::REMOTE_FIELD.to_string()
+            }
             _ => return None,
         };
         self.fields.get(&key).cloned()
@@ -611,12 +655,14 @@ impl SettingsView {
 
     /// A text field got focus from a click: point the cursor at its row.
     fn focus_field_row(&mut self, key: &str, cx: &mut Context<Self>) {
+        let remote = key == super::sync_page::REMOTE_FIELD;
         self.focus_row_where(
             |row| {
-                row.item().is_some_and(|item| {
-                    item.key == key
-                        || (add_field_key(&item.key) == key && matches!(row, ControlRow::MapAdd(_)))
-                })
+                let adds = matches!(row, ControlRow::MapAdd(_) | ControlRow::ListAdd(_));
+                (remote && *row == ControlRow::SyncRemote)
+                    || row.item().is_some_and(|item| {
+                        item.key == key || (add_field_key(&item.key) == key && adds)
+                    })
             },
             cx,
         );

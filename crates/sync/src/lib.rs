@@ -24,7 +24,7 @@ pub use line_merge::{LineMerge, merge_lines};
 pub use policy::{FileKind, classify};
 pub use runner::{drive, run_step};
 pub use scheduler::{
-    MergeReport, Scheduler, SchedulerConfig, StepFailure, StepReport, SyncEvent, SyncEventKind,
-    SyncStatus, SyncStep,
+    FailureKind, MergeReport, Scheduler, SchedulerConfig, StepFailure, StepReport, SyncEvent,
+    SyncEventKind, SyncStatus, SyncStep,
 };
-pub use vault::{Author, MergeOutcome, Vault, VaultConfig};
+pub use vault::{Author, MergeOutcome, RepoProbe, Vault, VaultConfig, probe, set_remote_url};

@@ -34,6 +34,14 @@ pub enum SyncStatus {
     Offline {
         waiting: usize,
     },
+    /// The remote refused the credentials; syncing waits for a new token.
+    SignInNeeded {
+        waiting: usize,
+    },
+    /// A step failed for another reason; it is retried after a while.
+    Failed {
+        waiting: usize,
+    },
     /// A merge is paused on `files` conflicted files.
     Conflict {
         files: usize,
@@ -57,11 +65,24 @@ pub enum MergeReport {
     Conflicts { files: usize },
 }
 
+/// What kind of trouble stopped a step, which decides what the status
+/// shows and whether the scheduler retries on its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FailureKind {
+    /// The remote could not be reached. Retried after a while.
+    Offline,
+    /// The remote refused the credentials. Retrying with the same token
+    /// can't help, so it waits for a sync request.
+    SignIn,
+    /// The remote moved on since the fetch. Retried after a while.
+    Rejected,
+    Other,
+}
+
 /// Why a step failed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StepFailure {
-    /// The remote was unreachable, as opposed to some other error.
-    pub offline: bool,
+    pub kind: FailureKind,
     /// Changed files not yet on the remote.
     pub waiting: usize,
     pub message: String,
@@ -90,6 +111,7 @@ pub enum SyncEventKind {
     ConflictsResolved,
     Pushed,
     Offline { waiting: usize, message: String },
+    SignInNeeded { message: String },
     Failed { message: String },
 }
 
@@ -141,6 +163,16 @@ impl Scheduler {
 
     pub fn in_flight(&self) -> Option<SyncStep> {
         self.in_flight
+    }
+
+    /// When the last sync finished pushing, on the caller's clock.
+    pub fn last_synced_at(&self) -> Option<Duration> {
+        self.last_synced_at
+    }
+
+    /// Changes the timing knobs, such as after the settings changed.
+    pub fn set_config(&mut self, config: SchedulerConfig) {
+        self.config = config;
     }
 
     /// Records an edit; the commit waits until edits stop for the debounce time.
@@ -239,21 +271,28 @@ impl Scheduler {
     }
 
     fn fail(&mut self, now: Duration, failure: StepFailure) {
-        let kind = if failure.offline {
-            SyncEventKind::Offline {
-                waiting: failure.waiting,
-                message: failure.message,
-            }
-        } else {
-            SyncEventKind::Failed {
-                message: failure.message,
-            }
+        let StepFailure {
+            kind,
+            waiting,
+            message,
+        } = failure;
+        let (event, status) = match kind {
+            FailureKind::Offline => (
+                SyncEventKind::Offline { waiting, message },
+                SyncStatus::Offline { waiting },
+            ),
+            FailureKind::SignIn => (
+                SyncEventKind::SignInNeeded { message },
+                SyncStatus::SignInNeeded { waiting },
+            ),
+            FailureKind::Rejected | FailureKind::Other => (
+                SyncEventKind::Failed { message },
+                SyncStatus::Failed { waiting },
+            ),
         };
-        self.record(now, kind);
-        self.status = SyncStatus::Offline {
-            waiting: failure.waiting,
-        };
-        self.retry_at = Some(now + self.config.retry_after);
+        self.record(now, event);
+        self.status = status;
+        self.retry_at = (kind != FailureKind::SignIn).then(|| now + self.config.retry_after);
     }
 
     fn start(&mut self, step: SyncStep) -> Option<SyncStep> {
@@ -314,7 +353,7 @@ mod tests {
 
     fn offline(waiting: usize) -> StepReport {
         StepReport::Failed(StepFailure {
-            offline: true,
+            kind: FailureKind::Offline,
             waiting,
             message: "unreachable".into(),
         })
@@ -406,6 +445,41 @@ mod tests {
         assert_eq!(scheduler.status(), SyncStatus::Offline { waiting: 3 });
         assert_eq!(scheduler.poll(secs(30)), None);
         assert_eq!(scheduler.poll(secs(62)), Some(SyncStep::Commit));
+    }
+
+    #[test]
+    fn refused_credentials_wait_for_a_request_instead_of_retrying() {
+        let mut scheduler = Scheduler::default();
+        scheduler.request_sync();
+        scheduler.poll(secs(0));
+        let refused = StepReport::Failed(StepFailure {
+            kind: FailureKind::SignIn,
+            waiting: 1,
+            message: "authentication failed".into(),
+        });
+        scheduler.report(secs(1), StepReport::Committed { new_commit: true });
+        scheduler.report(secs(1), StepReport::Fetched);
+        assert_eq!(scheduler.report(secs(2), refused), None);
+        assert_eq!(scheduler.status(), SyncStatus::SignInNeeded { waiting: 1 });
+        assert_eq!(scheduler.next_wake(), None);
+        assert_eq!(scheduler.poll(secs(500)), None);
+        scheduler.request_sync();
+        assert_eq!(scheduler.poll(secs(501)), Some(SyncStep::Commit));
+    }
+
+    #[test]
+    fn other_failures_show_as_failed_and_retry() {
+        let mut scheduler = Scheduler::default();
+        scheduler.request_sync();
+        scheduler.poll(secs(0));
+        let failed = StepReport::Failed(StepFailure {
+            kind: FailureKind::Other,
+            waiting: 0,
+            message: "disk full".into(),
+        });
+        assert_eq!(scheduler.report(secs(5), failed), None);
+        assert_eq!(scheduler.status(), SyncStatus::Failed { waiting: 0 });
+        assert_eq!(scheduler.next_wake(), Some(secs(65)));
     }
 
     #[test]

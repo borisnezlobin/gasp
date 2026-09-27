@@ -34,7 +34,11 @@ impl SettingsView {
     /// Errors and warnings to show under a row's description.
     fn row_notes(&self, row: &ControlRow) -> Vec<AnyElement> {
         let error_key = match row {
-            ControlRow::Setting(item) | ControlRow::MapAdd(item) => Some(item.key.clone()),
+            ControlRow::Setting(item) | ControlRow::MapAdd(item) | ControlRow::ListAdd(item) => {
+                Some(item.key.clone())
+            }
+            ControlRow::SyncRemote => Some(super::sync_page::REMOTE_FIELD.to_string()),
+            ControlRow::SyncAccount => Some(super::sync_page::TOKEN_KEY.to_string()),
             ControlRow::MapEntry { item, .. } => Some(item.key.clone()),
             ControlRow::Font(slot) => Some(theme_key(slot.token())),
             ControlRow::Accent => Some(theme_key(ACCENT_TOKEN)),
@@ -98,6 +102,12 @@ impl SettingsView {
             ControlRow::Vault => self.vault_control(focused, cx),
             ControlRow::Version => return None,
             ControlRow::Shortcut(shortcut) => self.shortcut_control(shortcut, focused, cx),
+            ControlRow::SyncRemote => return self.remote_control(row, focused),
+            ControlRow::SyncAccount => self.account_control(focused, cx),
+            ControlRow::ListAdd(item) => self.list_add_control(item, row, focused, cx),
+            ControlRow::ListEntry { list, value } => {
+                self.list_entry_control(list, value, focused, cx)
+            }
         };
         Some(control)
     }
@@ -128,7 +138,7 @@ impl SettingsView {
             .into_any_element()
     }
 
-    fn reset_button(
+    pub(super) fn reset_button(
         &self,
         key: &str,
         cx: &mut Context<Self>,
@@ -299,7 +309,7 @@ impl SettingsView {
         stepper(id, minus, shown, plus, focused, style).into_any_element()
     }
 
-    fn field_control(&self, row: &ControlRow, focused: bool) -> AnyElement {
+    pub(super) fn field_control(&self, row: &ControlRow, focused: bool) -> AnyElement {
         let Some(field) = self.field_for(row) else {
             return div().into_any_element();
         };

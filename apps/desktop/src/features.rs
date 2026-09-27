@@ -1,5 +1,5 @@
 //! Connects the standalone views (file tree, pickers, find bar, vault
-//! search, settings, export) to a workspace's commands and slots.
+//! search, settings, export, sync) to a workspace's commands and slots.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -23,6 +23,7 @@ use crate::outline::{OutlineEvent, OutlinePicker};
 use crate::palette::{CommandPalette, PaletteEvent};
 use crate::settings_view::{SettingsEvent, SettingsRequest, SettingsView};
 use crate::switcher::{QuickSwitcher, SwitcherEvent};
+use crate::sync::{ConflictResolver, SyncIndicator, SyncIndicatorEvent, SyncPhase, SyncService};
 use crate::text_input::{self, TEXT_INPUT_CONTEXT};
 use crate::vault_search::{VaultSearch, VaultSearchEvent};
 use crate::workspace::{OpenIn, Workspace};
@@ -31,7 +32,7 @@ use crate::workspace::{OpenIn, Workspace};
 const RECENT_COMMANDS: usize = 8;
 
 /// Commands this module gives a handler, for the menus.
-pub const WIRED_COMMANDS: [&str; 13] = [
+pub const WIRED_COMMANDS: [&str; 15] = [
     "palette.open",
     "switcher.open",
     "outline.jump-to-heading",
@@ -45,6 +46,8 @@ pub const WIRED_COMMANDS: [&str; 13] = [
     "app.print",
     "file-tree.reveal-active",
     "file-tree.focus",
+    "sync.now",
+    "sync.resolve-conflicts",
 ];
 
 /// Binds the keys the standalone views use inside themselves. Their text
@@ -71,6 +74,8 @@ pub fn bind_all_keys(rules: &editor_config::RuleSet, cx: &mut App) {
 struct Features {
     recent_commands: Vec<String>,
     find_bars: HashMap<EntityId, (EntityId, Entity<FindBar>)>,
+    /// Each window's sync indicator, by its sync service.
+    sync_indicators: HashMap<EntityId, Entity<SyncIndicator>>,
     subscriptions: Vec<Subscription>,
 }
 
@@ -92,6 +97,7 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     });
     workspace.set_reading_probe(reading, cx);
     install_file_tree(workspace, window, cx);
+    install_sync(workspace, window, cx);
     workspace.on_command("palette.open", open_palette);
     workspace.on_command("switcher.open", open_switcher);
     workspace.on_command("outline.jump-to-heading", open_outline);
@@ -179,6 +185,100 @@ fn open_note(
     cx.defer_in(window, |workspace, window, cx| {
         workspace.focus_active(window, cx)
     });
+}
+
+// ---- Sync ----
+
+fn install_sync(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Context<Workspace>) {
+    let store = crate::sync::credential_store(cx);
+    let settings = workspace.config().settings.sync.clone();
+    let vault = workspace.vault().to_path_buf();
+    let service = cx.new(|cx| SyncService::new(&vault, settings, store, cx));
+    let indicator = cx.new(|cx| SyncIndicator::new(service.clone(), cx));
+    let events = cx.subscribe_in(
+        &indicator,
+        window,
+        |workspace, _, event, window, cx| match event {
+            SyncIndicatorEvent::OpenSettings => open_settings_at(workspace, "sync", window, cx),
+            SyncIndicatorEvent::Resolve => open_resolver(workspace, window, cx),
+        },
+    );
+    let activation = cx.observe_window_activation(window, |workspace, window, cx| {
+        if let Some(sync) = workspace
+            .sync()
+            .cloned()
+            .filter(|_| window.is_window_active())
+        {
+            sync.update(cx, |sync, cx| sync.window_activated(cx));
+        }
+    });
+    let state = features(cx);
+    state.subscriptions.push(events);
+    state.subscriptions.push(activation);
+    state
+        .sync_indicators
+        .insert(workspace_key(&service), indicator.clone());
+    workspace.set_sync(service, indicator.into(), cx);
+    workspace.on_command("sync.now", sync_now);
+    workspace.on_command("sync.resolve-conflicts", open_resolver);
+}
+
+fn workspace_key(service: &Entity<SyncService>) -> EntityId {
+    service.entity_id()
+}
+
+/// `sync.now`: syncs, or shows what's in the way (a conflict, signing in,
+/// a vault on the wrong branch) in the sync popover.
+fn sync_now(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Context<Workspace>) {
+    let Some(service) = workspace.sync().cloned() else {
+        return;
+    };
+    let phase = service.read(cx).phase();
+    let blocked = phase.needs_attention() && !matches!(phase, SyncPhase::Failed { .. });
+    if matches!(phase, SyncPhase::Hidden | SyncPhase::Starting) {
+        return;
+    }
+    if !blocked {
+        service.update(cx, |service, cx| service.sync_now(cx));
+        return;
+    }
+    let indicator = features(cx)
+        .sync_indicators
+        .get(&workspace_key(&service))
+        .cloned();
+    if let Some(indicator) = indicator.filter(|indicator| !indicator.read(cx).is_open()) {
+        indicator.update(cx, |indicator, cx| indicator.toggle(window, cx));
+    }
+}
+
+/// `sync.resolve-conflicts`: the resolver, over the window.
+fn open_resolver(
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    let Some(service) = workspace.sync().cloned() else {
+        return;
+    };
+    workspace.toggle_modal(window, cx, |_, cx| ConflictResolver::new(service, cx));
+    if workspace.active_modal::<ConflictResolver>().is_some() {
+        workspace.set_modal_self_sized(cx);
+    }
+}
+
+/// Opens the settings screen on the page `section`.
+fn open_settings_at(
+    workspace: &mut Workspace,
+    section: &str,
+    window: &mut Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    if workspace.active_modal::<SettingsView>().is_none() {
+        open_settings(workspace, window, cx);
+    }
+    if let Some(settings) = workspace.active_modal::<SettingsView>() {
+        settings.update(cx, |settings, cx| settings.show_section(section, cx));
+    }
 }
 
 // ---- Command palette ----
@@ -503,6 +603,9 @@ fn open_settings(
         return;
     };
     workspace.set_modal_self_sized(cx);
+    if let Some(sync) = workspace.sync().cloned() {
+        settings.update(cx, |settings, cx| settings.set_sync(sync, cx));
+    }
     let changed = cx.subscribe(&settings, |workspace, _, event: &SettingsEvent, cx| {
         let SettingsEvent::Changed(key) = event;
         on_setting_changed(workspace, key, cx);
@@ -525,6 +628,14 @@ fn open_settings(
 /// settings.
 fn on_setting_changed(workspace: &mut Workspace, key: &str, cx: &mut gpui::Context<Workspace>) {
     workspace.reload_config(cx);
+    // The config folder syncs too, but the watcher leaves it out.
+    if let Some(sync) = workspace.sync().cloned() {
+        let settings = workspace.config().settings.sync.clone();
+        sync.update(cx, |sync, cx| {
+            sync.apply_settings(settings, cx);
+            sync.edited(cx);
+        });
+    }
     if key == "rules" {
         let rules = workspace.config().rules.clone();
         bind_all_keys(&rules, cx);

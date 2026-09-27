@@ -1,10 +1,9 @@
 //! The status bar: word and character counts, reading time, cursor
-//! position and the sync indicator's slot.
+//! position and the sync indicator.
 
-use gpui::{IntoElement, ParentElement, SharedString, Styled, div, prelude::*};
+use gpui::{AnyView, IntoElement, ParentElement, SharedString, Styled, div, prelude::*};
 
 use crate::editor::EditorView;
-use crate::icons::{IconName, icon};
 use crate::theme::UiTheme;
 
 /// Average adult silent-reading speed.
@@ -114,9 +113,14 @@ pub fn group_thousands(number: usize) -> String {
     out
 }
 
-/// Draws the status bar: small muted counts at the bottom right. `info`
-/// is `None` when no note is open.
-pub fn render_status_bar(info: Option<&StatusInfo>, theme: &UiTheme) -> impl IntoElement {
+/// Draws the status bar: small muted counts at the bottom right, then the
+/// sync indicator. `info` is `None` when no note is open; `sync` is
+/// `None` when the vault doesn't sync.
+pub fn render_status_bar(
+    info: Option<&StatusInfo>,
+    sync: Option<AnyView>,
+    theme: &UiTheme,
+) -> impl IntoElement {
     let item = |text: String| -> gpui::Div { div().child(SharedString::from(text)) };
     let mut bar = div()
         .id("status-bar")
@@ -137,15 +141,7 @@ pub fn render_status_bar(info: Option<&StatusInfo>, theme: &UiTheme) -> impl Int
             .child(item(info.reading_label()))
             .child(item(info.position_label()));
     }
-    bar.child(
-        // The sync indicator's slot. Sync isn't wired yet, so it shows the
-        // idle cloud.
-        div().id("sync-indicator").child(
-            icon(IconName::CloudCheck)
-                .size(theme.small_icon_size)
-                .text_color(theme.text_faint),
-        ),
-    )
+    bar.children(sync)
 }
 
 #[cfg(test)]

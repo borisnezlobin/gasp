@@ -289,7 +289,11 @@ impl Render for Workspace {
                     .children(overlaid)
                     .children(self.render_left_edge(cx)),
             )
-            .child(render_status_bar(self.status.as_ref(), &ui))
+            .child(render_status_bar(
+                self.status.as_ref(),
+                self.sync_indicator.clone(),
+                &ui,
+            ))
             .children(self.menu.render_overlay(window, cx))
             .children(self.modal.render(&theme.workspace, cx))
     }

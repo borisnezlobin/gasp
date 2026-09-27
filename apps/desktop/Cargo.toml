@@ -23,6 +23,7 @@ env_logger = { version = "0.11", default-features = false }
 editor-config = { path = "../../crates/config" }
 editor-core = { path = "../../crates/core" }
 editor-export = { path = "../../crates/export" }
+editor-sync = { path = "../../crates/sync" }
 gpui = "=0.2.2"
 image = "0.25"
 unicode-normalization = "0.1.25"
@@ -38,12 +39,18 @@ toml_edit = "0.22"
 editor-math = { path = "../../crates/math" }
 resvg = { version = "0.45", default-features = false }
 
+# The system's credential store for sync tokens. Linux keeps them in a
+# private file instead, since the Secret Service needs D-Bus libraries.
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+keyring = { version = "3", features = ["apple-native", "windows-native"] }
+
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 x11rb = "0.13"
 
 [dev-dependencies]
 gpui = { version = "=0.2.2", features = ["test-support"] }
 tempfile = "3"
+git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }
 
 [lints]
 workspace = true
