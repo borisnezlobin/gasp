@@ -20,7 +20,8 @@ pub(crate) fn is_line_marker(node: &NodeKind, kind: MarkupKind) -> bool {
         MarkupKind::QuoteMarker
         | MarkupKind::ListMarker
         | MarkupKind::TaskMarker
-        | MarkupKind::CalloutHeader => true,
+        | MarkupKind::CalloutHeader
+        | MarkupKind::ConflictMarker => true,
         MarkupKind::FootnoteMarker => matches!(node, NodeKind::FootnoteDefinition { .. }),
         _ => false,
     }

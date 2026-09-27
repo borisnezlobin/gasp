@@ -10,7 +10,7 @@ use std::ops::Range;
 
 use gpui::{Pixels, ShapedLine, SharedString, TextRun, WindowTextSystem, px};
 
-use crate::line_layout::{Hit, Piece, PieceContent, RowKind, TextPiece, VisualRow};
+use crate::line_layout::{Background, Hit, Piece, PieceContent, RowKind, TextPiece, VisualRow};
 
 /// How far a piece reaches above and below the row's baseline.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -68,6 +68,9 @@ pub struct Chunk {
     pub font_size: Pixels,
     pub line_height: Pixels,
     pub runs: Vec<TextRun>,
+    /// Fills behind parts of the text, painted by the editor rather than
+    /// as run backgrounds.
+    pub backgrounds: Vec<Background>,
 }
 
 /// Builds the rows of one line.
@@ -195,12 +198,13 @@ impl RowBuilder {
     /// Places a chunk of text, wrapping it across rows as needed. The
     /// chunk is shaped once and each row shows a slice of it.
     pub fn push_chunk(&mut self, chunk: &Chunk, shaper: &Shaper<'_>) {
-        let whole = shaper.shape(&chunk.text, chunk.font_size, &chunk.runs);
-        if self.fits(whole.width) {
-            let text = TextPiece::whole(whole, chunk.line_height);
-            return self.place_text(chunk, text);
+        let shaped = shaper.shape(&chunk.text, chunk.font_size, &chunk.runs);
+        let whole =
+            TextPiece::whole(shaped, chunk.line_height).with_backgrounds(chunk.backgrounds.clone());
+        if self.fits(whole.shaped.width) {
+            return self.place_text(chunk, whole);
         }
-        let positions = GlyphPositions::new(&whole);
+        let positions = GlyphPositions::new(&whole.shaped);
         let breaks = break_points(&chunk.text);
         let mut start = 0;
         while start < chunk.text.len() {
@@ -214,7 +218,7 @@ impl RowBuilder {
         &mut self,
         chunk: &Chunk,
         start: usize,
-        whole: &ShapedLine,
+        whole: &TextPiece,
         positions: &GlyphPositions,
         breaks: &[usize],
     ) -> usize {
@@ -241,10 +245,9 @@ impl RowBuilder {
             }
         };
         let slice = TextPiece {
-            shaped: whole.clone(),
-            line_height: chunk.line_height,
             slice: start..end,
             slice_x: base,
+            ..whole.clone()
         };
         self.place_text(chunk, slice);
         if end < text.len() {

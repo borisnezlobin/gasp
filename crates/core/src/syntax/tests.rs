@@ -987,6 +987,7 @@ const BLOCKS: &[&str] = &[
     "<div>\nhtml\n</div>",
     "Setext\n---",
     "    indented code",
+    "<<<<<<< this device\nMine **b**\n=======\nTheirs\n>>>>>>> other device",
 ];
 
 fn random_block_doc(rng: &mut Lcg, blocks: usize) -> String {
@@ -1040,6 +1041,42 @@ fn corpus_notes() -> Vec<std::path::PathBuf> {
 
 /// Parses every note of the synthetic corpus, when it is present, and
 /// checks the tree, contexts, a render plan and incremental edits.
+#[test]
+fn sync_conflicts_hold_each_version_as_blocks() {
+    let text = "See [^1].\n<<<<<<< this device\n- mine\n=======\n```\nunclosed\n>>>>>>> other device\n\n[^1]: A note.";
+    let tree = parse(text);
+    assert_well_formed(text, &tree);
+    let conflict = tree
+        .nodes()
+        .iter()
+        .find(|node| node.kind == NodeKind::Conflict)
+        .expect("the conflict is a node");
+    let markers: Vec<&str> = conflict
+        .markup
+        .iter()
+        .map(|m| &text[m.range.clone()])
+        .collect();
+    assert_eq!(
+        markers,
+        ["<<<<<<< this device", "=======", ">>>>>>> other device"]
+    );
+    let kinds: Vec<&NodeKind> = conflict
+        .children
+        .iter()
+        .map(|&child| &tree.node(child).kind)
+        .collect();
+    assert!(matches!(
+        kinds[..],
+        [NodeKind::List { .. }, NodeKind::CodeBlock(_)]
+    ));
+    assert!(
+        tree.nodes()
+            .iter()
+            .any(|node| matches!(node.kind, NodeKind::FootnoteReference { .. })),
+        "a reference before the conflict finds its definition after it"
+    );
+}
+
 #[test]
 fn corpus_notes_parse_into_well_formed_trees() {
     let notes = corpus_notes();

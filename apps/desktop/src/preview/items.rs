@@ -99,6 +99,7 @@ fn replacement_item(range: Range<usize>, kind: WidgetKind) -> Item {
         | WidgetKind::Checkbox { .. }
         | WidgetKind::ListBullet { .. }
         | WidgetKind::FootnoteSuperscript { .. }
+        | WidgetKind::ConflictLabel { .. }
         | WidgetKind::CalloutHeader { .. } => Item::Inline { range, kind },
         _ => Item::Block { range, kind },
     }
@@ -138,7 +139,6 @@ pub fn line_tone(plan: &LinePlan) -> LineTone {
             LineStyle::CodeBlock { .. } => LineTone { code: true, ..tone },
             LineStyle::Frontmatter => LineTone {
                 small: true,
-                muted: true,
                 ..tone
             },
             LineStyle::CalloutHeader { kind } => LineTone {
