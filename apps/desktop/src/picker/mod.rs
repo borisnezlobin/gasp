@@ -14,14 +14,14 @@ pub mod shortcut;
 use std::ops::Range;
 
 use gpui::{
-    AnyElement, App, BoxShadow, ClickEvent, Context, DismissEvent, Entity, EventEmitter,
-    FocusHandle, Focusable, HighlightStyle, KeyBinding, ParentElement, Render, ScrollStrategy,
-    SharedString, StyledText, Subscription, UniformListScrollHandle, Window, div, point,
-    prelude::*, px, uniform_list,
+    AnyElement, App, ClickEvent, Context, DismissEvent, Entity, EventEmitter, FocusHandle,
+    Focusable, HighlightStyle, KeyBinding, ParentElement, Render, ScrollStrategy, SharedString,
+    Subscription, UniformListScrollHandle, Window, div, prelude::*, uniform_list,
 };
 
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
 use crate::theme::PickerTheme;
+use crate::ui::{Truncated, truncated};
 
 /// The key context the picker sets around its input and list.
 pub const PICKER_CONTEXT: &str = "Picker";
@@ -119,10 +119,7 @@ impl<D: PickerDelegate> Picker<D> {
     /// A picker over `delegate`, focused and showing the matches for an
     /// empty query.
     pub fn new(mut delegate: D, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let theme = PickerTheme {
-            font_family: crate::ui::ui_theme(cx).font_family,
-            ..PickerTheme::default()
-        };
+        let theme = PickerTheme::from_ui(&crate::ui::ui_theme(cx));
         let placeholder = delegate.placeholder();
         let query = cx.new(|cx| {
             TextInput::new(window, cx)
@@ -338,7 +335,7 @@ impl<D: PickerDelegate> Picker<D> {
 impl<D: PickerDelegate> Render for Picker<D> {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = self.theme.clone();
-        div()
+        crate::ui::dialog(&crate::ui::ui_theme(cx))
             .key_context(PICKER_CONTEXT)
             .on_action(cx.listener(Self::on_select_next))
             .on_action(cx.listener(Self::on_select_previous))
@@ -348,13 +345,6 @@ impl<D: PickerDelegate> Render for Picker<D> {
             .on_action(cx.listener(Self::on_secondary_confirm))
             .on_action(cx.listener(Self::on_dismiss))
             .w(theme.width)
-            .flex()
-            .flex_col()
-            .font_family(theme.font_family.clone())
-            .text_color(theme.text)
-            .bg(theme.background)
-            .rounded(theme.corner_radius)
-            .shadow(vec![surface_shadow(&theme)])
             .child(
                 div()
                     .px(theme.input_padding_x)
@@ -365,32 +355,24 @@ impl<D: PickerDelegate> Render for Picker<D> {
     }
 }
 
-/// The shadow that lifts a picker off the page.
-pub fn surface_shadow(theme: &PickerTheme) -> BoxShadow {
-    BoxShadow {
-        color: theme.shadow,
-        offset: point(px(0.), theme.shadow_offset_y),
-        blur_radius: theme.shadow_blur,
-        spread_radius: px(0.),
-    }
-}
-
-/// `text` with the chars at byte offsets `positions` drawn as matches.
+/// `text` with the chars at byte offsets `positions` drawn as matches,
+/// ending in "…" when it doesn't fit.
 pub fn highlighted_text(
     text: impl Into<SharedString>,
     positions: &[usize],
     theme: &PickerTheme,
-) -> StyledText {
+) -> Truncated {
     let text = text.into();
     let style = HighlightStyle {
         color: Some(theme.match_text),
         font_weight: Some(theme.match_weight),
         ..HighlightStyle::default()
     };
-    let highlights = match_ranges(&text, positions)
+    let highlights: Vec<_> = match_ranges(&text, positions)
         .into_iter()
-        .map(|range| (range, style));
-    StyledText::new(text).with_highlights(highlights)
+        .map(|range| (range, style))
+        .collect();
+    truncated(text).with_highlights(highlights)
 }
 
 /// Merges matched char offsets into ranges of adjacent chars, dropping any
@@ -410,7 +392,7 @@ pub fn match_ranges(text: &str, positions: &[usize]) -> Vec<Range<usize>> {
     ranges
 }
 
-/// A shortcut drawn as a small key cap.
+/// A shortcut drawn as a small key cap, as [`crate::ui::keycap`] draws it.
 pub fn keycap(label: impl Into<SharedString>, theme: &PickerTheme) -> AnyElement {
     div()
         .flex_none()
@@ -420,6 +402,7 @@ pub fn keycap(label: impl Into<SharedString>, theme: &PickerTheme) -> AnyElement
         .bg(theme.keycap_background)
         .text_color(theme.keycap_text)
         .text_size(theme.detail_font_size)
+        .whitespace_nowrap()
         .child(label.into())
         .into_any_element()
 }

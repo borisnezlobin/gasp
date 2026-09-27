@@ -3,14 +3,17 @@
 //! command list for the mouse.
 
 use gpui::{
-    App, Context, DismissEvent, ElementId, EventEmitter, FocusHandle, Focusable, KeyDownEvent,
-    SharedString, Window, div, prelude::*,
+    AnyElement, App, Context, DismissEvent, ElementId, EventEmitter, FocusHandle, Focusable,
+    KeyDownEvent, SharedString, Window, div, prelude::*,
 };
 
+use crate::theme::UiTheme;
 use crate::ui::hints::{command_title, shortcut};
-use crate::ui::ui_theme;
+use crate::ui::{keycap, ui_theme};
 
-/// The commands the dialog lists, in groups shown apart.
+/// The commands the dialog lists, in groups shown apart. The first
+/// [`LEFT_COLUMN_GROUPS`] groups fill the left column, the rest the right,
+/// so Up and Down move down one column and then the next.
 pub const HELP_COMMANDS: [(&str, &[&str]); 5] = [
     (
         "find",
@@ -25,6 +28,10 @@ pub const HELP_COMMANDS: [(&str, &[&str]); 5] = [
             "sidebar.files.toggle",
             "file-tree.focus",
         ],
+    ),
+    (
+        "app",
+        &["app.print", "app.export", "settings.open", "vault.open"],
     ),
     (
         "note",
@@ -45,11 +52,11 @@ pub const HELP_COMMANDS: [(&str, &[&str]); 5] = [
             "markdown.cycle-symbols",
         ],
     ),
-    (
-        "app",
-        &["app.print", "app.export", "settings.open", "vault.open"],
-    ),
 ];
+
+/// Groups in the left column: find, tabs and app on the left, the note and
+/// formatting on the right.
+const LEFT_COLUMN_GROUPS: usize = 3;
 
 /// A row was chosen: run this command.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -131,56 +138,80 @@ impl ShortcutsHelp {
     }
 }
 
+impl ShortcutsHelp {
+    fn render_row(&self, index: usize, ui: &UiTheme, cx: &mut Context<Self>) -> AnyElement {
+        let row = &self.rows[index];
+        let selector = format!("help-{}", row.id);
+        div()
+            .id(ElementId::NamedInteger("help-row".into(), index as u64))
+            .debug_selector(|| selector)
+            .flex()
+            .flex_row()
+            .items_center()
+            .justify_between()
+            .gap(ui.space_lg)
+            .h(ui.help_row_height)
+            .px(ui.row_padding_x)
+            .rounded(ui.row_radius)
+            .when(index == self.selected, |row| row.bg(ui.row_selected))
+            .when(index != self.selected, |row| {
+                row.hover(|style| style.bg(ui.row_hover))
+            })
+            .on_click(cx.listener(move |help, _, _, cx| help.run(index, cx)))
+            .child(crate::ui::truncated(row.title.clone()).grow())
+            .children(row.shortcut.clone().map(|shortcut| keycap(shortcut, ui)))
+            .into_any_element()
+    }
+
+    /// One column: its groups' rows, with room between groups.
+    fn render_column(
+        &self,
+        groups: std::ops::Range<usize>,
+        ui: &UiTheme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let mut column = div().flex().flex_col().flex_1().min_w_0();
+        let mut last_group = None;
+        for (index, row) in self.rows.iter().enumerate() {
+            if !groups.contains(&row.group) {
+                continue;
+            }
+            if last_group.is_some_and(|group| group != row.group) {
+                column = column.child(div().h(ui.space_lg));
+            }
+            last_group = Some(row.group);
+            column = column.child(self.render_row(index, ui, cx));
+        }
+        column
+    }
+}
+
 impl Render for ShortcutsHelp {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let ui = ui_theme(cx);
-        let mut list = div().flex().flex_col();
-        let mut last_group = None;
-        for (index, row) in self.rows.iter().enumerate() {
-            if last_group.is_some_and(|group| group != row.group) {
-                list = list.child(div().h(ui.space_md));
-            }
-            last_group = Some(row.group);
-            let keycap = row.shortcut.clone().map(|shortcut| {
-                div()
-                    .px(ui.keycap_padding_x)
-                    .rounded(ui.keycap_radius)
-                    .bg(ui.keycap_background)
-                    .text_size(ui.small_font_size)
-                    .text_color(ui.text_muted)
-                    .child(shortcut)
-            });
-            let selector = format!("help-{}", row.id);
-            list = list.child(
-                div()
-                    .id(ElementId::NamedInteger("help-row".into(), index as u64))
-                    .debug_selector(|| selector)
-                    .flex()
-                    .flex_row()
-                    .items_center()
-                    .justify_between()
-                    .h(ui.help_row_height)
-                    .px(ui.space_md)
-                    .rounded(ui.menu_row_radius)
-                    .when(index == self.selected, |row| row.bg(ui.menu_highlight))
-                    .hover(|style| style.bg(ui.control_hover))
-                    .on_click(cx.listener(move |help, _, _, cx| help.run(index, cx)))
-                    .child(row.title.clone())
-                    .children(keycap),
-            );
-        }
-        div()
+        let groups = HELP_COMMANDS.len();
+        crate::ui::dialog(&ui)
             .id("shortcuts-help")
             .key_context("ShortcutsHelp")
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(Self::on_key_down))
-            .w_full()
-            .p(ui.menu_padding * 2.)
-            .rounded(ui.menu_radius)
-            .bg(ui.menu_background)
-            .font_family(ui.font_family.clone())
-            .text_size(ui.font_size)
-            .text_color(ui.text)
-            .child(list)
+            .w(ui.wide_dialog_width)
+            .p(ui.dialog_padding)
+            .child(
+                div()
+                    .px(ui.row_padding_x)
+                    .pt(ui.space_md)
+                    .pb(ui.space_md)
+                    .text_size(ui.font_size + gpui::px(2.))
+                    .child("Keyboard shortcuts"),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .gap(ui.space_lg)
+                    .child(self.render_column(0..LEFT_COLUMN_GROUPS, &ui, cx))
+                    .child(self.render_column(LEFT_COLUMN_GROUPS..groups, &ui, cx)),
+            )
     }
 }

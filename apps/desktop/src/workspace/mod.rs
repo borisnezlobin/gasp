@@ -373,8 +373,4 @@ impl Workspace {
             self.vault.join(path)
         }
     }
-
-    fn theme(&self) -> &Theme {
-        &self.theme
-    }
 }

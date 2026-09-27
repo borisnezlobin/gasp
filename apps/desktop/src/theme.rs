@@ -22,13 +22,19 @@ pub const PIXELS_PER_POINT: f32 = 96. / 72.;
 /// How much of the focus colour the focus ring shows.
 const FOCUS_RING_ALPHA: f32 = 0.3;
 
+/// The blur a hairline ring needs to be drawn at all. The Metal renderer
+/// draws an unblurred shadow as a crisp edge; the Blade renderer used on
+/// Linux and Windows draws nothing for it, so there a half-pixel blur
+/// stands in.
+pub const RING_BLUR: f32 = if cfg!(target_os = "macos") { 0. } else { 0.5 };
+
 /// The ring around whatever has keyboard focus: a crisp two-pixel band of
 /// `color`. Every focus ring in the app is drawn with this.
 pub fn focus_ring(color: Hsla) -> BoxShadow {
     BoxShadow {
         color,
         offset: point(px(0.), px(0.)),
-        blur_radius: px(0.),
+        blur_radius: px(RING_BLUR),
         spread_radius: px(2.),
     }
 }
@@ -1244,6 +1250,47 @@ pub struct UiTheme {
     pub keycap_padding_x: Pixels,
     pub keycap_radius: Pixels,
     pub backdrop: Hsla,
+    /// Secondary text that still has to be read, such as a note's folder
+    /// in a list: between `text_muted` and `text_faint`.
+    pub text_detail: Hsla,
+    /// Dialogs over the workspace: pickers, search, export, help, prompts.
+    pub dialog_radius: Pixels,
+    pub dialog_padding: Pixels,
+    pub dialog_width: Pixels,
+    pub small_dialog_width: Pixels,
+    pub wide_dialog_width: Pixels,
+    pub dialog_top_offset: Pixels,
+    pub dialog_shadow: Hsla,
+    pub dialog_shadow_blur: Pixels,
+    pub dialog_shadow_offset: Pixels,
+    /// A list row in a dialog or the launcher.
+    pub row_height: Pixels,
+    /// A short row that belongs to the row above it, such as a search hit.
+    pub compact_row_height: Pixels,
+    pub row_radius: Pixels,
+    pub row_padding_x: Pixels,
+    /// The row the keyboard is on.
+    pub row_selected: Hsla,
+    /// The row under the pointer, fainter than the selection so both can
+    /// show at once.
+    pub row_hover: Hsla,
+    /// Text buttons in dialogs and bars.
+    pub button_height: Pixels,
+    pub button_padding_x: Pixels,
+    pub button_background: Hsla,
+    pub accent: Hsla,
+    pub on_accent: Hsla,
+    /// What keyboard focus looks like: see [`focus_ring`].
+    pub focus_ring: Hsla,
+    /// Marks a match inside text, such as a search excerpt.
+    pub match_background: Hsla,
+    pub error: Hsla,
+    /// The floating find bar.
+    pub find_bar_width: Pixels,
+    /// A file tree row while something is dragged over it.
+    pub drop_target: Hsla,
+    /// Opacity of a file tree entry that's been cut and waits to be pasted.
+    pub cut_opacity: f32,
 }
 
 impl Default for UiTheme {
@@ -1332,11 +1379,57 @@ impl Default for UiTheme {
             keycap_padding_x: px(6.),
             keycap_radius: px(4.),
             backdrop: hsla(0., 0., 0., 0.12),
+            text_detail: rgb(0x71717a).into(),
+            dialog_radius: px(12.),
+            dialog_padding: px(6.),
+            dialog_width: px(560.),
+            small_dialog_width: px(360.),
+            wide_dialog_width: px(640.),
+            dialog_top_offset: px(96.),
+            dialog_shadow: hsla(0., 0., 0., 0.16),
+            dialog_shadow_blur: px(40.),
+            dialog_shadow_offset: px(12.),
+            row_height: px(36.),
+            compact_row_height: px(26.),
+            row_radius: px(6.),
+            row_padding_x: px(10.),
+            row_selected: hsla(0., 0., 0., 0.07),
+            row_hover: hsla(0., 0., 0., 0.035),
+            button_height: px(28.),
+            button_padding_x: px(12.),
+            button_background: hsla(0., 0., 0., 0.05),
+            accent: rgb(0x000000).into(),
+            on_accent: rgb(0xffffff).into(),
+            focus_ring: default_focus_ring(),
+            match_background: hsla(0.14, 0.95, 0.6, 0.45),
+            error: rgb(0xc62828).into(),
+            find_bar_width: px(480.),
+            drop_target: hsla(0., 0., 0., 0.08),
+            cut_opacity: 0.5,
         }
     }
 }
 
 impl UiTheme {
+    /// The shadow and hairline ring under dialogs: larger and softer than
+    /// a menu's, since a dialog sits higher.
+    pub fn dialog_shadows(&self) -> Vec<BoxShadow> {
+        vec![
+            BoxShadow {
+                color: self.dialog_shadow,
+                offset: point(px(0.), self.dialog_shadow_offset),
+                blur_radius: self.dialog_shadow_blur,
+                spread_radius: px(0.),
+            },
+            self.ring(self.menu_ring),
+        ]
+    }
+
+    /// The ring around whatever has keyboard focus.
+    pub fn focus(&self) -> BoxShadow {
+        focus_ring(self.focus_ring)
+    }
+
     /// The default tokens with the first candidate UI font found among
     /// `installed` font family names.
     pub fn with_installed_fonts(installed: &[String]) -> UiTheme {
@@ -1386,7 +1479,7 @@ impl UiTheme {
         BoxShadow {
             color,
             offset: point(px(0.), px(0.)),
-            blur_radius: px(0.),
+            blur_radius: px(RING_BLUR),
             spread_radius: self.surface_ring_width,
         }
     }
@@ -1600,6 +1693,43 @@ impl SettingsTheme {
             offset: point(px(0.), self.shadow_offset * 2.),
             blur_radius: self.shadow_blur * 2.,
             spread_radius: px(0.),
+        }
+    }
+}
+
+impl PickerTheme {
+    /// The picker tokens in the workspace chrome's font and colours, so a
+    /// picker, the vault search and the launcher read as one family with
+    /// the menus and the file tree.
+    pub fn from_ui(ui: &UiTheme) -> PickerTheme {
+        PickerTheme {
+            font_family: ui.font_family.clone(),
+            width: ui.dialog_width,
+            top_offset: ui.dialog_top_offset,
+            row_height: ui.row_height,
+            row_padding_x: ui.row_padding_x,
+            row_corner_radius: ui.row_radius,
+            list_padding: ui.dialog_padding,
+            corner_radius: ui.dialog_radius,
+            row_font_size: ui.font_size,
+            detail_font_size: ui.small_font_size,
+            icon_size: ui.icon_size - px(2.),
+            keycap_padding_x: ui.keycap_padding_x,
+            keycap_corner_radius: ui.keycap_radius,
+            shadow_blur: ui.dialog_shadow_blur,
+            shadow_offset_y: ui.dialog_shadow_offset,
+            background: ui.menu_background,
+            shadow: ui.dialog_shadow,
+            text: ui.text,
+            detail_text: ui.text_detail,
+            match_text: ui.icon_active,
+            icon: ui.icon,
+            selected_row: ui.row_selected,
+            hovered_row: ui.row_hover,
+            keycap_background: ui.keycap_background,
+            keycap_text: ui.text_muted,
+            warning_text: ui.error,
+            ..PickerTheme::default()
         }
     }
 }

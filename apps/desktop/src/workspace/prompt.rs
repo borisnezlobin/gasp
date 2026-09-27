@@ -7,7 +7,7 @@ use gpui::{
     PromptLevel, PromptResponse, RenderablePromptHandle, SharedString, Window, div, prelude::*,
 };
 
-use crate::theme::Theme;
+use crate::ui::{Button, ui_theme};
 
 pub struct PromptView {
     focus_handle: FocusHandle,
@@ -15,7 +15,6 @@ pub struct PromptView {
     detail: Option<SharedString>,
     answers: Vec<PromptButton>,
     selected: usize,
-    theme: Theme,
 }
 
 impl EventEmitter<PromptResponse> for PromptView {}
@@ -60,7 +59,6 @@ impl PromptView {
             detail: detail.map(|detail| detail.to_owned().into()),
             answers,
             selected: 0,
-            theme: Theme::default(),
         }
     }
 
@@ -95,64 +93,54 @@ impl PromptView {
         cx.stop_propagation();
     }
 
+    /// The answer drawn as the one the dialog expects: the first, unless
+    /// it's Cancel.
+    fn is_primary(&self, index: usize) -> bool {
+        index == 0 && !matches!(self.answers[index], PromptButton::Cancel(_))
+    }
+
     fn render_answer(&self, index: usize, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = &self.theme.workspace;
-        let selected = index == self.selected;
-        div()
-            .id(("answer", index))
-            .flex()
-            .justify_center()
-            .px(theme.space_lg)
-            .py(theme.space_sm)
-            .rounded(theme.radius_md)
-            .when(selected, |answer| {
-                answer.bg(theme.accent).text_color(theme.on_accent)
-            })
-            .when(!selected, |answer| {
-                answer
-                    .bg(theme.list_hover_background)
-                    .text_color(theme.text)
-                    .hover(|style| style.bg(theme.hover_background))
-            })
-            .on_click(cx.listener(move |_, _, _, cx| cx.emit(PromptResponse(index))))
-            .child(self.answers[index].label().clone())
+        let button = Button::new(("answer", index), self.answers[index].label().clone())
+            .focused(index == self.selected)
+            .on_click(cx.listener(move |_, _, _, cx| cx.emit(PromptResponse(index))));
+        if self.is_primary(index) {
+            button.primary()
+        } else {
+            button
+        }
     }
 }
 
 impl Render for PromptView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = self.theme.workspace.clone();
+        let ui = ui_theme(cx);
         let answers: Vec<_> = (0..self.answers.len())
             .map(|index| self.render_answer(index, cx).into_any_element())
             .collect();
-        let dialog = div()
+        let dialog = crate::ui::dialog(&ui)
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(Self::on_key_down))
-            .flex()
-            .flex_col()
-            .gap(theme.space_md)
-            .w(theme.launcher_width)
-            .p(theme.space_xl)
-            .rounded(theme.radius_lg)
-            .bg(self.theme.background)
-            .shadow(vec![gpui::BoxShadow {
-                color: theme.shadow,
-                offset: gpui::point(gpui::px(0.), theme.shadow_offset),
-                blur_radius: theme.shadow_blur,
-                spread_radius: gpui::px(0.),
-            }])
-            .child(div().text_color(theme.text).child(self.message.clone()))
+            .gap(ui.space_md)
+            .w(ui.small_dialog_width)
+            .p(ui.space_xl)
+            .child(
+                div()
+                    .text_size(ui.font_size + gpui::px(1.))
+                    .child(self.message.clone()),
+            )
             .children(
                 self.detail
                     .clone()
-                    .map(|detail| div().text_color(theme.text_muted).child(detail)),
+                    .map(|detail| div().text_color(ui.text_muted).child(detail)),
             )
             .child(
                 div()
                     .flex()
-                    .flex_col()
-                    .gap(theme.space_sm)
-                    .pt(theme.space_sm)
+                    .flex_row()
+                    .flex_wrap()
+                    .justify_end()
+                    .gap(ui.space_md)
+                    .pt(ui.space_md)
                     .children(answers),
             );
         div()
@@ -160,10 +148,9 @@ impl Render for PromptView {
             .flex()
             .flex_col()
             .items_center()
-            .pt(theme.modal_top_offset)
-            .bg(theme.backdrop)
-            .font_family(self.theme.body_font_family.clone())
-            .text_size(theme.ui_font_size)
+            .px(ui.surface_gap)
+            .pt(ui.dialog_top_offset)
+            .bg(ui.backdrop)
             .child(dialog)
     }
 }
