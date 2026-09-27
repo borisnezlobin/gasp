@@ -16,7 +16,7 @@ pub const SENTENCE_LENGTH_KEY: &str = "prose.sentence-length.enabled";
 pub fn install(workspace: &mut Workspace, cx: &mut Context<Workspace>) {
     workspace.on_command("prose.toggle-sentence-highlighting", toggle_sentence_length);
     let settings = workspace.config().settings.prose.grammar.clone();
-    super::checker::configure(&settings, cx);
+    super::checker::configure(workspace.vault(), &settings, cx);
     if settings.enabled {
         let texts = workspace.note_texts().clone();
         super::checker::open_vault(workspace.vault(), texts, cx);

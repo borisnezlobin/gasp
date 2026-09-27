@@ -276,8 +276,6 @@ impl EditorView {
         self.clear_preview_cache();
         self.code_line_numbers = config.settings.editor.code_line_numbers;
         self.apply_prose_settings(&config.settings.prose, cx);
-        crate::prose::checker::configure(&config.settings.prose.grammar, cx);
-        crate::recovery::configure(&config.settings.recovery, cx);
         self.set_zoom(self.zoom, cx);
     }
 
