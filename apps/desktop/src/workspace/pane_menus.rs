@@ -55,17 +55,24 @@ const MORE_GROUPS: [&[Command]; 5] = [
 ];
 const FILE_GROUP_AT: usize = 3;
 
-/// The note's right-click menu, before and after the Format submenu.
-const EDIT_ITEMS: [Command; 5] = [
-    ("edit.cut", "Cut", IconName::Scissors),
-    ("edit.copy", "Copy", IconName::Copy),
-    ("edit.paste", "Paste", IconName::Clipboard),
-    (
-        "edit.paste-plain",
-        "Paste as plain text",
-        IconName::ClipboardText,
-    ),
-    ("select.all", "Select all", IconName::SelectionAll),
+/// The note's right-click menu before the Format submenu, in groups, in
+/// the order native text menus use.
+const EDIT_GROUPS: [&[Command]; 3] = [
+    &[
+        ("edit.undo", "Undo", IconName::ArrowCounterClockwise),
+        ("edit.redo", "Redo", IconName::ArrowClockwise),
+    ],
+    &[
+        ("edit.cut", "Cut", IconName::Scissors),
+        ("edit.copy", "Copy", IconName::Copy),
+        ("edit.paste", "Paste", IconName::Clipboard),
+        (
+            "edit.paste-plain",
+            "Paste as plain text",
+            IconName::ClipboardText,
+        ),
+    ],
+    &[("select.all", "Select all", IconName::SelectionAll)],
 ];
 
 const FORMAT_ITEMS: [Command; 9] = [
@@ -158,7 +165,7 @@ impl Workspace {
         let items = match kind {
             PaneMenu::TabList => self.tab_list_items(pane, cx),
             PaneMenu::More => self.more_items(pane, cx),
-            PaneMenu::Editor => self.editor_items(cx),
+            PaneMenu::Editor => self.editor_items(pane, cx),
         };
         if !items.is_empty() {
             pane.update(cx, |pane, cx| pane.show_menu(items, anchor, window, cx));
@@ -247,16 +254,60 @@ impl Workspace {
         tidy_separators(items)
     }
 
-    fn editor_items(&self, cx: &App) -> Vec<MenuItem> {
+    fn editor_items(&self, pane: &Entity<Pane>, cx: &App) -> Vec<MenuItem> {
         let command = |(id, label, icon): Command| {
             MenuItem::command(id, cx).with_label(label).with_icon(icon)
         };
-        let mut items: Vec<MenuItem> = EDIT_ITEMS.into_iter().map(command).collect();
-        items.push(MenuItem::Separator);
+        let available = EditAvailability::of(pane, cx);
+        let mut items: Vec<MenuItem> = Vec::new();
+        for group in EDIT_GROUPS {
+            items.extend(
+                group
+                    .iter()
+                    .map(|&item| command(item).disabled(!available.allows(item.0))),
+            );
+            items.push(MenuItem::Separator);
+        }
         let format = FORMAT_ITEMS.into_iter().map(command).collect();
         items.push(MenuItem::submenu("Format", format).with_icon(IconName::TextAa));
         items.extend(INSERT_ITEMS.into_iter().map(command));
         items
+    }
+}
+
+/// Which editing commands have something to act on in a pane's note.
+struct EditAvailability {
+    undo: bool,
+    redo: bool,
+    selection: bool,
+    clipboard: bool,
+}
+
+impl EditAvailability {
+    fn of(pane: &Entity<Pane>, cx: &App) -> EditAvailability {
+        let editor = pane.read(cx).active_editor();
+        let editor = editor.as_ref().map(|editor| editor.read(cx));
+        let clipboard = cx
+            .read_from_clipboard()
+            .is_some_and(|item| !item.entries().is_empty());
+        EditAvailability {
+            undo: editor.is_some_and(|editor| editor.can_undo()),
+            redo: editor.is_some_and(|editor| editor.can_redo()),
+            selection: editor.is_some_and(|editor| !editor.selected_range().is_empty()),
+            clipboard,
+        }
+    }
+
+    /// Undo and Redo need history, Cut and Copy a selection, and the
+    /// pastes something on the clipboard.
+    fn allows(&self, id: &str) -> bool {
+        match id {
+            "edit.undo" => self.undo,
+            "edit.redo" => self.redo,
+            "edit.cut" | "edit.copy" => self.selection,
+            "edit.paste" | "edit.paste-plain" => self.clipboard,
+            _ => true,
+        }
     }
 }
 
@@ -321,7 +372,12 @@ mod tests {
             .iter()
             .flat_map(|group| group.iter())
             .map(|(id, ..)| *id)
-            .chain(EDIT_ITEMS.iter().map(|(id, ..)| *id))
+            .chain(
+                EDIT_GROUPS
+                    .iter()
+                    .flat_map(|group| group.iter())
+                    .map(|(id, ..)| *id),
+            )
             .chain(FORMAT_ITEMS.iter().map(|(id, ..)| *id))
             .chain(INSERT_ITEMS.iter().map(|(id, ..)| *id));
         for id in ids {

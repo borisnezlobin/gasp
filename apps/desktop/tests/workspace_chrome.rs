@@ -11,7 +11,7 @@ use editor_config::Platform;
 use editor_desktop::actions::bind_keys;
 use editor_desktop::features;
 use editor_desktop::settings_view::SettingsView;
-use editor_desktop::ui::{Tooltip, hints};
+use editor_desktop::ui::{MenuItem, Tooltip, hints};
 use editor_desktop::vault_search::VaultSearch;
 use editor_desktop::workspace::help::ShortcutsHelp;
 use editor_desktop::workspace::{OpenIn, Workspace};
@@ -360,8 +360,19 @@ fn the_note_menu_formats_the_selection(cx: &mut TestAppContext) {
     cx.run_until_parked();
     let items = menu_labels(&workspace, cx).expect("the note menu is open");
     assert_eq!(
-        items[..5],
-        ["Cut", "Copy", "Paste", "Paste as plain text", "Select all"]
+        items[..10],
+        [
+            "Undo",
+            "Redo",
+            "-",
+            "Cut",
+            "Copy",
+            "Paste",
+            "Paste as plain text",
+            "-",
+            "Select all",
+            "-"
+        ]
     );
     assert!(items.contains(&"Format".to_owned()));
     assert!(items.contains(&"Insert footnote".to_owned()));
@@ -370,6 +381,67 @@ fn the_note_menu_formats_the_selection(cx: &mut TestAppContext) {
     cx.run_until_parked();
     click(cx, "menu-item-Bold");
     assert_eq!(editor_text(&workspace, cx), "**hello** world");
+}
+
+/// The labels of the open menu's entries that can't be chosen.
+fn disabled_items(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Vec<String> {
+    cx.read(|cx| {
+        let menu = workspace.read(cx).open_menu(cx).unwrap();
+        menu.read(cx)
+            .items()
+            .iter()
+            .filter_map(|item| match item {
+                MenuItem::Entry(entry) if entry.disabled => Some(entry.label.to_string()),
+                _ => None,
+            })
+            .collect()
+    })
+}
+
+fn right_click_note(cx: &mut VisualTestContext) {
+    let note = cx
+        .debug_bounds("pane-gutter-left")
+        .expect("the note is drawn");
+    cx.simulate_event(MouseDownEvent {
+        position: note.center(),
+        button: MouseButton::Right,
+        modifiers: Modifiers::default(),
+        click_count: 1,
+        first_mouse: false,
+    });
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn the_note_menu_disables_what_has_nothing_to_act_on(cx: &mut TestAppContext) {
+    let vault = vault_with(&[("a.md", "hello world")]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "a.md", OpenIn::ActiveTab);
+    right_click_note(cx);
+    assert_eq!(
+        disabled_items(&workspace, cx),
+        [
+            "Undo",
+            "Redo",
+            "Cut",
+            "Copy",
+            "Paste",
+            "Paste as plain text"
+        ]
+    );
+    cx.simulate_keystrokes("escape");
+    let editor = cx.read(|cx| workspace.read(cx).active_editor(cx).unwrap());
+    editor.update(cx, |editor, cx| {
+        editor.replace(0..5, "howdy", cx);
+        editor.select(0, 5, cx);
+    });
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("x".into()));
+    right_click_note(cx);
+    assert_eq!(disabled_items(&workspace, cx), ["Redo"]);
+    let undo = menu_labels(&workspace, cx).unwrap();
+    assert_eq!(undo[0], "Undo");
+    click(cx, "menu-item-Undo");
+    assert_eq!(editor_text(&workspace, cx), "hello world");
 }
 
 #[gpui::test]
@@ -390,8 +462,9 @@ fn the_note_menu_works_from_the_keyboard(cx: &mut TestAppContext) {
         first_mouse: false,
     });
     cx.run_until_parked();
-    // Down past the separator to Format, Right into it, Down to Italic.
-    cx.simulate_keystrokes("down down down down down down right");
+    // Down past the disabled items (nothing to undo or paste) to Cut,
+    // Copy, Select all and Format, Right into it, Down to Italic.
+    cx.simulate_keystrokes("down down down down right");
     cx.run_until_parked();
     let submenu = cx.read(|cx| {
         let menu = workspace.read(cx).open_menu(cx).unwrap();

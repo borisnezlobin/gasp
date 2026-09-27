@@ -405,9 +405,12 @@ impl DropdownMenu {
                 .flex_none()
                 .size(theme.small_icon_size)
                 .children(item.leading_icon().map(|name| {
-                    icon(name)
-                        .size(theme.small_icon_size)
-                        .text_color(theme.icon)
+                    let color = if disabled {
+                        theme.icon_disabled
+                    } else {
+                        theme.icon
+                    };
+                    icon(name).size(theme.small_icon_size).text_color(color)
                 }))
         });
         let selector = format!("menu-item-{label}");
