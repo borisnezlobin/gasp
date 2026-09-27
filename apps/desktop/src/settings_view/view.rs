@@ -257,6 +257,9 @@ pub struct SettingsView {
     /// The snippets and replacements the Snippets page lists.
     pub(super) typing_lists: TypingLists,
     pub(super) snippet_editor: Option<SnippetEditor>,
+    /// The math snippet rows show as what they give, rendered as the
+    /// rows come into view and kept for when they come back.
+    pub(super) math: crate::preview::math::MathStore,
     /// A sample note in the vault's current look, shown above the
     /// Appearance page's controls: the screen covers the notes, so a
     /// change shows here as it's made.
@@ -356,6 +359,7 @@ impl SettingsView {
             signed_in_cache: false,
             typing_lists: TypingLists::default(),
             snippet_editor: None,
+            math: Default::default(),
             preview: None,
             _subscriptions: Vec::new(),
         };
