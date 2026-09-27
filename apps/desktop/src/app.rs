@@ -35,7 +35,8 @@ pub fn has_display() -> bool {
 pub fn launch(target: LaunchTarget) {
     Application::new().with_assets(Assets).run(move |cx| {
         bind_keys(cx);
-        set_app_menus(cx, &built_in_available(&[]));
+        crate::features::bind_view_keys(&editor_config::RuleSet::defaults(), cx);
+        set_app_menus(cx, &built_in_available(&crate::features::WIRED_COMMANDS));
         use_in_window_prompts(cx);
         if let Err(error) = open_target(target, cx) {
             eprintln!("could not open a window: {error}");
