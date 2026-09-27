@@ -768,6 +768,7 @@ impl EditorView {
         let viewport = (bounds.size.height - padding * 2.).max(px(0.));
         self.math.begin_frame();
         self.code.begin_frame();
+        let scrolled_from = self.scroll_y;
         match self.pinned_top {
             Some(offset) => {
                 self.autoscroll = false;
@@ -777,6 +778,11 @@ impl EditorView {
             None => self.apply_autoscroll(viewport, window),
         }
         self.scroll_y = self.scroll_y.clamp(px(0.), self.max_scroll(viewport));
+        // The pane placed the inline title for the old scroll before this
+        // paint moved it; draw again so the title moves with the text.
+        if self.scroll_y != scrolled_from && self.header_height > px(0.) {
+            window.request_animation_frame();
+        }
         let text_scroll = self.scroll_y - self.header_height;
         let (first, first_top) = self.metrics.line_at_y(text_scroll.max(px(0.)));
         let mut top = bounds.top() + padding + first_top - text_scroll;
