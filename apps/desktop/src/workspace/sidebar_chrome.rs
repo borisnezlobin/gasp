@@ -1,0 +1,292 @@
+//! The file sidebar's chrome around whatever the left panel hosts: a
+//! header with the view buttons and the sidebar button, the file tree's
+//! tools (new note, new folder, sort order, collapse all), and a footer
+//! with the vault switcher, help and settings.
+
+use gpui::{AnyElement, ClickEvent, Context, Entity, SharedString, Window, div, prelude::*};
+
+use super::Workspace;
+use super::files::folder_name;
+use super::help::ShortcutsHelp;
+use super::state::AppState;
+use super::window::open_vault_window;
+use crate::file_tree::{EntryKind, FileTree, SortOrder};
+use crate::icons::{IconName, icon};
+use crate::ui::{IconButton, MenuAnchor, MenuItem, Tooltip, ui_theme};
+
+pub const SORT_KEY: &str = "sidebar-sort";
+pub const VAULT_KEY: &str = "sidebar-vault";
+
+/// The sort menu: (order, label).
+const SORT_ORDERS: [(SortOrder, &str); 4] = [
+    (SortOrder::NameAscending, "File name (A to Z)"),
+    (SortOrder::NameDescending, "File name (Z to A)"),
+    (SortOrder::ModifiedNewest, "Modified time (new to old)"),
+    (SortOrder::ModifiedOldest, "Modified time (old to new)"),
+];
+
+impl Workspace {
+    /// A button that runs command `id` here. Commands nothing runs get no
+    /// button.
+    fn command_button(
+        &self,
+        key: &'static str,
+        name: IconName,
+        id: &'static str,
+        cx: &mut Context<Self>,
+    ) -> Option<IconButton> {
+        if !self.can_run(id) {
+            return None;
+        }
+        Some(
+            IconButton::new(key, name)
+                .command(id, cx)
+                .on_click(cx.listener(move |workspace, _, window, cx| {
+                    workspace.run_command(id, window, cx);
+                })),
+        )
+    }
+
+    pub(super) fn render_sidebar_header(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let ui = ui_theme(cx);
+        let files = self
+            .command_button("sidebar-files", IconName::Folder, "file-tree.focus", cx)
+            .map(|button| button.label("Files").active(true));
+        let search = self.command_button(
+            "sidebar-search",
+            IconName::MagnifyingGlass,
+            "search.open",
+            cx,
+        );
+        let toggle = self
+            .command_button(
+                "sidebar-toggle",
+                IconName::SidebarSimple,
+                "sidebar.files.toggle",
+                cx,
+            )
+            .map(|button| button.label("Hide file sidebar"));
+        let views = div()
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap(ui.space_xs)
+            .children(files)
+            .children(search);
+        div()
+            .flex()
+            .flex_col()
+            .flex_none()
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .justify_between()
+                    .h(ui.tab_bar_height)
+                    .px(ui.sidebar_padding)
+                    .child(views)
+                    .children(toggle),
+            )
+            .children(self.render_tree_tools(cx))
+    }
+
+    fn render_tree_tools(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let tree = self.file_tree.clone()?;
+        let ui = ui_theme(cx);
+        let new_note =
+            self.command_button("sidebar-new-note", IconName::NotePencil, "note.new", cx);
+        let new_folder = IconButton::new("sidebar-new-folder", IconName::FolderPlus)
+            .tooltip("New folder")
+            .on_click(tree_click(&tree, |tree, window, cx| {
+                tree.start_create(EntryKind::Folder, window, cx)
+            }));
+        let sort_menu = self.menu.render_attached(SORT_KEY, ui.space_xs);
+        let sort = IconButton::new(SORT_KEY, IconName::SortAscending)
+            .tooltip("Change sort order")
+            .active(sort_menu.is_some())
+            .on_click(cx.listener(|workspace, _, window, cx| workspace.open_sort_menu(window, cx)))
+            .attach(sort_menu);
+        let collapse = IconButton::new("sidebar-collapse-all", IconName::ArrowsInLineVertical)
+            .tooltip("Collapse all")
+            .on_click(tree_click(&tree, |tree, _, cx| {
+                tree.set_expanded_folders(Vec::new(), cx)
+            }));
+        Some(
+            div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .gap(ui.space_xs)
+                .px(ui.sidebar_padding)
+                .pb(ui.space_sm)
+                .children(new_note)
+                .child(new_folder)
+                .child(sort)
+                .child(collapse)
+                .into_any_element(),
+        )
+    }
+
+    pub(super) fn render_sidebar_footer(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let ui = ui_theme(cx);
+        let name: SharedString = folder_name(&self.vault).into();
+        let vault_menu = self.menu.render_attached(VAULT_KEY, ui.space_xs);
+        let open = vault_menu.is_some();
+        let vault = div()
+            .id(VAULT_KEY)
+            .debug_selector(|| VAULT_KEY.to_owned())
+            .relative()
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap(ui.space_sm)
+            .min_w_0()
+            .h(ui.icon_button_size)
+            .px(ui.space_sm)
+            .rounded(ui.icon_button_radius)
+            .when(open, |vault| vault.bg(ui.control_active))
+            .hover(|style| style.bg(ui.control_hover))
+            .active(|style| style.bg(ui.control_pressed))
+            .when(!open, |vault| {
+                vault.tooltip(Tooltip::new("Switch vault", None).builder())
+            })
+            .on_click(cx.listener(|workspace, _, window, cx| workspace.open_vault_menu(window, cx)))
+            .child(
+                icon(IconName::CaretUpDown)
+                    .flex_none()
+                    .size(ui.small_icon_size)
+                    .text_color(ui.icon),
+            )
+            .child(div().min_w_0().truncate().child(name))
+            .children(vault_menu);
+        let help = IconButton::new("sidebar-help", IconName::Question)
+            .tooltip("Keyboard shortcuts")
+            .on_click(cx.listener(|workspace, _, window, cx| workspace.toggle_help(window, cx)));
+        let settings =
+            self.command_button("sidebar-settings", IconName::GearSix, "settings.open", cx);
+        div()
+            .flex()
+            .flex_row()
+            .flex_none()
+            .items_center()
+            .justify_between()
+            .gap(ui.space_sm)
+            .h(ui.sidebar_footer_height)
+            .px(ui.sidebar_padding)
+            .child(vault)
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .flex_none()
+                    .gap(ui.space_xs)
+                    .child(help)
+                    .children(settings),
+            )
+    }
+
+    /// Opens the sort order menu under its button.
+    pub fn open_sort_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tree) = self.file_tree.clone() else {
+            return;
+        };
+        let current = tree.read(cx).sort_order();
+        let items = SORT_ORDERS
+            .iter()
+            .map(|&(order, label)| {
+                let tree = tree.downgrade();
+                MenuItem::action(label, move |_, cx| {
+                    tree.update(cx, |tree, cx| tree.set_sort_order(order, cx))
+                        .ok();
+                })
+                .checked(order == current)
+            })
+            .collect();
+        let anchor = MenuAnchor::Below {
+            key: SORT_KEY.into(),
+            align_right: false,
+        };
+        self.menu.open(items, anchor, window, cx);
+    }
+
+    /// Opens the vault switcher: recent vaults, then another one.
+    pub fn open_vault_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let mut items: Vec<MenuItem> = AppState::recent_vaults()
+            .into_iter()
+            .filter(|vault| *vault != self.vault)
+            .map(|vault| {
+                MenuItem::action(folder_name(&vault), move |_, cx| {
+                    if let Err(error) = open_vault_window(&vault, None, cx) {
+                        eprintln!("could not open {}: {error}", vault.display());
+                    }
+                })
+                .with_icon(IconName::Folder)
+            })
+            .collect();
+        if !items.is_empty() {
+            items.push(MenuItem::Separator);
+        }
+        let workspace = cx.entity().downgrade();
+        items.push(
+            MenuItem::command("vault.open", cx)
+                .with_label("Open another vault…")
+                .with_icon(IconName::FolderOpen)
+                .with_handler(move |window, cx| {
+                    workspace
+                        .update(cx, |workspace, cx| {
+                            workspace.run_command("vault.open", window, cx)
+                        })
+                        .ok();
+                }),
+        );
+        // The footer is at the bottom of the window, so the menu opens upward.
+        let anchor = MenuAnchor::Above {
+            key: VAULT_KEY.into(),
+        };
+        self.menu.open(items, anchor, window, cx);
+    }
+
+    /// Opens or closes the keyboard shortcuts.
+    pub fn toggle_help(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let available: Vec<&'static str> = super::help::HELP_COMMANDS
+            .iter()
+            .flat_map(|(_, ids)| ids.iter().copied())
+            .filter(|id| self.can_run(id))
+            .collect();
+        self.toggle_modal(window, cx, |window, cx| {
+            ShortcutsHelp::new(&available, window, cx)
+        });
+        let Some(help) = self.active_modal::<ShortcutsHelp>() else {
+            return;
+        };
+        let subscription = cx.subscribe_in(&help, window, Self::on_help_event);
+        self._subscriptions.push(subscription);
+    }
+
+    fn on_help_event(
+        &mut self,
+        _: &Entity<ShortcutsHelp>,
+        event: &super::help::HelpEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let super::help::HelpEvent::Run(id) = event;
+        let id = id.clone();
+        cx.defer_in(window, move |workspace, window, cx| {
+            let pane = workspace.active_pane.clone();
+            workspace.run_in_pane(&pane, &id, window, cx);
+        });
+    }
+}
+
+/// A click handler that updates the file tree.
+fn tree_click(
+    tree: &Entity<FileTree>,
+    act: impl Fn(&mut FileTree, &mut Window, &mut Context<FileTree>) + 'static,
+) -> impl Fn(&ClickEvent, &mut Window, &mut gpui::App) + 'static {
+    let tree = tree.downgrade();
+    move |_, window, cx| {
+        tree.update(cx, |tree, cx| act(tree, window, cx)).ok();
+    }
+}

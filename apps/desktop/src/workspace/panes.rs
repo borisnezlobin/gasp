@@ -32,15 +32,20 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        match *event {
+        match event {
             PaneEvent::ActivateTab(index) => {
                 self.activate_pane(pane, window, cx);
-                self.activate_tab(index, window, cx);
+                self.activate_tab(*index, window, cx);
             }
-            PaneEvent::CloseTab(index) => self.close_tab(pane, index, window, cx),
+            PaneEvent::CloseTab(index) => self.close_tab(pane, *index, window, cx),
             PaneEvent::NewTab => {
                 self.activate_pane(pane, window, cx);
                 self.new_tab(window, cx);
+            }
+            PaneEvent::Run(id) => self.run_in_pane(pane, id, window, cx),
+            PaneEvent::Reveal(folder) => self.reveal_in_tree(folder, false, window, cx),
+            PaneEvent::OpenMenu(kind, anchor) => {
+                self.open_pane_menu(pane, *kind, anchor.clone(), window, cx)
             }
         }
     }
@@ -74,8 +79,9 @@ impl Workspace {
         for pane in self.panes.panes() {
             let marked = several && pane == self.active_pane;
             pane.update(cx, |pane, cx| {
-                if pane.marked_focused != marked {
+                if pane.marked_focused != marked || pane.in_split != several {
                     pane.marked_focused = marked;
+                    pane.in_split = several;
                     cx.notify();
                 }
             });
@@ -103,7 +109,13 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Entity<Pane> {
         let show_title = self.config.settings.editor.show_inline_title;
-        let pane = cx.new(|cx| Pane::new(show_title, cx));
+        let vault = self.vault.clone();
+        let probe = self.reading_probe.clone();
+        let pane = cx.new(|cx| {
+            let mut pane = Pane::new(&vault, show_title, cx);
+            pane.reading_probe = probe;
+            pane
+        });
         let active = self.active_pane.clone();
         self.panes.split(&active, pane.clone(), axis);
         self.subscribe_to_pane(&pane, window, cx);
