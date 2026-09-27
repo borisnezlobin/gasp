@@ -249,3 +249,36 @@ fn the_appearance_page_previews_a_change_as_it_is_made(cx: &mut TestAppContext) 
     cx.run_until_parked();
     assert!(body_size(cx) < before, "the preview follows the change");
 }
+
+#[gpui::test]
+fn a_note_opens_again_where_it_was_left(cx: &mut TestAppContext) {
+    let long = "A line of the note.\n\n".repeat(200);
+    let vault = vault_with(&[("a.md", &long), ("b.md", "other")]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "a.md");
+    let editor =
+        |cx: &mut VisualTestContext| cx.read(|cx| workspace.read(cx).active_editor(cx).unwrap());
+    let first = editor(cx);
+    first.update(cx, |editor, cx| {
+        editor.move_to(2000, false, cx);
+        editor.scroll_by(gpui::px(1500.), cx);
+    });
+    cx.run_until_parked();
+    let left = first.read_with(cx, |editor, _| editor.position());
+    assert!(left.1 > 0, "scrolled down");
+
+    // Replaced in its tab, then back.
+    open(&workspace, cx, "b.md");
+    open(&workspace, cx, "a.md");
+    let again = editor(cx);
+    assert_ne!(again, first, "a fresh editor");
+    assert_eq!(again.read_with(cx, |editor, _| editor.position()), left);
+
+    // And in the next session.
+    let saved = cx.read(|cx| workspace.read(cx).device_state(cx).positions);
+    assert!(
+        saved
+            .iter()
+            .any(|kept| kept.path == "a.md" && kept.cursor == 2000)
+    );
+}

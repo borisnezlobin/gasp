@@ -421,6 +421,10 @@ impl EditorView {
             .expect("a selection-only transaction always applies");
         self.drop_stale_tab_stops();
         self.autoscroll = true;
+        // A place kept at the top gives way once the reader moves.
+        if !self.read_only {
+            self.pinned_top = None;
+        }
         self.refresh_suggestions(cx);
         self.keep_card_offer(cx);
         cx.emit(EditorEvent::SelectionChanged);
@@ -459,6 +463,35 @@ impl EditorView {
         if start > 0 && self.selected_range() == (0..0) {
             self.select(start, start, cx);
         }
+    }
+
+    /// Where the reader is: the cursor, and the start of the line at the
+    /// top of the view (zero at the very top).
+    pub fn position(&self) -> (usize, usize) {
+        // Until the reader moves, the line kept at the top is still there.
+        if let Some(top) = self.pinned_top {
+            return (self.cursor(), top);
+        }
+        let text_scroll = self.scroll_y - self.header_height;
+        let top = if text_scroll > px(0.) {
+            // A view scrolled to a line's top can land a hair above it.
+            let (line, _) = self.metrics.line_at_y(text_scroll + px(0.5));
+            self.state.doc().line_start(line)
+        } else {
+            0
+        };
+        (self.cursor(), top)
+    }
+
+    /// Puts the reader back where [`EditorView::position`] said they
+    /// were, keeping that line at the top until they move or scroll.
+    pub fn restore_position(&mut self, cursor: usize, top: usize, cx: &mut Context<Self>) {
+        let len = self.state.doc().len();
+        self.cursor_after_frontmatter = false;
+        self.select(cursor.min(len), cursor.min(len), cx);
+        self.autoscroll = false;
+        self.pinned_top = (top > 0).then_some(top.min(len));
+        cx.notify();
     }
 
     /// Moves the head, keeping the anchor when `extend` is set.
