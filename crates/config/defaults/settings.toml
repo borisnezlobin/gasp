@@ -27,6 +27,16 @@ smart-quotes       = true   # typed " and ' become “ ” and ‘ ’ outside c
 curl-pasted-quotes = true   # pasted text gets curly quotes too
 auto-pair          = true   # ( [ { and ` add their closing half; * _ ~ = wrap a selection
 
+[daily-notes]
+folder   = ""             # from the vault root; "" is the root
+format   = "YYYY-MM-DD"   # the note's name, as a Moment.js date format
+template = ""             # a note to start each day from, such as "Templates/Daily"
+
+[templates]
+folder      = "Templates"
+date-format = "YYYY-MM-DD"
+time-format = "HH:mm"
+
 [appearance]
 base-font-size = 12
 

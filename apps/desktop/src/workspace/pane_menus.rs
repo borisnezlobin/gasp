@@ -51,6 +51,7 @@ const MORE_GROUPS: [&[Command]; 5] = [
             "Jump to heading",
             IconName::ListBullets,
         ),
+        ("sidebar.backlinks", "Backlinks", IconName::ArrowSquareIn),
     ],
     &[("tab.close", "Close tab", IconName::X)],
 ];
@@ -144,13 +145,14 @@ const FORMAT_ITEMS: [Command; 9] = [
     ("format.link", "Link", IconName::Link),
 ];
 
-const INSERT_ITEMS: [Command; 2] = [
+const INSERT_ITEMS: [Command; 3] = [
     (
         "footnote.insert-or-jump",
         "Insert footnote",
         IconName::TextSuperscript,
     ),
     ("note.import-image", "Insert image", IconName::Image),
+    ("template.insert", "Insert template", IconName::Stamp),
 ];
 
 impl Workspace {
