@@ -162,6 +162,11 @@ impl TextInput {
 
     /// Sets the size of the title style's text, as the note's settings
     /// and zoom make it.
+    /// The family the input draws its text in.
+    pub fn font_family(&self) -> &SharedString {
+        &self.theme.font_family
+    }
+
     pub fn set_title_font_size(&mut self, size: Pixels, cx: &mut Context<Self>) {
         if self.theme.title_font_size != size {
             self.theme.title_font_size = size;
