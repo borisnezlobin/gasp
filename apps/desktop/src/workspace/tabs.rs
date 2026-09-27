@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use gpui::{AppContext, Context, Entity, PromptLevel, Window};
 
-use super::files::{note_title, notes_by_recency};
+use super::files::note_title;
 use super::history::Location;
 use super::launcher::{Launcher, MAX_RECENT, OpenRecent};
 use super::note_doc::NoteDoc;
@@ -13,9 +13,6 @@ use super::pane::{NoteTab, Pane, Tab, TabContent};
 use super::{MAX_CLOSED_TABS, OpenIn, Workspace};
 use crate::editor::EditorView;
 use crate::text_input::{TextInput, TextInputStyle};
-
-/// Folders the launcher reads at most when looking for recent notes.
-const RECENT_SCAN_FOLDERS: usize = 200;
 
 /// The choices when closing a note that changed on disk under edits.
 const CONFLICT_ANSWERS: [&str; 3] = ["Keep my version", "Use the version on disk", "Cancel"];
@@ -196,18 +193,11 @@ impl Workspace {
         }
     }
 
-    /// Recent notes for the launcher: this session's first, then the
-    /// vault's most recently changed.
+    /// This session's recent notes for a new launcher, which adds the
+    /// vault's most recently changed notes itself, off the main thread.
     fn launcher_notes(&self) -> Vec<PathBuf> {
         let mut notes: Vec<PathBuf> = self.recent.clone();
-        for path in notes_by_recency(&self.vault, RECENT_SCAN_FOLDERS) {
-            if notes.len() >= MAX_RECENT {
-                break;
-            }
-            if !notes.contains(&path) {
-                notes.push(path);
-            }
-        }
+        notes.truncate(MAX_RECENT);
         notes.retain(|path| path.is_file());
         notes
     }

@@ -1,22 +1,29 @@
-//! Shared UI primitives for the workspace chrome: icon buttons with
-//! tooltips, dropdown and context menus, and breadcrumbs. Every value
-//! comes from [`UiTheme`].
+//! Shared UI primitives for the workspace chrome: icon and text buttons,
+//! tooltips, dropdown and context menus, breadcrumbs, key caps and the
+//! surfaces menus and dialogs float on. Every value comes from
+//! [`UiTheme`].
 //!
 //! Commands show their title and current shortcut wherever they appear,
 //! from [`hints`], which the workspace fills from the vault's rules.
 
 pub mod breadcrumbs;
+pub mod button;
 pub mod hints;
 pub mod icon_button;
 pub mod menu;
+pub mod surface;
 pub mod tooltip;
+pub mod truncated;
 
 use gpui::{App, Global};
 
 pub use breadcrumbs::{Breadcrumbs, Crumb};
+pub use button::{Button, ButtonKind};
 pub use icon_button::IconButton;
 pub use menu::{DropdownMenu, HasMenuSlot, MenuAnchor, MenuHandler, MenuItem, MenuSlot};
+pub use surface::{dialog, keycap, popover};
 pub use tooltip::Tooltip;
+pub use truncated::{Truncated, truncated};
 
 use crate::theme::UiTheme;
 

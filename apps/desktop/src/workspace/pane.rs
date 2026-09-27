@@ -115,6 +115,9 @@ pub struct Pane {
     pub(crate) history: NavHistory,
     toolbar: Option<AnyView>,
     pub(super) tab_scroll: ScrollHandle,
+    /// The tab strip's width when the active tab was last scrolled into
+    /// view: a pane that narrows, as when it's split, shows it again.
+    pub(super) revealed_width: std::cell::Cell<Pixels>,
     pub(super) theme: Theme,
     pub(super) vault: PathBuf,
     show_inline_title: bool,
@@ -156,6 +159,7 @@ impl Pane {
             history: NavHistory::default(),
             toolbar: None,
             tab_scroll: ScrollHandle::new(),
+            revealed_width: std::cell::Cell::new(px(0.)),
             theme: Theme::default(),
             vault: vault.to_path_buf(),
             show_inline_title,
@@ -451,8 +455,21 @@ impl TabState {
 impl Render for Pane {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let ui = ui_theme(cx);
+        // The toolbar (the find bar) floats over the note's top right
+        // corner, under the header, so opening it never moves the text.
+        let toolbar = self.toolbar.clone().map(|toolbar| {
+            div()
+                .absolute()
+                .top(ui.note_header_height)
+                .left(ui.space_md)
+                .right(ui.space_md)
+                .flex()
+                .justify_end()
+                .child(toolbar)
+        });
         let surface = div()
             .id("pane-surface")
+            .relative()
             .flex()
             .flex_col()
             .flex_1()
@@ -462,10 +479,8 @@ impl Render for Pane {
             .rounded(ui.surface_radius)
             .shadow(ui.surface_shadows())
             .child(self.render_note_header(cx))
-            .when_some(self.toolbar.clone(), |surface, toolbar| {
-                surface.child(div().flex_none().child(toolbar))
-            })
-            .child(self.render_content(cx));
+            .child(self.render_content(cx))
+            .children(toolbar);
         div()
             .id("pane")
             .track_focus(&self.focus_handle)

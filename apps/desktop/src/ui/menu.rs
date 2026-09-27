@@ -10,9 +10,9 @@
 use std::rc::Rc;
 
 use gpui::{
-    AnyElement, App, AppContext, Context, Corner, DismissEvent, ElementId, Entity, EventEmitter,
-    FocusHandle, Focusable, KeyDownEvent, MouseButton, Pixels, Point, SharedString, Subscription,
-    WeakEntity, Window, anchored, deferred, div, point, prelude::*, px,
+    AnyElement, App, AppContext, Context, Corner, DismissEvent, Div, ElementId, Entity,
+    EventEmitter, FocusHandle, Focusable, KeyDownEvent, MouseButton, Pixels, Point, SharedString,
+    Stateful, Subscription, WeakEntity, Window, anchored, deferred, div, point, prelude::*, px,
 };
 
 use super::ui_theme;
@@ -399,45 +399,29 @@ impl DropdownMenu {
             return separator(theme);
         };
         let disabled = !item.is_selectable();
-        let leading = has_icons.then(|| {
-            div()
-                .flex_none()
-                .size(theme.small_icon_size)
-                .children(item.leading_icon().map(|name| {
-                    icon(name)
-                        .size(theme.small_icon_size)
-                        .text_color(theme.icon)
-                }))
-        });
+        let leading = has_icons.then(|| menu_icon(item.leading_icon(), theme));
         let selector = format!("menu-item-{label}");
-        div()
-            .id(ElementId::NamedInteger("menu-item".into(), index as u64))
-            .debug_selector(|| selector)
-            .relative()
-            .flex()
-            .flex_row()
-            .items_center()
-            .gap(theme.space_md)
-            .h(theme.menu_row_height)
-            .px(theme.menu_row_padding_x)
-            .rounded(theme.menu_row_radius)
-            .when(self.highlighted == Some(index), |row| {
-                row.bg(theme.menu_highlight)
-            })
-            .when(disabled, |row| row.text_color(theme.text_faint))
-            .on_hover(cx.listener(move |menu, hovered: &bool, window, cx| {
-                if *hovered {
-                    menu.on_row_hover(index, window, cx);
-                }
-            }))
-            .on_click(cx.listener(move |menu, _, window, cx| {
-                cx.stop_propagation();
-                menu.confirm(index, window, cx);
-            }))
-            .children(leading)
-            .child(div().flex_1().min_w_0().truncate().child(label))
-            .child(self.render_row_end(index, theme))
-            .into_any_element()
+        menu_row(
+            ElementId::NamedInteger("menu-item".into(), index as u64),
+            self.highlighted == Some(index),
+            disabled,
+            theme,
+        )
+        .debug_selector(|| selector)
+        .relative()
+        .on_hover(cx.listener(move |menu, hovered: &bool, window, cx| {
+            if *hovered {
+                menu.on_row_hover(index, window, cx);
+            }
+        }))
+        .on_click(cx.listener(move |menu, _, window, cx| {
+            cx.stop_propagation();
+            menu.confirm(index, window, cx);
+        }))
+        .children(leading)
+        .child(super::truncated(label).grow())
+        .child(self.render_row_end(index, theme))
+        .into_any_element()
     }
 
     /// A shortcut hint, or the caret and the open submenu.
@@ -445,8 +429,7 @@ impl DropdownMenu {
         match &self.items[index] {
             MenuItem::Entry(entry) => div()
                 .flex_none()
-                .pl(theme.space_lg)
-                .text_size(theme.small_font_size)
+                .pl(theme.space_xl)
                 .text_color(theme.text_faint)
                 .children(entry.shortcut.clone())
                 .into_any_element(),
@@ -478,6 +461,41 @@ impl DropdownMenu {
     }
 }
 
+/// A menu row: a fixed height, the highlight, and faint text when it
+/// can't be chosen. Every menu in the app, the file tree's included, is
+/// made of these inside a [`super::popover`].
+pub fn menu_row(
+    id: impl Into<ElementId>,
+    highlighted: bool,
+    disabled: bool,
+    theme: &UiTheme,
+) -> Stateful<Div> {
+    div()
+        .id(id)
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(theme.space_md)
+        .h(theme.menu_row_height)
+        .px(theme.menu_row_padding_x)
+        .rounded(theme.menu_row_radius)
+        .when(highlighted, |row| row.bg(theme.menu_highlight))
+        .when(disabled, |row| row.text_color(theme.text_faint))
+}
+
+/// The icon column of a menu row. It keeps its width when the row has no
+/// icon, so labels line up.
+pub fn menu_icon(name: Option<IconName>, theme: &UiTheme) -> Div {
+    div()
+        .flex_none()
+        .size(theme.small_icon_size)
+        .children(name.map(|name| {
+            icon(name)
+                .size(theme.small_icon_size)
+                .text_color(theme.icon)
+        }))
+}
+
 fn separator(theme: &UiTheme) -> AnyElement {
     div()
         .my(theme.menu_padding)
@@ -494,23 +512,14 @@ impl Render for DropdownMenu {
         let rows: Vec<AnyElement> = (0..self.items.len())
             .map(|index| self.render_row(index, has_icons, &theme, cx))
             .collect();
-        div()
+        super::popover(&theme)
             .id("dropdown-menu")
             .key_context("Menu")
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(Self::on_key_down))
             .occlude()
-            .flex()
-            .flex_col()
             .min_w(theme.menu_min_width)
             .max_w(theme.menu_max_width)
-            .p(theme.menu_padding)
-            .rounded(theme.menu_radius)
-            .bg(theme.menu_background)
-            .shadow(theme.menu_shadows())
-            .font_family(theme.font_family.clone())
-            .text_size(theme.font_size)
-            .text_color(theme.text)
             .children(rows)
     }
 }

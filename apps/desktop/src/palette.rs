@@ -13,8 +13,8 @@ use gpui::{
 
 use crate::picker::fuzzy::{Candidate, Matcher, Query};
 use crate::picker::shortcut::{capture_chord, is_lone_modifier, shortcut_label};
-use crate::picker::{Confirmed, Picker, PickerDelegate, highlighted_text, keycap, surface_shadow};
-use crate::theme::{InputTheme, PickerTheme};
+use crate::picker::{Confirmed, Picker, PickerDelegate, highlighted_text, keycap};
+use crate::theme::{InputTheme, PickerTheme, UiTheme};
 
 /// Extra score for the most recently used command, falling by
 /// [`RECENT_STEP`] per place in the recent list.
@@ -382,7 +382,7 @@ impl CommandPalette {
         cx.notify();
     }
 
-    fn render_capture(&self, capture: &Capture, theme: &PickerTheme) -> AnyElement {
+    fn render_capture(&self, capture: &Capture, theme: &PickerTheme, ui: &UiTheme) -> AnyElement {
         let now = if capture.current.is_empty() {
             "It has no shortcut yet.".to_string()
         } else {
@@ -392,20 +392,13 @@ impl CommandPalette {
             || div().text_color(theme.detail_text).child(now),
             |reason| div().text_color(theme.warning_text).child(reason),
         );
-        div()
+        crate::ui::dialog(ui)
             .key_context("PaletteCapture")
             .track_focus(&self.capture_focus)
             .w(theme.width)
-            .flex()
-            .flex_col()
             .gap(theme.capture_gap)
             .px(theme.input_padding_x)
             .py(theme.input_padding_y)
-            .font_family(theme.font_family.clone())
-            .text_color(theme.text)
-            .bg(theme.background)
-            .rounded(theme.corner_radius)
-            .shadow(vec![surface_shadow(theme)])
             .child(
                 div()
                     .text_size(InputTheme::default().query_font_size)
@@ -427,7 +420,7 @@ impl Render for CommandPalette {
         match &self.capture {
             Some(capture) => {
                 let theme = self.picker.read(cx).theme().clone();
-                self.render_capture(capture, &theme)
+                self.render_capture(capture, &theme, &crate::ui::ui_theme(cx))
             }
             None => self.picker.clone().into_any_element(),
         }

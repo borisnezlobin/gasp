@@ -14,6 +14,11 @@ pub const TAB_LIST_KEY: &str = "pane-tab-list";
 impl Pane {
     pub(super) fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let ui = ui_theme(cx);
+        let strip_width = self.tab_scroll.bounds().size.width;
+        if strip_width != self.revealed_width.get() {
+            self.revealed_width.set(strip_width);
+            self.tab_scroll.scroll_to_item(self.active_index());
+        }
         let tabs: Vec<AnyElement> = self
             .tabs()
             .iter()
@@ -125,7 +130,7 @@ impl Pane {
                         .text_color(ui.conflict),
                 )
             })
-            .child(div().flex_1().min_w_0().truncate().child(title))
+            .child(crate::ui::truncated(title.clone()).grow())
             .child(self.render_tab_end(index, group, active, state.dirty, ui, cx))
             .into_any_element()
     }

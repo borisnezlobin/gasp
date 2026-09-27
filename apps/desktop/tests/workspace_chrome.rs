@@ -146,7 +146,7 @@ fn sidebar_buttons_run_their_commands(cx: &mut TestAppContext) {
     assert!(cx.read(|cx| workspace.read(cx).active_modal::<VaultSearch>().is_some()));
     cx.simulate_keystrokes("escape");
 
-    click(cx, "sidebar-files");
+    cx.simulate_keystrokes("secondary-shift-e");
     let tree_focused = cx.update(|window, cx| {
         let tree = workspace.read(cx).file_tree().unwrap().clone();
         tree.focus_handle(cx).is_focused(window)

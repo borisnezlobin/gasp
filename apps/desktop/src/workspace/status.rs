@@ -20,13 +20,28 @@ pub struct TextStats {
 
 impl TextStats {
     pub fn of(text: &str) -> TextStats {
-        TextStats {
-            words: text
-                .split_whitespace()
-                .filter(|word| word.chars().any(char::is_alphanumeric))
-                .count(),
-            characters: text.chars().filter(|ch| !matches!(ch, '\n' | '\r')).count(),
+        TextStats::of_chars(text.chars())
+    }
+
+    /// Counts in one pass without copying the text, so the status bar can
+    /// read a long note's rope on every keystroke. A word is a run of
+    /// non-space characters with at least one letter or digit in it.
+    pub fn of_chars(chars: impl Iterator<Item = char>) -> TextStats {
+        let mut stats = TextStats::default();
+        let mut word_has_text = false;
+        for ch in chars {
+            if !matches!(ch, '\n' | '\r') {
+                stats.characters += 1;
+            }
+            if ch.is_whitespace() {
+                stats.words += usize::from(word_has_text);
+                word_has_text = false;
+            } else {
+                word_has_text |= ch.is_alphanumeric();
+            }
         }
+        stats.words += usize::from(word_has_text);
+        stats
     }
 
     /// Whole minutes to read, rounded up, and zero for an empty note.
@@ -50,14 +65,19 @@ impl StatusInfo {
     pub fn of_editor(editor: &EditorView) -> StatusInfo {
         let selection = editor.selected_range();
         let doc = editor.doc();
-        let (stats, for_selection) = if selection.is_empty() {
-            (TextStats::of(&editor.text()), false)
+        let for_selection = !selection.is_empty();
+        let range = if for_selection {
+            selection
         } else {
-            (TextStats::of(&doc.slice(selection)), true)
+            0..doc.len()
         };
+        let stats = TextStats::of_chars(doc.rope().byte_slice(range).chars());
         let cursor = editor.cursor();
         let line = doc.line_of_offset(cursor);
-        let column = doc.slice(doc.line_start(line)..cursor).chars().count();
+        let column = doc
+            .rope()
+            .byte_slice(doc.line_start(line)..cursor)
+            .len_chars();
         StatusInfo {
             stats,
             for_selection,
@@ -158,6 +178,17 @@ mod tests {
         assert_eq!(stats.words, 5);
         assert_eq!(stats.characters, 32);
         assert_eq!(TextStats::of("").words, 0);
+    }
+
+    #[test]
+    fn counting_chars_matches_splitting_the_string() {
+        for text in ["", "one", "  two  words ", "a\r\nb - c\n", "émigré café 12"] {
+            let words = text
+                .split_whitespace()
+                .filter(|word| word.chars().any(char::is_alphanumeric))
+                .count();
+            assert_eq!(TextStats::of(text).words, words, "{text:?}");
+        }
     }
 
     #[test]
