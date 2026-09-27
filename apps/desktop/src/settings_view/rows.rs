@@ -22,9 +22,6 @@ use crate::ui::{Tooltip, keycap};
 impl SettingsView {
     /// Title, description and notes for a row.
     pub(super) fn row_text(&self, row: &ControlRow) -> AnyElement {
-        if let Some(text) = self.typing_row_text(row) {
-            return text;
-        }
         let description = match row {
             ControlRow::Shortcut(shortcut) => self.shortcut_default(shortcut),
             _ => {
@@ -55,7 +52,7 @@ impl SettingsView {
 
     /// Why the last write for this row failed, or why the chord just
     /// pressed for it was refused.
-    fn row_error(&self, row: &ControlRow) -> Option<String> {
+    pub(super) fn row_error(&self, row: &ControlRow) -> Option<String> {
         if let (ControlRow::Shortcut(shortcut), Some(capture)) = (row, &self.capture)
             && self.capturing() == Some(shortcut.id.as_str())
         {
@@ -150,18 +147,6 @@ impl SettingsView {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        if row.is_typing_row() {
-            return self.typing_row_control(row, focused, cx).map(|control| {
-                let note = self
-                    .row_error(row)
-                    .map(|message| control_note(message, &self.style));
-                div()
-                    .relative()
-                    .child(control)
-                    .children(note)
-                    .into_any_element()
-            });
-        }
         let control = match row {
             ControlRow::Setting(item) => self.setting_control(index, item, focused, cx),
             ControlRow::MapAdd(map) => self.map_add_control(index, map, row, focused, cx),
