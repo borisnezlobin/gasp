@@ -58,6 +58,7 @@ pub enum IconName {
     ListBullets,
     MagnifyingGlass,
     MagnifyingGlassPlus,
+    Minus,
     NoteBlank,
     PencilSimple,
     Plus,
@@ -82,7 +83,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 71] = [
+const ICONS: [(IconName, &str, &[u8]); 72] = [
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -327,6 +328,11 @@ const ICONS: [(IconName, &str, &[u8]); 71] = [
         IconName::MagnifyingGlassPlus,
         "magnifying-glass-plus",
         include_bytes!("../assets/icons/magnifying-glass-plus.svg"),
+    ),
+    (
+        IconName::Minus,
+        "minus",
+        include_bytes!("../assets/icons/minus.svg"),
     ),
     (
         IconName::NoteBlank,
