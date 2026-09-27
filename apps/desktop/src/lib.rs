@@ -8,6 +8,7 @@ pub mod cli;
 pub mod code_copy;
 pub mod commands;
 pub mod demo;
+pub mod edit_time;
 pub mod editor;
 pub mod element;
 pub mod export_ui;

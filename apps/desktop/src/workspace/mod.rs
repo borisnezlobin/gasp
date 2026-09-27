@@ -14,6 +14,7 @@
 //! and the note's right-click menu, all built from `crate::ui`.
 
 mod commands;
+mod edit_tracking;
 pub mod files;
 pub mod help;
 pub mod history;
@@ -146,6 +147,10 @@ pub struct Workspace {
     vault_index: Entity<VaultIndex>,
     /// The shortcuts that holding Mod shows.
     sheet: shortcut_sheet::ShortcutSheet,
+    /// Time spent editing each note, on every device.
+    edit_time: crate::edit_time::EditTime,
+    /// Whether a write of this device's edit times is on its way.
+    edit_time_save_pending: bool,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -230,6 +235,8 @@ impl Workspace {
             tasks: Vec::new(),
             vault_index,
             sheet: Default::default(),
+            edit_time: crate::edit_time::EditTime::new("", ""),
+            edit_time_save_pending: false,
             _subscriptions: Vec::new(),
         };
         workspace.scan_vault_index(cx);
@@ -237,6 +244,7 @@ impl Workspace {
         workspace.observe_window(window, cx);
         workspace.observe_appearance(window, cx);
         workspace.watch_keystrokes_for_sheet(window, cx);
+        workspace.start_edit_time(cx);
         workspace.add_launcher_tab(&pane, window, cx);
         workspace
     }
