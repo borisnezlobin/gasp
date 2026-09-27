@@ -10,6 +10,10 @@ use crate::stats::Timings;
 
 const TYPING_TEXT: &str = "the quick brown fox ";
 
+/// What `--in-math` types: letters, digits and operators that snippets
+/// and the math helpers look at on every key.
+const MATH_TEXT: &str = "x2 + ab - cd ";
+
 /// How much to type and scroll.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BenchConfig {
@@ -20,6 +24,9 @@ pub struct BenchConfig {
     /// Type at the end of a code block's first line instead of in the
     /// middle of the note, to measure highlighting.
     pub in_code: bool,
+    /// Type math at the end of a math block's first line, to measure
+    /// snippets and the math helpers.
+    pub in_math: bool,
     /// Whether sentence tints and grammar flags are on, to measure what
     /// they cost.
     pub prose: bool,
@@ -32,6 +39,7 @@ impl Default for BenchConfig {
             keystrokes: 300,
             scroll_pages: 100,
             in_code: false,
+            in_math: false,
             prose: true,
         }
     }
@@ -115,7 +123,12 @@ impl Bench {
         .find(|(at, _)| *at == step)
         .map(|(_, checkpoint)| *checkpoint);
         let action = if step < typing_end {
-            Some(BenchAction::Type(typing_char(step)))
+            let text = if self.config.in_math {
+                MATH_TEXT
+            } else {
+                TYPING_TEXT
+            };
+            Some(BenchAction::Type(typing_char(text, step)))
         } else {
             (step < scrolling_end).then_some(BenchAction::ScrollPage)
         };
@@ -123,8 +136,8 @@ impl Bench {
     }
 }
 
-fn typing_char(step: usize) -> char {
-    let bytes = TYPING_TEXT.as_bytes();
+fn typing_char(text: &str, step: usize) -> char {
+    let bytes = text.as_bytes();
     char::from(bytes[step % bytes.len()])
 }
 
@@ -146,20 +159,25 @@ impl EditorView {
         }
         bench.results.full_layout = started.elapsed();
         let middle = self.doc().line_end(self.doc().line_count() / 2);
-        let start = match config.in_code {
-            true => self.code_line_after(middle).unwrap_or(middle),
-            false => middle,
+        let fence = match (config.in_code, config.in_math) {
+            (true, _) => Some("\n```"),
+            (_, true) => Some("\n$$"),
+            _ => None,
         };
+        let start = fence
+            .and_then(|fence| self.block_line_after(middle, fence))
+            .unwrap_or(middle);
         self.move_to(start, false, cx);
         self.bench = Some(bench);
         cx.notify();
     }
 
-    /// The end of the first line inside the next fenced block with a
-    /// language after `offset`.
-    fn code_line_after(&self, offset: usize) -> Option<usize> {
+    /// The end of the first line inside the next block after `offset`
+    /// that opens with `fence` at the start of a line, such as a code
+    /// block or a `$$` math block.
+    fn block_line_after(&self, offset: usize, fence: &str) -> Option<usize> {
         let text = self.source.text();
-        let fence = offset + text[offset..].find("\n```")? + 1;
+        let fence = offset + text[offset..].find(fence)? + 1;
         let first = self.doc().line_of_offset(fence) + 1;
         Some(self.doc().line_end(first))
     }
@@ -231,6 +249,7 @@ mod tests {
             keystrokes: 2,
             scroll_pages: 1,
             in_code: false,
+            in_math: false,
             prose: true,
         });
         let steps: Vec<BenchStep> = (0..5).map(|_| bench.next_step()).collect();
