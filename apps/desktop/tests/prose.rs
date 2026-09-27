@@ -175,6 +175,34 @@ fn wait_for_flags(editor: &Entity<EditorView>, cx: &mut VisualTestContext) {
 }
 
 #[gpui::test]
+fn flags_stay_put_while_their_paragraph_is_edited(cx: &mut TestAppContext) {
+    let vault = vault_with("It was the the end of a mispeled day.\n");
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    let editor = editor(&workspace, cx);
+    editor.update(cx, |view, cx| view.move_to(0, false, cx));
+    wait_for_flags(&editor, cx);
+    let words = |cx: &mut VisualTestContext| {
+        editor.read_with(cx, |view, _| {
+            let text = view.text();
+            view.shown_flags()
+                .iter()
+                .map(|flag| text[flag.range.clone()].to_owned())
+                .collect::<Vec<_>>()
+        })
+    };
+    assert_eq!(words(cx), ["the the", "mispeled"]);
+    // Typing before them moves them; nothing waits for the recheck.
+    editor.update(cx, |view, cx| view.replace(0..0, "So ", cx));
+    cx.run_until_parked();
+    assert_eq!(words(cx), ["the the", "mispeled"], "the flags moved along");
+    // Typing inside one drops just that one.
+    let at = editor.read_with(cx, |view, _| view.text().find("mispeled").unwrap() + 3);
+    editor.update(cx, |view, cx| view.replace(at..at, "s", cx));
+    cx.run_until_parked();
+    assert_eq!(words(cx), ["the the"]);
+}
+
+#[gpui::test]
 fn flags_underline_problems_and_accept_or_ignore_them(cx: &mut TestAppContext) {
     let vault = vault_with("It was the the end of a mispeled day.\n\nRun `teh` in code.\n");
     let (workspace, cx) = open_workspace(cx, vault.path());

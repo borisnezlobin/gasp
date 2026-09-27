@@ -611,7 +611,7 @@ impl EditorView {
         self.folds.map(&change.edit);
         self.code
             .text_changed(change.edit.old.clone(), change.edit.new_len);
-        self.prose_edited();
+        self.prose_edited(&change.edit);
     }
 
     /// Replaces the whole text, as when the file changed on disk. The

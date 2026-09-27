@@ -6,7 +6,8 @@
 //! so a paragraph is segmented once and checked once until it changes,
 //! and typing re-segments just the paragraph being typed in. Checking
 //! runs on the grammar worker a moment after typing pauses; until then a
-//! changed paragraph simply shows no underlines.
+//! changed paragraph keeps the underlines it had, moved along with the
+//! edits, less any an edit touched.
 
 pub mod card;
 pub mod checker;
@@ -19,6 +20,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use editor_config::settings::ProseSettings;
+use editor_core::syntax::Edit;
 use editor_prose::{
     Flag, FlagKind, Length, Purpose, Thresholds, Unit, projection::Piece, sentence_lengths, units,
 };
@@ -114,9 +116,12 @@ impl EditorView {
         self.prose.rhythm.is_some()
     }
 
-    /// Notes an edit, so checking waits for typing to pause.
-    pub(crate) fn prose_edited(&mut self) {
+    /// Notes an edit, so checking waits for typing to pause, and moves
+    /// the flags on screen along with it until their paragraph is checked
+    /// again.
+    pub(crate) fn prose_edited(&mut self, edit: &Edit) {
         self.prose.edited = true;
+        carry_through(&mut self.prose.shown, edit);
     }
 
     /// The sentences tinted in the last frame, with their lengths.
@@ -240,6 +245,7 @@ impl EditorView {
         let ignored = checker::ignored(cx);
         let text = self.source.text();
         let typing_at = self.typing_at();
+        let carried = std::mem::take(&mut self.prose.shown);
         if self.prose.flags.len() > CACHE_LIMIT {
             self.prose.flags.clear();
         }
@@ -249,7 +255,18 @@ impl EditorView {
             let key = key_of(slice, Purpose::Grammar, Thresholds::default());
             let start = unit.range.start;
             let Some(checked) = self.prose.flags.get(&key) else {
+                // Not checked since it changed: what it showed, moved.
                 self.prose.waiting = true;
+                let is_ignored = |flag: &&Flag| {
+                    text.get(flag.range.clone())
+                        .is_none_or(|phrase| ignored.contains(&phrase.to_lowercase()))
+                };
+                shown.extend(
+                    carried
+                        .iter()
+                        .filter(|flag| within(&flag.range, &unit.range) && !is_ignored(flag))
+                        .cloned(),
+                );
                 continue;
             };
             self.prose.waiting |= checked.generation != generation;
@@ -336,6 +353,23 @@ impl EditorView {
             .ok();
         }));
     }
+}
+
+/// Moves `flags`, at note offsets, through an edit: ones after it shift
+/// and ones it touches go, since what they flagged has changed.
+fn carry_through(flags: &mut Vec<Flag>, edit: &Edit) {
+    let delta = edit.new_len as isize - edit.old.len() as isize;
+    flags.retain(|flag| flag.range.end < edit.old.start || flag.range.start > edit.old.end);
+    for flag in flags.iter_mut() {
+        if flag.range.start > edit.old.end {
+            *flag = flag.shifted(delta);
+        }
+    }
+}
+
+/// Whether `inner` lies within `outer`.
+fn within(inner: &Range<usize>, outer: &Range<usize>) -> bool {
+    outer.start <= inner.start && inner.end <= outer.end
 }
 
 /// A cache key for a paragraph read for `purpose`.
@@ -426,4 +460,57 @@ fn underline_spans(
             (origin, rect.size.width, color)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use editor_prose::FlagKind;
+
+    use super::*;
+
+    fn flag(range: Range<usize>) -> Flag {
+        Flag {
+            range,
+            kind: FlagKind::Spelling,
+            rule: String::new(),
+            message: String::new(),
+            replacements: Vec::new(),
+        }
+    }
+
+    fn ranges(flags: &[Flag]) -> Vec<Range<usize>> {
+        flags.iter().map(|flag| flag.range.clone()).collect()
+    }
+
+    #[test]
+    fn flags_move_with_edits_before_them_and_go_when_touched() {
+        let mut flags = vec![flag(0..4), flag(10..14), flag(20..24)];
+        // Two bytes typed between the first and second flags.
+        carry_through(
+            &mut flags,
+            &Edit {
+                old: 6..6,
+                new_len: 2,
+            },
+        );
+        assert_eq!(ranges(&flags), [0..4, 12..16, 22..26]);
+        // A letter typed at the end of the second flag's word.
+        carry_through(
+            &mut flags,
+            &Edit {
+                old: 16..16,
+                new_len: 1,
+            },
+        );
+        assert_eq!(ranges(&flags), [0..4, 23..27]);
+        // Text deleted from inside the last one.
+        carry_through(
+            &mut flags,
+            &Edit {
+                old: 24..25,
+                new_len: 0,
+            },
+        );
+        assert_eq!(ranges(&flags), [0..4]);
+    }
 }
