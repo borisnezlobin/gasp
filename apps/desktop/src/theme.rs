@@ -39,6 +39,22 @@ pub fn focus_ring(color: Hsla) -> BoxShadow {
     }
 }
 
+/// `top` drawn over `bottom`, as one opaque colour. A focus ring is a
+/// shadow, which shows through a translucent fill, so whatever wears one
+/// needs an opaque fill: this gives the fill that looks the same.
+pub fn over(top: Hsla, bottom: Hsla) -> Hsla {
+    let top_rgb = top.to_rgb();
+    let bottom_rgb = bottom.to_rgb();
+    let mix = |a: f32, b: f32| a * top.a + b * (1. - top.a);
+    Rgba {
+        r: mix(top_rgb.r, bottom_rgb.r),
+        g: mix(top_rgb.g, bottom_rgb.g),
+        b: mix(top_rgb.b, bottom_rgb.b),
+        a: 1.,
+    }
+    .into()
+}
+
 /// The focus ring's colour before the theme is read.
 fn default_focus_ring() -> Hsla {
     hsla(0., 0., 0.1, FOCUS_RING_ALPHA)

@@ -84,7 +84,11 @@ impl RenderOnce for Button {
         let ui = ui_theme(cx);
         let (background, text, hover) = match self.kind {
             ButtonKind::Primary => (Some(ui.accent), ui.on_accent, ui.accent.opacity(0.85)),
-            ButtonKind::Secondary => (Some(ui.button_background), ui.text, ui.control_pressed),
+            ButtonKind::Secondary => (
+                Some(crate::theme::over(ui.button_background, ui.menu_background)),
+                ui.text,
+                crate::theme::over(ui.control_pressed, ui.menu_background),
+            ),
             ButtonKind::Quiet => (None, ui.text, ui.control_hover),
         };
         let handler = self.on_click.filter(|_| !self.disabled);
@@ -116,5 +120,19 @@ impl RenderOnce for Button {
                     })
             })
             .child(self.label)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::hsla;
+
+    use crate::theme::over;
+
+    #[test]
+    fn a_fill_over_white_is_opaque_and_as_light_as_it_looked() {
+        let fill = over(hsla(0., 0., 0., 0.05), hsla(0., 0., 1., 1.));
+        assert_eq!(fill.a, 1.);
+        assert!((fill.l - 0.95).abs() < 0.001);
     }
 }
