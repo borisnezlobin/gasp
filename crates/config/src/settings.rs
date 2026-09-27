@@ -17,6 +17,7 @@ pub struct Settings {
     pub prose: ProseSettings,
     pub files: FileSettings,
     pub editor: EditorSettings,
+    pub math: MathSettings,
     pub appearance: AppearanceSettings,
     pub sync: SyncSettings,
     pub daily_notes: DailyNoteSettings,
@@ -256,6 +257,11 @@ pub struct EditorSettings {
     /// Whether numbered footnotes renumber in reading order, and `^[1]`
     /// typos become `[^1]`, once typing pauses.
     pub renumber_footnotes: bool,
+    /// Whether snippets from `snippets.txt` expand as you type.
+    pub snippets: bool,
+    /// Whether the replacements in `replacements.toml`, such as `--` to an
+    /// em dash, apply as you type.
+    pub replacements: bool,
 }
 
 impl Default for EditorSettings {
@@ -267,6 +273,39 @@ impl Default for EditorSettings {
             auto_pair: true,
             code_line_numbers: false,
             renumber_footnotes: true,
+            snippets: true,
+            replacements: true,
+        }
+    }
+}
+
+/// Latex Suite's typing helpers for math, besides snippets.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct MathSettings {
+    /// Whether typing `/` after a term in math makes a fraction of it.
+    pub auto_fraction: bool,
+    /// Whether Tab adds ` & ` and Enter ends the row inside matrices,
+    /// `cases`, `align` and similar environments.
+    pub matrix_shortcuts: bool,
+    /// Whether Tab in math jumps past the next closing bracket, or out of
+    /// the math at its end.
+    pub tab_out: bool,
+    /// Whether brackets around a sum, integral or fraction become
+    /// `\left(` and `\right)` after a snippet expands.
+    pub enlarge_brackets: bool,
+    /// Whether matching brackets in math source share a colour.
+    pub bracket_colours: bool,
+}
+
+impl Default for MathSettings {
+    fn default() -> Self {
+        MathSettings {
+            auto_fraction: true,
+            matrix_shortcuts: true,
+            tab_out: true,
+            enlarge_brackets: true,
+            bracket_colours: true,
         }
     }
 }

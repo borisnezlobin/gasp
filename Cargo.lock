@@ -2958,6 +2958,7 @@ dependencies = [
 name = "editor-config"
 version = "0.1.0"
 dependencies = [
+ "editor-snippets",
  "notify",
  "schemars 0.8.22",
  "serde",
