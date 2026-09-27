@@ -5,12 +5,11 @@ use std::path::{Path, PathBuf};
 
 use gpui::{AppContext, Context, Entity, PromptLevel, Window};
 
-use super::files::{note_title, notes_by_recency};
+use super::files::note_title;
 use super::history::Location;
 use super::launcher::{Launcher, MAX_RECENT, OpenRecent};
 use super::note_doc::NoteDoc;
 use super::pane::{NoteTab, Pane, Tab, TabContent};
-use super::startup::RECENT_SCAN_FOLDERS;
 use super::{MAX_CLOSED_TABS, OpenIn, Workspace};
 use crate::editor::EditorView;
 use crate::text_input::{TextInput, TextInputStyle};
@@ -157,46 +156,20 @@ impl Workspace {
         Ok(Tab::new(content, subscriptions))
     }
 
-    /// Adds an empty tab showing recent notes. It shows the notes as last
-    /// read at once, and the vault is read again in the background.
+    /// Adds an empty tab showing recent notes.
     pub(crate) fn add_launcher_tab(
         &mut self,
         pane: &Entity<Pane>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let launcher = self.insert_launcher_tab(pane, window, cx);
-        let vault = self.vault.clone();
-        let scan =
-            cx.background_spawn(async move { notes_by_recency(&vault, RECENT_SCAN_FOLDERS) });
-        let task = cx.spawn(async move |workspace, cx| {
-            let recency = scan.await;
-            workspace
-                .update(cx, |workspace, cx| {
-                    workspace.recency = recency;
-                    let notes = workspace.launcher_notes();
-                    launcher.update(cx, |launcher, cx| launcher.set_recent(notes, cx));
-                })
-                .ok();
-        });
-        self.tasks.push(task);
-    }
-
-    /// Adds a launcher tab listing the notes as last read.
-    pub(crate) fn insert_launcher_tab(
-        &mut self,
-        pane: &Entity<Pane>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Entity<Launcher> {
         let recent = self.launcher_notes();
         let vault = self.vault.clone();
         let launcher = cx.new(|cx| Launcher::new(&vault, recent, cx));
         let subscription = cx.subscribe_in(&launcher, window, Self::on_open_recent);
-        let tab = Tab::new(TabContent::Launcher(launcher.clone()), vec![subscription]);
+        let tab = Tab::new(TabContent::Launcher(launcher), vec![subscription]);
         pane.update(cx, |pane, cx| pane.add_tab(tab, cx));
         self.activate_pane(pane, window, cx);
-        launcher
     }
 
     /// Opens a note from a launcher in place of it. When the note already
@@ -223,11 +196,13 @@ impl Workspace {
         }
     }
 
-    /// Recent notes for the launcher: this session's first, then the
-    /// vault's most recently changed.
-    fn launcher_notes(&self) -> Vec<PathBuf> {
+    /// This session's recent notes for a new launcher, which adds the
+    /// vault's most recently changed notes itself, off the main thread.
+    /// The first launcher also gets the notes read while the app started,
+    /// so the window's first frame lists them.
+    fn launcher_notes(&mut self) -> Vec<PathBuf> {
         let mut notes: Vec<PathBuf> = self.recent.clone();
-        for path in &self.recency {
+        for path in &std::mem::take(&mut self.recency) {
             if notes.len() >= MAX_RECENT {
                 break;
             }

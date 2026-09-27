@@ -40,6 +40,7 @@ pub enum IconName {
     CloudArrowUp,
     CloudCheck,
     CloudSlash,
+    CloudWarning,
     Code,
     Columns,
     Command,
@@ -65,6 +66,7 @@ pub enum IconName {
     HighlighterCircle,
     Image,
     Info,
+    Key,
     KeyReturn,
     Keyboard,
     Lightning,
@@ -108,7 +110,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 97] = [
+const ICONS: [(IconName, &str, &[u8]); 99] = [
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -265,6 +267,11 @@ const ICONS: [(IconName, &str, &[u8]); 97] = [
         include_bytes!("../assets/icons/cloud-slash.svg"),
     ),
     (
+        IconName::CloudWarning,
+        "cloud-warning",
+        include_bytes!("../assets/icons/cloud-warning.svg"),
+    ),
+    (
         IconName::Code,
         "code",
         include_bytes!("../assets/icons/code.svg"),
@@ -388,6 +395,11 @@ const ICONS: [(IconName, &str, &[u8]); 97] = [
         IconName::Info,
         "info",
         include_bytes!("../assets/icons/info.svg"),
+    ),
+    (
+        IconName::Key,
+        "key",
+        include_bytes!("../assets/icons/key.svg"),
     ),
     (
         IconName::KeyReturn,

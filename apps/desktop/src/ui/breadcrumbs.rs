@@ -65,8 +65,8 @@ impl RenderOnce for Breadcrumbs {
             let step = div()
                 .id(ElementId::NamedInteger(self.id.clone(), index as u64))
                 .debug_selector(|| selector)
+                .flex()
                 .min_w_0()
-                .truncate()
                 .px(theme.space_xs)
                 .rounded(theme.icon_button_radius)
                 .text_color(if index == last {
@@ -79,7 +79,7 @@ impl RenderOnce for Breadcrumbs {
                     step.hover(|style| style.text_color(theme.text).bg(theme.control_hover))
                         .on_click(move |_, window, cx| handler(window, cx))
                 })
-                .child(crumb.label);
+                .child(super::truncated(crumb.label));
             children.push(step.into_any_element());
         }
         div()

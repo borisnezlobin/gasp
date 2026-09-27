@@ -9,9 +9,7 @@ use std::thread::JoinHandle;
 use editor_config::{Config, ConfigLoader};
 
 use super::files::notes_by_recency;
-
-/// Folders the launcher reads at most when looking for recent notes.
-pub(crate) const RECENT_SCAN_FOLDERS: usize = 200;
+use super::launcher::RECENT_SCAN_FOLDERS;
 
 /// A vault's config and recent notes, read once.
 pub struct VaultStart {
