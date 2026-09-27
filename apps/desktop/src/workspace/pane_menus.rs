@@ -8,6 +8,7 @@ use gpui::{App, ClipboardItem, Context, Entity, Focusable, Window};
 
 use super::Workspace;
 use super::pane::{Pane, PaneMenu};
+use super::pane_tree::Direction;
 use crate::icons::IconName;
 use crate::keymap::RunCommand;
 use crate::ui::{MenuAnchor, MenuItem};
@@ -54,6 +55,58 @@ const MORE_GROUPS: [&[Command]; 5] = [
     &[("tab.close", "Close tab", IconName::X)],
 ];
 const FILE_GROUP_AT: usize = 3;
+
+/// A tab's right-click menu: closing, then splitting.
+const TAB_CLOSE_ITEMS: [Command; 3] = [
+    ("tab.close", "Close", IconName::X),
+    ("tab.close-others", "Close others", IconName::Square),
+    (
+        "tab.close-right",
+        "Close to the right",
+        IconName::ArrowRight,
+    ),
+];
+
+const TAB_SPLIT_ITEMS: [Command; 2] = [
+    (
+        "pane.split-right",
+        "Split right",
+        IconName::SquareSplitHorizontal,
+    ),
+    (
+        "pane.split-down",
+        "Split down",
+        IconName::SquareSplitVertical,
+    ),
+];
+
+/// The tab menu's Move submenu, one item per side.
+const TAB_MOVE_ITEMS: [(Command, Direction); 4] = [
+    (
+        (
+            "pane.move-tab-left",
+            "Pane on the left",
+            IconName::ArrowLeft,
+        ),
+        Direction::Left,
+    ),
+    (
+        (
+            "pane.move-tab-right",
+            "Pane on the right",
+            IconName::ArrowRight,
+        ),
+        Direction::Right,
+    ),
+    (
+        ("pane.move-tab-up", "Pane above", IconName::ArrowUp),
+        Direction::Up,
+    ),
+    (
+        ("pane.move-tab-down", "Pane below", IconName::ArrowDown),
+        Direction::Down,
+    ),
+];
 
 /// The note's right-click menu before the Format submenu, in groups, in
 /// the order native text menus use.
@@ -166,6 +219,7 @@ impl Workspace {
             PaneMenu::TabList => self.tab_list_items(pane, cx),
             PaneMenu::More => self.more_items(pane, cx),
             PaneMenu::Editor => self.editor_items(pane, cx),
+            PaneMenu::Tab(index) => self.tab_items(pane, index, cx),
         };
         if !items.is_empty() {
             pane.update(cx, |pane, cx| pane.show_menu(items, anchor, window, cx));
@@ -229,6 +283,64 @@ impl Workspace {
         items.extend(self.pane_command(pane, "tab.close", cx));
         items.extend(self.pane_command(pane, "pane.close", cx));
         items
+    }
+
+    /// A tab's right-click menu. The tab is active by the time it opens,
+    /// so each item runs on the active tab.
+    fn tab_items(
+        &self,
+        pane: &Entity<Pane>,
+        index: usize,
+        cx: &mut Context<Self>,
+    ) -> Vec<MenuItem> {
+        let (count, path) = {
+            let pane = pane.read(cx);
+            let path = pane.tabs().get(index).and_then(|tab| tab.path(cx));
+            (pane.len(), path.map(Path::to_path_buf))
+        };
+        let disabled = |id: &str| match id {
+            "tab.close-others" => count < 2,
+            "tab.close-right" => index + 1 >= count,
+            _ => false,
+        };
+        let mut items = Vec::new();
+        for &(id, label, icon) in TAB_CLOSE_ITEMS.iter().chain(&TAB_SPLIT_ITEMS) {
+            if id == TAB_SPLIT_ITEMS[0].0 {
+                items.push(MenuItem::Separator);
+            }
+            items.extend(self.pane_command(pane, id, cx).map(|item| {
+                item.with_label(label)
+                    .with_icon(icon)
+                    .disabled(disabled(id))
+            }));
+        }
+        items.push(self.move_tab_menu(pane, count, cx));
+        items.push(MenuItem::Separator);
+        if path.is_some() {
+            items.extend(
+                self.pane_command(pane, "file-tree.reveal-active", cx)
+                    .map(|item| {
+                        item.with_label("Reveal in file tree")
+                            .with_icon(IconName::FolderOpen)
+                    }),
+            );
+        }
+        items.extend(path.map(copy_path_item));
+        tidy_separators(items)
+    }
+
+    /// Move to another pane: a side with no pane splits one off, which a
+    /// pane's only tab can't do.
+    fn move_tab_menu(&self, pane: &Entity<Pane>, count: usize, cx: &mut Context<Self>) -> MenuItem {
+        let items = TAB_MOVE_ITEMS
+            .iter()
+            .filter_map(|&((id, label, icon), side)| {
+                let stuck = count < 2 && self.panes.beside(pane, side).is_none();
+                self.pane_command(pane, id, cx)
+                    .map(|item| item.with_label(label).with_icon(icon).disabled(stuck))
+            })
+            .collect();
+        MenuItem::submenu("Move to", items).with_icon(IconName::Columns)
     }
 
     fn more_items(&self, pane: &Entity<Pane>, cx: &mut Context<Self>) -> Vec<MenuItem> {
@@ -313,18 +425,21 @@ impl EditAvailability {
 
 /// Copy path and Open in default app, for the note at `path`.
 fn file_items(path: PathBuf) -> Vec<MenuItem> {
-    let copied = path.clone();
     vec![
-        MenuItem::action("Copy path", move |_, cx| {
-            let text = copied.to_string_lossy().into_owned();
-            cx.write_to_clipboard(ClipboardItem::new_string(text));
-        })
-        .with_icon(IconName::Copy),
+        copy_path_item(path.clone()),
         MenuItem::action("Open in default app", move |_, cx| {
             cx.open_with_system(&path)
         })
         .with_icon(IconName::ArrowSquareOut),
     ]
+}
+
+fn copy_path_item(path: PathBuf) -> MenuItem {
+    MenuItem::action("Copy path", move |_, cx| {
+        let text = path.to_string_lossy().into_owned();
+        cx.write_to_clipboard(ClipboardItem::new_string(text));
+    })
+    .with_icon(IconName::Copy)
 }
 
 /// Drops separators at either end and doubled ones, left behind by
@@ -379,7 +494,10 @@ mod tests {
                     .map(|(id, ..)| *id),
             )
             .chain(FORMAT_ITEMS.iter().map(|(id, ..)| *id))
-            .chain(INSERT_ITEMS.iter().map(|(id, ..)| *id));
+            .chain(INSERT_ITEMS.iter().map(|(id, ..)| *id))
+            .chain(TAB_CLOSE_ITEMS.iter().map(|(id, ..)| *id))
+            .chain(TAB_SPLIT_ITEMS.iter().map(|(id, ..)| *id))
+            .chain(TAB_MOVE_ITEMS.iter().map(|((id, ..), _)| *id));
         for id in ids {
             assert!(BUILTIN_COMMANDS.iter().any(|spec| spec.id == id), "{id}");
         }

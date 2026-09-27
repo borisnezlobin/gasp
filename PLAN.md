@@ -301,6 +301,9 @@ Verification covers this too: a CI test walks every command in the registry and 
 | `Mod+\` | Toggle file sidebar |
 | `Mod+Shift+E` | Focus file tree |
 | `Mod+Alt+Left` and `Mod+Alt+Right` | Move focus between panes |
+| `Mod+Alt+Up` and `Mod+Alt+Down` | Move focus to the pane above or below |
+| `Mod+Alt+Shift` with an arrow | Move the tab to the pane that way, splitting one off if there's none |
+| `Mod+Alt+W` | Close pane |
 | **App** | |
 | `Mod+P` | Print (opens the print preview, which can also save a PDF) |
 | `Mod+Shift+S` | Export (HTML or PDF, with publish to the site) |

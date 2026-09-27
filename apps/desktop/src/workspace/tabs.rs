@@ -376,7 +376,7 @@ impl Workspace {
         }
     }
 
-    fn handle_empty_pane(
+    pub(crate) fn handle_empty_pane(
         &mut self,
         pane: &Entity<Pane>,
         window: &mut Window,
