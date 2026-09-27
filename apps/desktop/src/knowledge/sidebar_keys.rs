@@ -146,7 +146,7 @@ impl KnowledgeSidebar {
             },
             Row::Outgoing { target, .. } => SidebarEvent::Follow(target),
             Row::Heading { offset, .. } => SidebarEvent::Jump(offset),
-            Row::Tag { name, .. } => SidebarEvent::SearchTag(format!("#{name}")),
+            Row::Tag { name, .. } => SidebarEvent::SearchTag(format!("tag:{name}")),
             Row::UnlinkedToggle { .. } => return self.toggle_unlinked(cx),
             Row::Summary(_) | Row::Message(_) => return,
         };

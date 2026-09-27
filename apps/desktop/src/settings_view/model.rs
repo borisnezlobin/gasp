@@ -119,6 +119,11 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Typing ( [ { or a backtick adds its closing half, and typing * or _ over a selection wraps it.",
     ),
     (
+        "editor.renumber-footnotes",
+        "Keep footnotes in order",
+        "Once you pause typing, numbered footnotes renumber to follow the text and ^[1] typos become [^1]. The Renumber footnotes command does it whenever you ask.",
+    ),
+    (
         "editor.code-line-numbers",
         "Number lines in code blocks",
         "Show line numbers beside code. A block can still ask for them or turn them off with ln:true or ln:false after its language.",
@@ -380,6 +385,7 @@ pub const PAGES: &[PageSpec] = &[
                 setting("editor.curl-pasted-quotes"),
                 setting("editor.auto-pair"),
             ],
+            &[setting("editor.renumber-footnotes")],
             &[setting("editor.code-line-numbers")],
             &[
                 setting("markdown.symbols.mode"),

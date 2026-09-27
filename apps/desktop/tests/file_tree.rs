@@ -39,7 +39,6 @@ fn vault() -> TempDir {
 
 fn options(watch: bool) -> FileTreeOptions {
     FileTreeOptions {
-        update_links_on_rename: true,
         trash: TrashMode::Vault,
         watch,
     }
@@ -211,7 +210,7 @@ fn typing_jumps_to_matching_names(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn f2_renames_and_updates_links(cx: &mut TestAppContext) {
+fn f2_renames_and_leaves_links_to_the_workspace(cx: &mut TestAppContext) {
     let dir = vault();
     let root = dir.path();
     let (tree, cx, events) = open(cx, root, false);
@@ -226,24 +225,17 @@ fn f2_renames_and_updates_links(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("enter");
     assert!(root.join("Projects/Master plan.md").is_file());
     assert!(!root.join("Projects/Plan.md").exists());
-    assert_eq!(
-        fs::read_to_string(root.join("Note 2.md")).unwrap(),
-        "Links to [[Master plan]] and [p](Projects/Master%20plan.md)."
-    );
-    assert_eq!(
-        fs::read_to_string(root.join("Projects/Archive/Old.md")).unwrap(),
-        "[[Master plan#Goals|goals]]"
-    );
     let events = events.borrow();
     assert!(events.contains(&FileTreeEvent::Renamed {
         from: root.join("Projects/Plan.md"),
         to: root.join("Projects/Master plan.md"),
     }));
-    let updated = events.iter().find_map(|event| match event {
-        FileTreeEvent::LinksUpdated { paths } => Some(paths.len()),
-        _ => None,
-    });
-    assert_eq!(updated, Some(2));
+    assert!(
+        fs::read_to_string(root.join("Note 2.md"))
+            .unwrap()
+            .contains("[[Plan]]"),
+        "the tree itself never rewrites notes"
+    );
     assert_eq!(
         selected(&tree, root, cx),
         Some("Projects/Master plan.md".into())
@@ -281,10 +273,6 @@ fn renaming_an_image_keeps_its_extension_selected_out(cx: &mut TestAppContext) {
     cx.simulate_input("sales");
     cx.simulate_keystrokes("enter");
     assert!(root.join("sales.png").is_file());
-    assert_eq!(
-        fs::read_to_string(root.join("Daily/2024-01-01.md")).unwrap(),
-        "Today: ![[sales.png]]"
-    );
 }
 
 #[gpui::test]
@@ -419,11 +407,6 @@ fn cut_and_paste_move_between_folders(cx: &mut TestAppContext) {
     select(&tree, root, "Daily", cx);
     cx.simulate_keystrokes("secondary-v");
     assert!(root.join("Daily/Note 2.md").is_file());
-    // Its relative link was fixed for the new folder.
-    assert_eq!(
-        fs::read_to_string(root.join("Daily/Note 2.md")).unwrap(),
-        "Links to [[Plan]] and [p](../Projects/Plan.md)."
-    );
     assert!(events.borrow().contains(&FileTreeEvent::Renamed {
         from: root.join("Note 2.md"),
         to: root.join("Daily/Note 2.md"),

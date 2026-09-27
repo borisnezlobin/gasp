@@ -9,6 +9,7 @@
 //! [`VaultSearchEvent::Dismissed`].
 
 pub mod engine;
+pub mod tags;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -25,6 +26,7 @@ use crate::note_texts::NoteTexts;
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
 use crate::theme::{PickerTheme, UiTheme};
 use crate::ui::{Button, truncated, ui_theme};
+use crate::vault_index::VaultIndex;
 use engine::{Note, NoteResult, ReplaceReport};
 
 /// The key context the panel sets.
@@ -89,6 +91,9 @@ pub struct PendingReplace {
 /// The search panel over one vault.
 pub struct VaultSearch {
     root: PathBuf,
+    /// The vault's index, which knows every note's tags, frontmatter
+    /// included, for `tag:` searches.
+    index: Option<Entity<VaultIndex>>,
     /// The workspace's note texts, kept between searches, when there is
     /// one.
     texts: Option<NoteTexts>,
@@ -166,6 +171,13 @@ impl VaultSearch {
         panel
     }
 
+    /// Searches `tag:name` with the vault's index, which knows tags that
+    /// are only in a note's frontmatter.
+    pub fn with_index(mut self, index: Entity<VaultIndex>) -> Self {
+        self.index = Some(index);
+        self
+    }
+
     /// A panel over the notes under `root`, which it starts loading.
     pub fn new(root: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let mut panel = Self::build(root, window, cx);
@@ -194,6 +206,7 @@ impl VaultSearch {
         window.focus(&query.focus_handle(cx));
         Self {
             root,
+            index: None,
             texts: None,
             notes: Arc::default(),
             query,
@@ -289,9 +302,17 @@ impl VaultSearch {
         let generation = self.generation.clone();
         let notes = self.notes.clone();
         let query = self.query.read(cx).text().to_owned();
+        let tagged = tags::tag_query(&query)
+            .zip(self.index.as_ref())
+            .map(|(tag, index)| (tag.to_owned(), index.read(cx).links().notes_tagged(tag)));
         let searching = cx.background_spawn(async move {
             let _span = crate::trace::span("search-query");
-            engine::search(&notes, &query, &generation, current)
+            match tagged {
+                Some((tag, notes_tagged)) => {
+                    tags::search_tagged(&notes, &tag, &notes_tagged, &generation, current)
+                }
+                None => engine::search(&notes, &query, &generation, current),
+            }
         });
         self.search_task = Some(cx.spawn(async move |this, cx| {
             let results = searching.await;

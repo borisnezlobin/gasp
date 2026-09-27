@@ -221,9 +221,16 @@ impl EditorView {
     }
 
     /// Scrolls the list by `distance` (positive towards its end), a
-    /// whole row at a time. The highlight stays among the rows showing, so
-    /// Enter accepts one you can see.
-    pub fn scroll_suggestions(&mut self, distance: Pixels, _: &mut Window, cx: &mut Context<Self>) {
+    /// whole row at a time. The highlight follows the pointer when it's
+    /// on row `pointer` of those showing, and otherwise stays among the
+    /// rows showing, so Enter accepts one you can see.
+    pub fn scroll_suggestions(
+        &mut self,
+        distance: Pixels,
+        pointer: Option<usize>,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let theme = crate::ui::ui_theme(cx);
         let Some(open) = self.suggest.open.as_mut() else {
             return;
@@ -238,7 +245,10 @@ impl EditorView {
         }
         open.first_visible = first;
         let last_shown = (first + visible).min(open.items.len()) - 1;
-        open.highlighted = open.highlighted.clamp(first, last_shown);
+        open.highlighted = match pointer {
+            Some(row) => (first + row).min(last_shown),
+            None => open.highlighted.clamp(first, last_shown),
+        };
         cx.notify();
     }
 

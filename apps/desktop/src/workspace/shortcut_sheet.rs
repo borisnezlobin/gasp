@@ -22,7 +22,7 @@ use crate::ui::hints::{chord, command_title, shortcut};
 use crate::ui::keycap::{Glyph, glyphs, keycap_glyphs};
 use crate::ui::{truncated, ui_theme};
 
-/// The sheet's columns.
+/// The most columns the sheet has; a narrower window gets fewer.
 const SHEET_COLUMNS: usize = 3;
 
 /// How long Mod has to be held alone before the sheet shows.
@@ -94,7 +94,7 @@ const FAMILIES: [([&str; 4], &str); 2] = [
             "pane.focus-up",
             "pane.focus-down",
         ],
-        "Focus the pane that way",
+        "Focus a pane",
     ),
     (
         [
@@ -103,7 +103,7 @@ const FAMILIES: [([&str; 4], &str); 2] = [
             "pane.move-tab-up",
             "pane.move-tab-down",
         ],
-        "Move the tab to the pane that way",
+        "Move the tab to a pane",
     ),
 ];
 
@@ -354,11 +354,20 @@ impl Workspace {
         }
     }
 
-    pub(super) fn render_shortcut_sheet(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    pub(super) fn render_shortcut_sheet(
+        &self,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
         let area = self.sheet.shown?;
         let ui = ui_theme(cx);
         let groups = sheet_groups(area, |id| self.can_run(id), cx);
-        let columns = flow(&groups, SHEET_COLUMNS).into_iter().map(|lines| {
+        // As many columns as fit the window; what doesn't fit its height
+        // scrolls.
+        let room = window.viewport_size().width - ui.space_xl * 4.;
+        let fits = (room + ui.space_xl) / (ui.sheet_column_width + ui.space_xl);
+        let count = (fits.floor() as usize).clamp(1, SHEET_COLUMNS);
+        let columns = flow(&groups, count).into_iter().map(|lines| {
             div()
                 .flex()
                 .flex_col()
@@ -381,7 +390,17 @@ impl Workspace {
                     .text_size(ui.font_size + gpui::px(2.))
                     .child(area.title()),
             )
-            .child(div().flex().flex_row().gap(ui.space_xl).children(columns));
+            .child(
+                div()
+                    .id("shortcut-sheet-columns")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .flex()
+                    .flex_row()
+                    .gap(ui.space_xl)
+                    .children(columns),
+            );
         Some(
             div()
                 .absolute()

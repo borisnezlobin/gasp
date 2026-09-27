@@ -395,6 +395,16 @@ impl Workspace {
         self.update_vault_index(changed, removed, cx);
     }
 
+    /// A file or folder moved from `from` to `to` in the file tree: open
+    /// notes follow it, and links to what moved are rewritten as a
+    /// rename from the title does, in open editors where they can be.
+    pub fn entry_moved(&mut self, from: &Path, to: &Path, cx: &mut Context<Self>) {
+        self.disk_renamed(from, to, cx);
+        if self.config.settings.files.update_links_on_rename {
+            crate::knowledge::rename::update_links_after_rename(self, from, to, cx);
+        }
+    }
+
     fn disk_renamed(&mut self, from: &Path, to: &Path, cx: &mut Context<Self>) {
         for doc in self.docs.clone() {
             let path = doc.read(cx).path().to_path_buf();

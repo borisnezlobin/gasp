@@ -139,10 +139,13 @@ impl Workspace {
             .w(self.left_panel.width)
             .bg(ui.app_background)
             .on_hover(cx.listener(|workspace, hovered: &bool, window, cx| {
-                let kind = if *hovered {
-                    EventKind::PointerEnter
-                } else {
-                    EventKind::PointerLeave
+                workspace.left_panel.left_while_dragging = !*hovered && cx.has_active_drag();
+                let kind = match (*hovered, workspace.left_panel.left_while_dragging) {
+                    (true, _) => EventKind::PointerEnter,
+                    // A note dragged out to a pane keeps the panel it
+                    // came from until it's dropped.
+                    (false, true) => return,
+                    (false, false) => EventKind::PointerLeave,
                 };
                 workspace.pointer_event(kind, PANEL_TARGET, window, cx);
             }))
@@ -223,7 +226,16 @@ impl Workspace {
         }
     }
 
-    fn on_mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_mouse_move(
+        &mut self,
+        event: &MouseMoveEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.left_panel.left_while_dragging && !cx.has_active_drag() {
+            self.left_panel.left_while_dragging = false;
+            self.pointer_event(EventKind::PointerLeave, PANEL_TARGET, window, cx);
+        }
         if self.drag.is_some() {
             if event.pressed_button == Some(MouseButton::Left) {
                 self.drag_to(event.position, cx);
@@ -340,6 +352,6 @@ impl Render for Workspace {
             ))
             .children(self.menu.render_overlay(window, cx))
             .children(self.modal.render(&ui, cx))
-            .children(self.render_shortcut_sheet(cx))
+            .children(self.render_shortcut_sheet(window, cx))
     }
 }

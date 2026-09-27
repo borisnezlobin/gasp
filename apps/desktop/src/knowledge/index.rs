@@ -389,6 +389,23 @@ impl LinkIndex {
         missing
     }
 
+    /// The notes tagged `tag` or a tag nested under it, ignoring case,
+    /// whether in their text or only in their frontmatter.
+    pub fn notes_tagged(&self, tag: &str) -> HashSet<String> {
+        let tag = tag.to_lowercase();
+        let nested = format!("{tag}/");
+        self.notes
+            .iter()
+            .filter(|(_, entry)| {
+                entry.parsed.tags.iter().any(|written| {
+                    let name = written.name.to_lowercase();
+                    name == tag || name.starts_with(&nested)
+                })
+            })
+            .map(|(path, _)| path.clone())
+            .collect()
+    }
+
     /// Every tag and parent tag with its note count, sorted by name.
     pub fn tags(&self) -> Vec<TagCount> {
         let mut tags: Vec<TagCount> = self.tags.values().cloned().collect();

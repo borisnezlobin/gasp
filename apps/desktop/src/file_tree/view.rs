@@ -28,7 +28,6 @@ const UNTITLED: &str = "Untitled";
 /// How the tree treats files, from the vault's `files` settings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FileTreeOptions {
-    pub update_links_on_rename: bool,
     pub trash: TrashMode,
     /// Refresh when files change on disk.
     pub watch: bool,
@@ -37,7 +36,6 @@ pub struct FileTreeOptions {
 impl FileTreeOptions {
     pub fn from_settings(files: &FileSettings) -> FileTreeOptions {
         FileTreeOptions {
-            update_links_on_rename: files.update_links_on_rename,
             trash: files.trash,
             watch: true,
         }
@@ -594,8 +592,9 @@ impl FileTree {
 
     // ---- Moving ----
 
-    /// Renames or moves `from` to `to` (relative), updating links and
-    /// telling the workspace.
+    /// Renames or moves `from` to `to` (relative) and tells the
+    /// workspace, which follows open notes and rewrites links the way a
+    /// rename from the title does.
     pub(super) fn rename_entry(
         &mut self,
         from: &Path,
@@ -603,8 +602,7 @@ impl FileTree {
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
         let root = self.model.root().to_path_buf();
-        let renamed = ops::rename(&root, from, to, self.options.update_links_on_rename)
-            .map_err(|error| error.to_string())?;
+        ops::rename(&root, from, to, false).map_err(|error| error.to_string())?;
         self.model.follow_move(from, to);
         self.model.expand_ancestors(to);
         self.active = self
@@ -616,10 +614,6 @@ impl FileTree {
             from: root.join(from),
             to: root.join(to),
         });
-        if !renamed.updated_notes.is_empty() {
-            let paths = renamed.updated_notes.iter().map(|p| root.join(p)).collect();
-            cx.emit(FileTreeEvent::LinksUpdated { paths });
-        }
         Ok(())
     }
 

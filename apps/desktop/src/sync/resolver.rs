@@ -41,8 +41,8 @@ impl Choice {
 
     fn label(self) -> &'static str {
         match self {
-            Choice::Mine => "Keep mine",
-            Choice::Theirs => "Keep theirs",
+            Choice::Mine => "Keep this device's",
+            Choice::Theirs => "Keep the other device's",
             Choice::Both => "Keep both",
         }
     }
@@ -574,8 +574,6 @@ impl Render for ConflictResolver {
             .key_context("ConflictResolver")
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(Self::on_key_down))
-            .w(size.width)
-            .h(size.height)
             .flex()
             .overflow_hidden()
             .rounded(style.modal_radius)
@@ -585,27 +583,33 @@ impl Render for ConflictResolver {
             .text_size(style.text_size)
             .line_height(relative(style.line_height_factor))
             .text_color(style.text);
+        // With nothing to resolve the dialog is only as big as its words.
         if self.files.is_empty() {
-            return root.child(
+            let width = crate::ui::ui_theme(cx).small_dialog_width;
+            return root.w(width.min(size.width)).child(
                 div()
-                    .p(style.content_padding_x)
+                    .px(style.content_padding_x)
+                    .py(style.content_padding_y)
                     .text_color(style.text_muted)
                     .child("There's nothing left to resolve."),
             );
         }
-        root.children(self.render_files(cx)).child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .flex()
-                .flex_col()
-                .gap(style.card_gap)
-                .px(style.content_padding_x)
-                .py(style.content_padding_y)
-                .child(self.render_header())
-                .child(self.render_hunks(cx))
-                .child(self.render_footer(cx)),
-        )
+        root.w(size.width)
+            .h(size.height)
+            .children(self.render_files(cx))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .gap(style.card_gap)
+                    .px(style.content_padding_x)
+                    .py(style.content_padding_y)
+                    .child(self.render_header())
+                    .child(self.render_hunks(cx))
+                    .child(self.render_footer(cx)),
+            )
     }
 }
 

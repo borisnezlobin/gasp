@@ -289,6 +289,29 @@ fn tags_nest_and_search_the_vault(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_tag_finds_notes_that_have_it_only_in_their_frontmatter(cx: &mut TestAppContext) {
+    let vault = vault_with(&[
+        ("Front.md", "---\ntags: [optics]\n---\nLenses.\n"),
+        ("Inline.md", "Mirrors #optics/mirrors\n"),
+        ("Plain.md", "The word optics, untagged.\n"),
+    ]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    press(cx, "sidebar.tags");
+    click_row(&workspace, cx, "tag: optics 2 false");
+    let search = cx.read(|cx| workspace.read(cx).active_modal::<VaultSearch>());
+    let search = search.expect("the tag opens vault search");
+    let found: Vec<String> = cx.read(|cx| {
+        let search = search.read(cx);
+        search
+            .results()
+            .iter()
+            .map(|result| result.path.to_string_lossy().into_owned())
+            .collect()
+    });
+    assert_eq!(found, ["Front.md", "Inline.md"]);
+}
+
+#[gpui::test]
 fn buttons_and_commands_show_hide_and_remember_the_sidebar(cx: &mut TestAppContext) {
     let vault = linked_vault();
     let (workspace, cx) = open_workspace(cx, vault.path());
@@ -385,6 +408,47 @@ fn renaming_leaves_links_alone_when_the_setting_is_off(cx: &mut TestAppContext) 
     assert_eq!(
         std::fs::read_to_string(root.join("A.md")).unwrap(),
         "[[Old]]"
+    );
+}
+
+#[gpui::test]
+fn moving_in_the_file_tree_updates_links_like_a_rename(cx: &mut TestAppContext) {
+    let vault = vault_with(&[
+        ("Plan.md", "Back to [a](A.md).\n"),
+        ("A.md", "See [[Plan]] and [p](Plan.md).\n"),
+        ("sub/B.md", "[[Plan#Goals|goals]]\n"),
+        ("Archive/.keep", ""),
+    ]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "A.md");
+    let root = root(&workspace, cx);
+    let tree = cx.read(|cx| workspace.read(cx).file_tree().unwrap().clone());
+    tree.update(cx, |tree, cx| {
+        tree.move_into(&root.join("Plan.md"), &root.join("Archive"), cx)
+    });
+    cx.run_until_parked();
+    assert!(root.join("Archive/Plan.md").is_file());
+    // A is open: its editor has the change, as one undoable edit, and
+    // its file is untouched until it saves.
+    assert_eq!(
+        active_text(&workspace, cx),
+        "See [[Plan]] and [p](Archive/Plan.md).\n"
+    );
+    let editor = cx.read(|cx| workspace.read(cx).active_editor(cx).unwrap());
+    editor.update(cx, |editor, cx| editor.undo(cx));
+    assert_eq!(
+        cx.read(|cx| editor.read(cx).text()),
+        "See [[Plan]] and [p](Plan.md).\n"
+    );
+    // The note that moved keeps its own relative link working.
+    assert_eq!(
+        std::fs::read_to_string(root.join("Archive/Plan.md")).unwrap(),
+        "Back to [a](../A.md).\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.join("sub/B.md")).unwrap(),
+        "[[Plan#Goals|goals]]\n",
+        "a name that still finds the note stays as written"
     );
 }
 
