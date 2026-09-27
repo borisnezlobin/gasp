@@ -390,7 +390,7 @@ struct OptionsBuilder {
 
 const OPTION_WORDS: &str = "anywhere, text, math, code, link, frontmatter, table, html, comment, \
 inline math, block math, instant, on tab, whole word, after space, not after <characters>, \
-on selection, priority <number>";
+on selection, priority <number>, off";
 
 impl OptionsBuilder {
     fn add(&mut self, word: &str) -> Result<(), String> {
@@ -404,6 +404,7 @@ impl OptionsBuilder {
             "whole word" => set_flag(&mut self.options.whole_word),
             "after space" => set_flag(&mut self.options.after_space),
             "on selection" => set_flag(&mut self.options.on_selection),
+            "off" => set_flag(&mut self.options.off),
             _ => self.add_with_argument(word),
         }
     }
@@ -651,6 +652,13 @@ mod tests {
             snippet.expansion.parts[0],
             ExpansionPart::Capture(CaptureRef::Group(1))
         );
+    }
+
+    #[test]
+    fn off_keeps_a_snippet_but_switches_it_off() {
+        let snippet = parse_snippet("mk → $●$  text, instant, off").unwrap();
+        assert!(snippet.options.off);
+        assert_eq!(snippet.to_string(), "mk → $●$  text, instant, off");
     }
 
     #[test]

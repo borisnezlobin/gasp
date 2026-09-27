@@ -56,6 +56,17 @@ impl NamedPattern {
         }
     }
 
+    /// The most characters the pattern matches, when there is a limit.
+    pub fn max_len(self) -> Option<usize> {
+        let longest = |names: &str| names.split('|').map(str::len).max();
+        match self {
+            NamedPattern::Letter | NamedPattern::Digit => Some(1),
+            NamedPattern::Greek => longest(GREEK_NAMES),
+            NamedPattern::Symbol => longest(SYMBOL_NAMES),
+            NamedPattern::Word => None,
+        }
+    }
+
     /// Splits `letter2` into the `Letter` pattern and occurrence 2; `letter` is occurrence 1.
     pub fn parse_reference(text: &str) -> Option<(NamedPattern, usize, bool)> {
         let digits_start = text

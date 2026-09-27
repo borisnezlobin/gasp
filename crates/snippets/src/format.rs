@@ -105,6 +105,7 @@ pub fn format_options(options: &Options) -> String {
     if options.priority != 0 {
         words.push(format!("priority {}", options.priority));
     }
+    push_if(&mut words, options.off, "off");
     words.join(", ")
 }
 
