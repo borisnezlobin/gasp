@@ -244,7 +244,9 @@ impl FileTree {
     }
 
     fn relative(&self, path: &Path) -> Option<PathBuf> {
-        if path.is_relative() {
+        // On Windows `/elsewhere` has no drive letter, so it counts as
+        // relative, but it still starts from a root and isn't in the vault.
+        if path.is_relative() && !path.has_root() {
             return Some(path.to_path_buf());
         }
         path.strip_prefix(self.model.root())
