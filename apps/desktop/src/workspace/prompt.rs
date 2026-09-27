@@ -133,13 +133,13 @@ impl Render for PromptView {
                     .clone()
                     .map(|detail| div().text_color(ui.text_muted).child(detail)),
             )
+            // One answer under another, full width, so long answers such
+            // as "Use the version on disk" never wrap into a ragged row.
             .child(
                 div()
                     .flex()
-                    .flex_row()
-                    .flex_wrap()
-                    .justify_end()
-                    .gap(ui.space_md)
+                    .flex_col()
+                    .gap(ui.space_sm)
                     .pt(ui.space_md)
                     .children(answers),
             );

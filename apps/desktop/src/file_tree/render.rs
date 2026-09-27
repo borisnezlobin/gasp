@@ -167,7 +167,15 @@ impl FileTree {
 
     fn row_shell(&self, depth: usize, state: RowState, ui: &UiTheme) -> gpui::Div {
         let ringed = state.selected && state.focused;
-        let background = (ringed || state.active).then_some(ui.tree_active_background);
+        // Opaque under the ring, which would otherwise darken the fill.
+        let background = match (ringed, state.active) {
+            (true, _) => Some(crate::theme::over(
+                ui.tree_active_background,
+                ui.app_background,
+            )),
+            (false, true) => Some(ui.tree_active_background),
+            _ => None,
+        };
         let hover = ui.tree_hover_background;
         let mut shell = div()
             .relative()
