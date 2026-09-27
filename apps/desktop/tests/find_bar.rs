@@ -271,6 +271,18 @@ fn escape_closes_and_selects_the_match(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_closed_bar_leaves_edits_unmarked(cx: &mut TestAppContext) {
+    let mut h = open(cx, NOTE, 0..3);
+    h.keys("escape");
+    h.editor.update(h.cx, |editor, cx| {
+        editor.replace(0..0, "one ", cx);
+    });
+    h.cx.run_until_parked();
+    assert!(h.highlights(HighlightKind::SearchMatch).is_empty());
+    assert!(h.highlights(HighlightKind::ActiveSearchMatch).is_empty());
+}
+
+#[gpui::test]
 fn the_query_field_edits_like_a_text_field(cx: &mut TestAppContext) {
     let mut h = open(cx, NOTE, 0..0);
     h.cx.write_to_clipboard(ClipboardItem::new_string("two\n".into()));

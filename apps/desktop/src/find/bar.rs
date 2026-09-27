@@ -82,6 +82,9 @@ pub struct FindBar {
     /// longer matches can let go of it.
     revealed: Option<Range<usize>>,
     replace_visible: bool,
+    /// Whether the bar is showing. A closed bar ignores edits, so its
+    /// highlights don't come back while the note is typed in.
+    open: bool,
     theme: UiTheme,
     _subscriptions: Vec<Subscription>,
 }
@@ -125,7 +128,7 @@ impl FindBar {
                 }
             }),
             cx.subscribe(&editor, |this, _, event: &EditorEvent, cx| {
-                if *event == EditorEvent::Edited {
+                if *event == EditorEvent::Edited && this.open {
                     this.refresh_matches(cx);
                 }
             }),
@@ -141,6 +144,7 @@ impl FindBar {
             active: None,
             revealed: None,
             replace_visible: false,
+            open: true,
             theme,
             _subscriptions: subscriptions,
         };
@@ -152,6 +156,7 @@ impl FindBar {
     /// selection, shows the replace row when `replace` is set, and selects
     /// the query so typing replaces it.
     pub fn show(&mut self, replace: bool, window: &mut Window, cx: &mut Context<Self>) {
+        self.open = true;
         self.replace_visible |= replace;
         if let Some(seed) = self.selection_seed(cx) {
             self.query.update(cx, |query, cx| {
@@ -370,6 +375,7 @@ impl FindBar {
     /// Hides the bar's highlights, selects the active match and gives focus
     /// back to the editor.
     pub fn dismiss(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.open = false;
         self.reveal_active(cx);
         self.clear_highlights(cx);
         window.focus(&self.editor.focus_handle(cx));
