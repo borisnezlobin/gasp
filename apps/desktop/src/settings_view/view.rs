@@ -24,7 +24,8 @@ use super::model::{
     PageSpec, RowSpec, SettingItem, ShortcutQuery, ShortcutRow, map_name_label, map_names,
     page_cards, setting_items, shortcut_rows, theme_number_items, words_match,
 };
-use super::snippets_page::{ReplacementRow, SnippetEditor, SnippetRow, TypingLists};
+use super::snippet_editor::SnippetEditor;
+use super::snippets_page::{ReplacementRow, SnippetRow, TypingLists};
 use super::store::{SettingsFile, settings_path};
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
 use crate::theme::{ACCENT_CHOICES, DARK_ACCENT_CHOICES, KeycapTheme, SettingsTheme, Theme};
@@ -199,12 +200,12 @@ impl PaneLayout {
 const LIST_OVERDRAW: f32 = 400.;
 
 /// What the page's list was last given: which page, for which search,
-/// and how many items.
+/// and which items.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct ListShows {
     pub page: Option<Page>,
     pub query: String,
-    pub count: usize,
+    pub items: Rc<[super::render::PaneItem]>,
 }
 
 /// The pages that match the search, each with its rows, built once per
@@ -831,7 +832,7 @@ impl SettingsView {
             ControlRow::SnippetEditor => {
                 return self.snippet_editor.as_ref().map(|editor| {
                     editor
-                        .field(super::snippets_page::EditorField::Trigger)
+                        .field(super::snippet_editor::EditorField::Trigger)
                         .clone()
                 });
             }

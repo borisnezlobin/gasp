@@ -2245,6 +2245,8 @@ pub struct SettingsTheme {
     pub toggle_width: Pixels,
     pub toggle_height: Pixels,
     pub toggle_knob_inset: Pixels,
+    /// Room between a segmented control's track and its segments.
+    pub segment_inset: Pixels,
     pub swatch_size: Pixels,
     pub stepper_value_width: Pixels,
     pub field_width: Pixels,
@@ -2275,6 +2277,8 @@ pub struct SettingsTheme {
     /// The hairline ring that outlines buttons, keycaps and menus.
     pub control_ring: Hsla,
     pub toggle_off: Hsla,
+    /// The track a segmented control's chosen segment is raised out of.
+    pub segment_track: Hsla,
     pub knob: Hsla,
     pub focus_ring: Hsla,
     pub warning: Hsla,
@@ -2335,6 +2339,7 @@ impl SettingsTheme {
             toggle_width: px(40.),
             toggle_height: px(22.),
             toggle_knob_inset: space("space.xs", 2.),
+            segment_inset: space("space.xs", 2.),
             swatch_size: px(22.),
             stepper_value_width: px(34.),
             field_width: px(220.),
@@ -2361,6 +2366,7 @@ impl SettingsTheme {
             control_background: p.popover,
             control_ring: p.shadow,
             toggle_off: p.text_faint,
+            segment_track: p.hover,
             knob: p.knob,
             focus_ring: p.focus(),
             warning: p.conflict,

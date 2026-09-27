@@ -233,7 +233,7 @@ impl SettingsView {
         let style = self.style.clone();
         let layout = self.layout();
         let items: Rc<[PaneItem]> = pane_items(&layout).into();
-        self.sync_list(items.len());
+        self.sync_list(&items);
         // Only the items in view are built each frame: the shortcuts page
         // has over a hundred rows.
         let pane = list(
@@ -263,23 +263,30 @@ impl SettingsView {
             )
     }
 
-    /// Tells the list how many items the page has now. A new page or
-    /// search starts at the top; a changed row keeps the place.
-    fn sync_list(&self, count: usize) {
+    /// Tells the list which items the page has now. A new page or
+    /// search starts at the top; a row added or removed keeps the place,
+    /// and the items from it on are measured again, so a tall row such as
+    /// the snippet editor scrolls into view by its real height.
+    fn sync_list(&self, items: &Rc<[PaneItem]>) {
         let now = ListShows {
             page: self.current_section(),
             query: self.query.clone(),
-            count,
+            items: items.clone(),
         };
         let mut shown = self.list_shows.borrow_mut();
         match shown.as_ref() {
             Some(old) if old.page == now.page && old.query == now.query => {
-                if old.count != count {
-                    let kept = old.count.min(count);
-                    self.list.splice(kept..old.count, count - kept);
+                if old.items.len() != items.len() {
+                    let kept = old
+                        .items
+                        .iter()
+                        .zip(items.iter())
+                        .take_while(|(old, new)| old == new)
+                        .count();
+                    self.list.splice(kept..old.items.len(), items.len() - kept);
                 }
             }
-            _ => self.list.reset(count),
+            _ => self.list.reset(items.len()),
         }
         *shown = Some(now);
     }
@@ -425,7 +432,7 @@ impl SettingsView {
 
 /// One item of the page's scrolling list.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum PaneItem {
+pub(super) enum PaneItem {
     Title,
     CardTitle(usize),
     Row {
