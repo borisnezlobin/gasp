@@ -249,6 +249,13 @@ fn replacements_stay_out_of_code(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn letter_triggers_leave_words_alone(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "");
+    cx.simulate_input("an api is happy saw/ pi ");
+    assert_eq!(shown(&view, cx), "an api is happy saw/ π |");
+}
+
+#[gpui::test]
 fn prettifier_entries_fire_on_the_space_after(cx: &mut TestAppContext) {
     let (view, cx) = open(cx, "");
     cx.simulate_input("go w/ me (c) ");
