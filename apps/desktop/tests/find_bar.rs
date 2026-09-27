@@ -160,6 +160,7 @@ fn typing_finds_as_you_type(cx: &mut TestAppContext) {
     h.type_text("ex");
     assert_eq!(h.label(), "No results");
     assert!(h.highlights(HighlightKind::SearchMatch).is_empty());
+    assert_eq!(h.selection(), 0..0, "the last match isn't left selected");
 }
 
 #[gpui::test]
