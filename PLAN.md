@@ -8,16 +8,16 @@ This section is for an agent picking the project up with no earlier context. Eve
 
 ### Where things stand
 
-The workspace, CI and the synthetic corpus exist, the Linux-runnable Phase 0 spikes have results in [the spike table](#phase-0-spikes), and most of the Phase 1 core is built and tested. [Phase 1](#phase-1-core) lists what's left. This repo used to hold an abandoned Electron editor, which is still in the git history and should be ignored.
+The workspace, CI and the synthetic corpus exist, the Linux-runnable Phase 0 spikes have results in [the spike table](#phase-0-spikes), the core is built and tested, and the desktop app covers most of Phases 2 to 5. This repo used to hold an abandoned Electron editor, which is still in the git history and should be ignored.
 
 | Phase | Status |
 |---|---|
 | 0 Spikes | math, git, Typst PDF and GPUI run on Linux; the iPhone spikes need a macOS runner |
-| 1 Core | in progress |
-| 2 Desktop editor | not started |
-| 3 Sync and travel check | not started |
-| 4 Search and prose | not started |
-| 5 Export | not started |
+| 1 Core | built: document, input pipeline, parser with Obsidian extensions, render planner, snippets, replacements, footnotes |
+| 2 Desktop editor | built: live preview, tabs and splits with drag to split, file tree, both sidebars (backlinks, outgoing links, outline, tags), palette, switcher, settings with editable shortcuts, light and dark themes, hover previews, emoji picker, link cards, code blocks, daily notes, templates, file recovery, edit time. Not yet built on macOS by CI's Metal step; the title bar and Keychain code are untested on a Mac |
+| 3 Sync and travel check | sync built in the app (status bar, popover, settings page, conflict resolver); the switch of a vault from `main` to `master` is left to the owner; travel check not started |
+| 4 Search and prose | vault search with an in-memory index (not Tantivy yet), sentence-length highlighting, grammar layers 1 and 2 (Harper's mechanical checks and vault-learned spelling); the local grammar model and OCR aren't started |
+| 5 Export | PDF (Typst) and HTML for the website built; the website still needs `crates/export/assets/article.css` and its drop-cap script updated |
 | 6 MCP and headless modes | not started |
 | 7 iPhone | not started |
 | 8 Plugins and agents | not started |
