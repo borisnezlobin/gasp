@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use editor_snippets::{Replacements, SnippetEngine, SnippetFile};
 
 use super::install_typing_steps;
 use crate::document::{Document, Selection};
 use crate::history::EditorState;
-use crate::pipeline::{EditRequest, Pipeline};
+use crate::pipeline::{EditRequest, Pipeline, TabStops, follow_stops};
 use crate::syntax;
 
 const SNIPPETS: &str = "\
@@ -13,6 +15,8 @@ dm      → $$⏎●⏎$$       text, instant, whole word
 //      → \\frac{●}{●}   math, instant
 sr      → ^{2}          math, instant
 bb      → \\mathbf{●}    block math, instant
+sum     → \\sum          math, instant
+beg     → \\begin{●1}⏎●2⏎\\end{●1}  math, instant
 ";
 
 const REPLACEMENTS: &str = r#"
@@ -36,13 +40,14 @@ fn pipeline() -> Pipeline {
     let engine = SnippetEngine::new(file.snippets().cloned().collect()).expect("snippets compile");
     let table = Replacements::from_toml(REPLACEMENTS).expect("replacements parse");
     let mut pipeline = Pipeline::builtin();
-    install_typing_steps(&mut pipeline, engine, table).expect("slots exist");
+    install_typing_steps(&mut pipeline, Arc::new(engine), Arc::new(table)).expect("slots exist");
     pipeline
 }
 
 struct Typist {
     state: EditorState,
     pipeline: Pipeline,
+    stops: Option<TabStops>,
     clock: u64,
 }
 
@@ -58,6 +63,7 @@ impl Typist {
         Typist {
             state,
             pipeline: pipeline(),
+            stops: None,
             clock: 1,
         }
     }
@@ -66,16 +72,22 @@ impl Typist {
         let text = self.state.doc().slice(0..self.state.doc().len());
         let tree = syntax::parse(&text);
         self.clock += 10;
-        let transactions = self.pipeline.run_steps(
+        let output = self.pipeline.run_input(
             request,
             self.state.doc(),
             self.state.selection(),
             &tree,
             self.clock,
+            self.stops.as_ref(),
         );
-        for transaction in transactions {
+        for transaction in output.transactions.clone() {
             self.state.apply(transaction).expect("transaction applies");
         }
+        self.stops = follow_stops(self.stops.take(), &output);
+    }
+
+    fn tab(&mut self) {
+        self.send(EditRequest::Tab);
     }
 
     fn type_text(&mut self, text: &str) {
@@ -169,4 +181,89 @@ fn replacements_shorter_than_what_they_replace_keep_the_caret() {
     let mut typist = Typist::new("", 0);
     typist.type_text("x -> y");
     assert_eq!(typist.shown(), "x → y|");
+}
+
+#[test]
+fn tab_visits_each_stop_then_leaves_the_snippet() {
+    let mut typist = Typist::new("", 0);
+    typist.type_text("mk//a");
+    assert_eq!(typist.shown(), "$\\frac{a|}{}$");
+    typist.tab();
+    typist.type_text("b");
+    assert_eq!(typist.shown(), "$\\frac{a}{b|}$");
+    typist.tab();
+    assert_eq!(typist.shown(), "$\\frac{a}{b}|$");
+    assert!(typist.stops.is_none(), "the last stop ends the snippet");
+}
+
+#[test]
+fn mirrored_stops_are_typed_in_together() {
+    let mut typist = Typist::new("$$\n\n$$", 3);
+    typist.type_text("begcases");
+    assert_eq!(
+        typist.state.doc().to_string(),
+        "$$\n\\begin{cases}\n\n\\end{cases}\n$$"
+    );
+    typist.tab();
+    assert_eq!(typist.shown(), "$$\n\\begin{cases}\n|\n\\end{cases}\n$$");
+}
+
+#[test]
+fn a_slash_after_a_term_makes_a_fraction() {
+    let mut typist = Typist::new("$a + x^2$", 8);
+    typist.type_text("/");
+    assert_eq!(typist.shown(), "$a + \\frac{x^2}{|}$");
+    typist.type_text("3");
+    typist.tab();
+    assert_eq!(typist.shown(), "$a + \\frac{x^2}{3}|$");
+
+    let mut parens = Typist::new("$(a+b)$", 6);
+    parens.type_text("/");
+    assert_eq!(parens.shown(), "$\\frac{a+b}{|}$");
+
+    let mut exponent = Typist::new("$e^{x}$", 5);
+    exponent.type_text("/");
+    assert_eq!(exponent.shown(), "$e^{x/|}$");
+
+    let mut text = Typist::new("and/or", 3);
+    text.type_text("/");
+    assert_eq!(text.shown(), "and/|/or");
+}
+
+#[test]
+fn tab_and_enter_fill_in_a_matrix() {
+    let text = "$$\n\\begin{pmatrix}\na\n\\end{pmatrix}\n$$";
+    let mut typist = Typist::new(text, text.find("a\n").unwrap() + 1);
+    typist.tab();
+    typist.type_text("b");
+    typist.send(EditRequest::Newline);
+    typist.type_text("c");
+    assert_eq!(
+        typist.shown(),
+        "$$\n\\begin{pmatrix}\na & b \\\\\nc|\n\\end{pmatrix}\n$$"
+    );
+}
+
+#[test]
+fn tab_jumps_past_brackets_and_out_of_math() {
+    let mut typist = Typist::new("$(a) + b$ c", 3);
+    typist.tab();
+    assert_eq!(typist.shown(), "$(a)| + b$ c");
+
+    let mut end = Typist::new("$(a) + b$ c", 8);
+    end.tab();
+    assert_eq!(end.shown(), "$(a) + b$| c");
+
+    let mut block = Typist::new("$$\nx\n$$", 4);
+    block.tab();
+    assert_eq!(block.shown(), "$$\nx\n$$\n|");
+}
+
+#[test]
+fn brackets_around_a_sum_grow_when_it_expands() {
+    let mut typist = Typist::new("$(x)$", 2);
+    typist.type_text("sum");
+    assert_eq!(typist.shown(), "$\\left(\\sum|x\\right)$");
+    assert!(typist.state.undo(typist.clock + 10_000));
+    assert_eq!(typist.state.doc().to_string(), "$(x)$");
 }

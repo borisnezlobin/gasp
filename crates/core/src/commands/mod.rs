@@ -29,12 +29,7 @@ fn command_transaction(
     command: &str,
     timestamp_ms: u64,
 ) -> Transaction {
-    let cx = StepContext {
-        doc,
-        selection,
-        context: InputContext::Text,
-        timestamp_ms,
-    };
+    let cx = StepContext::plain(doc, selection, InputContext::Text, timestamp_ms);
     let mut transaction = plan_transaction(&cx, plans);
     transaction.meta.origin = Origin::command(command);
     transaction

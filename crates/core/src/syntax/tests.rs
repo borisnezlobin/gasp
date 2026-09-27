@@ -753,6 +753,19 @@ fn context_at_reports_the_innermost_construct() {
 }
 
 #[test]
+fn math_at_finds_the_source_between_the_delimiters() {
+    let text = "a $x+1$ b\n\n$$\n\\frac{1}{2}\n$$\n\n$y";
+    let tree = parse(text);
+    let inline = tree.math_at(text.find('x').unwrap()).unwrap();
+    assert_eq!(&text[inline.inner.clone()], "x+1");
+    assert!(!inline.block);
+    let block = tree.math_at(text.find("frac").unwrap()).unwrap();
+    assert_eq!(&text[block.inner.clone()], "\n\\frac{1}{2}\n");
+    assert!(block.block);
+    assert!(tree.math_at(text.find('b').unwrap()).is_none());
+}
+
+#[test]
 fn context_at_in_code_links_comments_and_tables() {
     let text =
         "a $x$ `c` [t](http://u) [[w]] %%c%% <b>h</b>\n\n| $m$ | t |\n|---|---|\n\n```\ncode\n```";

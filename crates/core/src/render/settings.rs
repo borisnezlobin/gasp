@@ -29,6 +29,9 @@ pub enum RevealMode {
 pub struct RevealSettings {
     pub mode: RevealMode,
     pub overrides: HashMap<SyntaxKind, RevealMode>,
+    /// Whether brackets in shown math source are coloured by how deeply
+    /// they nest, so the two halves of a pair match.
+    pub bracket_colours: bool,
 }
 
 impl Default for RevealSettings {
@@ -44,6 +47,7 @@ impl RevealSettings {
         Self {
             mode,
             overrides: HashMap::new(),
+            bracket_colours: true,
         }
     }
 

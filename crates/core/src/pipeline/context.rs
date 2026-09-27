@@ -149,10 +149,29 @@ impl Default for ContextFilter {
     }
 }
 
+/// The math around an offset: `$…$`, `$$…$$` on one line, or a `$$`
+/// block.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MathSpan {
+    /// The whole span, delimiters included.
+    pub outer: std::ops::Range<usize>,
+    /// The source between the delimiters. An unclosed span runs to the end
+    /// of `outer`.
+    pub inner: std::ops::Range<usize>,
+    /// Whether it's `$$` math rather than inline `$`.
+    pub block: bool,
+}
+
 /// Tells the pipeline what context an offset is in. The parser implements
 /// this for real documents.
 pub trait ContextProvider {
     fn context_at(&self, doc: &Document, offset: usize) -> InputContext;
+
+    /// The math the offset is in, when it's in math and the provider knows
+    /// where that math starts and ends.
+    fn math_at(&self, _doc: &Document, _offset: usize) -> Option<MathSpan> {
+        None
+    }
 }
 
 /// Reports the same context everywhere, `text` by default. For tests and for
