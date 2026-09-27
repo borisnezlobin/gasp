@@ -72,7 +72,7 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         window.focus(&self.focus_handle);
-        if self.click_widget(event.position, cx) {
+        if self.click_copy_button(event.position, cx) || self.click_widget(event.position, cx) {
             return;
         }
         let offset = self.offset_for_point(event.position, window);
@@ -136,6 +136,7 @@ impl EditorView {
             let offset = self.offset_for_point(event.position, window);
             self.extend_by_unit(offset, cx);
         }
+        self.hover_code(Some(event.position), cx);
     }
 
     fn on_scroll(&mut self, event: &ScrollWheelEvent, _: &mut Window, cx: &mut Context<Self>) {
@@ -147,8 +148,14 @@ impl EditorView {
 impl Render for EditorView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
+            .id("editor")
             .size_full()
             .key_context(KEY_CONTEXT)
+            .on_hover(cx.listener(|editor, hovered: &bool, _, cx| {
+                if !*hovered {
+                    editor.hover_code(None, cx);
+                }
+            }))
             .track_focus(&self.focus_handle)
             .cursor(CursorStyle::IBeam)
             .bg(self.theme.background)

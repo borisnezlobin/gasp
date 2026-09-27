@@ -132,6 +132,7 @@ palette! {
     conflict = "color.conflict",
     highlight = "color.highlight",
     code_background = "color.code-background",
+    code_highlight = "color.code-highlight",
     fill_faint = "color.fill-faint",
     fill = "color.fill",
     fill_strong = "color.fill-strong",
@@ -248,6 +249,8 @@ pub struct Theme {
     pub markup_dimmed: Hsla,
     pub code_text: Hsla,
     pub code_background: Hsla,
+    /// The band behind a code line the fence picks out with `{1,3-5}`.
+    pub code_highlight: Hsla,
     /// Syntax colours in code blocks, one per [`CodeKind`].
     pub code_syntax: [Hsla; 7],
     pub selection: Hsla,
@@ -543,6 +546,7 @@ fn read_colors(palette: &Palette) -> Theme {
         markup_dimmed: p.text_faint,
         code_text: p.text,
         code_background: p.code_background,
+        code_highlight: p.code_highlight,
         code_syntax: p.code,
         selection: p.selection,
         cursor: p.accent,
@@ -616,6 +620,7 @@ fn zero_sizes() -> Theme {
         markup_dimmed: black,
         code_text: black,
         code_background: black,
+        code_highlight: black,
         code_syntax: [black; 7],
         selection: black,
         cursor: black,

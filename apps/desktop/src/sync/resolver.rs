@@ -2,19 +2,28 @@
 //! changed the same lines, side by side, with a choice per place of which
 //! version to keep. Finishing hands the choices to sync, which commits
 //! the merge and carries on.
+//!
+//! It works from the keyboard alone: 1, 2 and 3 keep this device's
+//! version, the other device's or both for the current place and move on
+//! to the next one left to decide; Up and Down move between places (and
+//! on into the next file); Enter finishes, or goes to the first place
+//! still open.
 
+use editor_config::keys::KeyChord;
 use editor_sync::{ConflictHunk, ConflictedFile, Resolution, Segment};
 use gpui::{
     AnyElement, App, ClickEvent, Context, DismissEvent, Entity, EventEmitter, FocusHandle,
-    Focusable, ScrollHandle, SharedString, Window, div, prelude::*, relative,
+    Focusable, KeyDownEvent, ScrollHandle, SharedString, Window, div, prelude::*, relative,
 };
 
 use super::service::SyncService;
 use super::state::{count, file_label};
 use crate::icons::{IconName, icon};
+use crate::picker::shortcut::Shortcut;
 use crate::settings_view::controls::{button, choice_button, inert_button};
 use crate::settings_view::modal_size;
-use crate::theme::SettingsTheme;
+use crate::theme::{KeycapTheme, SettingsTheme};
+use crate::ui::keycap;
 
 /// Lines of unchanged text shown above each conflict, for orientation.
 const CONTEXT_LINES: usize = 2;
@@ -36,6 +45,19 @@ impl Choice {
             Choice::Theirs => "Keep theirs",
             Choice::Both => "Keep both",
         }
+    }
+
+    /// The key that picks it, shown on its button.
+    fn key(self) -> &'static str {
+        match self {
+            Choice::Mine => "1",
+            Choice::Theirs => "2",
+            Choice::Both => "3",
+        }
+    }
+
+    fn from_key(key: &str) -> Option<Choice> {
+        Choice::ALL.into_iter().find(|choice| choice.key() == key)
     }
 
     fn id(self) -> &'static str {
@@ -70,6 +92,8 @@ pub struct ConflictResolver {
     files: Vec<ConflictedFile>,
     choices: Vec<Vec<Option<Choice>>>,
     selected: usize,
+    /// The place in the selected file the keys act on.
+    current: usize,
     focus_handle: FocusHandle,
     style: SettingsTheme,
     scroll: ScrollHandle,
@@ -95,6 +119,7 @@ impl ConflictResolver {
             files,
             choices,
             selected: 0,
+            current: 0,
             focus_handle: cx.focus_handle(),
             style: resolved_style(cx),
             scroll: ScrollHandle::new(),
@@ -105,7 +130,8 @@ impl ConflictResolver {
         &self.files
     }
 
-    /// Picks what to keep for hunk `hunk` of file `file`.
+    /// Picks what to keep for hunk `hunk` of file `file`, which becomes
+    /// the place the keys act on.
     pub fn choose(&mut self, file: usize, hunk: usize, choice: Choice, cx: &mut Context<Self>) {
         if let Some(slot) = self
             .choices
@@ -113,6 +139,9 @@ impl ConflictResolver {
             .and_then(|file| file.get_mut(hunk))
         {
             *slot = Some(choice);
+            if file == self.selected {
+                self.current = hunk;
+            }
             cx.notify();
         }
     }
@@ -120,9 +149,96 @@ impl ConflictResolver {
     pub fn select_file(&mut self, file: usize, cx: &mut Context<Self>) {
         if file < self.files.len() {
             self.selected = file;
+            self.current = 0;
             self.scroll.scroll_to_item(0);
             cx.notify();
         }
+    }
+
+    /// The file and place the keys act on.
+    pub fn current(&self) -> (usize, usize) {
+        (self.selected, self.current)
+    }
+
+    /// Every place in order, as (file, place).
+    fn places(&self) -> Vec<(usize, usize)> {
+        self.choices
+            .iter()
+            .enumerate()
+            .flat_map(|(file, hunks)| (0..hunks.len()).map(move |hunk| (file, hunk)))
+            .collect()
+    }
+
+    /// Makes (file, place) the current place and scrolls to it.
+    fn go_to(&mut self, (file, hunk): (usize, usize), cx: &mut Context<Self>) {
+        self.selected = file;
+        self.current = hunk;
+        self.scroll.scroll_to_item(hunk);
+        cx.notify();
+    }
+
+    /// Moves `step` places on (back for a negative step), into the next
+    /// or previous file at either end of this one.
+    fn move_current(&mut self, step: isize, cx: &mut Context<Self>) {
+        let places = self.places();
+        let Some(at) = places.iter().position(|place| *place == self.current()) else {
+            return;
+        };
+        let next = at.saturating_add_signed(step).min(places.len() - 1);
+        self.go_to(places[next], cx);
+    }
+
+    /// The first place after the current one (wrapping) still to decide.
+    fn next_open_place(&self) -> Option<(usize, usize)> {
+        let places = self.places();
+        let at = places.iter().position(|place| *place == self.current())?;
+        let open = |(file, hunk): &&(usize, usize)| self.choices[*file][*hunk].is_none();
+        places[at + 1..]
+            .iter()
+            .chain(&places[..=at])
+            .find(open)
+            .copied()
+    }
+
+    /// Keeps `choice` for the current place and goes on to the next one
+    /// left to decide.
+    fn choose_current(&mut self, choice: Choice, cx: &mut Context<Self>) {
+        let (file, hunk) = self.current();
+        self.choose(file, hunk, choice, cx);
+        if let Some(next) = self.next_open_place() {
+            self.go_to(next, cx);
+        }
+    }
+
+    /// Enter: finishes when every place is decided, and otherwise goes to
+    /// the next place still open.
+    fn finish_or_go_on(&mut self, cx: &mut Context<Self>) {
+        if self.is_complete() {
+            return self.finish(cx);
+        }
+        if let Some(next) = self.next_open_place() {
+            self.go_to(next, cx);
+        }
+    }
+
+    fn on_key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+        let keystroke = &event.keystroke;
+        if keystroke.modifiers.modified() || self.files.is_empty() {
+            return;
+        }
+        let key = keystroke.key.as_str();
+        match key {
+            "up" => self.move_current(-1, cx),
+            "down" => self.move_current(1, cx),
+            "enter" => self.finish_or_go_on(cx),
+            _ => match Choice::from_key(key) {
+                Some(choice) => self.choose_current(choice, cx),
+                None => return,
+            },
+        }
+        // The keys act on the current place, so it shows its ring.
+        crate::ui::focus_visible::set_keyboard_driving(true, cx);
+        cx.stop_propagation();
     }
 
     fn decided(&self) -> usize {
@@ -278,8 +394,10 @@ impl ConflictResolver {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let style = &self.style;
+        let keys = crate::ui::ui_theme(cx).keycap.compact();
         let choice = self.choices[file][index];
         let (keeps_mine, keeps_theirs) = choice.map_or((true, true), Choice::keeps);
+        let ringed = crate::ui::focus_visible::ring(index == self.current, cx);
         let decided = choice.is_some();
         let sides = div()
             .flex()
@@ -308,6 +426,7 @@ impl ConflictResolver {
                     chosen,
                     style,
                 )
+                .child(key_chip(option.key(), &keys))
                 .debug_selector(|| selector)
                 .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
                     view.choose(file, index, option, cx)
@@ -317,6 +436,9 @@ impl ConflictResolver {
             .flex()
             .flex_col()
             .gap(style.control_gap)
+            .p(style.gap_sm)
+            .rounded(style.radius)
+            .when(ringed, |card| card.shadow(vec![style.focus()]))
             .children(context.map(|context| {
                 // Context orients; one line each is enough.
                 let lines = context
@@ -388,8 +510,11 @@ impl ConflictResolver {
     fn render_footer(&self, cx: &mut Context<Self>) -> AnyElement {
         let style = &self.style;
         let progress = format!("{} of {} decided", self.decided(), self.total());
+        let keys = crate::ui::ui_theme(cx).keycap.compact();
         let finish = if self.is_complete() {
             button("resolver-finish", "Finish merge", true, false, style)
+                .gap(style.gap_sm)
+                .child(key_chip("Enter", &keys.on_text(style.on_accent)))
                 .debug_selector(|| "resolver-finish".to_owned())
                 .on_click(cx.listener(|view, _: &ClickEvent, _, cx| view.finish(cx)))
         } else {
@@ -408,6 +533,16 @@ impl ConflictResolver {
             .child(finish)
             .into_any_element()
     }
+}
+
+/// The key that does something, as a small chip on the button that does
+/// the same.
+fn key_chip(key: &str, theme: &KeycapTheme) -> impl IntoElement {
+    let chord = KeyChord::parse(key).expect("resolver keys parse");
+    keycap(
+        Shortcut::new(chord, editor_config::Platform::current()),
+        theme,
+    )
 }
 
 /// The settings look in the theme in effect, with the interface font
@@ -431,7 +566,9 @@ impl Render for ConflictResolver {
         let size = modal_size(window.viewport_size(), &style);
         let root = div()
             .id("conflict-resolver")
+            .key_context("ConflictResolver")
             .track_focus(&self.focus_handle)
+            .on_key_down(cx.listener(Self::on_key_down))
             .w(size.width)
             .h(size.height)
             .flex()
