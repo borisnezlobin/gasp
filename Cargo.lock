@@ -1810,9 +1810,11 @@ dependencies = [
  "anyhow",
  "editor-config",
  "editor-core",
+ "editor-math",
  "env_logger",
  "gpui",
  "image",
+ "resvg 0.45.1",
  "x11rb",
 ]
 

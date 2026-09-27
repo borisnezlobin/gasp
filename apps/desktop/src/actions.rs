@@ -5,13 +5,14 @@ use std::ops::Range;
 
 use editor_core::motion;
 use gpui::{
-    Context, CursorStyle, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    Context, CursorStyle, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point,
     ScrollWheelEvent, Window, div, prelude::*,
 };
 
-use crate::editor::EditorView;
+use crate::editor::{EditorEvent, EditorView};
 use crate::element::EditorElement;
 use crate::keymap::{KEY_CONTEXT, RunCommand};
+use crate::line_layout::Hit;
 
 pub use crate::keymap::bind_keys;
 
@@ -59,9 +60,18 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         window.focus(&self.focus_handle);
+        if self.click_widget(event.position, cx) {
+            return;
+        }
+        let offset = self.offset_for_point(event.position, window);
+        if event.modifiers.secondary()
+            && let Some(target) = self.link_at(offset)
+        {
+            cx.emit(EditorEvent::OpenLink(target));
+            return;
+        }
         self.is_selecting = true;
         self.goal_x = None;
-        let offset = self.offset_for_point(event.position, window);
         self.click_unit = ClickUnit::from_count(event.click_count);
         if event.modifiers.shift {
             self.click_origin = self.anchor()..self.anchor();
@@ -84,6 +94,22 @@ impl EditorView {
         }
     }
 
+    /// Clicks on a checkbox or a callout's fold control act on it instead
+    /// of placing the cursor.
+    fn click_widget(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) -> bool {
+        let hit = self
+            .frame
+            .as_ref()
+            .and_then(|frame| frame.piece_at(position))
+            .map(|(_, piece)| piece.hit.clone());
+        match hit {
+            Some(Hit::Checkbox { marker }) => self.toggle_task(marker, cx),
+            Some(Hit::Fold { header, folded }) => self.toggle_fold(header, folded, cx),
+            _ => return false,
+        }
+        true
+    }
+
     fn on_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
         self.is_selecting = false;
     }
@@ -101,8 +127,7 @@ impl EditorView {
     }
 
     fn on_scroll(&mut self, event: &ScrollWheelEvent, _: &mut Window, cx: &mut Context<Self>) {
-        let line_height = self.theme.line_height(self.theme.body_font_size);
-        let delta = event.delta.pixel_delta(line_height);
+        let delta = event.delta.pixel_delta(self.theme.body_line_height());
         self.scroll_by(-delta.y, cx);
     }
 }

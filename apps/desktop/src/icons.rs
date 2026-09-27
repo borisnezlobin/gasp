@@ -16,11 +16,13 @@ pub enum IconName {
     ArrowsClockwise,
     Article,
     BookOpen,
+    Bug,
     CaretDown,
     CaretLeft,
     CaretRight,
     CaretUp,
     Check,
+    CheckCircle,
     CheckSquare,
     ClipboardText,
     Clock,
@@ -40,6 +42,7 @@ pub enum IconName {
     Folder,
     FolderOpen,
     FolderPlus,
+    Flame,
     Function,
     GearSix,
     GitMerge,
@@ -59,6 +62,7 @@ pub enum IconName {
     Plus,
     Printer,
     PushPin,
+    Question,
     Quotes,
     Rows,
     SidebarSimple,
@@ -76,7 +80,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 65] = [
+const ICONS: [(IconName, &str, &[u8]); 69] = [
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -113,6 +117,11 @@ const ICONS: [(IconName, &str, &[u8]); 65] = [
         include_bytes!("../assets/icons/book-open.svg"),
     ),
     (
+        IconName::Bug,
+        "bug",
+        include_bytes!("../assets/icons/bug.svg"),
+    ),
+    (
         IconName::CaretDown,
         "caret-down",
         include_bytes!("../assets/icons/caret-down.svg"),
@@ -136,6 +145,11 @@ const ICONS: [(IconName, &str, &[u8]); 65] = [
         IconName::Check,
         "check",
         include_bytes!("../assets/icons/check.svg"),
+    ),
+    (
+        IconName::CheckCircle,
+        "check-circle",
+        include_bytes!("../assets/icons/check-circle.svg"),
     ),
     (
         IconName::CheckSquare,
@@ -233,6 +247,11 @@ const ICONS: [(IconName, &str, &[u8]); 65] = [
         include_bytes!("../assets/icons/folder-plus.svg"),
     ),
     (
+        IconName::Flame,
+        "flame",
+        include_bytes!("../assets/icons/flame.svg"),
+    ),
+    (
         IconName::Function,
         "function",
         include_bytes!("../assets/icons/function.svg"),
@@ -326,6 +345,11 @@ const ICONS: [(IconName, &str, &[u8]); 65] = [
         IconName::PushPin,
         "push-pin",
         include_bytes!("../assets/icons/push-pin.svg"),
+    ),
+    (
+        IconName::Question,
+        "question",
+        include_bytes!("../assets/icons/question.svg"),
     ),
     (
         IconName::Quotes,

@@ -28,7 +28,7 @@ const MOTIONS: [(&str, &str, Motion); 12] = [
     ("cursor.page-down", "select.page-down", Motion::PageDown),
 ];
 
-const HANDLERS: [(&str, Handler); 18] = [
+const HANDLERS: [(&str, Handler); 24] = [
     ("select.all", |view, _, cx| view.select_all(cx)),
     ("edit.delete-backward", |view, _, cx| {
         view.delete_or(|doc, at| doc.prev_char_boundary(at)..at, cx)
@@ -59,6 +59,16 @@ const HANDLERS: [(&str, Handler); 18] = [
     ("edit.paste-plain", |view, _, cx| view.paste(cx)),
     ("format.link", |view, _, cx| view.run_edit(insert_link, cx)),
     ("footnote.insert-or-jump", |view, _, cx| view.footnote(cx)),
+    ("markdown.cycle-symbols", |view, _, cx| {
+        view.cycle_symbols(cx)
+    }),
+    ("link.follow", |view, _, cx| view.follow_link(cx)),
+    ("view.zoom-in", |view, _, cx| view.zoom_in(cx)),
+    ("view.zoom-out", |view, _, cx| view.zoom_out(cx)),
+    ("view.zoom-reset", |view, _, cx| view.reset_zoom(cx)),
+    ("view.toggle-readable-width", |view, _, cx| {
+        view.toggle_readable_width(cx)
+    }),
 ];
 
 /// Whether the editor view can run `id`.
@@ -164,6 +174,20 @@ mod tests {
     #[test]
     fn unknown_commands_are_not_handled() {
         assert!(!handles("tab.new"));
-        assert!(!handles("markdown.cycle-symbols"));
+        assert!(!handles("sidebar.files.toggle"));
+    }
+
+    #[test]
+    fn live_preview_commands_are_handled() {
+        for id in [
+            "markdown.cycle-symbols",
+            "link.follow",
+            "view.zoom-in",
+            "view.zoom-out",
+            "view.zoom-reset",
+            "view.toggle-readable-width",
+        ] {
+            assert!(handles(id), "{id}");
+        }
     }
 }

@@ -18,8 +18,10 @@ anyhow = "1"
 env_logger = { version = "0.11", default-features = false }
 editor-config = { path = "../../crates/config" }
 editor-core = { path = "../../crates/core" }
+editor-math = { path = "../../crates/math" }
 gpui = "=0.2.2"
 image = "0.25"
+resvg = { version = "0.45", default-features = false }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 x11rb = "0.13"
