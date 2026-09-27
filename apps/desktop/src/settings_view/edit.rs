@@ -226,7 +226,7 @@ impl SettingsView {
         }
     }
 
-    fn add_map_entry(&mut self, map_key: &str, name: &str, cx: &mut Context<Self>) {
+    pub(super) fn add_map_entry(&mut self, map_key: &str, name: &str, cx: &mut Context<Self>) {
         let Some(map) = self.item_for(map_key).cloned() else {
             return;
         };

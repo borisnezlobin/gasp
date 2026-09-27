@@ -40,7 +40,7 @@ const TEXTS: &[(&str, &str, &str)] = &[
     (
         "markdown.symbols.overrides",
         "Symbols for one kind of syntax",
-        "Give one kind of syntax its own rule. Type a name such as link url, then choose.",
+        "Give one kind of syntax its own rule, such as always hiding link addresses.",
     ),
     (
         "prose.sentence-length.enabled",
@@ -413,6 +413,48 @@ pub fn title_for(key: &str) -> String {
 }
 
 /// `update-links-on-rename` → `Update links on rename`.
+/// The kinds of syntax `markdown.symbols.overrides` takes, as the config
+/// names them and as the screen shows them.
+const SYNTAX_NAMES: &[(&str, &str)] = &[
+    ("emphasis", "Italic"),
+    ("strong", "Bold"),
+    ("strikethrough", "Strikethrough"),
+    ("highlight", "Highlight"),
+    ("heading", "Headings"),
+    ("link-text", "Link text"),
+    ("link-url", "Link addresses"),
+    ("wikilink", "Wiki links"),
+    ("inline-code", "Inline code"),
+    ("code-fence", "Code block fences"),
+    ("math", "Math"),
+    ("blockquote", "Block quotes"),
+    ("callout", "Callouts"),
+    ("footnote", "Footnotes"),
+    ("comment", "Comments"),
+    ("html", "HTML"),
+    ("list-marker", "List markers"),
+    ("frontmatter", "Frontmatter"),
+];
+
+/// Map settings whose names come from a fixed list, so the screen offers
+/// the list rather than a field to type a name into.
+const MAP_NAMES: &[(&str, &[(&str, &str)])] = &[("markdown.symbols.overrides", SYNTAX_NAMES)];
+
+/// The names map setting `map_key` takes, when they're a fixed list.
+pub fn map_names(map_key: &str) -> Option<&'static [(&'static str, &'static str)]> {
+    MAP_NAMES
+        .iter()
+        .find(|(key, _)| *key == map_key)
+        .map(|(_, names)| *names)
+}
+
+/// How entry `name` of map setting `map_key` reads.
+pub fn map_name_label(map_key: &str, name: &str) -> String {
+    map_names(map_key)
+        .and_then(|names| names.iter().find(|(known, _)| *known == name))
+        .map_or_else(|| humanize(name), |(_, label)| (*label).to_string())
+}
+
 pub fn humanize(text: &str) -> String {
     let spaced = text.replace(['-', '_', '.'], " ");
     let mut chars = spaced.chars();
@@ -753,6 +795,22 @@ mod tests {
         assert_eq!(filter_fonts(&choices, "noto mono"), ["Noto Sans Mono"]);
         assert_eq!(filter_fonts(&choices, "  "), choices);
         assert!(filter_fonts(&choices, "zzz").is_empty());
+    }
+
+    #[test]
+    fn every_syntax_name_is_one_the_config_takes() {
+        use editor_config::settings::SyntaxKind;
+        for (name, _) in SYNTAX_NAMES {
+            let parsed: Result<SyntaxKind, _> = serde_json::from_value(Value::from(*name));
+            assert!(parsed.is_ok(), "{name}");
+        }
+        let names: std::collections::HashSet<_> = SYNTAX_NAMES.iter().map(|(n, _)| n).collect();
+        assert_eq!(names.len(), SYNTAX_NAMES.len());
+        assert_eq!(
+            map_name_label("markdown.symbols.overrides", "link-url"),
+            "Link addresses"
+        );
+        assert_eq!(map_name_label("other", "link-url"), "Link url");
     }
 
     #[test]

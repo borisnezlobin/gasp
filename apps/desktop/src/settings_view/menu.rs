@@ -5,7 +5,9 @@ use editor_config::schema::SettingKind;
 use gpui::{AppContext, Context, Entity, Focusable, ScrollHandle, Subscription, Window};
 
 use super::config_files::default_token;
-use super::model::{FontSlot, SettingItem, choice_label, filter_fonts, font_choices};
+use super::model::{
+    FontSlot, SettingItem, choice_label, filter_fonts, font_choices, map_name_label, map_names,
+};
 use super::view::{ControlRow, SettingsView};
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
 
@@ -14,6 +16,8 @@ use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
 pub enum MenuTarget {
     Choice(SettingItem),
     Font(FontSlot),
+    /// Adds an entry to a map setting whose names are a fixed list.
+    MapAdd(SettingItem),
 }
 
 /// An open dropdown menu.
@@ -38,6 +42,7 @@ impl OpenMenu {
         match self.target {
             MenuTarget::Choice(_) => choice_label(option),
             MenuTarget::Font(_) => option.to_string(),
+            MenuTarget::MapAdd(ref map) => map_name_label(&map.key, option),
         }
     }
 }
@@ -51,6 +56,7 @@ impl SettingsView {
                 matches!(item.kind, SettingKind::Choice(_))
                     .then(|| MenuTarget::Choice(item.clone()))
             }
+            ControlRow::MapAdd(map) => map_names(&map.key).map(|_| MenuTarget::MapAdd(map.clone())),
             _ => None,
         }
     }
@@ -64,6 +70,7 @@ impl SettingsView {
                 .unwrap_or_default()
                 .to_string(),
             MenuTarget::Font(slot) => self.token(slot.token()).unwrap_or_default(),
+            MenuTarget::MapAdd(_) => String::new(),
         }
     }
 
@@ -96,11 +103,12 @@ impl SettingsView {
                 let built_in = default_token(slot.token()).unwrap_or_default();
                 font_choices(&self.font_names, &current, &built_in)
             }
+            MenuTarget::MapAdd(map) => self.names_to_add(&map.key),
         };
         let highlighted = options.iter().position(|o| *o == current).unwrap_or(0);
         let (filter, subscriptions) = match target {
             MenuTarget::Font(_) => self.menu_filter(window, cx),
-            MenuTarget::Choice(_) => (None, Vec::new()),
+            MenuTarget::Choice(_) | MenuTarget::MapAdd(_) => (None, Vec::new()),
         };
         self.menu = Some(OpenMenu {
             row: index,
@@ -114,6 +122,22 @@ impl SettingsView {
         });
         self.scroll_menu();
         cx.notify();
+    }
+
+    /// The fixed names of map setting `map_key` it doesn't have yet.
+    fn names_to_add(&self, map_key: &str) -> Vec<String> {
+        let taken: Vec<String> = self
+            .file
+            .entries(map_key)
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
+        map_names(map_key)
+            .unwrap_or_default()
+            .iter()
+            .map(|(name, _)| (*name).to_string())
+            .filter(|name| !taken.contains(name))
+            .collect()
     }
 
     fn menu_filter(
@@ -198,6 +222,7 @@ impl SettingsView {
         match &menu.target {
             MenuTarget::Choice(item) => self.choose(item, option, cx),
             MenuTarget::Font(slot) => self.set_font(*slot, option, cx),
+            MenuTarget::MapAdd(map) => self.add_map_entry(&map.key, option, cx),
         }
         cx.notify();
     }

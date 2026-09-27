@@ -216,9 +216,26 @@ impl SettingsView {
             ControlRow::Accent => self.accent_key(key, window, cx),
             ControlRow::Vault => self.button_key(key, cx),
             ControlRow::Shortcut(shortcut) => self.shortcut_key(row, &shortcut.id, key, window, cx),
+            ControlRow::MapAdd(_) => self.menu_button_key(index, row, key, window, cx),
             _ => false,
         };
         handled || self.type_to_search(keystroke, window, cx)
+    }
+
+    /// Enter or Space opens the row's menu, for rows that are only a menu.
+    fn menu_button_key(
+        &mut self,
+        index: usize,
+        row: &ControlRow,
+        key: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let opens = matches!(key, "enter" | "space") && Self::menu_target(row).is_some();
+        if opens {
+            self.open_menu(index, window, cx);
+        }
+        opens
     }
 
     fn setting_key(

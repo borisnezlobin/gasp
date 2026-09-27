@@ -3,7 +3,9 @@
 //! tools (new note, new folder, sort order, collapse all), and a footer
 //! with the vault switcher, help and settings.
 
-use gpui::{AnyElement, ClickEvent, Context, Entity, SharedString, Window, div, prelude::*};
+use gpui::{
+    AnyElement, ClickEvent, Context, Entity, Pixels, SharedString, Window, div, prelude::*,
+};
 
 use super::Workspace;
 use super::files::folder_name;
@@ -47,7 +49,13 @@ impl Workspace {
         )
     }
 
-    pub(super) fn render_sidebar_header(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    /// The sidebar's top row, which leaves `corner_inset` at its left for
+    /// the window's own buttons.
+    pub(super) fn render_sidebar_header(
+        &self,
+        corner_inset: Pixels,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let ui = ui_theme(cx);
         let files = self
             .command_button("sidebar-files", IconName::Folder, "file-tree.focus", cx)
@@ -85,6 +93,7 @@ impl Workspace {
                     .justify_between()
                     .h(ui.tab_bar_height)
                     .px(ui.sidebar_padding)
+                    .pl(ui.sidebar_padding + corner_inset)
                     .child(views)
                     .children(toggle),
             )

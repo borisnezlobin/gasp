@@ -93,7 +93,7 @@ impl Workspace {
         line.child(handle).into_any_element()
     }
 
-    fn render_left_panel(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    fn render_left_panel(&self, window: &Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let view = self.left_panel.view()?.clone();
         if !self.left_panel.is_visible() {
             return None;
@@ -118,7 +118,7 @@ impl Workspace {
                 };
                 workspace.pointer_event(kind, PANEL_TARGET, window, cx);
             }))
-            .child(self.render_sidebar_header(cx))
+            .child(self.render_sidebar_header(super::window::window_buttons_inset(window, cx), cx))
             .child(
                 div()
                     .flex_1()
@@ -209,14 +209,21 @@ impl Workspace {
 impl Workspace {
     /// Shows the sidebar button in the top-left pane's tab bar while the
     /// sidebar, which has its own, is hidden.
-    fn sync_sidebar_toggle(&mut self, cx: &mut Context<Self>) {
-        let hidden = self.left_panel.view().is_some() && !self.left_panel.is_visible();
+    /// Puts the sidebar's show button, and room for the window buttons,
+    /// in the top-left pane while the sidebar is hidden.
+    fn sync_sidebar_toggle(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let has_panel = self.left_panel.view().is_some();
+        let panel_hidden = !(has_panel && self.left_panel.is_visible());
         let first = self.panes.panes().first().cloned();
+        let inset = super::window::window_buttons_inset(window, cx);
         for pane in self.panes.panes() {
-            let show = hidden && Some(&pane) == first.as_ref();
+            let corner = panel_hidden && Some(&pane) == first.as_ref();
+            let show = corner && has_panel;
+            let corner_inset = if corner { inset } else { gpui::px(0.) };
             pane.update(cx, |pane, cx| {
-                if pane.show_sidebar_toggle != show {
+                if pane.show_sidebar_toggle != show || pane.corner_inset != corner_inset {
                     pane.show_sidebar_toggle = show;
+                    pane.corner_inset = corner_inset;
                     cx.notify();
                 }
             });
@@ -227,12 +234,12 @@ impl Workspace {
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.update_window_title(window, cx);
-        self.sync_sidebar_toggle(cx);
+        self.sync_sidebar_toggle(window, cx);
         let theme = self.theme().clone();
         let ui = ui_theme(cx);
         let panes = self.render_node(self.panes.root(), cx);
         let overlays = self.left_panel.overlays();
-        let panel = self.render_left_panel(cx);
+        let panel = self.render_left_panel(window, cx);
         let (pushed, overlaid) = if overlays {
             (None, panel)
         } else {

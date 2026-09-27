@@ -9,8 +9,8 @@ use editor_config::device::DeviceSettings;
 use editor_config::loader::ConfigFile;
 use futures::StreamExt;
 use gpui::{
-    App, AppContext, Bounds, Context, PathPromptOptions, Window, WindowBounds, WindowHandle,
-    WindowOptions,
+    App, AppContext, Bounds, Context, PathPromptOptions, Pixels, TitlebarOptions, Window,
+    WindowBounds, WindowHandle, WindowOptions, point, px,
 };
 
 use super::files::{is_note, vault_for_note};
@@ -148,7 +148,30 @@ fn window_options(device: &DeviceSettings, cx: &App) -> WindowOptions {
     });
     WindowOptions {
         window_bounds: Some(bounds),
+        titlebar: Some(titlebar()),
         ..Default::default()
+    }
+}
+
+/// On macOS the app draws under a hidden title bar, with the window
+/// buttons centred in the tab bar's row. Elsewhere the system's title bar
+/// stays.
+fn titlebar() -> TitlebarOptions {
+    let hidden = cfg!(target_os = "macos");
+    TitlebarOptions {
+        title: None,
+        appears_transparent: hidden,
+        traffic_light_position: hidden.then(|| point(px(14.), px(13.))),
+    }
+}
+
+/// Room the window's own buttons take at its top-left: none in full
+/// screen, where they hide.
+pub(crate) fn window_buttons_inset(window: &Window, cx: &mut App) -> Pixels {
+    if window.is_fullscreen() {
+        px(0.)
+    } else {
+        crate::ui::ui_theme(cx).window_buttons_width
     }
 }
 

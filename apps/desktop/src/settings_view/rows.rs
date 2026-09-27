@@ -11,7 +11,7 @@ use super::controls::{
     row_text, stepper, swatch, toggle_switch,
 };
 use super::menu::MenuTarget;
-use super::model::{ACCENT_TOKEN, FontSlot, SettingItem, ShortcutRow, choice_label};
+use super::model::{ACCENT_TOKEN, FontSlot, SettingItem, ShortcutRow, choice_label, map_names};
 use super::view::{ControlRow, SettingsFocus, SettingsView, theme_key};
 use crate::icons::IconName;
 use crate::theme::{ACCENT_CHOICES, parse_color};
@@ -88,7 +88,7 @@ impl SettingsView {
     ) -> Option<AnyElement> {
         let control = match row {
             ControlRow::Setting(item) => self.setting_control(index, item, focused, cx),
-            ControlRow::MapAdd(_) => self.field_control(row, focused),
+            ControlRow::MapAdd(map) => self.map_add_control(index, map, row, focused, cx),
             ControlRow::MapEntry { item, .. } => self.map_entry_control(index, item, focused, cx),
             ControlRow::Font(slot) => self.font_control(index, *slot, focused, cx),
             ControlRow::Accent => {
@@ -228,7 +228,7 @@ impl SettingsView {
             let label = div().child(menu.label(option));
             let label = match menu.target {
                 MenuTarget::Font(_) => label.font_family(SharedString::from(option.clone())),
-                MenuTarget::Choice(_) => label,
+                MenuTarget::Choice(_) | MenuTarget::MapAdd(_) => label,
             };
             let value = option.clone();
             let selector = format!("menu-option-{option}");
@@ -306,6 +306,31 @@ impl SettingsView {
         field_box(field, None, focused, &self.style)
             .w(self.style.field_width)
             .into_any_element()
+    }
+
+    /// Adds an entry to a map: a menu of the names it can take when
+    /// they're a fixed list, else a field to type a name into.
+    fn map_add_control(
+        &self,
+        index: usize,
+        map: &SettingItem,
+        row: &ControlRow,
+        focused: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        if map_names(&map.key).is_none() {
+            return self.field_control(row, focused);
+        }
+        let label = div()
+            .text_color(self.style.text_muted)
+            .child("Add a kind of syntax");
+        self.dropdown(
+            index,
+            format!("add-{}", map.key),
+            label.into_any_element(),
+            focused,
+            cx,
+        )
     }
 
     fn map_entry_control(

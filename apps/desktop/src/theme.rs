@@ -19,6 +19,25 @@ use gpui::{
 /// Logical pixels per typographic point.
 pub const PIXELS_PER_POINT: f32 = 96. / 72.;
 
+/// How much of the focus colour the focus ring shows.
+const FOCUS_RING_ALPHA: f32 = 0.3;
+
+/// The ring around whatever has keyboard focus: a crisp two-pixel band of
+/// `color`. Every focus ring in the app is drawn with this.
+pub fn focus_ring(color: Hsla) -> BoxShadow {
+    BoxShadow {
+        color,
+        offset: point(px(0.), px(0.)),
+        blur_radius: px(0.),
+        spread_radius: px(2.),
+    }
+}
+
+/// The focus ring's colour before the theme is read.
+fn default_focus_ring() -> Hsla {
+    hsla(0., 0., 0.1, FOCUS_RING_ALPHA)
+}
+
 /// Sizes, fonts and colours for the editor view.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Theme {
@@ -816,7 +835,7 @@ impl Default for PanelTheme {
             hover: hsla(0., 0., 0., 0.04),
             selected: hsla(0., 0., 0.92, 1.),
             selected_focused: hsla(0., 0., 0.88, 1.),
-            focus_ring: hsla(0., 0., 0.1, 0.55),
+            focus_ring: default_focus_ring(),
             active_text: hsla(0., 0., 0.05, 1.),
             active_marker: hsla(0., 0., 0.05, 1.),
             active_marker_width: px(2.),
@@ -849,12 +868,7 @@ impl Default for PanelTheme {
 impl PanelTheme {
     /// The ring around whatever has keyboard focus.
     pub fn focus_ring(&self) -> BoxShadow {
-        BoxShadow {
-            color: self.focus_ring,
-            offset: point(px(0.), px(0.)),
-            blur_radius: self.ring_blur,
-            spread_radius: self.ring_width,
-        }
+        focus_ring(self.focus_ring)
     }
 
     /// The shadow under menus and popovers.
@@ -1086,7 +1100,7 @@ impl Default for InputTheme {
             radius: px(6.),
             background: hsla(0., 0., 0., 0.06),
             error_background: hsla(0.0, 0.8, 0.95, 1.),
-            focus_ring: hsla(0., 0., 0.1, 0.55),
+            focus_ring: default_focus_ring(),
             ring_width: px(1.5),
             ring_blur: px(0.5),
             text: hsla(0., 0., 0.13, 1.),
@@ -1108,12 +1122,7 @@ impl InputTheme {
 
     /// The ring around a focused field.
     pub fn focus_ring(&self) -> BoxShadow {
-        BoxShadow {
-            color: self.focus_ring,
-            offset: point(px(0.), px(0.)),
-            blur_radius: self.ring_blur,
-            spread_radius: self.ring_width,
-        }
+        focus_ring(self.focus_ring)
     }
 }
 
@@ -1193,6 +1202,9 @@ pub struct UiTheme {
     pub menu_shadow_offset: Pixels,
     pub menu_ring: Hsla,
     pub tab_bar_height: Pixels,
+    /// Room at the window's top-left for the platform's own window
+    /// buttons, where they're drawn over the app (macOS).
+    pub window_buttons_width: Pixels,
     pub tab_height: Pixels,
     pub tab_radius: Pixels,
     pub tab_min_width: Pixels,
@@ -1277,6 +1289,11 @@ impl Default for UiTheme {
             menu_shadow_offset: px(8.),
             menu_ring: hsla(0., 0., 0., 0.08),
             tab_bar_height: px(40.),
+            window_buttons_width: if cfg!(target_os = "macos") {
+                px(72.)
+            } else {
+                px(0.)
+            },
             tab_height: px(30.),
             tab_radius: px(8.),
             tab_min_width: px(72.),
@@ -1469,7 +1486,7 @@ impl SettingsTheme {
         let read = TokenReader { tokens };
         let space = |name: &str, default: f32| px(read.number(name, default));
         let mut focus_ring = read.color("color.focus-ring", 0x000000);
-        focus_ring.a *= 0.6;
+        focus_ring.a *= FOCUS_RING_ALPHA;
         Self {
             font_family: read.text("font.ui", "Charter").into(),
             code_font_family: read.text("font.code", "Courier New").into(),
@@ -1564,12 +1581,7 @@ impl SettingsTheme {
 
     /// The ring around whatever has keyboard focus.
     pub fn focus(&self) -> BoxShadow {
-        BoxShadow {
-            color: self.focus_ring,
-            offset: point(px(0.), px(0.)),
-            blur_radius: self.ring_blur,
-            spread_radius: self.ring_width * 2.,
-        }
+        focus_ring(self.focus_ring)
     }
 
     /// The shadow under the modal and menus.
