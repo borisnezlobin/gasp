@@ -10,6 +10,7 @@ pub mod breadcrumbs;
 pub mod button;
 pub mod hints;
 pub mod icon_button;
+pub mod keycap;
 pub mod menu;
 pub mod surface;
 pub mod tooltip;
@@ -20,8 +21,9 @@ use gpui::{App, Global};
 pub use breadcrumbs::{Breadcrumbs, Crumb};
 pub use button::{Button, ButtonKind};
 pub use icon_button::IconButton;
+pub use keycap::keycap;
 pub use menu::{DropdownMenu, HasMenuSlot, MenuAnchor, MenuHandler, MenuItem, MenuSlot};
-pub use surface::{dialog, keycap, popover};
+pub use surface::{dialog, popover};
 pub use tooltip::Tooltip;
 pub use truncated::{Truncated, truncated};
 

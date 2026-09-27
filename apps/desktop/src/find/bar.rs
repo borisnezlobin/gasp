@@ -4,6 +4,8 @@
 
 use std::ops::Range;
 
+use editor_config::Platform;
+use editor_config::keys::KeyChord;
 use editor_core::find::{FindOptions, FindQuery, replace_all_transaction, replace_one_transaction};
 use gpui::{
     App, ClickEvent, Context, Entity, EventEmitter, FocusHandle, Focusable, KeyBinding,
@@ -13,6 +15,7 @@ use gpui::{
 use crate::editor::{EditorEvent, EditorView, HighlightKind};
 use crate::icons::IconName;
 use crate::keymap::RunCommand;
+use crate::picker::shortcut::Shortcut;
 use crate::text_input::{TextInput, TextInputEvent};
 use crate::theme::UiTheme;
 use crate::ui::{Button, IconButton, popover, ui_theme};
@@ -395,13 +398,10 @@ fn last_before(matches: &[Range<usize>], offset: usize) -> usize {
 
 type BarAction = fn(&mut FindBar, &ClickEvent, &mut Window, &mut Context<FindBar>);
 
-/// How a bar key reads in a tooltip: `⌥C` on macOS, `Alt+C` elsewhere.
-fn alt_hint(key: &str) -> SharedString {
-    if cfg!(target_os = "macos") {
-        format!("⌥{key}").into()
-    } else {
-        format!("Alt+{key}").into()
-    }
+/// A key the bar binds itself, such as `Alt+C`, for a tooltip.
+fn bar_key(chord: &str) -> Option<Shortcut> {
+    let chord = KeyChord::parse(chord).ok()?;
+    Some(Shortcut::new(chord, Platform::current()))
 }
 
 impl FindBar {
@@ -413,7 +413,7 @@ impl FindBar {
         id: &'static str,
         name: IconName,
         label: &'static str,
-        hint: Option<SharedString>,
+        hint: Option<Shortcut>,
         on: Option<bool>,
         action: BarAction,
         cx: &mut Context<Self>,
@@ -433,7 +433,7 @@ impl FindBar {
                 "find-case",
                 IconName::TextAa,
                 "Match case",
-                Some(alt_hint("C")),
+                bar_key("Alt+C"),
                 Some(self.options.case_sensitive),
                 |this, _, _, cx| this.toggle(|options| options.case_sensitive ^= true, cx),
                 cx,
@@ -442,7 +442,7 @@ impl FindBar {
                 "find-word",
                 IconName::TextT,
                 "Match whole words",
-                Some(alt_hint("W")),
+                bar_key("Alt+W"),
                 Some(self.options.whole_word),
                 |this, _, _, cx| this.toggle(|options| options.whole_word ^= true, cx),
                 cx,
@@ -451,7 +451,7 @@ impl FindBar {
                 "find-regex",
                 IconName::Asterisk,
                 "Use a regular expression",
-                Some(alt_hint("R")),
+                bar_key("Alt+R"),
                 Some(self.options.regex),
                 |this, _, _, cx| this.toggle(|options| options.regex ^= true, cx),
                 cx,
@@ -487,7 +487,7 @@ impl FindBar {
                 "find-close",
                 IconName::X,
                 "Close",
-                Some("Escape".into()),
+                bar_key("Escape"),
                 None,
                 |this, _, window, cx| this.dismiss(window, cx),
                 cx,
