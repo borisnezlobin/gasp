@@ -25,6 +25,7 @@ trash                  = "system"   # "system" | "vault" | "delete"
 show-inline-title  = true
 smart-quotes       = true   # typed " and ' become “ ” and ‘ ’ outside code, math and links
 curl-pasted-quotes = true   # pasted text gets curly quotes too
+auto-pair          = true   # ( [ { and ` add their closing half; * _ ~ = wrap a selection
 
 [appearance]
 base-font-size = 12

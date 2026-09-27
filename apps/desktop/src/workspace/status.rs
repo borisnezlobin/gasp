@@ -118,6 +118,34 @@ impl StatusInfo {
     pub fn position_label(&self) -> String {
         format!("{}:{}", self.line, self.column)
     }
+
+    /// What the bar shows, leaving out counts with nothing to say: a
+    /// selection is one phrase ("3 words, 18 characters selected"), and a
+    /// note too short to read takes no reading time.
+    pub fn items(&self) -> Vec<String> {
+        if self.for_selection {
+            return vec![self.selection_label(), self.position_label()];
+        }
+        let reading = (self.stats.reading_minutes() > 0).then(|| self.reading_label());
+        [self.words_label(), self.characters_label()]
+            .into_iter()
+            .chain(reading)
+            .chain([self.position_label()])
+            .collect()
+    }
+
+    fn selection_label(&self) -> String {
+        if self.stats.words == 0 {
+            return format!("{} selected", self.characters_label());
+        }
+        let noun = if self.stats.words == 1 {
+            "word"
+        } else {
+            "words"
+        };
+        let words = format!("{} {noun}", group_thousands(self.stats.words));
+        format!("{words}, {} selected", self.characters_label())
+    }
 }
 
 /// `12345` as `12,345`.
@@ -155,11 +183,7 @@ pub fn render_status_bar(
         .text_size(theme.small_font_size)
         .text_color(theme.text_faint);
     if let Some(info) = info {
-        bar = bar
-            .child(item(info.words_label()))
-            .child(item(info.characters_label()))
-            .child(item(info.reading_label()))
-            .child(item(info.position_label()));
+        bar = bar.children(info.items().into_iter().map(item));
     }
     bar.children(sync)
 }
@@ -167,6 +191,29 @@ pub fn render_status_bar(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn info(words: usize, characters: usize, for_selection: bool) -> StatusInfo {
+        StatusInfo {
+            stats: TextStats { words, characters },
+            for_selection,
+            line: 3,
+            column: 7,
+        }
+    }
+
+    #[test]
+    fn a_selection_reads_as_one_phrase() {
+        assert_eq!(info(0, 1, true).items(), ["1 character selected", "3:7"]);
+        assert_eq!(
+            info(3, 18, true).items(),
+            ["3 words, 18 characters selected", "3:7"]
+        );
+        assert_eq!(
+            info(0, 0, false).items(),
+            ["0 words", "0 characters", "3:7"]
+        );
+        assert_eq!(info(300, 1500, false).items()[2], "2 min read");
+    }
 
     #[test]
     fn counts_words_and_characters() {
