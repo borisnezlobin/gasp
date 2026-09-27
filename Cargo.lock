@@ -1813,6 +1813,8 @@ dependencies = [
  "env_logger",
  "gpui",
  "image",
+ "unicode-normalization",
+ "unicode-segmentation",
  "x11rb",
 ]
 

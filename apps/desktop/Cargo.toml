@@ -20,6 +20,8 @@ editor-config = { path = "../../crates/config" }
 editor-core = { path = "../../crates/core" }
 gpui = "=0.2.2"
 image = "0.25"
+unicode-normalization = "0.1.25"
+unicode-segmentation = "1.13"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 x11rb = "0.13"
