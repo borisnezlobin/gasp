@@ -3,7 +3,7 @@
 //! numbers.
 
 use editor_core::render::{LinePlan, LineStyle};
-use editor_core::syntax::{Node, NodeKind, SyntaxTree};
+use editor_core::syntax::{ConflictSide, Node, NodeKind, SyntaxTree};
 use gpui::{Pixels, px};
 
 use crate::line_layout::{Bar, LineDecor, Surface};
@@ -99,7 +99,47 @@ impl<'a> FrameBuilder<'a> {
                 self.frame.left = self.frame.left.max(theme.quote_indent * depth as f32);
             }
             LineStyle::Callout { kind, depth } => self.callout(kind, depth),
+            LineStyle::Conflict { side } => self.conflict(side),
             _ => {}
+        }
+    }
+
+    /// Each version of a sync conflict is a tinted block of its own, inset
+    /// like a callout.
+    fn conflict(&mut self, side: ConflictSide) {
+        let theme = self.theme;
+        let conflicts = self.enclosing(|kind| matches!(kind, NodeKind::Conflict));
+        let Some(node) = conflicts.last().copied() else {
+            return;
+        };
+        let group = node.range.start * 2 + side as usize;
+        self.surface(group, px(0.), theme.conflict_surface(side));
+        self.frame.left = self.frame.left.max(theme.space_lg);
+        self.frame.right = self.frame.right.max(theme.space_lg);
+        let lines = self.side_lines(node, side);
+        if lines.start == self.plan.line {
+            self.frame.pad_top = self.frame.pad_top.max(theme.space_sm);
+        }
+        // The closing marker's line collapses while the cursor is away,
+        // so the line above it pads the block's bottom too.
+        let closing = side == ConflictSide::OtherDevice;
+        let last = lines.end - 1 - usize::from(closing && lines.len() > 1);
+        if self.plan.line >= last {
+            self.frame.pad_bottom = self.frame.pad_bottom.max(theme.space_sm);
+        }
+    }
+
+    /// The lines of one version, marker lines included.
+    fn side_lines(&self, node: &Node, side: ConflictSide) -> std::ops::Range<usize> {
+        let first = self.source.line_of(node.range.start);
+        let last = self.source.line_of(node.range.end) + 1;
+        let separator = match &node.markup[..] {
+            [_, separator, _] => self.source.line_of(separator.range.start),
+            _ => last,
+        };
+        match side {
+            ConflictSide::ThisDevice => first..separator,
+            ConflictSide::OtherDevice => separator..last,
         }
     }
 

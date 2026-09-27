@@ -3,7 +3,7 @@
 
 use std::ops::Range;
 
-use crate::syntax::{Markup, MarkupKind, Node, NodeId, NodeKind, SyntaxKind};
+use crate::syntax::{ConflictSide, Markup, MarkupKind, Node, NodeId, NodeKind, SyntaxKind};
 
 use super::output::{LineStyle, Placement, StyleKey, Widget, WidgetKind};
 use super::reveal::{Revealer, is_line_marker};
@@ -227,11 +227,36 @@ impl<'a> Planner<'a> {
                     )
                 })
                 .collect(),
+            NodeKind::Conflict => self.conflict_line_styles(node),
             kind => simple_line_style(kind)
                 .map(|style| vec![(lines, style)])
                 .unwrap_or_default(),
         };
         self.effects.line_styles.extend(styles);
+    }
+
+    /// This device's lines run from the opening marker to the separator,
+    /// the other device's from the separator to the closing marker.
+    fn conflict_line_styles(&self, node: &Node) -> Vec<(Range<usize>, LineStyle)> {
+        let lines = self.lines_of(&node.range);
+        let separator = match &node.markup[..] {
+            [_, separator, _] => self.lines_of(&separator.range).start,
+            _ => lines.end,
+        };
+        vec![
+            (
+                lines.start..separator,
+                LineStyle::Conflict {
+                    side: ConflictSide::ThisDevice,
+                },
+            ),
+            (
+                separator..lines.end,
+                LineStyle::Conflict {
+                    side: ConflictSide::OtherDevice,
+                },
+            ),
+        ]
     }
 
     fn quote_depth(&self, id: NodeId) -> usize {

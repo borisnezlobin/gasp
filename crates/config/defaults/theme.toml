@@ -75,6 +75,10 @@ active-search-match = "{color.highlight}"
 knob        = "{color.background}"
 # Grouped rows on the settings screen and the conflict resolver.
 card        = "{color.sidebar}"
+# The two versions of a note in a sync conflict: their labels, and their
+# surfaces at opacity.callout.
+this-device  = "#0868d3"
+other-device = "#744dee"
 
 # Syntax colours in fenced code blocks: quiet, and readable on the code
 # background. Plain code keeps the text colour.
@@ -168,6 +172,8 @@ drop-zone-ring = "rgba(255, 255, 255, 0.18)"
 card        = "#1f1e1b"
 search-match = "rgba(234, 179, 8, 0.2)"
 active-search-match = "#6b5a17"
+this-device  = "#5ea4f2"
+other-device = "#a88ef8"
 
 [dark.color.code]
 comment  = "#958f86"

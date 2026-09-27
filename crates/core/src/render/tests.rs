@@ -72,6 +72,7 @@ fn line_style_label(style: &LineStyle) -> String {
         LineStyle::Callout { kind, depth } => format!("callout-{kind:?}{depth}").to_lowercase(),
         LineStyle::CalloutHeader { .. } => "callout-header".into(),
         LineStyle::CodeBlock { index } => format!("code{index}"),
+        LineStyle::Conflict { side } => format!("{side:?}").to_lowercase(),
         other => format!("{other:?}").to_lowercase(),
     }
 }
@@ -137,6 +138,7 @@ fn simple_widget_label(kind: &WidgetKind) -> String {
             title.clone().unwrap_or_default()
         ),
         WidgetKind::FootnoteSuperscript { label } => format!("^{label}"),
+        WidgetKind::ConflictLabel { side } => format!("{side:?}").to_lowercase(),
         other => format!("{other:?}").to_lowercase(),
     }
 }
@@ -1042,6 +1044,58 @@ fn style_keys_are_sorted_and_runs_merge() {
     assert_eq!(runs.len(), 3);
     assert_eq!(runs[1].styles, vec![StyleKey::Strong, StyleKey::Emphasis]);
     assert_eq!(plan.lines[0].hidden, vec![0..3, 4..7]);
+}
+
+const CONFLICT: &str =
+    "Before\n<<<<<<< this device\nMilk and **eggs**\n=======\nCheese\n>>>>>>> other device\nAfter";
+
+#[test]
+fn sync_conflicts_label_each_version_and_hide_their_markers() {
+    check(
+        &format!("{CONFLICT}\n\n‸"),
+        &element(),
+        &[
+            "Before",
+            "[thisdevice] ⟦thisdevice⟧",
+            "[thisdevice] Milk and {strong:eggs}",
+            "[otherdevice] ⟦otherdevice⟧",
+            "[otherdevice] Cheese",
+            "[otherdevice] ~collapsed~",
+            "After",
+            "",
+            "",
+        ],
+    );
+}
+
+#[test]
+fn a_conflict_marker_shows_while_the_cursor_is_on_its_line() {
+    let at = CONFLICT.find("=======").unwrap();
+    let marked = format!("{}‸{}", &CONFLICT[..at], &CONFLICT[at..]);
+    check(
+        &marked,
+        &element(),
+        &[
+            "Before",
+            "[thisdevice] ⟦thisdevice⟧",
+            "[thisdevice] Milk and {strong:eggs}",
+            "[otherdevice] {markup-dimmed:=======}",
+            "[otherdevice] Cheese",
+            "[otherdevice] ~collapsed~",
+            "After",
+        ],
+    );
+}
+
+#[test]
+fn the_separator_never_makes_a_heading() {
+    let tree = syntax::parse(CONFLICT);
+    assert!(
+        tree.nodes()
+            .iter()
+            .all(|node| !matches!(node.kind, syntax::NodeKind::Heading { .. })),
+        "the line above ======= stays a paragraph"
+    );
 }
 
 #[test]

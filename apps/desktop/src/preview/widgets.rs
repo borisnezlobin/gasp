@@ -6,7 +6,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use editor_core::render::{StyleKey, WidgetKind};
-use editor_core::syntax::{CalloutKind, Fold};
+use editor_core::syntax::{CalloutKind, ConflictSide, Fold};
 use gpui::{Pixels, RenderImage, SharedString, px};
 
 use crate::icons::IconName;
@@ -96,6 +96,7 @@ impl LineLayouter<'_, '_> {
                 ordered, number, ..
             } => self.bullet(range, ordered.then_some(number.unwrap_or(1)), builder),
             WidgetKind::FootnoteSuperscript { label } => self.superscript(range, label, builder),
+            WidgetKind::ConflictLabel { side } => self.conflict_label(range, *side, builder),
             WidgetKind::CalloutHeader {
                 kind,
                 title,
@@ -267,6 +268,29 @@ impl LineLayouter<'_, '_> {
         extent.descent -= raise;
         piece.range = range.clone();
         piece.width += theme.space_xs;
+        builder.push_atomic(piece, extent);
+    }
+
+    /// "This device" or "Other device" above a sync conflict's version,
+    /// small and in the version's colour, where its marker line was.
+    fn conflict_label(
+        &mut self,
+        range: &Range<usize>,
+        side: ConflictSide,
+        builder: &mut RowBuilder,
+    ) {
+        let theme = self.theme();
+        let mut run = text_run(1, &[], &self.tone, false, theme);
+        run.font = theme.ui_font();
+        run.font.weight = theme.medium_weight;
+        run.color = theme.conflict_color(side);
+        let size = theme.small_font_size;
+        let text = match side {
+            ConflictSide::ThisDevice => "This device",
+            ConflictSide::OtherDevice => "Other device",
+        };
+        let (mut piece, extent) = self.label(text, run, size, self.line_height());
+        piece.range = range.clone();
         builder.push_atomic(piece, extent);
     }
 

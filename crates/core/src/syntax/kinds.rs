@@ -39,6 +39,10 @@ pub enum NodeKind {
     },
     /// A `%%` comment that spans whole lines.
     CommentBlock,
+    /// A sync conflict: this device's version and the other device's,
+    /// between `<<<<<<<`, `=======` and `>>>>>>>` marker lines. Each
+    /// version's blocks are its children; the markers are its markup.
+    Conflict,
     Text,
     SoftBreak,
     HardBreak,
@@ -89,6 +93,7 @@ impl NodeKind {
                 | Self::FootnoteDefinition { .. }
                 | Self::LinkDefinition { .. }
                 | Self::CommentBlock
+                | Self::Conflict
         )
     }
 
@@ -331,6 +336,15 @@ pub enum MarkupKind {
     ThematicBreak,
     /// A trailing backslash or the trailing spaces of a hard line break.
     HardBreakMarker,
+    /// A `<<<<<<<`, `=======` or `>>>>>>>` line of a sync conflict.
+    ConflictMarker,
+}
+
+/// Which version a line of a sync conflict belongs to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ConflictSide {
+    ThisDevice,
+    OtherDevice,
 }
 
 /// Groups of syntax that reveal settings can target individually.
@@ -360,6 +374,7 @@ pub enum SyntaxKind {
     Frontmatter,
     ThematicBreak,
     HardBreak,
+    Conflict,
 }
 
 impl MarkupKind {
@@ -398,6 +413,7 @@ const MARKUP_SYNTAX: &[(MarkupKind, SyntaxKind)] = &[
     (MarkupKind::FrontmatterFence, SyntaxKind::Frontmatter),
     (MarkupKind::ThematicBreak, SyntaxKind::ThematicBreak),
     (MarkupKind::HardBreakMarker, SyntaxKind::HardBreak),
+    (MarkupKind::ConflictMarker, SyntaxKind::Conflict),
 ];
 
 #[cfg(test)]
@@ -423,7 +439,7 @@ mod tests {
 
     #[test]
     fn every_markup_kind_has_a_syntax_kind() {
-        assert_eq!(MARKUP_SYNTAX.len(), 25);
+        assert_eq!(MARKUP_SYNTAX.len(), 26);
         assert_eq!(MarkupKind::WikiTarget.syntax_kind(), SyntaxKind::LinkUrl);
     }
 }
