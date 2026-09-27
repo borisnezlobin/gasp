@@ -164,11 +164,11 @@ fn keys_reach_the_workspace_through_the_editor(cx: &mut TestAppContext) {
     let vault = vault_with(&[("a.md", "")]);
     let (workspace, cx) = open_workspace(cx, vault.path());
     open(&workspace, cx, "a.md", OpenIn::ActiveTab);
-    cx.simulate_keystrokes("ctrl-t");
+    cx.simulate_keystrokes("secondary-t");
     assert_eq!(titles(&workspace, cx), vec!["a", "New tab"]);
-    cx.simulate_keystrokes("ctrl-1");
+    cx.simulate_keystrokes("secondary-1");
     assert_eq!(active_title(&workspace, cx), "a");
-    cx.simulate_keystrokes("ctrl-w");
+    cx.simulate_keystrokes("secondary-w");
     assert_eq!(titles(&workspace, cx), vec!["New tab"]);
 }
 
@@ -539,11 +539,11 @@ fn the_left_panel_toggles_and_takes_focus(cx: &mut TestAppContext) {
         panel
     });
     assert!(!panel_visible(&workspace, cx));
-    cx.simulate_keystrokes("ctrl-\\");
+    cx.simulate_keystrokes("secondary-\\");
     assert!(panel_visible(&workspace, cx));
-    cx.simulate_keystrokes("ctrl-\\");
+    cx.simulate_keystrokes("secondary-\\");
     assert!(!panel_visible(&workspace, cx));
-    cx.simulate_keystrokes("ctrl-shift-e");
+    cx.simulate_keystrokes("secondary-shift-e");
     assert!(panel_visible(&workspace, cx));
     let focused = cx.update(|window, cx| panel.read(cx).focus_handle.is_focused(window));
     assert!(focused);

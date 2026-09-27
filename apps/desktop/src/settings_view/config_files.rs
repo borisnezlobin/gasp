@@ -1,6 +1,8 @@
 //! Writing the vault's `.editor/theme.toml` one token at a time and
-//! adding or removing the user's own key rules in `.editor/rules.toml`,
-//! keeping everything else in both files as the user wrote it.
+//! changing keys in `.editor/rules.toml`: adding the user's own, removing
+//! them, turning a built-in one off with `delete = true` under its id,
+//! and putting a command back to its built-in keys. Everything else in
+//! both files stays as the user wrote it.
 
 use std::path::{Path, PathBuf};
 
@@ -11,7 +13,7 @@ use editor_config::{Config, RuleSet};
 use serde_json::Value;
 use toml_edit::{ArrayOfTables, DocumentMut, Item, Table, value};
 
-use super::model::user_rule_id;
+use super::model::{is_user_rule, user_rule_id};
 use super::store::{SettingsFile, save};
 
 pub const THEME_FILE: &str = "theme.toml";
@@ -206,14 +208,50 @@ fn comments_above(rule: &Table) -> String {
 pub fn remove_user_key(vault_root: &Path, rule_id: &str) -> Result<RuleSet, String> {
     let path = rules_path(vault_root);
     let mut doc = load_rules_doc(&path)?;
-    let rules = rules_mut(&mut doc)?;
+    remove_rules_where(&mut doc, |id| id == rule_id)?;
+    save_rules(&path, &doc)
+}
+
+/// Turns off a built-in key by its rule id: the vault's file gets a rule
+/// with that id and `delete = true`, in place of any override it had.
+pub fn disable_default_key(vault_root: &Path, rule_id: &str) -> Result<RuleSet, String> {
+    let path = rules_path(vault_root);
+    let mut doc = load_rules_doc(&path)?;
+    remove_rules_where(&mut doc, |id| id == rule_id)?;
+    let mut rule = Table::new();
+    rule.insert("id", value(rule_id));
+    rule.insert("delete", value(true));
+    rules_mut(&mut doc)?.push(rule);
+    save_rules(&path, &doc)
+}
+
+/// Puts `command` back to its built-in keys: removes the keys the user
+/// added to it and every rule that overrides or deletes one of its
+/// built-in rules (`default_ids`).
+pub fn reset_command_keys(
+    vault_root: &Path,
+    command: &str,
+    default_ids: &[String],
+) -> Result<RuleSet, String> {
+    let path = rules_path(vault_root);
+    let mut doc = load_rules_doc(&path)?;
+    remove_rules_where(&mut doc, |id| {
+        is_user_rule(id, command) || default_ids.iter().any(|known| known == id)
+    })?;
+    save_rules(&path, &doc)
+}
+
+/// Removes the rules whose id `remove` picks, moving any comments above
+/// a removed rule to the rule after it, and drops an emptied list.
+fn remove_rules_where(doc: &mut DocumentMut, remove: impl Fn(&str) -> bool) -> Result<(), String> {
+    let rules = rules_mut(doc)?;
     let mut kept_comments = String::new();
     rules.retain(|rule| {
-        let remove = rule.get("id").and_then(Item::as_str) == Some(rule_id);
-        if remove {
+        let removed = rule.get("id").and_then(Item::as_str).is_some_and(&remove);
+        if removed {
             kept_comments.push_str(&comments_above(rule));
         }
-        !remove
+        !removed
     });
     let orphaned = match rules.iter_mut().next() {
         Some(next) if !kept_comments.is_empty() => {
@@ -233,7 +271,7 @@ pub fn remove_user_key(vault_root: &Path, rule_id: &str) -> Result<RuleSet, Stri
     {
         doc.remove("rule");
     }
-    save_rules(&path, &doc)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -343,6 +381,33 @@ do   = \"format.bold\"
         assert_eq!(rules.keys_for("tab.new", Platform::Linux).len(), 2);
         remove_user_key(dir.path(), "user.key.tab.new~2").unwrap();
         assert_eq!(read(&dir, RULES_FILE).trim_end(), RULES.trim_end());
+    }
+
+    #[test]
+    fn built_in_keys_are_turned_off_and_reset() {
+        let dir = vault(RULES_FILE, Some(RULES));
+        let bold = |rules: &RuleSet| rules.keys_for("format.bold", Platform::Linux);
+        let rules = disable_default_key(dir.path(), "key.format.bold").unwrap();
+        let text = read(&dir, RULES_FILE);
+        assert!(text.starts_with(RULES), "{text}");
+        assert!(
+            text.contains("[[rule]]\nid = \"key.format.bold\"\ndelete = true\n"),
+            "{text}"
+        );
+        // The user's own Mod+Alt+B stays; the built-in Mod+B is gone.
+        assert_eq!(
+            bold(&rules),
+            [KeyChord::parse_for("Mod+Alt+B", Platform::Linux).unwrap()]
+        );
+        // Turning it off twice writes it once.
+        disable_default_key(dir.path(), "key.format.bold").unwrap();
+        assert_eq!(read(&dir, RULES_FILE).matches("delete = true").count(), 1);
+        add_user_key(dir.path(), "format.bold", "F9").unwrap();
+        let ids = vec!["key.format.bold".to_string()];
+        let rules = reset_command_keys(dir.path(), "format.bold", &ids).unwrap();
+        // The reset keeps rules it didn't write, such as `my.bold`.
+        assert_eq!(read(&dir, RULES_FILE).trim_end(), RULES.trim_end());
+        assert_eq!(bold(&rules).len(), 2);
     }
 
     #[test]

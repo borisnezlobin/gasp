@@ -1,11 +1,12 @@
 //! What a command is called and which keys run it, as buttons, menus and
-//! tooltips show them: "New note" and `⌘N` on macOS, `Ctrl+N` elsewhere.
+//! tooltips show them: "New note" and `⌘N` on macOS, `Ctrl+N` elsewhere,
+//! as a [`Shortcut`] that [`super::keycap`] draws.
 
 use editor_config::commands::BUILTIN_COMMANDS;
 use editor_config::{Platform, RuleSet};
 use gpui::{App, Global, SharedString};
 
-use crate::picker::shortcut::shortcut_label;
+use crate::picker::shortcut::Shortcut;
 
 /// The key rules shortcuts are read from.
 struct Hints {
@@ -40,7 +41,7 @@ pub fn command_title(id: &str) -> SharedString {
 }
 
 /// The first shortcut that runs `id`, as shown on this platform.
-pub fn shortcut(id: &str, cx: &App) -> Option<SharedString> {
+pub fn shortcut(id: &str, cx: &App) -> Option<Shortcut> {
     let (rules, platform) = match cx.try_global::<Hints>() {
         Some(hints) => (&hints.rules, hints.platform),
         None => return shortcut_in(&RuleSet::defaults(), Platform::current(), id),
@@ -48,9 +49,9 @@ pub fn shortcut(id: &str, cx: &App) -> Option<SharedString> {
     shortcut_in(rules, platform, id)
 }
 
-fn shortcut_in(rules: &RuleSet, platform: Platform, id: &str) -> Option<SharedString> {
+fn shortcut_in(rules: &RuleSet, platform: Platform, id: &str) -> Option<Shortcut> {
     let chord = rules.keys_for(id, platform).into_iter().next()?;
-    Some(shortcut_label(chord, platform).into())
+    Some(Shortcut::new(chord, platform))
 }
 
 #[cfg(test)]
@@ -62,13 +63,13 @@ mod tests {
         let rules = RuleSet::defaults();
         assert_eq!(
             shortcut_in(&rules, Platform::Macos, "note.new")
-                .map(|s| s.to_string())
+                .map(|s| s.label())
                 .as_deref(),
             Some("⌘N")
         );
         assert_eq!(
             shortcut_in(&rules, Platform::Linux, "note.new")
-                .map(|s| s.to_string())
+                .map(|s| s.label())
                 .as_deref(),
             Some("Ctrl+N")
         );
