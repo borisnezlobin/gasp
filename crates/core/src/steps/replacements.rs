@@ -1,12 +1,18 @@
 use editor_snippets::Replacements;
 
-use crate::pipeline::{
-    EditRequest, PipelineStep, RangePlan, StepContext, StepOutcome, plan_transaction,
-};
+use crate::document::Selection;
+use crate::pipeline::{EditRequest, PipelineStep, StepContext, StepOutcome};
+use crate::transaction::{ChangeSet, Origin, Transaction};
 
 use super::caret::{Key, LineAround, snippet_context};
 
+/// The command a replacement is recorded as, apart from the typing before
+/// it.
+pub const REPLACE_COMMAND: &str = "replacements";
+
 /// Applies typing replacements such as curly quotes, dashes and arrows.
+/// The typed character goes in first and the replacement is its own undo
+/// step, so undo right after gives back what was typed.
 pub struct ReplacementStep {
     table: Replacements,
 }
@@ -16,7 +22,8 @@ impl ReplacementStep {
         Self { table }
     }
 
-    fn replace(&self, typed: char, cx: &StepContext<'_>) -> Option<RangePlan> {
+    /// The replacement, as a change to the document after the typing.
+    fn replace(&self, typed: char, cx: &StepContext<'_>) -> Option<Transaction> {
         if !cx.selection.primary().is_empty() {
             return None;
         }
@@ -24,8 +31,13 @@ impl ReplacementStep {
         let edit = self
             .table
             .find(&line.before, typed, snippet_context(cx.context))?;
-        let range = line.doc_offset(edit.replace.start)..line.doc_offset(edit.replace.end);
-        Some(RangePlan::replace(range, &edit.text))
+        let range = line.typed_offset(edit.replace.start)..line.typed_offset(edit.replace.end);
+        let caret = line.caret_after_typing() - range.len() + edit.text.len();
+        let changes = ChangeSet::replace(range, edit.text);
+        Some(
+            Transaction::new(changes, Origin::command(REPLACE_COMMAND), cx.timestamp_ms)
+                .with_selection(Selection::cursor(caret)),
+        )
     }
 }
 
@@ -36,7 +48,7 @@ impl PipelineStep for ReplacementStep {
             _ => None,
         };
         match plan {
-            Some(plan) => StepOutcome::Emit(plan_transaction(cx, vec![plan])),
+            Some(replacement) => StepOutcome::EmitAfterTyping(replacement),
             None => StepOutcome::Continue(request),
         }
     }

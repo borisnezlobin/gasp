@@ -21,11 +21,13 @@ use crate::frame::{FrameLayout, PlacedLine};
 use crate::images::ImageStore;
 use crate::line_layout::{LayoutContext, LayoutResources, VisualLine, layout_line};
 use crate::metrics::{Estimator, LineMetrics};
+use crate::preview::code_highlight::CodeHighlighter;
 use crate::preview::folds::Folds;
 use crate::preview::math::{MathStore, RenderFn};
 use crate::preview::reveal::reveal_settings;
 use crate::preview::source::{Source, SourceChange};
 use crate::stats::Timings;
+use crate::suggest::SuggestState;
 use crate::theme::Theme;
 
 /// Edits between timing reports when logging is on.
@@ -75,6 +77,7 @@ pub struct EditorView {
     pub(crate) math: MathStore,
     pub(crate) folds: Folds,
     pub(crate) images: ImageStore,
+    pub(crate) code: CodeHighlighter,
     /// Width of the text column in the last frame.
     pub(crate) column_width: Pixels,
     /// How far the view is scrolled down, counting the header.
@@ -92,7 +95,10 @@ pub struct EditorView {
     pub(crate) bench: Option<Bench>,
     pub(crate) log_timings: bool,
     pub(crate) highlights: BTreeMap<HighlightKind, Vec<Range<usize>>>,
-    pipeline: Pipeline,
+    pub(crate) suggest: SuggestState,
+    pub(crate) pipeline: Pipeline,
+    /// Whether pasted text gets curly quotes, from the settings.
+    pub(crate) curl_pasted_quotes: bool,
     clock: Instant,
 }
 
@@ -147,6 +153,7 @@ impl EditorView {
             math: MathStore::default(),
             folds: Folds::default(),
             images: ImageStore::new(image_dirs),
+            code: CodeHighlighter::default(),
             column_width,
             scroll_y: px(0.),
             header_height: px(0.),
@@ -160,7 +167,9 @@ impl EditorView {
             bench: None,
             log_timings: false,
             highlights: Default::default(),
+            suggest: SuggestState::default(),
             pipeline: Pipeline::builtin(),
+            curl_pasted_quotes: config.settings.editor.curl_pasted_quotes,
             clock: Instant::now(),
         }
     }
@@ -173,6 +182,7 @@ impl EditorView {
         self.base_theme = theme;
         self.symbols = config.settings.markdown.symbols.clone();
         self.reveal = reveal_settings(&self.symbols);
+        self.apply_typing_settings(&config.settings.editor);
         self.set_zoom(self.zoom, cx);
     }
 
@@ -219,6 +229,15 @@ impl EditorView {
             .iter()
             .map(SelectionRange::range)
             .collect()
+    }
+
+    /// Whether there is an edit to undo.
+    pub fn can_undo(&self) -> bool {
+        self.state.history().can_undo()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        self.state.history().can_redo()
     }
 
     pub fn cursor(&self) -> usize {
@@ -285,6 +304,7 @@ impl EditorView {
             .apply(transaction)
             .expect("a selection-only transaction always applies");
         self.autoscroll = true;
+        self.refresh_suggestions(cx);
         cx.emit(EditorEvent::SelectionChanged);
         cx.notify();
     }
@@ -322,6 +342,7 @@ impl EditorView {
         self.goal_x = None;
         self.autoscroll = true;
         self.timings.input_started.get_or_insert_with(Instant::now);
+        self.refresh_suggestions(cx);
         cx.emit(EditorEvent::Edited);
         cx.notify();
         inserted
@@ -336,12 +357,33 @@ impl EditorView {
     /// Applies a transaction from a command or the input pipeline and
     /// re-measures the lines. Any composition ends.
     pub fn apply_transaction(&mut self, transaction: Transaction, cx: &mut Context<Self>) {
+        let single_edit = match transaction.changes.edits() {
+            [edit] => Some(edit.clone()),
+            _ => None,
+        };
         if self.state.apply(transaction).is_err() {
             return;
         }
         self.goal_x = None;
         self.timings.input_started.get_or_insert_with(Instant::now);
-        self.after_history_step(cx);
+        // One edit, as typing makes, updates the source in place; anything
+        // else finds what changed by comparing the whole text.
+        match single_edit {
+            Some(edit) => {
+                let change = self.source.replace(edit.range, &edit.insert);
+                self.source_changed(change);
+                self.after_edit(cx);
+            }
+            None => self.after_history_step(cx),
+        }
+    }
+
+    /// Applies transactions in order, each its own undo step, as the input
+    /// pipeline returns them.
+    pub fn apply_transactions(&mut self, transactions: Vec<Transaction>, cx: &mut Context<Self>) {
+        for transaction in transactions {
+            self.apply_transaction(transaction, cx);
+        }
     }
 
     /// Runs a core editing command on the current document and selection.
@@ -372,17 +414,20 @@ impl EditorView {
 
     /// Enter runs through the input pipeline so lists continue.
     pub fn newline(&mut self, cx: &mut Context<Self>) {
-        let transaction = self.pipeline.run(
-            EditRequest::Newline,
+        self.run_pipeline(EditRequest::Newline, cx);
+    }
+
+    /// Runs a request through the input pipeline and applies what it
+    /// makes of it.
+    pub(crate) fn run_pipeline(&mut self, request: EditRequest, cx: &mut Context<Self>) {
+        let transactions = self.pipeline.run_steps(
+            request,
             self.state.doc(),
             self.state.selection(),
             self.source.tree(),
             self.now_ms(),
         );
-        match transaction {
-            Some(transaction) => self.apply_transaction(transaction, cx),
-            None => self.insert("\n", cx),
-        }
+        self.apply_transactions(transactions, cx);
     }
 
     pub fn undo(&mut self, cx: &mut Context<Self>) {
@@ -401,8 +446,14 @@ impl EditorView {
         if let Some(change) = self.source.sync(self.state.doc()) {
             self.source_changed(change);
         }
+        self.after_edit(cx);
+    }
+
+    /// Everything an edit settles once the source matches the document.
+    fn after_edit(&mut self, cx: &mut Context<Self>) {
         self.marked = None;
         self.autoscroll = true;
+        self.refresh_suggestions(cx);
         cx.emit(EditorEvent::Edited);
         cx.notify();
     }
@@ -416,6 +467,8 @@ impl EditorView {
         self.metrics
             .splice(change.old_lines, change.new_lines, &self.source, &estimator);
         self.folds.map(&change.edit);
+        self.code
+            .text_changed(change.edit.old.clone(), change.edit.new_len);
     }
 
     /// Replaces the whole text, as when the file changed on disk. The
@@ -543,6 +596,7 @@ impl EditorView {
             text_system: window.text_system(),
             images: &mut self.images,
             math: &mut self.math,
+            code: &mut self.code,
         };
         layout_line(plan, &context, &mut resources)
     }
@@ -615,6 +669,7 @@ impl EditorView {
         let padding = self.theme.text_padding;
         let viewport = (bounds.size.height - padding * 2.).max(px(0.));
         self.math.begin_frame();
+        self.code.begin_frame();
         self.apply_autoscroll(viewport, window);
         self.scroll_y = self.scroll_y.clamp(px(0.), self.max_scroll(viewport));
         let text_scroll = self.scroll_y - self.header_height;

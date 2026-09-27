@@ -2,8 +2,8 @@
 //! tabs, a new-tab button and the list of every tab.
 
 use gpui::{
-    AnyElement, Context, MouseButton, SharedString, div, linear_color_stop, linear_gradient,
-    prelude::*, px,
+    AnyElement, Context, MouseButton, SharedString, canvas, div, linear_color_stop,
+    linear_gradient, prelude::*, px,
 };
 
 use super::pane::{Pane, PaneEvent, PaneMenu, Tab, TabState};
@@ -17,11 +17,6 @@ pub const TAB_LIST_KEY: &str = "pane-tab-list";
 impl Pane {
     pub(super) fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let ui = ui_theme(cx);
-        let strip_width = self.tab_scroll.bounds().size.width;
-        if strip_width != self.revealed_width.get() {
-            self.revealed_width.set(strip_width);
-            self.tab_scroll.scroll_to_item(self.active_index());
-        }
         let tabs: Vec<AnyElement> = self
             .tabs()
             .iter()
@@ -39,6 +34,10 @@ impl Pane {
             });
         let list_menu = self.menu.render_attached(TAB_LIST_KEY, ui.space_xs);
         div()
+            .id("tab-bar")
+            .debug_selector(|| "tab-bar".to_owned())
+            .on_drag_move(cx.listener(Self::on_drag_over_tabs))
+            .on_drop(cx.listener(Self::on_drop_on_tabs))
             .flex()
             .flex_row()
             .flex_none()
@@ -66,7 +65,8 @@ impl Pane {
                             .track_scroll(&self.tab_scroll)
                             .children(tabs),
                     )
-                    .children(self.render_strip_fades(&ui)),
+                    .children(self.render_strip_fades(&ui))
+                    .child(self.reveal_on_resize()),
             )
             .child(
                 IconButton::new("pane-new-tab", IconName::Plus)
@@ -88,6 +88,28 @@ impl Pane {
                     }))
                     .attach(list_menu),
             )
+    }
+
+    /// Scrolls the active tab back into view when the strip's width
+    /// changes, as when the pane is split or the window narrows. The width
+    /// is only known once the strip is laid out, so this asks for one more
+    /// frame to show the scroll.
+    fn reveal_on_resize(&self) -> impl IntoElement {
+        let scroll = self.tab_scroll.clone();
+        let revealed = self.revealed_width.clone();
+        let active = self.active_index();
+        canvas(
+            move |bounds, window, _| {
+                if bounds.size.width != revealed.get() {
+                    revealed.set(bounds.size.width);
+                    scroll.scroll_to_item(active);
+                    window.request_animation_frame();
+                }
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .size_full()
     }
 
     /// Soft edges where tabs run past the strip, so a tab cut by the edge
@@ -140,10 +162,14 @@ impl Pane {
         let group: SharedString = format!("tab-{index}").into();
         let state = TabState::of(tab, cx);
         let title: SharedString = state.title.clone().into();
+        let dragged = self.dragged_tab(index, title.clone(), state.dirty, cx);
+        let slot = self.shown_slot(cx);
+        let last = index + 1 == self.len();
         div()
             .id(("tab", index))
             .debug_selector(|| format!("tab-{}", state.title))
             .group(group.clone())
+            .relative()
             .flex()
             .flex_row()
             .items_center()
@@ -160,7 +186,10 @@ impl Pane {
             .when(active, |tab| tab.bg(self.theme.background))
             .when(raised, |tab| tab.shadow(ui.tab_shadows()))
             .when(!active, |tab| tab.hover(|style| style.bg(ui.control_hover)))
-            .tooltip(Tooltip::new(title.clone(), None).builder())
+            // The name in full, except under the tab's own menu.
+            .when(!self.menu.is_open(), |tab| {
+                tab.tooltip(Tooltip::new(title.clone(), None).builder())
+            })
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |_, _, _, cx| cx.emit(PaneEvent::ActivateTab(index))),
@@ -169,6 +198,22 @@ impl Pane {
                 MouseButton::Middle,
                 cx.listener(move |_, _, _, cx| cx.emit(PaneEvent::CloseTab(index))),
             )
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(Self::on_tab_right_click(index)),
+            )
+            .on_drag(dragged, |dragged, grab, _, cx| {
+                Self::start_tab_drag(dragged, grab, cx)
+            })
+            .when(self.is_dragging(index, cx), |tab| {
+                tab.opacity(ui.dragged_tab_opacity)
+            })
+            .when(slot == Some(index), |tab| {
+                tab.child(drop_bar(ui).left(-(ui.tab_gap + ui.drop_indicator_width) / 2.))
+            })
+            .when(last && slot == Some(index + 1), |tab| {
+                tab.child(drop_bar(ui).right(-(ui.tab_gap + ui.drop_indicator_width) / 2.))
+            })
             .when(state.conflict.is_some(), |tab| {
                 tab.child(
                     icon(IconName::WarningCircle)
@@ -239,4 +284,15 @@ impl Pane {
                     ),
             )
     }
+}
+
+/// The bar between two tabs where a dragged tab would go.
+fn drop_bar(ui: &UiTheme) -> gpui::Div {
+    div()
+        .absolute()
+        .top_0()
+        .bottom_0()
+        .w(ui.drop_indicator_width)
+        .rounded_full()
+        .bg(ui.drop_indicator)
 }

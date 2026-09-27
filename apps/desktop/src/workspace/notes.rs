@@ -350,6 +350,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.note_texts.apply(&changes);
+        self.index_disk_changes(&changes, cx);
         if let Some(sync) = self.sync.clone() {
             let paths: Vec<PathBuf> = changes.iter().flat_map(DiskChange::paths).collect();
             sync.update(cx, |sync, cx| sync.files_changed(&paths, cx));
@@ -363,6 +364,22 @@ impl Workspace {
         }
         self.refresh_status(cx);
         cx.notify();
+    }
+
+    fn index_disk_changes(&mut self, changes: &[DiskChange], cx: &mut Context<Self>) {
+        let mut changed = Vec::new();
+        let mut removed = Vec::new();
+        for change in changes {
+            match change {
+                DiskChange::Changed(path) => changed.push(path.clone()),
+                DiskChange::Removed(path) => removed.push(path.clone()),
+                DiskChange::Renamed { from, to } => {
+                    removed.push(from.clone());
+                    changed.push(to.clone());
+                }
+            }
+        }
+        self.update_vault_index(changed, removed, cx);
     }
 
     fn disk_renamed(&mut self, from: &Path, to: &Path, cx: &mut Context<Self>) {

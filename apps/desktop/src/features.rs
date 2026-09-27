@@ -403,7 +403,14 @@ fn open_switcher(
     let _span = crate::trace::span("switcher-open");
     crate::trace::presented(window, "switcher-open");
     let vault = workspace.vault().to_path_buf();
-    let paths = vault_note_paths(&vault);
+    // The vault index already has every path once its first read is done;
+    // until then, walk the vault.
+    let index = workspace.vault_index().read(cx);
+    let paths = if index.is_ready() {
+        index.notes().iter().map(|note| note.path.clone()).collect()
+    } else {
+        vault_note_paths(&vault)
+    };
     let recent = workspace
         .recent_notes()
         .iter()

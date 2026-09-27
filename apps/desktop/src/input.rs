@@ -67,6 +67,9 @@ impl EntityInputHandler for EditorView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if range_utf16.is_none() && self.marked.is_none() {
+            return self.type_text(text, cx);
+        }
         let range = self.input_range(range_utf16);
         self.replace(range, text, cx);
     }

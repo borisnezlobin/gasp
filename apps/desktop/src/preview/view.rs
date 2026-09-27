@@ -6,9 +6,10 @@ use std::ops::Range;
 
 use editor_config::settings::SymbolMode;
 use editor_core::transaction::{ChangeSet, Origin, Transaction};
-use gpui::Context;
+use gpui::{AppContext, Context};
 
 use crate::editor::{EditorEvent, EditorView};
+use crate::preview::code_highlight::load_syntaxes;
 use crate::preview::links::link_target_at;
 use crate::preview::reveal::reveal_settings;
 
@@ -97,6 +98,40 @@ impl EditorView {
     pub fn toggle_fold(&mut self, header: usize, folded_now: bool, cx: &mut Context<Self>) {
         self.folds.toggle(header, folded_now);
         cx.notify();
+    }
+
+    /// Loads the code grammars in the background when a code block
+    /// needed them, then redraws with colours.
+    pub(crate) fn start_code_loads(&mut self, cx: &mut Context<Self>) {
+        self.start_code_jobs(cx);
+        if !self.code.take_load_request() {
+            return;
+        }
+        let load = cx.background_spawn(async {
+            load_syntaxes();
+        });
+        cx.spawn(async move |this, cx| {
+            load.await;
+            this.update(cx, |_, cx| cx.notify()).ok();
+        })
+        .detach();
+    }
+
+    /// Highlights the blocks layout left for the background, redrawing as
+    /// each finishes.
+    fn start_code_jobs(&mut self, cx: &mut Context<Self>) {
+        for job in self.code.take_jobs() {
+            let run = cx.background_spawn(async move { job.run() });
+            cx.spawn(async move |this, cx| {
+                let done = run.await;
+                this.update(cx, |view, cx| {
+                    view.code.finish_job(done);
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach();
+        }
     }
 
     /// Whether every equation asked for has been rendered.

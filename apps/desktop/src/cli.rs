@@ -6,15 +6,16 @@ use crate::bench::BenchConfig;
 
 pub const USAGE: &str = "\
 usage: editor [PATH]
-       editor --bench-layout PATH [--keystrokes N] [--scroll-pages N]
+       editor --bench-layout PATH [--keystrokes N] [--scroll-pages N] [--in-code]
 
 PATH is a folder of notes (a vault) or a note, which opens its vault
 with that note showing. With no PATH, the last vault opens again.
 
 --bench-layout opens a lone editor on PATH (a note, or a folder whose
 notes are joined into one long note), types into the middle and scrolls
-through it, then prints frame timings and quits. On Linux without a
-display, run it under xvfb-run.";
+through it, then prints frame timings and quits. --in-code types in the
+first code block after the middle instead. On Linux without a display,
+run it under xvfb-run.";
 
 /// What the binary was asked to do.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,7 +40,12 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
 fn parse_bench(args: &[String]) -> Result<Command, String> {
     let path = args.first().ok_or("--bench-layout needs a path")?;
     let mut config = BenchConfig::default();
-    for pair in args[1..].chunks(2) {
+    let mut rest: Vec<String> = args[1..].to_vec();
+    if let Some(at) = rest.iter().position(|arg| arg == "--in-code") {
+        rest.remove(at);
+        config.in_code = true;
+    }
+    for pair in rest.chunks(2) {
         let [flag, value] = pair else {
             return Err(format!("{} needs a value", pair[0]));
         };
@@ -88,6 +94,19 @@ mod tests {
         assert_eq!(path, PathBuf::from("corpus"));
         assert_eq!(config.keystrokes, 50);
         assert_eq!(config.scroll_pages, BenchConfig::default().scroll_pages);
+        assert!(!config.in_code);
+        let parsed = parse(&args(&[
+            "--bench-layout",
+            "c",
+            "--in-code",
+            "--keystrokes",
+            "5",
+        ]));
+        let Ok(Command::Bench { config, .. }) = parsed else {
+            panic!("expected a bench command");
+        };
+        assert!(config.in_code);
+        assert_eq!(config.keystrokes, 5);
     }
 
     #[test]

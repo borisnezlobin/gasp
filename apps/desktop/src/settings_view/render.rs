@@ -416,7 +416,9 @@ impl SettingsView {
         let page = self
             .current_section()
             .map_or("", |page| PageSpec::get(page).id);
+        let inactive = row.item().is_some_and(|item| self.is_inactive(item));
         two_column_row(&format!("{page}-{index}"), text, control, &self.style)
+            .when(inactive, |row| row.opacity(self.style.inactive_opacity))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |view, _: &MouseDownEvent, window, cx| {

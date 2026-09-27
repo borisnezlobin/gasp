@@ -17,6 +17,9 @@ pub struct BenchConfig {
     pub warmup: usize,
     pub keystrokes: usize,
     pub scroll_pages: usize,
+    /// Type at the end of a code block's first line instead of in the
+    /// middle of the note, to measure highlighting.
+    pub in_code: bool,
 }
 
 impl Default for BenchConfig {
@@ -25,6 +28,7 @@ impl Default for BenchConfig {
             warmup: 20,
             keystrokes: 300,
             scroll_pages: 100,
+            in_code: false,
         }
     }
 }
@@ -138,9 +142,22 @@ impl EditorView {
         }
         bench.results.full_layout = started.elapsed();
         let middle = self.doc().line_end(self.doc().line_count() / 2);
-        self.move_to(middle, false, cx);
+        let start = match config.in_code {
+            true => self.code_line_after(middle).unwrap_or(middle),
+            false => middle,
+        };
+        self.move_to(start, false, cx);
         self.bench = Some(bench);
         cx.notify();
+    }
+
+    /// The end of the first line inside the next fenced block with a
+    /// language after `offset`.
+    fn code_line_after(&self, offset: usize) -> Option<usize> {
+        let text = self.source.text();
+        let fence = offset + text[offset..].find("\n```")? + 1;
+        let first = self.doc().line_of_offset(fence) + 1;
+        Some(self.doc().line_end(first))
     }
 
     pub(crate) fn schedule_bench_step(view: &Entity<Self>, window: &mut Window, cx: &mut App) {
@@ -162,8 +179,9 @@ impl EditorView {
             self.bench_checkpoint(checkpoint);
         }
         match step.action {
+            // Through the input pipeline, as a keystroke goes.
             Some(BenchAction::Type(character)) => {
-                self.insert(character.encode_utf8(&mut [0; 4]), cx)
+                self.type_text(character.encode_utf8(&mut [0; 4]), cx)
             }
             Some(BenchAction::ScrollPage) => self.scroll_page(cx),
             None => self.finish_bench(cx),
@@ -208,6 +226,7 @@ mod tests {
             warmup: 1,
             keystrokes: 2,
             scroll_pages: 1,
+            in_code: false,
         });
         let steps: Vec<BenchStep> = (0..5).map(|_| bench.next_step()).collect();
         let checkpoints: Vec<Option<Checkpoint>> =

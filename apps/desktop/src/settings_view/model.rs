@@ -79,6 +79,21 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Show the file name as an editable title above the text.",
     ),
     (
+        "editor.smart-quotes",
+        "Smart quotes",
+        "Turn straight quotes into curly ones as you type, except in code, math and links. Undo right after gives the straight quote back.",
+    ),
+    (
+        "editor.auto-pair",
+        "Close brackets as you type",
+        "Typing ( [ { or a backtick adds its closing half, and typing * or _ over a selection wraps it.",
+    ),
+    (
+        "editor.curl-pasted-quotes",
+        "Curl quotes in pasted text",
+        "Give pasted text curly quotes too. Paste as plain text always keeps quotes as they are.",
+    ),
+    (
         "appearance.base-font-size",
         "Font size",
         "The size of body text in points. Headings scale with it.",
@@ -132,6 +147,19 @@ const CHOICE_LABELS: &[(&str, &str)] = &[
 /// would be controls that do nothing, so they stay hidden until their
 /// feature lands.
 const UNWIRED: &[&str] = &["prose."];
+
+/// Settings that only apply while another (a switch) is on, as
+/// (setting, the switch it needs). Their rows fade and stop taking input
+/// while the switch is off.
+const REQUIRES: &[(&str, &str)] = &[("editor.curl-pasted-quotes", "editor.smart-quotes")];
+
+/// The switch `key` needs on to apply, if any.
+pub fn required_switch(key: &str) -> Option<&'static str> {
+    REQUIRES
+        .iter()
+        .find(|(setting, _)| *setting == key)
+        .map(|(_, switch)| *switch)
+}
 
 /// The smallest value a number setting takes, when it isn't zero.
 const MINIMUMS: &[(&str, i64)] = &[
@@ -301,6 +329,11 @@ pub const PAGES: &[PageSpec] = &[
         group: "Writing",
         cards: &[
             &[setting("editor.show-inline-title")],
+            &[
+                setting("editor.smart-quotes"),
+                setting("editor.curl-pasted-quotes"),
+                setting("editor.auto-pair"),
+            ],
             &[
                 setting("markdown.symbols.mode"),
                 setting("markdown.symbols.scope"),

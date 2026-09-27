@@ -32,10 +32,14 @@ pub struct Heading {
 /// Every heading in `text`, in document order, including ones inside
 /// quotes and callouts.
 pub fn headings(text: &str) -> Vec<Heading> {
-    let tree = syntax::parse(text);
+    headings_in(&syntax::parse(text), text)
+}
+
+/// Every heading in `text`, read from its already parsed `tree`.
+pub fn headings_in(tree: &SyntaxTree, text: &str) -> Vec<Heading> {
     tree.preorder()
         .into_iter()
-        .filter_map(|id| heading_at(&tree, id, text))
+        .filter_map(|id| heading_at(tree, id, text))
         .collect()
 }
 

@@ -11,9 +11,11 @@
 use editor_config::Config;
 use editor_config::theme::{Theme as Tokens, TokenValue};
 use editor_core::syntax::CalloutKind;
+
+use crate::preview::code_highlight::CodeKind;
 use gpui::{
-    BoxShadow, Font, FontStyle, FontWeight, Hsla, Pixels, Rgba, SharedString, font, hsla, point,
-    px, rgb,
+    BoxShadow, Font, FontStyle, FontWeight, Hsla, Pixels, Point, Rgba, SharedString, font, hsla,
+    point, px, rgb,
 };
 
 /// Logical pixels per typographic point.
@@ -120,6 +122,8 @@ pub struct Theme {
     pub markup_dimmed: Hsla,
     pub code_text: Hsla,
     pub code_background: Hsla,
+    /// Syntax colours in code blocks, one per [`CodeKind`].
+    pub code_syntax: [Hsla; 7],
     pub selection: Hsla,
     pub cursor: Hsla,
     pub accent: Hsla,
@@ -180,7 +184,18 @@ impl Default for Theme {
     }
 }
 
+/// The built-in code colours, in [`CodeKind`] order, for themes that
+/// don't set them.
+const CODE_SYNTAX_DEFAULTS: [u32; 7] = [
+    0x6e6e78, 0x3d6e45, 0x9a5b1e, 0x9a5b1e, 0x7a4390, 0x2f5f93, 0x26707a,
+];
+
 impl Theme {
+    /// The colour of code of this kind.
+    pub fn code_color(&self, kind: CodeKind) -> Hsla {
+        self.code_syntax[kind as usize]
+    }
+
     /// The theme a loaded config describes.
     pub fn from_config(config: &Config) -> Self {
         Self::from_tokens(&config.theme, config.settings.appearance.base_font_size)
@@ -409,6 +424,8 @@ fn read_colors(read: &TokenReader<'_>) -> Theme {
         markup_dimmed: read.color("color.text-faint", 0xa1a1aa),
         code_text: text,
         code_background: read.color("color.code-background", 0xf4f4f5),
+        code_syntax: CodeKind::ALL
+            .map(|kind| read.color(kind.token(), CODE_SYNTAX_DEFAULTS[kind as usize])),
         selection: read.color("color.selection", 0xe4e4e7),
         cursor: read.color("color.accent", 0x000000),
         accent: read.color("color.accent", 0x000000),
@@ -485,6 +502,7 @@ fn zero_sizes() -> Theme {
         markup_dimmed: black,
         code_text: black,
         code_background: black,
+        code_syntax: [black; 7],
         selection: black,
         cursor: black,
         accent: black,
@@ -1335,6 +1353,15 @@ pub struct UiTheme {
     pub menu_shadow_blur: Pixels,
     pub menu_shadow_offset: Pixels,
     pub menu_ring: Hsla,
+    /// How matched characters stand out in a suggestion.
+    /// Matched characters in a suggestion: heavier, and a shade darker,
+    /// which GPUI needs to keep a weight change within one line.
+    pub match_text: Hsla,
+    pub match_weight: FontWeight,
+    /// Suggestion rows shown at once; the list scrolls past them.
+    pub suggestion_rows: usize,
+    /// Space between the line being typed and its suggestions.
+    pub suggestion_gap: Pixels,
     pub tab_bar_height: Pixels,
     /// Room at the window's top-left for the platform's own window
     /// buttons, where they're drawn over the app (macOS).
@@ -1423,6 +1450,24 @@ pub struct UiTheme {
     pub cut_opacity: f32,
     /// The soft edge where tabs run past the tab strip.
     pub tab_fade_width: Pixels,
+    /// The smallest a pane gets while its divider is dragged.
+    pub pane_min_width: Pixels,
+    pub pane_min_height: Pixels,
+    /// The line a divider shows under the pointer and while dragged.
+    pub divider_active: Hsla,
+    pub divider_line_width: Pixels,
+    /// Where a dragged tab will land on a pane: a soft fill with a ring.
+    pub drop_zone: Hsla,
+    pub drop_zone_ring: Hsla,
+    /// How long the drop zone takes to move to a new side.
+    pub drop_zone_motion: std::time::Duration,
+    /// The bar between tabs where a dragged tab will go.
+    pub drop_indicator: Hsla,
+    pub drop_indicator_width: Pixels,
+    /// Opacity of a tab's place in the strip while it's dragged.
+    pub dragged_tab_opacity: f32,
+    /// Where a dragged tab's stand-in hangs from the pointer.
+    pub drag_preview_offset: Point<Pixels>,
 }
 
 impl Default for UiTheme {
@@ -1476,6 +1521,10 @@ impl Default for UiTheme {
             menu_shadow_blur: px(24.),
             menu_shadow_offset: px(8.),
             menu_ring: hsla(0., 0., 0., 0.08),
+            match_text: rgb(0x000000).into(),
+            match_weight: FontWeight::BOLD,
+            suggestion_rows: 8,
+            suggestion_gap: px(4.),
             tab_bar_height: px(40.),
             window_buttons_width: if cfg!(target_os = "macos") {
                 px(72.)
@@ -1484,7 +1533,7 @@ impl Default for UiTheme {
             },
             tab_height: px(30.),
             tab_radius: px(8.),
-            tab_min_width: px(72.),
+            tab_min_width: px(110.),
             tab_max_width: px(180.),
             tab_padding_x: px(10.),
             tab_gap: px(2.),
@@ -1545,6 +1594,17 @@ impl Default for UiTheme {
             drop_target: hsla(0., 0., 0., 0.08),
             cut_opacity: 0.5,
             tab_fade_width: px(24.),
+            pane_min_width: px(240.),
+            pane_min_height: px(160.),
+            divider_active: hsla(0., 0., 0., 0.18),
+            divider_line_width: px(2.),
+            drop_zone: hsla(0., 0., 0., 0.06),
+            drop_zone_ring: hsla(0., 0., 0., 0.16),
+            drop_zone_motion: std::time::Duration::from_millis(120),
+            drop_indicator: rgb(0x27272a).into(),
+            drop_indicator_width: px(2.),
+            dragged_tab_opacity: 0.35,
+            drag_preview_offset: point(px(10.), px(14.)),
         }
     }
 }
@@ -1700,6 +1760,8 @@ pub struct SettingsTheme {
     pub text: Hsla,
     pub text_muted: Hsla,
     pub text_faint: Hsla,
+    /// How faint a row gets while another setting keeps it from applying.
+    pub inactive_opacity: f32,
     pub divider: Hsla,
     pub accent: Hsla,
     pub on_accent: Hsla,
@@ -1786,6 +1848,7 @@ impl SettingsTheme {
             text: read.color("color.text", 0x27272a),
             text_muted: read.color("color.text-muted", 0x52525b),
             text_faint: read.color("color.text-faint", 0xa1a1aa),
+            inactive_opacity: 0.4,
             divider: read.color("color.divider", 0xe4e4e7),
             accent: read.color("color.accent", 0x000000),
             on_accent: read.color("color.on-accent", 0xffffff),

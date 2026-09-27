@@ -18,11 +18,71 @@ pub enum Axis {
     Column,
 }
 
-/// A direction to move focus in.
+/// A direction to move focus or a tab in, or a side to split toward.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Direction {
     Left,
     Right,
+    Up,
+    Down,
+}
+
+impl Direction {
+    /// The axis a split toward this side divides along.
+    pub fn axis(self) -> Axis {
+        match self {
+            Direction::Left | Direction::Right => Axis::Row,
+            Direction::Up | Direction::Down => Axis::Column,
+        }
+    }
+
+    /// Whether a pane put on this side comes first in reading order.
+    fn is_before(self) -> bool {
+        matches!(self, Direction::Left | Direction::Up)
+    }
+}
+
+/// Where a tab dropped on a pane's note lands: in the pane, or in a new
+/// pane split off toward one side.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DropZone {
+    Centre,
+    Side(Direction),
+}
+
+/// How far in from a pane's edge, as a share of its size, a drop splits
+/// the pane rather than joining it.
+const EDGE_SHARE: f32 = 0.3;
+
+impl DropZone {
+    /// The zone under a point given as shares of the pane's width and
+    /// height: the nearest edge when it's within [`EDGE_SHARE`], or else
+    /// the centre.
+    pub fn at(x: f32, y: f32) -> DropZone {
+        let edges = [
+            (x, Direction::Left),
+            (1. - x, Direction::Right),
+            (y, Direction::Up),
+            (1. - y, Direction::Down),
+        ];
+        edges
+            .into_iter()
+            .filter(|(distance, _)| *distance < EDGE_SHARE)
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map_or(DropZone::Centre, |(_, side)| DropZone::Side(side))
+    }
+
+    /// Where the tab will show, as a share of the pane: the half on that
+    /// side, or the whole pane.
+    pub fn landing(self) -> Rect {
+        match self {
+            DropZone::Centre => Rect::UNIT,
+            DropZone::Side(side) => {
+                let (first, second) = Rect::UNIT.divide(side.axis(), 0.5);
+                if side.is_before() { first } else { second }
+            }
+        }
+    }
 }
 
 /// Identifies a split, for dragging its divider.
@@ -39,7 +99,7 @@ pub struct Rect {
 }
 
 impl Rect {
-    const UNIT: Rect = Rect {
+    pub const UNIT: Rect = Rect {
         x: 0.,
         y: 0.,
         width: 1.,
@@ -56,6 +116,19 @@ impl Rect {
 
     fn vertical_overlap(&self, other: &Rect) -> f32 {
         (self.bottom().min(other.bottom()) - self.y.max(other.y)).max(0.)
+    }
+
+    fn horizontal_overlap(&self, other: &Rect) -> f32 {
+        (self.right().min(other.right()) - self.x.max(other.x)).max(0.)
+    }
+
+    /// How much of `other` lines up with this rect across `direction`:
+    /// shared height for left and right, shared width for up and down.
+    fn overlap_across(&self, other: &Rect, direction: Direction) -> f32 {
+        match direction.axis() {
+            Axis::Row => self.vertical_overlap(other),
+            Axis::Column => self.horizontal_overlap(other),
+        }
     }
 
     fn divide(&self, axis: Axis, ratio: f32) -> (Rect, Rect) {
@@ -152,21 +225,33 @@ impl<T: Clone + PartialEq> PaneTree<T> {
 
     /// Puts `new` beside `target`, after it along `axis`.
     pub fn split(&mut self, target: &T, new: T, axis: Axis) -> bool {
-        let id = SplitId(self.next_split);
-        let Some(node) = find_leaf_mut(&mut self.root, target) else {
-            return false;
+        let side = match axis {
+            Axis::Row => Direction::Right,
+            Axis::Column => Direction::Down,
         };
+        self.split_toward(target, new, side).is_some()
+    }
+
+    /// Puts `new` on the `side` of `target`, each taking half its space.
+    pub fn split_toward(&mut self, target: &T, new: T, side: Direction) -> Option<SplitId> {
+        let id = SplitId(self.next_split);
+        let node = find_leaf_mut(&mut self.root, target)?;
         self.next_split += 1;
         let old = std::mem::replace(node, Node::Leaf(new.clone()));
+        let (first, second) = if side.is_before() {
+            (Node::Leaf(new), old)
+        } else {
+            (old, Node::Leaf(new))
+        };
         *node = Node::Split(Split {
             id,
-            axis,
+            axis: side.axis(),
             ratio: 0.5,
-            first: Box::new(old),
-            second: Box::new(Node::Leaf(new)),
+            first: Box::new(first),
+            second: Box::new(second),
             bounds: Rc::default(),
         });
-        true
+        Some(id)
     }
 
     /// Removes `target`, giving its space to its sibling. The last pane
@@ -185,6 +270,16 @@ impl<T: Clone + PartialEq> PaneTree<T> {
         }
     }
 
+    /// Shares a split's space so every pane in a run along its axis gets
+    /// the same room: two panes beside a third leave it a third.
+    pub fn equalize(&mut self, id: SplitId) {
+        if let Some(split) = find_split_mut(&mut self.root, id) {
+            let first = span(&split.first, split.axis) as f32;
+            let second = span(&split.second, split.axis) as f32;
+            split.ratio = first / (first + second);
+        }
+    }
+
     pub fn split_by_id(&self, id: SplitId) -> Option<&Split<T>> {
         find_split(&self.root, id)
     }
@@ -197,25 +292,33 @@ impl<T: Clone + PartialEq> PaneTree<T> {
     }
 
     /// The pane to move focus to from `from`: the nearest pane on that
-    /// side that shares some height with it, or else the pane before or
-    /// after it in reading order, which reaches panes stacked above and
-    /// below.
+    /// side, or else, for left and right, the pane before or after it in
+    /// reading order, which reaches panes stacked above and below.
     pub fn neighbor(&self, from: &T, direction: Direction) -> Option<T> {
+        let in_order = || match direction.axis() {
+            Axis::Row => self.adjacent_in_order(from, direction),
+            Axis::Column => None,
+        };
+        self.beside(from, direction).or_else(in_order)
+    }
+
+    /// The nearest pane on `direction`'s side of `from` that lines up with
+    /// it, preferring the one that lines up most.
+    pub fn beside(&self, from: &T, direction: Direction) -> Option<T> {
         let rects = self.rects();
         let (_, current) = rects.iter().find(|(pane, _)| pane == from)?;
-        let beside = rects
+        rects
             .iter()
             .filter(|(pane, rect)| pane != from && is_beside(current, rect, direction))
             .min_by(|a, b| {
                 side_distance(current, &a.1, direction)
                     .total_cmp(&side_distance(current, &b.1, direction))
                     .then(
-                        b.1.vertical_overlap(current)
-                            .total_cmp(&a.1.vertical_overlap(current)),
+                        b.1.overlap_across(current, direction)
+                            .total_cmp(&a.1.overlap_across(current, direction)),
                     )
             })
-            .map(|(pane, _)| pane.clone());
-        beside.or_else(|| self.adjacent_in_order(from, direction))
+            .map(|(pane, _)| pane.clone())
     }
 
     /// The pane before `pane` in reading order, or else the one after:
@@ -228,9 +331,10 @@ impl<T: Clone + PartialEq> PaneTree<T> {
     fn adjacent_in_order(&self, from: &T, direction: Direction) -> Option<T> {
         let panes = self.panes();
         let index = panes.iter().position(|pane| pane == from)?;
-        match direction {
-            Direction::Left => index.checked_sub(1).map(|index| panes[index].clone()),
-            Direction::Right => panes.get(index + 1).cloned(),
+        if direction.is_before() {
+            index.checked_sub(1).map(|index| panes[index].clone())
+        } else {
+            panes.get(index + 1).cloned()
         }
     }
 }
@@ -238,17 +342,28 @@ impl<T: Clone + PartialEq> PaneTree<T> {
 const EPSILON: f32 = 1e-4;
 
 fn is_beside(current: &Rect, other: &Rect, direction: Direction) -> bool {
-    let on_side = match direction {
-        Direction::Left => other.right() <= current.x + EPSILON,
-        Direction::Right => other.x >= current.right() - EPSILON,
-    };
-    on_side && other.vertical_overlap(current) > EPSILON
+    side_distance(current, other, direction) >= -EPSILON
+        && other.overlap_across(current, direction) > EPSILON
 }
 
+/// How far `other` lies past `current`'s edge on that side; negative when
+/// it isn't on that side.
 fn side_distance(current: &Rect, other: &Rect, direction: Direction) -> f32 {
     match direction {
         Direction::Left => current.x - other.right(),
         Direction::Right => other.x - current.right(),
+        Direction::Up => current.y - other.bottom(),
+        Direction::Down => other.y - current.bottom(),
+    }
+}
+
+/// How many panes sit in a run along `axis` in `node`.
+fn span<T>(node: &Node<T>, axis: Axis) -> usize {
+    match node {
+        Node::Split(split) if split.axis == axis => {
+            span(&split.first, axis) + span(&split.second, axis)
+        }
+        _ => 1,
     }
 }
 
@@ -363,6 +478,60 @@ mod tests {
         assert_eq!(tree.neighbor(&2, Direction::Right), Some(3));
         assert_eq!(tree.neighbor(&3, Direction::Right), None);
         assert_eq!(tree.neighbor(&1, Direction::Left), None);
+    }
+
+    #[test]
+    fn quarters_come_from_splitting_each_half() {
+        // (1 over 3) | (2 over 4)
+        let mut tree = PaneTree::new(1);
+        tree.split_toward(&1, 2, Direction::Right);
+        tree.split_toward(&1, 3, Direction::Down);
+        tree.split_toward(&2, 4, Direction::Down);
+        assert_eq!(tree.panes(), vec![1, 3, 2, 4]);
+        for (_, rect) in tree.rects() {
+            assert!((rect.width - 0.5).abs() < 1e-6 && (rect.height - 0.5).abs() < 1e-6);
+        }
+        assert_eq!(tree.neighbor(&1, Direction::Down), Some(3));
+        assert_eq!(tree.neighbor(&4, Direction::Up), Some(2));
+        assert_eq!(tree.neighbor(&3, Direction::Right), Some(4));
+        assert_eq!(tree.neighbor(&1, Direction::Up), None);
+        // Closing a quarter gives its room back to the pane above it.
+        assert!(tree.remove(&3));
+        assert_eq!(tree.panes(), vec![1, 2, 4]);
+        assert!((tree.rects()[0].1.height - 1.).abs() < 1e-6);
+    }
+
+    #[test]
+    fn splits_go_first_on_the_left_and_top() {
+        let mut tree = PaneTree::new(1);
+        tree.split_toward(&1, 2, Direction::Left);
+        tree.split_toward(&1, 3, Direction::Up);
+        assert_eq!(tree.panes(), vec![2, 3, 1]);
+        assert_eq!(tree.beside(&1, Direction::Left), Some(2));
+        assert_eq!(tree.beside(&1, Direction::Up), Some(3));
+    }
+
+    #[test]
+    fn equalizing_shares_a_run_evenly() {
+        // 1 | (2 | 3): the outer split leaves 1 a third.
+        let mut tree = PaneTree::new(1);
+        let outer = tree.split_toward(&1, 2, Direction::Right).unwrap();
+        tree.split_toward(&2, 3, Direction::Right);
+        tree.equalize(outer);
+        assert!((tree.split_by_id(outer).unwrap().ratio - 1. / 3.).abs() < 1e-6);
+    }
+
+    #[test]
+    fn drop_zones_follow_the_nearest_edge() {
+        assert_eq!(DropZone::at(0.5, 0.5), DropZone::Centre);
+        assert_eq!(DropZone::at(0.1, 0.5), DropZone::Side(Direction::Left));
+        assert_eq!(DropZone::at(0.95, 0.4), DropZone::Side(Direction::Right));
+        assert_eq!(DropZone::at(0.4, 0.05), DropZone::Side(Direction::Up));
+        assert_eq!(DropZone::at(0.2, 0.9), DropZone::Side(Direction::Down));
+        let left = DropZone::Side(Direction::Left).landing();
+        assert_eq!((left.x, left.width, left.height), (0., 0.5, 1.));
+        let down = DropZone::Side(Direction::Down).landing();
+        assert_eq!((down.y, down.height), (0.5, 0.5));
     }
 
     #[test]

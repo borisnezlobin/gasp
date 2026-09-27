@@ -14,7 +14,7 @@ type Handler = fn(&mut Workspace, &mut Window, &mut Context<Workspace>);
 
 const TAB_GO_PREFIX: &str = "tab.go-";
 
-const HANDLERS: [(&str, Handler); 20] = [
+const HANDLERS: [(&str, Handler); 28] = [
     ("tab.new", |ws, window, cx| ws.new_tab(window, cx)),
     ("tab.close", |ws, window, cx| {
         ws.close_active_tab(window, cx)
@@ -40,6 +40,34 @@ const HANDLERS: [(&str, Handler); 20] = [
     }),
     ("pane.focus-right", |ws, window, cx| {
         ws.focus_pane_toward(Direction::Right, window, cx)
+    }),
+    ("pane.focus-up", |ws, window, cx| {
+        ws.focus_pane_toward(Direction::Up, window, cx)
+    }),
+    ("pane.focus-down", |ws, window, cx| {
+        ws.focus_pane_toward(Direction::Down, window, cx)
+    }),
+    ("pane.move-tab-left", |ws, window, cx| {
+        ws.move_active_tab(Direction::Left, window, cx)
+    }),
+    ("pane.move-tab-right", |ws, window, cx| {
+        ws.move_active_tab(Direction::Right, window, cx)
+    }),
+    ("pane.move-tab-up", |ws, window, cx| {
+        ws.move_active_tab(Direction::Up, window, cx)
+    }),
+    ("pane.move-tab-down", |ws, window, cx| {
+        ws.move_active_tab(Direction::Down, window, cx)
+    }),
+    ("tab.close-others", |ws, window, cx| {
+        let pane = ws.active_pane.clone();
+        let keep = pane.read(cx).active_index();
+        ws.close_other_tabs(&pane, keep, window, cx)
+    }),
+    ("tab.close-right", |ws, window, cx| {
+        let pane = ws.active_pane.clone();
+        let index = pane.read(cx).active_index();
+        ws.close_tabs_right(&pane, index, window, cx)
     }),
     ("history.back", |ws, window, cx| {
         ws.navigate_history(false, window, cx)
