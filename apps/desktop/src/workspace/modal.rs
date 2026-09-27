@@ -16,6 +16,8 @@ struct ActiveModal {
     type_id: TypeId,
     focus: FocusHandle,
     previous_focus: Option<FocusHandle>,
+    /// Draws at its own size instead of the standard modal width.
+    self_sized: bool,
     _dismiss: Subscription,
 }
 
@@ -65,6 +67,7 @@ impl ModalLayer {
             type_id: TypeId::of::<V>(),
             focus,
             previous_focus,
+            self_sized: false,
             _dismiss: dismiss,
         });
         cx.notify();
@@ -78,6 +81,13 @@ impl ModalLayer {
             window.focus(previous);
         }
         modal.previous_focus
+    }
+
+    /// Lets the open modal size itself, as the settings screen does.
+    pub fn set_self_sized(&mut self) {
+        if let Some(modal) = &mut self.active {
+            modal.self_sized = true;
+        }
     }
 
     /// Whether the modal holds keyboard focus.
@@ -118,7 +128,7 @@ impl ModalLayer {
                 .child(
                     div()
                         .id("modal")
-                        .w(theme.modal_width)
+                        .when(!modal.self_sized, |modal| modal.w(theme.modal_width))
                         .max_w_full()
                         .rounded(theme.radius_lg)
                         .shadow(vec![gpui::BoxShadow {

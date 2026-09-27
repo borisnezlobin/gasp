@@ -201,6 +201,11 @@ fn register_window_actions(cx: &mut App) {
     cx.on_action(|_: &ShowAllApps, cx| cx.unhide_other_apps());
     cx.on_action(|_: &MinimizeWindow, cx| with_active_window(cx, gpui::Window::minimize_window));
     cx.on_action(|_: &ZoomWindow, cx| with_active_window(cx, gpui::Window::zoom_window));
+    bind_window_keys(cx);
+}
+
+/// The macOS keys for hiding and minimising, which the OS reserves.
+pub fn bind_window_keys(cx: &mut App) {
     if cfg!(target_os = "macos") {
         cx.bind_keys([
             KeyBinding::new("cmd-h", HideApp, None),

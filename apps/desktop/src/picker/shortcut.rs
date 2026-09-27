@@ -2,6 +2,7 @@
 //! for `rules.toml`.
 
 use editor_config::Platform;
+use editor_config::keymap::is_reserved;
 use editor_config::keys::{Key, KeyChord, Modifiers, NamedKey};
 use gpui::Keystroke;
 
@@ -116,6 +117,28 @@ pub fn chord_text(keystroke: &Keystroke, platform: Platform) -> Option<String> {
     let has_command_modifier = primary || control || pressed.alt || meta;
     let is_function_key = matches!(chord.key, Key::Function(_));
     (has_command_modifier || is_function_key).then_some(text)
+}
+
+/// Whether a keystroke is only a modifier going down, which a shortcut
+/// capture waits past.
+pub fn is_lone_modifier(keystroke: &Keystroke) -> bool {
+    matches!(
+        keystroke.key.as_str(),
+        "shift" | "control" | "alt" | "platform" | "function" | "fn" | "capslock"
+    )
+}
+
+/// The portable chord for a keystroke pressed while capturing a new
+/// shortcut, or why it can't be one, in words to show the user.
+pub fn capture_chord(keystroke: &Keystroke, platform: Platform) -> Result<String, &'static str> {
+    let text = chord_text(keystroke, platform)
+        .ok_or("Hold Mod, Ctrl or Alt with the key, or use a function key.")?;
+    let chord =
+        KeyChord::parse_for(&text, platform).map_err(|_| "That key can't be a shortcut.")?;
+    if is_reserved(chord, platform) {
+        return Err("The system uses that shortcut. Try another.");
+    }
+    Ok(text)
 }
 
 #[cfg(test)]

@@ -5,15 +5,14 @@
 //! chord pressed becomes [`PaletteEvent::Bind`], which the owner writes to
 //! `rules.toml`.
 
-use editor_config::keymap::is_reserved;
-use editor_config::{CommandRegistry, KeyChord, Platform, RuleSet};
+use editor_config::{CommandRegistry, Platform, RuleSet};
 use gpui::{
     AnyElement, App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     Keystroke, ParentElement, Render, SharedString, Subscription, Window, div, prelude::*,
 };
 
 use crate::picker::fuzzy::{Candidate, Matcher, Query};
-use crate::picker::shortcut::{chord_text, shortcut_label};
+use crate::picker::shortcut::{capture_chord, is_lone_modifier, shortcut_label};
 use crate::picker::{Confirmed, Picker, PickerDelegate, highlighted_text, keycap, surface_shadow};
 use crate::theme::{InputTheme, PickerTheme};
 
@@ -360,7 +359,7 @@ impl CommandPalette {
             self.cancel_capture(window, cx);
             return;
         }
-        match self.check_chord(keystroke) {
+        match capture_chord(keystroke, self.platform) {
             Ok(chord) => self.finish_capture(chord, cx),
             Err(reason) => {
                 if let Some(capture) = self.capture.as_mut() {
@@ -369,17 +368,6 @@ impl CommandPalette {
                 cx.notify();
             }
         }
-    }
-
-    fn check_chord(&self, keystroke: &Keystroke) -> Result<String, &'static str> {
-        let text = chord_text(keystroke, self.platform)
-            .ok_or("Hold Mod, Ctrl or Alt with the key, or use a function key.")?;
-        let chord = KeyChord::parse_for(&text, self.platform)
-            .map_err(|_| "That key can't be a shortcut.")?;
-        if is_reserved(chord, self.platform) {
-            return Err("The system uses that shortcut. Try another.");
-        }
-        Ok(text)
     }
 
     fn finish_capture(&mut self, chord: String, cx: &mut Context<Self>) {
@@ -432,13 +420,6 @@ impl CommandPalette {
             )
             .into_any_element()
     }
-}
-
-fn is_lone_modifier(keystroke: &Keystroke) -> bool {
-    matches!(
-        keystroke.key.as_str(),
-        "shift" | "control" | "alt" | "platform" | "function" | "fn" | "capslock"
-    )
 }
 
 impl Render for CommandPalette {

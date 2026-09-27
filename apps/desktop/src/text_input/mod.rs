@@ -81,7 +81,7 @@ impl TextInputStyle {
             TextInputStyle::Query => (theme.query_font_size, None, None),
             TextInputStyle::Title => (theme.title_font_size, Some(theme.title_weight), None),
         };
-        let mut look_font = font(theme.font_family);
+        let mut look_font = font(theme.font_family.clone());
         look_font.weight = weight.unwrap_or(FontWeight::NORMAL);
         let text = if self == TextInputStyle::Title {
             theme.title_text
@@ -144,7 +144,10 @@ impl TextInput {
             state: LineState::default(),
             placeholder: SharedString::default(),
             style: TextInputStyle::default(),
-            theme: InputTheme::default(),
+            theme: InputTheme {
+                font_family: crate::ui::ui_theme(cx).font_family,
+                ..InputTheme::default()
+            },
             invalid: false,
             bubbles_enter_and_escape: false,
             is_selecting: false,

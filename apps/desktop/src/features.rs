@@ -21,7 +21,7 @@ use crate::keymap::{
 use crate::note::markdown_files;
 use crate::outline::{OutlineEvent, OutlinePicker};
 use crate::palette::{CommandPalette, PaletteEvent};
-use crate::settings_view::{SettingsEvent, SettingsView};
+use crate::settings_view::{SettingsEvent, SettingsRequest, SettingsView};
 use crate::switcher::{QuickSwitcher, SwitcherEvent};
 use crate::text_input::{self, TEXT_INPUT_CONTEXT};
 use crate::vault_search::{VaultSearch, VaultSearchEvent};
@@ -56,6 +56,15 @@ pub fn bind_view_keys(cx: &mut App) {
     export_ui::bind_keys(cx);
 }
 
+/// Replaces every key binding with those from `rules` plus the views' own
+/// keys, so edits to rules.toml take effect, removals included.
+pub fn bind_all_keys(rules: &editor_config::RuleSet, cx: &mut App) {
+    cx.clear_key_bindings();
+    crate::keymap::bind_rules(rules, cx);
+    bind_view_keys(cx);
+    crate::workspace::menus::bind_window_keys(cx);
+}
+
 /// State shared by every window: recently run commands, and each pane's
 /// find bar with the editor it searches.
 #[derive(Default)]
@@ -73,6 +82,9 @@ fn features(cx: &mut App) -> &mut Features {
 
 /// Installs every feature into a new workspace.
 pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Context<Workspace>) {
+    // The vault's rules.toml can add, change or remove shortcuts.
+    let rules = workspace.config().rules.clone();
+    bind_all_keys(&rules, cx);
     // The note header's reading-view button shows a book while Markdown
     // symbols are hidden everywhere.
     let reading: crate::workspace::pane::ReadingProbe = std::rc::Rc::new(|editor| {
@@ -483,15 +495,38 @@ fn open_settings(
     let Some(settings) = workspace.active_modal::<SettingsView>() else {
         return;
     };
-    let subscription = cx.subscribe(&settings, |workspace, _, event: &SettingsEvent, cx| {
-        let SettingsEvent::Changed(_) = event;
-        let vault = workspace.vault().to_path_buf();
-        if let Some(tree) = workspace.file_tree().cloned() {
-            let options = crate::file_tree::FileTreeOptions::for_vault(&vault);
-            tree.update(cx, |tree, _| tree.set_options(options));
-        }
+    workspace.set_modal_self_sized(cx);
+    let changed = cx.subscribe(&settings, |workspace, _, event: &SettingsEvent, cx| {
+        let SettingsEvent::Changed(key) = event;
+        on_setting_changed(workspace, key, cx);
     });
-    features(cx).subscriptions.push(subscription);
+    let requests = cx.subscribe_in(
+        &settings,
+        window,
+        |_, _, request: &SettingsRequest, window, cx| {
+            let SettingsRequest::RunCommand(id) = request;
+            run_after_modal_closes(id.clone(), window, cx);
+        },
+    );
+    let state = features(cx);
+    state.subscriptions.push(changed);
+    state.subscriptions.push(requests);
+}
+
+/// Applies a settings change everywhere it shows: every open note gets the
+/// new config, new shortcuts are bound, and the file tree follows the files
+/// settings.
+fn on_setting_changed(workspace: &mut Workspace, key: &str, cx: &mut gpui::Context<Workspace>) {
+    workspace.reload_config(cx);
+    if key == "rules" {
+        let rules = workspace.config().rules.clone();
+        bind_all_keys(&rules, cx);
+    }
+    let vault = workspace.vault().to_path_buf();
+    if let Some(tree) = workspace.file_tree().cloned() {
+        let options = crate::file_tree::FileTreeOptions::for_vault(&vault);
+        tree.update(cx, |tree, _| tree.set_options(options));
+    }
 }
 
 fn active_note(workspace: &Workspace, cx: &App) -> Option<(String, Option<PathBuf>)> {

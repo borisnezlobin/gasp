@@ -70,6 +70,7 @@ pub enum IconName {
     Minus,
     NoteBlank,
     NotePencil,
+    Palette,
     PencilSimple,
     Plus,
     Printer,
@@ -80,6 +81,7 @@ pub enum IconName {
     Scissors,
     SelectionAll,
     SidebarSimple,
+    SlidersHorizontal,
     SortAscending,
     Square,
     SquareSplitHorizontal,
@@ -99,7 +101,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 88] = [
+const ICONS: [(IconName, &str, &[u8]); 90] = [
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -406,6 +408,11 @@ const ICONS: [(IconName, &str, &[u8]); 88] = [
         include_bytes!("../assets/icons/note-pencil.svg"),
     ),
     (
+        IconName::Palette,
+        "palette",
+        include_bytes!("../assets/icons/palette.svg"),
+    ),
+    (
         IconName::PencilSimple,
         "pencil-simple",
         include_bytes!("../assets/icons/pencil-simple.svg"),
@@ -454,6 +461,11 @@ const ICONS: [(IconName, &str, &[u8]); 88] = [
         IconName::SidebarSimple,
         "sidebar-simple",
         include_bytes!("../assets/icons/sidebar-simple.svg"),
+    ),
+    (
+        IconName::SlidersHorizontal,
+        "sliders-horizontal",
+        include_bytes!("../assets/icons/sliders-horizontal.svg"),
     ),
     (
         IconName::SortAscending,

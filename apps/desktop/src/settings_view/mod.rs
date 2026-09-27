@@ -1,15 +1,28 @@
 //! The settings screen, generated from the settings schema so it never
 //! drifts from the files.
 //!
-//! [`SettingsView`] writes every change to the vault's
-//! `.editor/settings.toml` straight away and emits
-//! [`SettingsEvent::Changed`]. It fills the space it's given, so the host
-//! can show it as a tab or in a modal; Escape emits `DismissEvent`.
+//! [`SettingsView`] is a modal sized to a share of the window. It writes
+//! every change straight away (settings to `.editor/settings.toml`, fonts
+//! and the accent colour to `.editor/theme.toml`, added shortcuts to
+//! `.editor/rules.toml`) and emits [`SettingsEvent::Changed`]. It asks the
+//! host to run commands, such as opening another vault, with
+//! [`SettingsRequest`]. Escape and the close button emit `DismissEvent`.
 
+mod capture;
+pub mod config_files;
+pub mod controls;
+mod edit;
 mod keys;
+mod menu;
 pub mod model;
 mod render;
+mod rows;
 pub mod store;
 mod view;
 
-pub use view::{ControlRow, SectionRef, SettingsEvent, SettingsFocus, SettingsView};
+pub use menu::MenuTarget;
+pub use model::{FontSlot, Page};
+pub use render::modal_size;
+pub use view::{
+    Card, ControlRow, PaneLayout, SettingsEvent, SettingsFocus, SettingsRequest, SettingsView,
+};

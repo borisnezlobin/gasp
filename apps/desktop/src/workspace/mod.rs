@@ -309,6 +309,35 @@ impl Workspace {
         self.modal = modal;
     }
 
+    /// Lets the open modal draw at its own size.
+    pub fn set_modal_self_sized(&mut self, cx: &mut Context<Self>) {
+        self.modal.set_self_sized();
+        cx.notify();
+    }
+
+    /// Reads the vault's config files again and restyles every open note.
+    pub fn reload_config(&mut self, cx: &mut Context<Self>) {
+        let mut loader = editor_config::ConfigLoader::for_vault(&self.vault);
+        loader.load_all();
+        self.config = loader.config().clone();
+        let editors: Vec<Entity<EditorView>> = self
+            .panes()
+            .iter()
+            .flat_map(|pane| {
+                pane.read(cx)
+                    .tabs()
+                    .iter()
+                    .filter_map(|tab| tab.note().map(|note| note.editor.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        let config = self.config.clone();
+        for editor in editors {
+            editor.update(cx, |editor, cx| editor.apply_config(&config, cx));
+        }
+        cx.notify();
+    }
+
     /// The open modal, if it's a `V`.
     pub fn active_modal<V: 'static>(&self) -> Option<Entity<V>> {
         self.modal.active::<V>()
