@@ -12,9 +12,10 @@ use super::files::note_title;
 use super::history::NavHistory;
 use super::launcher::Launcher;
 use super::note_doc::{Conflict, NoteDoc};
-use super::title_input::TitleInput;
 use crate::editor::EditorView;
 use crate::icons::{IconName, icon};
+use crate::keymap::{KEY_CONTEXT, RunCommand};
+use crate::text_input::TextInput;
 use crate::theme::{Theme, WorkspaceTheme};
 
 /// What an empty tab is called.
@@ -25,7 +26,7 @@ pub const NEW_TAB_TITLE: &str = "New tab";
 pub struct NoteTab {
     pub doc: Entity<NoteDoc>,
     pub editor: Entity<EditorView>,
-    pub title: Entity<TitleInput>,
+    pub title: Entity<TextInput>,
 }
 
 /// What a tab holds.
@@ -352,7 +353,26 @@ impl Pane {
             )
     }
 
-    fn render_content(&self) -> gpui::AnyElement {
+    /// The note's inline title. It sits in the editor's key context so the
+    /// keys that leave a heading in the note (Tab, Down) leave the title
+    /// for the note's text; its input runs the editing keys itself.
+    fn render_title(&self, note: &NoteTab, cx: &mut Context<Self>) -> impl IntoElement {
+        let editor = note.editor.clone();
+        div()
+            .key_context(KEY_CONTEXT)
+            .w_full()
+            .px(self.theme.text_padding)
+            .pt(self.theme.workspace.space_xxl)
+            .on_action(cx.listener(move |_, action: &RunCommand, window, cx| {
+                match action.id.as_ref() {
+                    "edit.indent" | "cursor.down" => window.focus(&editor.focus_handle(cx)),
+                    _ => cx.propagate(),
+                }
+            }))
+            .child(note.title.clone())
+    }
+
+    fn render_content(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let Some(tab) = self.active_tab() else {
             return div().flex_1().into_any_element();
         };
@@ -369,7 +389,7 @@ impl Pane {
                 .min_h_0()
                 .bg(self.theme.background)
                 .when(self.show_inline_title, |content| {
-                    content.child(note.title.clone())
+                    content.child(self.render_title(note, cx))
                 })
                 .child(div().flex_1().min_h_0().child(note.editor.clone()))
                 .into_any_element(),
@@ -421,6 +441,6 @@ impl Render for Pane {
             .when_some(self.toolbar.clone(), |pane, toolbar| {
                 pane.child(div().flex_none().child(toolbar))
             })
-            .child(self.render_content())
+            .child(self.render_content(cx))
     }
 }

@@ -11,9 +11,9 @@ use gpui::{
 };
 
 use crate::editor::{EditorEvent, EditorView, HighlightKind};
-use crate::find::input::{QueryInput, QueryInputEvent};
 use crate::icons::{IconName, icon};
 use crate::keymap::RunCommand;
+use crate::text_input::{TextInput, TextInputEvent};
 use crate::theme::FindUiTheme;
 
 /// The key context the bar sets.
@@ -67,8 +67,8 @@ pub enum FindBarEvent {
 /// Find and replace over one editor.
 pub struct FindBar {
     editor: Entity<EditorView>,
-    query: Entity<QueryInput>,
-    replacement: Entity<QueryInput>,
+    query: Entity<TextInput>,
+    replacement: Entity<TextInput>,
     focus_handle: FocusHandle,
     options: FindOptions,
     compiled: Option<FindQuery>,
@@ -101,11 +101,21 @@ impl FindBar {
     /// A bar over `editor`, seeded from its selection and focused.
     pub fn new(editor: Entity<EditorView>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let theme = editor.read(cx).theme.find_ui.clone();
-        let query = cx.new(|cx| QueryInput::new("Find", theme.clone(), cx));
-        let replacement = cx.new(|cx| QueryInput::new("Replace with", theme.clone(), cx));
+        let query = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .with_placeholder("Find")
+                .bubble_enter_and_escape()
+        });
+        let replacement = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .with_placeholder("Replace with")
+                .bubble_enter_and_escape()
+        });
         let subscriptions = vec![
-            cx.subscribe(&query, |this, _, _: &QueryInputEvent, cx| {
-                this.query_changed(cx)
+            cx.subscribe(&query, |this, _, event: &TextInputEvent, cx| {
+                if *event == TextInputEvent::Changed {
+                    this.query_changed(cx)
+                }
             }),
             cx.subscribe(&editor, |this, _, event: &EditorEvent, cx| {
                 if *event == EditorEvent::Edited {
@@ -136,7 +146,10 @@ impl FindBar {
     pub fn show(&mut self, replace: bool, window: &mut Window, cx: &mut Context<Self>) {
         self.replace_visible |= replace;
         if let Some(seed) = self.selection_seed(cx) {
-            self.query.update(cx, |query, cx| query.set_text(&seed, cx));
+            self.query.update(cx, |query, cx| {
+                query.set_text(&seed, cx);
+                query.select_all(cx);
+            });
             self.query_changed(cx);
         } else {
             self.query.update(cx, |query, cx| query.select_all(cx));
@@ -444,7 +457,7 @@ impl FindBar {
             .flex()
             .items_center()
             .gap(theme.gap)
-            .child(self.query.clone())
+            .child(div().flex_1().min_w_0().child(self.query.clone()))
             .child(
                 div()
                     .flex_none()
@@ -506,7 +519,7 @@ impl FindBar {
             .flex()
             .items_center()
             .gap(self.theme.gap)
-            .child(self.replacement.clone())
+            .child(div().flex_1().min_w_0().child(self.replacement.clone()))
             .child(self.text_button(
                 "replace-next",
                 "Replace",

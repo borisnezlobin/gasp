@@ -4,8 +4,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use editor_config::Platform;
 use editor_config::keys::KeyChord;
-use editor_config::{Platform, RuleSet};
 use gpui::{
     App, AppContext, Entity, EntityId, Focusable, Global, KeyBinding, Subscription, Window,
 };
@@ -23,6 +23,7 @@ use crate::outline::{OutlineEvent, OutlinePicker};
 use crate::palette::{CommandPalette, PaletteEvent};
 use crate::settings_view::{SettingsEvent, SettingsView};
 use crate::switcher::{QuickSwitcher, SwitcherEvent};
+use crate::text_input::{self, TEXT_INPUT_CONTEXT};
 use crate::vault_search::{VaultSearch, VaultSearchEvent};
 use crate::workspace::{OpenIn, Workspace};
 
@@ -46,10 +47,11 @@ pub const WIRED_COMMANDS: [&str; 13] = [
     "file-tree.focus",
 ];
 
-/// Binds the keys the standalone views use inside themselves.
-pub fn bind_view_keys(rules: &RuleSet, cx: &mut App) {
-    crate::picker::bind_keys(rules, cx);
-    crate::find::bind_keys_from(rules, cx);
+/// Binds the keys the standalone views use inside themselves. Their text
+/// inputs' editing keys come from the rules, bound by `keymap::bind_rules`.
+pub fn bind_view_keys(cx: &mut App) {
+    crate::picker::bind_keys(cx);
+    crate::find::bind_keys(cx);
     crate::vault_search::bind_keys(cx);
     export_ui::bind_keys(cx);
 }
@@ -242,13 +244,22 @@ fn bind_user_key(vault: &Path, command: &str, chord: &str, cx: &mut App) -> std:
     } else {
         WORKSPACE_CONTEXT
     };
+    // Editing commands also run in every text input.
+    let contexts = [
+        Some(context),
+        text_input::handles(command).then_some(TEXT_INPUT_CONTEXT),
+    ];
     let keystroke = keystroke_for(parsed, Platform::current());
-    let bindings = keystroke_variants(&keystroke).into_iter().map(|keystroke| {
-        let action = RunCommand {
-            id: command.to_owned().into(),
-        };
-        KeyBinding::new(&keystroke, action, Some(context))
-    });
+    let bindings = keystroke_variants(&keystroke)
+        .into_iter()
+        .flat_map(|keystroke| {
+            contexts.into_iter().flatten().map(move |context| {
+                let action = RunCommand {
+                    id: command.to_owned().into(),
+                };
+                KeyBinding::new(&keystroke, action, Some(context))
+            })
+        });
     cx.bind_keys(bindings.collect::<Vec<_>>());
     Ok(())
 }

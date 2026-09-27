@@ -1,8 +1,8 @@
 //! The vault search panel (`search.open`): a query field, results grouped
 //! by note with the matching lines, and replace across notes.
 //!
-//! Wiring: call [`bind_keys`] once at startup (after `find::bind_keys`,
-//! which binds the query field's editing keys). The workspace creates a
+//! Wiring: call [`bind_keys`] once at startup (the fields' editing keys
+//! come from `keymap::bind_rules`). The workspace creates a
 //! [`VaultSearch`] with the vault root, focuses it on `search.open`, opens
 //! the note on [`VaultSearchEvent::Open`], reloads open notes listed in
 //! [`VaultSearchEvent::Replaced`], and returns focus to the editor on
@@ -20,7 +20,7 @@ use gpui::{
     actions, div, prelude::*,
 };
 
-use crate::find::input::{QueryInput, QueryInputEvent};
+use crate::text_input::{TextInput, TextInputEvent};
 use crate::theme::{FindUiTheme, Theme};
 use engine::{Note, NoteResult, ReplaceReport};
 
@@ -87,8 +87,8 @@ pub struct PendingReplace {
 pub struct VaultSearch {
     root: PathBuf,
     notes: Arc<Vec<Note>>,
-    query: Entity<QueryInput>,
-    replacement: Entity<QueryInput>,
+    query: Entity<TextInput>,
+    replacement: Entity<TextInput>,
     results: Vec<NoteResult>,
     rows: Vec<Row>,
     selected: usize,
@@ -148,11 +148,20 @@ impl VaultSearch {
     /// A panel over the notes under `root`, which it starts loading.
     pub fn new(root: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let theme = Theme::default().find_ui;
-        let query = cx.new(|cx| QueryInput::new("Search all notes", theme.clone(), cx));
-        let replacement = cx.new(|cx| QueryInput::new("Replace with", theme.clone(), cx));
-        let subscriptions = vec![cx.subscribe(&query, |this, _, _: &QueryInputEvent, cx| {
-            this.pending_replace = None;
-            this.start_search(cx);
+        let query = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .with_placeholder("Search all notes")
+                .bubble_enter_and_escape()
+        });
+        let replacement = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .with_placeholder("Replace with")
+                .bubble_enter_and_escape()
+        });
+        let subscriptions = vec![cx.subscribe(&query, |this, _, event: &TextInputEvent, cx| {
+            if *event == TextInputEvent::Changed {
+                this.query_changed(cx);
+            }
         })];
         window.focus(&query.focus_handle(cx));
         let mut panel = Self {
@@ -202,6 +211,12 @@ impl VaultSearch {
 
     pub fn set_query(&mut self, text: &str, cx: &mut Context<Self>) {
         self.query.update(cx, |query, cx| query.set_text(text, cx));
+        self.query_changed(cx);
+    }
+
+    fn query_changed(&mut self, cx: &mut Context<Self>) {
+        self.pending_replace = None;
+        self.start_search(cx);
     }
 
     pub fn set_replacement(&mut self, text: &str, cx: &mut Context<Self>) {
@@ -445,7 +460,7 @@ impl VaultSearch {
             .flex()
             .items_center()
             .gap(self.theme.gap)
-            .child(self.replacement.clone())
+            .child(div().flex_1().min_w_0().child(self.replacement.clone()))
             .child(self.button(
                 "replace-all",
                 "Replace all",
@@ -578,7 +593,7 @@ impl Render for VaultSearch {
             .font_family(theme.font_family)
             .text_size(theme.font_size)
             .text_color(theme.text)
-            .child(div().flex().child(self.query.clone()))
+            .child(self.query.clone())
             .child(self.replace_row(cx))
             .when_some(pending, |panel, pending| {
                 panel.child(self.confirm_row(&pending, cx))

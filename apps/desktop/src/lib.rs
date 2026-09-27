@@ -31,6 +31,7 @@ pub mod settings_view;
 pub mod stats;
 pub mod styling;
 pub mod switcher;
+pub mod text_input;
 pub mod text_offsets;
 pub mod theme;
 pub mod vault_search;

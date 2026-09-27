@@ -26,7 +26,6 @@ pub mod sidebar;
 pub mod state;
 pub mod status;
 mod tabs;
-pub mod title_input;
 pub mod watcher;
 pub mod welcome;
 pub mod window;

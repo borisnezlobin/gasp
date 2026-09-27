@@ -32,7 +32,7 @@ fn open_workspace<'a>(
 ) -> (Entity<Workspace>, &'a mut VisualTestContext) {
     cx.update(|cx| {
         bind_keys(cx);
-        features::bind_view_keys(&RuleSet::defaults(), cx);
+        features::bind_view_keys(cx);
     });
     let vault = vault.to_path_buf();
     let (workspace, cx) = cx.add_window_view(move |window, cx| {
