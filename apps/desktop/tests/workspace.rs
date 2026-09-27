@@ -346,7 +346,7 @@ fn a_taken_title_is_refused(cx: &mut TestAppContext) {
     cx.simulate_input("b");
     cx.simulate_keystrokes("enter");
     assert!(cx.has_pending_prompt());
-    cx.simulate_prompt_answer("Ok");
+    cx.simulate_prompt_answer("OK");
     assert_eq!(titles(&workspace, cx), vec!["a"]);
     assert!(vault.path().join("a.md").is_file());
 }
@@ -531,6 +531,14 @@ fn the_left_panel_reveals_on_hover_and_hides_after_leaving(cx: &mut TestAppConte
     let vault = vault_with(&[("a.md", "")]);
     let (workspace, cx) = open_workspace(cx, vault.path());
     open(&workspace, cx, "a.md", OpenIn::ActiveTab);
+    cx.update(|_, cx| {
+        let panel = cx.new(|cx| Panel {
+            focus_handle: cx.focus_handle(),
+        });
+        workspace.update(cx, |workspace, cx| {
+            workspace.set_left_panel(panel.into(), None, cx)
+        });
+    });
     assert!(!panel_visible(&workspace, cx));
     cx.simulate_mouse_move(point(px(2.), px(200.)), None, Modifiers::none());
     assert!(panel_visible(&workspace, cx));

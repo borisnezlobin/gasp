@@ -95,9 +95,9 @@ impl Render for Welcome {
                     .text_color(theme.on_accent)
                     .when(focused, |button| {
                         button.shadow(vec![gpui::BoxShadow {
-                            color: theme.shadow,
-                            offset: gpui::point(gpui::px(0.), theme.shadow_offset / 2.),
-                            blur_radius: theme.shadow_blur / 2.,
+                            color: theme.text_faint,
+                            offset: gpui::point(gpui::px(0.), gpui::px(0.)),
+                            blur_radius: gpui::px(0.),
                             spread_radius: theme.focus_line_width,
                         }])
                     })

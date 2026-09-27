@@ -11,6 +11,7 @@ use crate::editor::EditorView;
 use crate::icons::Assets;
 use crate::note::LoadedNote;
 use crate::workspace::menus::{built_in_available, set_app_menus};
+use crate::workspace::prompt::use_in_window_prompts;
 use crate::workspace::window::{LaunchTarget, open_target};
 
 const BENCH_WINDOW_SIZE: (f32, f32) = (900., 700.);
@@ -35,6 +36,7 @@ pub fn launch(target: LaunchTarget) {
     Application::new().with_assets(Assets).run(move |cx| {
         bind_keys(cx);
         set_app_menus(cx, &built_in_available(&[]));
+        use_in_window_prompts(cx);
         if let Err(error) = open_target(target, cx) {
             eprintln!("could not open a window: {error}");
             std::process::exit(1);

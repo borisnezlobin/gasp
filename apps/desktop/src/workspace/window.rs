@@ -155,6 +155,7 @@ impl Workspace {
     /// Saves on focus loss, tracks the window's placement, and saves
     /// everything when the window closes or the app quits.
     pub(crate) fn observe_window(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.window_bounds = Some(window.window_bounds());
         let bounds = cx.observe_window_bounds(window, |workspace, window, _| {
             workspace.window_bounds = Some(window.window_bounds());
         });

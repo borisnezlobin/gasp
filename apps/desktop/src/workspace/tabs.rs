@@ -36,7 +36,11 @@ impl Workspace {
             _ => self.active_pane.clone(),
         };
         let replace = open_in == OpenIn::ActiveTab;
-        self.open_in_pane(&pane, &path, replace, window, cx)
+        let opened = self.open_in_pane(&pane, &path, replace, window, cx);
+        if opened.is_err() && pane.read(cx).is_empty() {
+            self.handle_empty_pane(&pane, window, cx);
+        }
+        opened
     }
 
     /// Opens `path` in `pane`, recording where the pane was for Back.
