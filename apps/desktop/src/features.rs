@@ -400,6 +400,8 @@ fn open_switcher(
     window: &mut Window,
     cx: &mut gpui::Context<Workspace>,
 ) {
+    let _span = crate::trace::span("switcher-open");
+    crate::trace::presented(window, "switcher-open");
     let vault = workspace.vault().to_path_buf();
     let paths = vault_note_paths(&vault);
     let recent = workspace
@@ -566,8 +568,12 @@ fn open_vault_search(
     window: &mut Window,
     cx: &mut gpui::Context<Workspace>,
 ) {
-    let vault = workspace.vault().to_path_buf();
-    workspace.toggle_modal(window, cx, |window, cx| VaultSearch::new(vault, window, cx));
+    let _span = crate::trace::span("search-open");
+    crate::trace::presented(window, "search-open");
+    let texts = workspace.note_texts().clone();
+    workspace.toggle_modal(window, cx, |window, cx| {
+        VaultSearch::with_texts(texts, window, cx)
+    });
     let Some(search) = workspace.active_modal::<VaultSearch>() else {
         return;
     };
@@ -599,6 +605,8 @@ fn open_settings(
     window: &mut Window,
     cx: &mut gpui::Context<Workspace>,
 ) {
+    let _span = crate::trace::span("settings-open");
+    crate::trace::presented(window, "settings-open");
     let vault = workspace.vault().to_path_buf();
     workspace.toggle_modal(window, cx, |window, cx| {
         SettingsView::new(vault, window, cx)

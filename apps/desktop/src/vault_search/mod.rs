@@ -21,6 +21,7 @@ use gpui::{
 };
 
 use crate::icons::{IconName, icon};
+use crate::note_texts::NoteTexts;
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
 use crate::theme::{PickerTheme, UiTheme};
 use crate::ui::{Button, truncated, ui_theme};
@@ -88,6 +89,9 @@ pub struct PendingReplace {
 /// The search panel over one vault.
 pub struct VaultSearch {
     root: PathBuf,
+    /// The workspace's note texts, kept between searches, when there is
+    /// one.
+    texts: Option<NoteTexts>,
     notes: Arc<Vec<Note>>,
     query: Entity<TextInput>,
     replacement: Entity<TextInput>,
@@ -152,8 +156,24 @@ fn plural(count: usize, one: &str, many: &str) -> String {
 }
 
 impl VaultSearch {
+    /// A panel over the workspace's note texts. It searches the notes as
+    /// last read at once, and again once the ones that changed are read.
+    pub fn with_texts(texts: NoteTexts, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let mut panel = Self::build(texts.root().to_path_buf(), window, cx);
+        panel.notes = texts.snapshot().unwrap_or_default();
+        panel.texts = Some(texts);
+        panel.refresh(cx);
+        panel
+    }
+
     /// A panel over the notes under `root`, which it starts loading.
     pub fn new(root: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let mut panel = Self::build(root, window, cx);
+        panel.refresh(cx);
+        panel
+    }
+
+    fn build(root: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let ui = ui_theme(cx);
         let query = cx.new(|cx| {
             TextInput::new(window, cx)
@@ -172,8 +192,9 @@ impl VaultSearch {
             }
         })];
         window.focus(&query.focus_handle(cx));
-        let mut panel = Self {
+        Self {
             root,
+            texts: None,
             notes: Arc::default(),
             query,
             replacement,
@@ -192,20 +213,25 @@ impl VaultSearch {
             ui,
             show_replace: false,
             _subscriptions: subscriptions,
-        };
-        panel.refresh(cx);
-        panel
+        }
     }
 
     /// Reloads the notes from disk and searches again. Call it when the
     /// panel is shown.
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
         let root = self.root.clone();
-        let loading = cx.background_spawn(async move { engine::load_vault(&root) });
+        let texts = self.texts.clone();
+        let loading = cx.background_spawn(async move {
+            let _span = crate::trace::span("search-load");
+            match texts {
+                Some(texts) => texts.load(),
+                None => Arc::new(engine::load_vault(&root)),
+            }
+        });
         self.load_task = Some(cx.spawn(async move |this, cx| {
             let notes = loading.await;
             this.update(cx, |panel, cx| {
-                panel.notes = Arc::new(notes);
+                panel.notes = notes;
                 panel.load_task = None;
                 panel.start_search(cx);
             })
@@ -263,8 +289,10 @@ impl VaultSearch {
         let generation = self.generation.clone();
         let notes = self.notes.clone();
         let query = self.query.read(cx).text().to_owned();
-        let searching = cx
-            .background_spawn(async move { engine::search(&notes, &query, &generation, current) });
+        let searching = cx.background_spawn(async move {
+            let _span = crate::trace::span("search-query");
+            engine::search(&notes, &query, &generation, current)
+        });
         self.search_task = Some(cx.spawn(async move |this, cx| {
             let results = searching.await;
             this.update(cx, |panel, cx| {
@@ -371,6 +399,9 @@ impl VaultSearch {
             .map(|path| self.root.join(path))
             .collect();
         cx.emit(VaultSearchEvent::Replaced { paths });
+        if let Some(texts) = &self.texts {
+            texts.mark_changed(&report.changed);
+        }
         self.refresh(cx);
         cx.notify();
     }

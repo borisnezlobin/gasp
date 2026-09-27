@@ -62,6 +62,7 @@ use self::startup::VaultStart;
 use self::status::StatusInfo;
 use crate::editor::EditorView;
 use crate::file_tree::FileTree;
+use crate::note_texts::NoteTexts;
 use crate::sync::SyncService;
 use crate::theme::Theme;
 use crate::ui::{HasMenuSlot, MenuSlot};
@@ -125,6 +126,8 @@ pub struct Workspace {
     window_bounds: Option<WindowBounds>,
     window_title: String,
     watcher: Option<crate::vault_watch::WatchHandle>,
+    /// The vault's note texts, for vault search.
+    note_texts: NoteTexts,
     rule_clock: Option<sidebar::ExecutorClock>,
     sync: Option<Entity<SyncService>>,
     sync_indicator: Option<AnyView>,
@@ -176,6 +179,7 @@ impl Workspace {
             &config.rules,
             theme.workspace.sidebar_width,
         );
+        let note_texts = NoteTexts::new(&vault);
         let mut workspace = Workspace {
             vault,
             config,
@@ -201,6 +205,7 @@ impl Workspace {
             window_bounds: None,
             window_title: String::new(),
             watcher: None,
+            note_texts,
             rule_clock: None,
             sync: None,
             sync_indicator: None,
@@ -215,6 +220,12 @@ impl Workspace {
 
     pub fn vault(&self) -> &Path {
         &self.vault
+    }
+
+    /// The vault's note texts as last read for vault search, kept up to
+    /// date while the vault is watched.
+    pub fn note_texts(&self) -> &NoteTexts {
+        &self.note_texts
     }
 
     /// The loaded config: settings, rules, theme tokens and device state.

@@ -66,11 +66,18 @@ pub fn markdown_files(root: &Path) -> io::Result<Vec<PathBuf>> {
     let mut pending = vec![root.to_path_buf()];
     while let Some(dir) = pending.pop() {
         for entry in std::fs::read_dir(&dir)? {
-            let path = entry?.path();
+            let entry = entry?;
+            let path = entry.path();
             if is_hidden(&path) {
                 continue;
             }
-            if path.is_dir() {
+            // The listing says what each entry is; only a symlink needs a
+            // look at what it points to.
+            let is_dir = match entry.file_type() {
+                Ok(kind) if !kind.is_symlink() => kind.is_dir(),
+                _ => path.is_dir(),
+            };
+            if is_dir {
                 pending.push(path);
             } else if path.extension().is_some_and(|ext| ext == "md") {
                 found.push(path);

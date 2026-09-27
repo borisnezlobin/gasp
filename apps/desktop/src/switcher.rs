@@ -221,6 +221,7 @@ impl PickerDelegate for SwitcherDelegate {
     }
 
     fn update_matches(&mut self, query: &str) {
+        let _span = crate::trace::span("switcher-filter");
         let parsed = Query::new(query);
         let mut matches: Vec<NoteMatch> = (0..self.entries.len())
             .filter_map(|index| self.match_entry(&parsed, index))
