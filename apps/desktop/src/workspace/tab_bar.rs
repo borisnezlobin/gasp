@@ -1,7 +1,10 @@
 //! A pane's tab bar: the sidebar button when the sidebar is hidden, the
 //! tabs, a new-tab button and the list of every tab.
 
-use gpui::{AnyElement, Context, MouseButton, SharedString, div, prelude::*};
+use gpui::{
+    AnyElement, Context, MouseButton, SharedString, div, linear_color_stop, linear_gradient,
+    prelude::*, px,
+};
 
 use super::pane::{Pane, PaneEvent, PaneMenu, Tab, TabState};
 use crate::icons::{IconName, icon};
@@ -14,6 +17,11 @@ pub const TAB_LIST_KEY: &str = "pane-tab-list";
 impl Pane {
     pub(super) fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let ui = ui_theme(cx);
+        let strip_width = self.tab_scroll.bounds().size.width;
+        if strip_width != self.revealed_width.get() {
+            self.revealed_width.set(strip_width);
+            self.tab_scroll.scroll_to_item(self.active_index());
+        }
         let tabs: Vec<AnyElement> = self
             .tabs()
             .iter()
@@ -41,18 +49,24 @@ impl Pane {
             .children(toggle)
             .child(
                 div()
-                    .id("tab-strip")
-                    .flex()
-                    .flex_row()
+                    .relative()
                     .flex_1()
                     .min_w_0()
                     .h_full()
-                    .items_center()
-                    .gap(ui.tab_gap)
-                    .px(ui.space_xs)
-                    .overflow_x_scroll()
-                    .track_scroll(&self.tab_scroll)
-                    .children(tabs),
+                    .child(
+                        div()
+                            .id("tab-strip")
+                            .flex()
+                            .flex_row()
+                            .size_full()
+                            .items_center()
+                            .gap(ui.tab_gap)
+                            .px(ui.space_xs)
+                            .overflow_x_scroll()
+                            .track_scroll(&self.tab_scroll)
+                            .children(tabs),
+                    )
+                    .children(self.render_strip_fades(&ui)),
             )
             .child(
                 IconButton::new("pane-new-tab", IconName::Plus)
@@ -74,6 +88,44 @@ impl Pane {
                     }))
                     .attach(list_menu),
             )
+    }
+
+    /// Soft edges where tabs run past the strip, so a tab cut by the edge
+    /// reads as "more this way" rather than as a broken tab.
+    fn render_strip_fades(&self, ui: &UiTheme) -> Vec<AnyElement> {
+        let offset = self.tab_scroll.offset().x;
+        let overflow = self.tab_scroll.max_offset().width;
+        let fade = |from_left: bool| {
+            let (angle, solid, clear) = if from_left {
+                (90., 0., 1.)
+            } else {
+                (90., 1., 0.)
+            };
+            let edge =
+                div()
+                    .absolute()
+                    .top_0()
+                    .bottom_0()
+                    .w(ui.tab_fade_width)
+                    .bg(linear_gradient(
+                        angle,
+                        linear_color_stop(ui.app_background, solid),
+                        linear_color_stop(ui.app_background.opacity(0.), clear),
+                    ));
+            if from_left {
+                edge.left_0().into_any_element()
+            } else {
+                edge.right_0().into_any_element()
+            }
+        };
+        let mut fades = Vec::new();
+        if offset < px(-0.5) {
+            fades.push(fade(true));
+        }
+        if overflow > px(0.5) && offset > -overflow + px(0.5) {
+            fades.push(fade(false));
+        }
+        fades
     }
 
     fn render_tab(
@@ -125,7 +177,7 @@ impl Pane {
                         .text_color(ui.conflict),
                 )
             })
-            .child(div().flex_1().min_w_0().truncate().child(title))
+            .child(crate::ui::truncated(title.clone()).grow())
             .child(self.render_tab_end(index, group, active, state.dirty, ui, cx))
             .into_any_element()
     }

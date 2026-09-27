@@ -1,19 +1,35 @@
-//! What an empty tab shows: the notes opened most recently. Arrows move,
+//! What an empty tab shows: the notes opened most recently, and the two
+//! ways to something else, a new note and the quick switcher. Arrows move,
 //! Enter opens.
+//!
+//! The list starts with this session's notes and fills up with the
+//! vault's most recently changed ones, which are found off the main
+//! thread so a new tab opens at once however large the vault.
 
 use std::path::{Path, PathBuf};
 
 use gpui::{
     App, Context, EventEmitter, FocusHandle, Focusable, KeyDownEvent, MouseButton, SharedString,
-    Window, div, prelude::*,
+    Task, Window, div, prelude::*,
 };
 
-use super::files::note_title;
+use super::files::{note_title, notes_by_recency};
 use crate::icons::{IconName, icon};
-use crate::theme::Theme;
+use crate::keymap::RunCommand;
+use crate::theme::UiTheme;
+use crate::ui::{keycap, truncated, ui_theme};
 
 /// Notes the launcher lists at most.
 pub const MAX_RECENT: usize = 12;
+
+/// Folders the launcher reads at most when looking for recent notes.
+const RECENT_SCAN_FOLDERS: usize = 200;
+
+/// The actions under the list: (command, label, icon).
+const ACTIONS: [(&str, &str, IconName); 2] = [
+    ("note.new", "New note", IconName::NotePencil),
+    ("switcher.open", "Find a note", IconName::MagnifyingGlass),
+];
 
 /// The launcher asks for a note to open in its tab.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -24,7 +40,7 @@ pub struct Launcher {
     vault: PathBuf,
     recent: Vec<PathBuf>,
     selected: usize,
-    theme: Theme,
+    _scan: Task<()>,
 }
 
 impl EventEmitter<OpenRecent> for Launcher {}
@@ -36,13 +52,24 @@ impl Focusable for Launcher {
 }
 
 impl Launcher {
+    /// A launcher listing `recent` first, then the vault's most recently
+    /// changed notes once they're found.
     pub fn new(vault: &Path, recent: Vec<PathBuf>, cx: &mut Context<Self>) -> Self {
+        let root = vault.to_path_buf();
+        let scanning =
+            cx.background_spawn(async move { notes_by_recency(&root, RECENT_SCAN_FOLDERS) });
+        let scan = cx.spawn(async move |launcher, cx| {
+            let found = scanning.await;
+            launcher
+                .update(cx, |launcher, cx| launcher.add_found(found, cx))
+                .ok();
+        });
         Launcher {
             focus_handle: cx.focus_handle(),
             vault: vault.to_path_buf(),
             recent: recent.into_iter().take(MAX_RECENT).collect(),
             selected: 0,
-            theme: Theme::default(),
+            _scan: scan,
         }
     }
 
@@ -52,6 +79,20 @@ impl Launcher {
 
     pub fn selected(&self) -> usize {
         self.selected
+    }
+
+    /// Appends notes the scan found, after the ones already listed, so the
+    /// row the keyboard is on stays put.
+    fn add_found(&mut self, found: Vec<PathBuf>, cx: &mut Context<Self>) {
+        for path in found {
+            if self.recent.len() >= MAX_RECENT {
+                break;
+            }
+            if !self.recent.contains(&path) {
+                self.recent.push(path);
+            }
+        }
+        cx.notify();
     }
 
     fn move_selection(&mut self, delta: isize, cx: &mut Context<Self>) {
@@ -85,67 +126,104 @@ impl Launcher {
 
     fn folder_label(&self, path: &Path) -> Option<SharedString> {
         let relative = path.strip_prefix(&self.vault).unwrap_or(path);
-        let folder = relative.parent()?.to_string_lossy().into_owned();
+        let folder = relative.parent()?.to_string_lossy().replace('\\', "/");
         (!folder.is_empty()).then(|| folder.into())
     }
 
-    fn render_row(&self, index: usize, path: &Path, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = &self.theme.workspace;
+    fn render_row(
+        &self,
+        index: usize,
+        path: &Path,
+        ui: &UiTheme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let selected = index == self.selected;
-        let mut row = div()
+        list_row(ui)
             .id(("recent", index))
-            .flex()
-            .flex_row()
-            .items_center()
-            .gap(theme.space_md)
-            .px(theme.space_md)
-            .py(theme.space_sm)
-            .rounded(theme.radius_md)
-            .text_color(theme.text)
-            .hover(|style| style.bg(theme.list_hover_background))
+            .when(selected, |row| row.bg(ui.row_selected))
+            .when(!selected, |row| row.hover(|style| style.bg(ui.row_hover)))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |launcher, _, _, cx| launcher.open(index, cx)),
             )
+            .child(row_icon(IconName::FileText, ui))
             .child(
-                icon(IconName::FileText)
-                    .size(theme.icon_size)
-                    .text_color(theme.text_muted),
+                div()
+                    .flex()
+                    .flex_none()
+                    .max_w(gpui::relative(0.7))
+                    .child(truncated(SharedString::from(note_title(path))).grow()),
             )
-            .child(SharedString::from(note_title(path)));
-        if selected {
-            row = row.bg(theme.list_hover_background);
-        }
-        if let Some(folder) = self.folder_label(path) {
-            row = row.child(div().text_color(theme.text_faint).child(folder));
-        }
-        row
+            .children(self.folder_label(path).map(|folder| {
+                div()
+                    .flex()
+                    .flex_1()
+                    .min_w_0()
+                    .text_size(ui.small_font_size)
+                    .text_color(ui.text_detail)
+                    .child(truncated(folder).grow())
+            }))
     }
+}
+
+/// A row of the launcher: an icon, a label and whatever follows.
+fn list_row(ui: &UiTheme) -> gpui::Div {
+    div()
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(ui.space_md + ui.space_xs)
+        .h(ui.row_height)
+        .px(ui.row_padding_x)
+        .rounded(ui.row_radius)
+}
+
+fn row_icon(name: IconName, ui: &UiTheme) -> impl IntoElement {
+    icon(name)
+        .flex_none()
+        .size(ui.icon_size - gpui::px(2.))
+        .text_color(ui.icon)
+}
+
+/// A way out of the empty tab, with its shortcut.
+fn render_action(
+    id: &'static str,
+    label: &'static str,
+    name: IconName,
+    cx: &mut App,
+) -> impl IntoElement {
+    let ui = ui_theme(cx);
+    list_row(&ui)
+        .id(id)
+        .debug_selector(move || format!("launcher-{id}"))
+        .text_color(ui.text_muted)
+        .hover(|style| style.bg(ui.row_hover))
+        .on_click(move |_, window, cx| {
+            window.dispatch_action(Box::new(RunCommand { id: id.into() }), cx)
+        })
+        .child(row_icon(name, &ui))
+        .child(div().flex_1().child(label))
+        .children(crate::ui::hints::shortcut(id, cx).map(|shortcut| keycap(shortcut, &ui.keycap)))
 }
 
 impl Render for Launcher {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = self.theme.workspace.clone();
-        let rows: Vec<_> = self
-            .recent
-            .clone()
+        let ui = ui_theme(cx);
+        let recent = self.recent.clone();
+        let rows: Vec<_> = recent
             .iter()
             .enumerate()
-            .map(|(index, path)| self.render_row(index, path, cx).into_any_element())
+            .map(|(index, path)| self.render_row(index, path, &ui, cx).into_any_element())
             .collect();
-        let body = if rows.is_empty() {
-            div()
-                .text_color(theme.text_muted)
-                .child("No notes here yet.")
-                .into_any_element()
+        let heading = if rows.is_empty() {
+            "This vault has no notes yet."
         } else {
-            div()
-                .flex()
-                .flex_col()
-                .gap(theme.space_xs)
-                .children(rows)
-                .into_any_element()
+            "Recent notes"
         };
+        let actions: Vec<_> = ACTIONS
+            .iter()
+            .map(|&(id, label, name)| render_action(id, label, name, cx).into_any_element())
+            .collect();
         div()
             .id("launcher")
             .key_context("Launcher")
@@ -154,8 +232,28 @@ impl Render for Launcher {
             .size_full()
             .flex()
             .justify_center()
-            .pt(theme.modal_top_offset)
-            .text_size(theme.ui_font_size)
-            .child(div().w(theme.launcher_width).child(body))
+            .px(ui.space_xl)
+            .pt(ui.dialog_top_offset)
+            .font_family(ui.font_family.clone())
+            .text_size(ui.font_size)
+            .text_color(ui.text)
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .w(ui.dialog_width)
+                    .max_w_full()
+                    .gap(ui.space_xs)
+                    .child(
+                        div()
+                            .px(ui.row_padding_x)
+                            .pb(ui.space_sm)
+                            .text_color(ui.text_detail)
+                            .child(heading),
+                    )
+                    .children(rows)
+                    .child(div().h(ui.space_lg))
+                    .children(actions),
+            )
     }
 }

@@ -20,7 +20,6 @@ use super::model::{Row, TreeModel};
 use super::ops::{self, validate_name};
 use super::watch::{self, VaultWatcher};
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
-use crate::theme::PanelTheme;
 
 /// Changes closer together than this refresh the tree once.
 const REFRESH_DEBOUNCE: Duration = Duration::from_millis(150);
@@ -77,7 +76,6 @@ pub(super) enum DisplayRow {
 pub struct FileTree {
     pub(super) focus_handle: FocusHandle,
     pub(super) model: TreeModel,
-    pub(super) theme: PanelTheme,
     pub(super) selected: Option<PathBuf>,
     pub(super) active: Option<PathBuf>,
     pub(super) scroll: UniformListScrollHandle,
@@ -121,10 +119,6 @@ impl FileTree {
         let mut tree = FileTree {
             focus_handle: cx.focus_handle(),
             model: TreeModel::new(vault_root),
-            theme: PanelTheme {
-                font_family: crate::ui::ui_theme(cx).font_family,
-                ..PanelTheme::default()
-            },
             selected: None,
             active: None,
             scroll: UniformListScrollHandle::new(),

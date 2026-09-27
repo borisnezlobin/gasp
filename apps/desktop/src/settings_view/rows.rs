@@ -515,7 +515,11 @@ impl SettingsView {
                     .gap(style.control_gap)
                     .p(style.gap_sm)
                     .rounded(style.radius)
-                    .when(focused, |group| group.shadow(vec![style.focus()]))
+                    // Opaque under the ring, which would otherwise fill
+                    // the group in behind the swatches.
+                    .when(focused, |group| {
+                        group.bg(style.card_background).shadow(vec![style.focus()])
+                    })
                     .children(swatches),
             )
             .child(field_box(self.hex_field.clone(), None, typing, style).w(style.hex_field_width))

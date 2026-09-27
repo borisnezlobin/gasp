@@ -4,6 +4,8 @@
 
 use std::ops::Range;
 
+use editor_config::Platform;
+use editor_config::keys::KeyChord;
 use editor_core::find::{FindOptions, FindQuery, replace_all_transaction, replace_one_transaction};
 use gpui::{
     App, ClickEvent, Context, Entity, EventEmitter, FocusHandle, Focusable, KeyBinding,
@@ -11,10 +13,12 @@ use gpui::{
 };
 
 use crate::editor::{EditorEvent, EditorView, HighlightKind};
-use crate::icons::{IconName, icon};
+use crate::icons::IconName;
 use crate::keymap::RunCommand;
+use crate::picker::shortcut::Shortcut;
 use crate::text_input::{TextInput, TextInputEvent};
-use crate::theme::FindUiTheme;
+use crate::theme::UiTheme;
+use crate::ui::{Button, IconButton, popover, ui_theme};
 
 /// The key context the bar sets.
 pub const FIND_BAR_CONTEXT: &str = "FindBar";
@@ -75,7 +79,7 @@ pub struct FindBar {
     matches: Vec<Range<usize>>,
     active: Option<usize>,
     replace_visible: bool,
-    theme: FindUiTheme,
+    theme: UiTheme,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -100,10 +104,7 @@ pub fn match_label(active: Option<usize>, count: usize, has_query: bool) -> Stri
 impl FindBar {
     /// A bar over `editor`, seeded from its selection and focused.
     pub fn new(editor: Entity<EditorView>, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let theme = FindUiTheme {
-            font_family: crate::ui::ui_theme(cx).font_family,
-            ..editor.read(cx).theme.find_ui.clone()
-        };
+        let theme = ui_theme(cx);
         let query = cx.new(|cx| {
             TextInput::new(window, cx)
                 .with_placeholder("Find")
@@ -397,80 +398,42 @@ fn last_before(matches: &[Range<usize>], offset: usize) -> usize {
 
 type BarAction = fn(&mut FindBar, &ClickEvent, &mut Window, &mut Context<FindBar>);
 
+/// A key the bar binds itself, such as `Alt+C`, for a tooltip.
+fn bar_key(chord: &str) -> Option<Shortcut> {
+    let chord = KeyChord::parse(chord).ok()?;
+    Some(Shortcut::new(chord, Platform::current()))
+}
+
 impl FindBar {
+    /// An icon button in the bar that says what it does. `on` makes it a
+    /// toggle.
+    #[allow(clippy::too_many_arguments)]
     fn icon_button(
         &self,
         id: &'static str,
         name: IconName,
+        label: &'static str,
+        hint: Option<Shortcut>,
         on: Option<bool>,
         action: BarAction,
         cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let theme = &self.theme;
-        let is_on = on == Some(true);
-        let (background, color) = if is_on {
-            (theme.accent_background, theme.accent_text)
-        } else {
-            (gpui::transparent_black(), theme.icon)
-        };
-        let hover = if is_on {
-            theme.accent_background
-        } else {
-            theme.button_hover_background
-        };
-        div()
-            .id(id)
-            .flex()
-            .flex_none()
-            .items_center()
-            .justify_center()
-            .size(theme.button_size)
-            .rounded(theme.radius)
-            .bg(background)
-            .hover(move |style| style.bg(hover))
+    ) -> IconButton {
+        IconButton::new(id, name)
+            .tooltip_with_shortcut(label, hint)
+            .toggled(on == Some(true))
             .on_click(cx.listener(action))
-            .child(icon(name).size(theme.icon_size).text_color(color))
     }
 
-    fn text_button(
-        &self,
-        id: &'static str,
-        label: &'static str,
-        action: BarAction,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let theme = &self.theme;
+    fn toggles(&self, cx: &mut Context<Self>) -> impl IntoElement {
         div()
-            .id(id)
             .flex()
             .flex_none()
-            .items_center()
-            .h(theme.button_size)
-            .px(theme.button_padding_x)
-            .rounded(theme.radius)
-            .hover(|style| style.bg(theme.button_hover_background))
-            .on_click(cx.listener(action))
-            .child(label)
-    }
-
-    fn find_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = &self.theme;
-        let label: SharedString = self.label(cx).into();
-        div()
-            .flex()
-            .items_center()
-            .gap(theme.gap)
-            .child(div().flex_1().min_w_0().child(self.query.clone()))
-            .child(
-                div()
-                    .flex_none()
-                    .text_size(theme.small_font_size)
-                    .text_color(theme.muted_text)
-                    .child(label),
-            )
+            .gap(self.theme.space_xs)
             .child(self.icon_button(
                 "find-case",
                 IconName::TextAa,
+                "Match case",
+                bar_key("Alt+C"),
                 Some(self.options.case_sensitive),
                 |this, _, _, cx| this.toggle(|options| options.case_sensitive ^= true, cx),
                 cx,
@@ -478,6 +441,8 @@ impl FindBar {
             .child(self.icon_button(
                 "find-word",
                 IconName::TextT,
+                "Match whole words",
+                bar_key("Alt+W"),
                 Some(self.options.whole_word),
                 |this, _, _, cx| this.toggle(|options| options.whole_word ^= true, cx),
                 cx,
@@ -485,13 +450,26 @@ impl FindBar {
             .child(self.icon_button(
                 "find-regex",
                 IconName::Asterisk,
+                "Use a regular expression",
+                bar_key("Alt+R"),
                 Some(self.options.regex),
                 |this, _, _, cx| this.toggle(|options| options.regex ^= true, cx),
                 cx,
             ))
+    }
+
+    fn navigation(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let hint = |id: &str| crate::ui::hints::shortcut(id, cx);
+        let (previous, next) = (hint("find.previous"), hint("find.next"));
+        div()
+            .flex()
+            .flex_none()
+            .gap(self.theme.space_xs)
             .child(self.icon_button(
                 "find-previous",
                 IconName::CaretUp,
+                "Previous match",
+                previous,
                 None,
                 |this, _, _, cx| this.previous(cx),
                 cx,
@@ -499,6 +477,8 @@ impl FindBar {
             .child(self.icon_button(
                 "find-next",
                 IconName::CaretDown,
+                "Next match",
+                next,
                 None,
                 |this, _, _, cx| this.next(cx),
                 cx,
@@ -506,10 +486,48 @@ impl FindBar {
             .child(self.icon_button(
                 "find-close",
                 IconName::X,
+                "Close",
+                bar_key("Escape"),
                 None,
                 |this, _, window, cx| this.dismiss(window, cx),
                 cx,
             ))
+    }
+
+    fn find_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = &self.theme;
+        let label: SharedString = self.label(cx).into();
+        let has_label = !label.is_empty();
+        div()
+            .flex()
+            .items_center()
+            .gap(theme.space_sm)
+            .child(
+                div()
+                    .relative()
+                    .flex_1()
+                    .min_w_0()
+                    .child(self.query.clone())
+                    // The count sits inside the field's right end, so a
+                    // new count never moves the buttons.
+                    .when(has_label, |field| {
+                        field.child(
+                            div()
+                                .absolute()
+                                .top_0()
+                                .bottom_0()
+                                .right(theme.space_md)
+                                .flex()
+                                .items_center()
+                                .text_size(theme.small_font_size)
+                                .text_color(theme.text_detail)
+                                .child(label),
+                        )
+                    }),
+            )
+            .child(self.toggles(cx))
+            .child(div().w(theme.space_xs))
+            .child(self.navigation(cx))
     }
 
     fn replace_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -521,29 +539,26 @@ impl FindBar {
             }))
             .flex()
             .items_center()
-            .gap(self.theme.gap)
+            .gap(self.theme.space_sm)
             .child(div().flex_1().min_w_0().child(self.replacement.clone()))
-            .child(self.text_button(
-                "replace-next",
-                "Replace",
-                |this, _, _, cx| this.replace_next(cx),
-                cx,
-            ))
-            .child(self.text_button(
-                "replace-all",
-                "Replace all",
-                |this, _, _, cx| {
-                    this.replace_all(cx);
-                },
-                cx,
-            ))
+            .child(
+                Button::new("replace-next", "Replace")
+                    .on_click(cx.listener(|this, _, _, cx| this.replace_next(cx))),
+            )
+            .child(
+                Button::new("replace-all", "Replace all").on_click(cx.listener(
+                    |this, _, _, cx| {
+                        this.replace_all(cx);
+                    },
+                )),
+            )
     }
 }
 
 impl Render for FindBar {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = self.theme.clone();
-        div()
+        popover(&theme)
             .key_context(FIND_BAR_CONTEXT)
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::on_run_command))
@@ -565,21 +580,12 @@ impl Render for FindBar {
             .on_action(cx.listener(|this, _: &FocusPreviousField, window, cx| {
                 this.focus_other_field(window, cx)
             }))
-            .flex()
-            .flex_col()
-            .w_full()
-            .gap(theme.gap)
-            .p(theme.panel_padding)
-            .bg(theme.panel_background)
-            .shadow(vec![gpui::BoxShadow {
-                color: theme.panel_shadow,
-                offset: gpui::point(gpui::px(0.), gpui::px(1.)),
-                blur_radius: theme.panel_shadow_blur,
-                spread_radius: gpui::px(0.),
-            }])
-            .font_family(theme.font_family.clone())
-            .text_size(theme.font_size)
-            .text_color(theme.text)
+            .occlude()
+            .w(theme.find_bar_width)
+            .max_w_full()
+            .gap(theme.space_sm)
+            .p(theme.space_sm)
+            .text_size(theme.small_font_size + gpui::px(1.))
             .child(self.find_row(cx))
             .when(self.replace_visible, |bar| bar.child(self.replace_row(cx)))
     }
