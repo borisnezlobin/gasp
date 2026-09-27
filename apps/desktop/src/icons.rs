@@ -11,13 +11,17 @@ use gpui::{AssetSource, SharedString, Svg, svg};
 pub enum IconName {
     ArrowClockwise,
     ArrowCounterClockwise,
+    ArrowDown,
+    ArrowFatUp,
     ArrowLeft,
     ArrowRight,
     ArrowSquareOut,
+    ArrowUp,
     ArrowsClockwise,
     ArrowsInLineVertical,
     Article,
     Asterisk,
+    Backspace,
     BookOpen,
     Bug,
     CaretDown,
@@ -40,6 +44,7 @@ pub enum IconName {
     Code,
     Columns,
     Command,
+    Control,
     Copy,
     DotsThree,
     Export,
@@ -62,6 +67,7 @@ pub enum IconName {
     Image,
     Info,
     Key,
+    KeyReturn,
     Keyboard,
     Lightning,
     Link,
@@ -72,6 +78,7 @@ pub enum IconName {
     Minus,
     NoteBlank,
     NotePencil,
+    Option,
     Palette,
     PencilSimple,
     Plus,
@@ -103,7 +110,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 92] = [
+const ICONS: [(IconName, &str, &[u8]); 99] = [
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -113,6 +120,16 @@ const ICONS: [(IconName, &str, &[u8]); 92] = [
         IconName::ArrowCounterClockwise,
         "arrow-counter-clockwise",
         include_bytes!("../assets/icons/arrow-counter-clockwise.svg"),
+    ),
+    (
+        IconName::ArrowDown,
+        "arrow-down",
+        include_bytes!("../assets/icons/arrow-down.svg"),
+    ),
+    (
+        IconName::ArrowFatUp,
+        "arrow-fat-up",
+        include_bytes!("../assets/icons/arrow-fat-up.svg"),
     ),
     (
         IconName::ArrowLeft,
@@ -128,6 +145,11 @@ const ICONS: [(IconName, &str, &[u8]); 92] = [
         IconName::ArrowSquareOut,
         "arrow-square-out",
         include_bytes!("../assets/icons/arrow-square-out.svg"),
+    ),
+    (
+        IconName::ArrowUp,
+        "arrow-up",
+        include_bytes!("../assets/icons/arrow-up.svg"),
     ),
     (
         IconName::ArrowsClockwise,
@@ -148,6 +170,11 @@ const ICONS: [(IconName, &str, &[u8]); 92] = [
         IconName::Asterisk,
         "asterisk",
         include_bytes!("../assets/icons/asterisk.svg"),
+    ),
+    (
+        IconName::Backspace,
+        "backspace",
+        include_bytes!("../assets/icons/backspace.svg"),
     ),
     (
         IconName::BookOpen,
@@ -260,6 +287,11 @@ const ICONS: [(IconName, &str, &[u8]); 92] = [
         include_bytes!("../assets/icons/command.svg"),
     ),
     (
+        IconName::Control,
+        "control",
+        include_bytes!("../assets/icons/control.svg"),
+    ),
+    (
         IconName::Copy,
         "copy",
         include_bytes!("../assets/icons/copy.svg"),
@@ -370,6 +402,11 @@ const ICONS: [(IconName, &str, &[u8]); 92] = [
         include_bytes!("../assets/icons/key.svg"),
     ),
     (
+        IconName::KeyReturn,
+        "key-return",
+        include_bytes!("../assets/icons/key-return.svg"),
+    ),
+    (
         IconName::Keyboard,
         "keyboard",
         include_bytes!("../assets/icons/keyboard.svg"),
@@ -418,6 +455,11 @@ const ICONS: [(IconName, &str, &[u8]); 92] = [
         IconName::NotePencil,
         "note-pencil",
         include_bytes!("../assets/icons/note-pencil.svg"),
+    ),
+    (
+        IconName::Option,
+        "option",
+        include_bytes!("../assets/icons/option.svg"),
     ),
     (
         IconName::Palette,
