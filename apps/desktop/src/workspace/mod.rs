@@ -424,6 +424,9 @@ impl Workspace {
         self.left_panel
             .apply_settings(&self.config.settings, &self.config.rules);
         self.apply_theme(cx);
+        crate::recovery::configure(&self.vault, &self.config.settings.recovery, cx);
+        let grammar = &self.config.settings.prose.grammar;
+        crate::prose::checker::configure(&self.vault, grammar, cx);
         self.restyle_editors(cx);
     }
 

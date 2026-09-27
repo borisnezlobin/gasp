@@ -116,12 +116,46 @@ impl SnapshotStore {
         Ok(true)
     }
 
+    /// Follows a note or folder that moved from `from` to `to` (both
+    /// relative to the vault), so its snapshots stay its own. Snapshots
+    /// already kept under `to` stay alongside.
+    pub fn moved(&self, from: &Path, to: &Path) -> io::Result<()> {
+        let (old, new) = (self.note_dir(from), self.note_dir(to));
+        if !old.is_dir() || old == new {
+            return Ok(());
+        }
+        if let Some(parent) = new.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        if !new.exists() {
+            return std::fs::rename(&old, &new);
+        }
+        merge_dir(&old, &new)
+    }
+
     /// Deletes snapshots older than `keep`, and folders left empty.
     /// Answers how many snapshots went.
     pub fn prune(&self, keep: Duration, now: SystemTime) -> usize {
         let cutoff = now.checked_sub(keep).unwrap_or(UNIX_EPOCH);
         prune_dir(&self.dir, cutoff)
     }
+}
+
+/// Moves everything in `from` into `into`, folder by folder, then drops
+/// `from`. A file `into` already has keeps its own copy.
+fn merge_dir(from: &Path, into: &Path) -> io::Result<()> {
+    std::fs::create_dir_all(into)?;
+    for entry in std::fs::read_dir(from)?.flatten() {
+        let (path, target) = (entry.path(), into.join(entry.file_name()));
+        if path.is_dir() {
+            merge_dir(&path, &target)?;
+        } else if !target.exists() {
+            std::fs::rename(&path, &target)?;
+        }
+    }
+    // Fails, harmlessly, while a clashing file is left behind.
+    std::fs::remove_dir_all(from).ok();
+    Ok(())
 }
 
 fn prune_dir(dir: &Path, cutoff: SystemTime) -> usize {
@@ -209,6 +243,38 @@ mod tests {
         let kept = store.list(mixed);
         assert_eq!(kept.len(), 1);
         assert_eq!(store.read(&kept[0]).unwrap(), "c");
+    }
+
+    #[test]
+    fn snapshots_follow_a_note_or_folder_that_moves() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SnapshotStore::at(dir.path().to_path_buf());
+        let (plan, renamed) = (Path::new("Plan.md"), Path::new("Plans/Big plan.md"));
+        store.record(plan, "one", at(0), Duration::ZERO).unwrap();
+        store.moved(plan, renamed).unwrap();
+        assert!(store.list(plan).is_empty());
+        assert_eq!(store.list(renamed).len(), 1);
+
+        // A folder takes its notes' snapshots, joining any at the target.
+        store
+            .record(
+                Path::new("Archive/Plans/Old.md"),
+                "old",
+                at(1),
+                Duration::ZERO,
+            )
+            .unwrap();
+        store
+            .moved(Path::new("Plans"), Path::new("Archive/Plans"))
+            .unwrap();
+        assert_eq!(store.list(Path::new("Archive/Plans/Big plan.md")).len(), 1);
+        assert_eq!(store.list(Path::new("Archive/Plans/Old.md")).len(), 1);
+        assert!(!dir.path().join("Plans").exists());
+
+        // Nothing kept yet is nothing to move.
+        store
+            .moved(Path::new("None.md"), Path::new("Some.md"))
+            .unwrap();
     }
 
     #[test]

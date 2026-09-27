@@ -58,17 +58,61 @@ struct Request {
     reply: oneshot::Sender<Checked>,
 }
 
-/// The shared grammar state.
+/// One open vault's settings, the words its notes use and the phrases
+/// its writer dismissed.
+struct VaultWords {
+    vault: PathBuf,
+    setup: Setup,
+    ignored_file: PathBuf,
+}
+
+/// The shared grammar state: each open vault's own words and settings,
+/// so two vault windows never mix their ignore lists.
 #[derive(Default)]
 pub struct Grammar {
-    setup: Setup,
+    vaults: Vec<VaultWords>,
     /// Moves on whenever something changes what a check finds, so editors
     /// know their cached flags are stale.
     generation: u64,
-    ignored_file: Option<PathBuf>,
 }
 
 impl Global for Grammar {}
+
+impl Grammar {
+    /// The vault `note` is in, the deepest if vaults nest; a note with no
+    /// file goes with the vault opened last.
+    fn vault_for(&self, note: Option<&Path>) -> Option<usize> {
+        let Some(note) = note else {
+            return self.vaults.len().checked_sub(1);
+        };
+        (0..self.vaults.len())
+            .filter(|&at| note.starts_with(&self.vaults[at].vault))
+            .max_by_key(|&at| self.vaults[at].vault.components().count())
+            .or(self.vaults.len().checked_sub(1))
+    }
+
+    fn setup_for(&self, note: Option<&Path>) -> Setup {
+        self.vault_for(note)
+            .map(|at| self.vaults[at].setup.clone())
+            .unwrap_or_default()
+    }
+
+    /// The entry for `vault`, made on first use.
+    fn vault_mut(&mut self, vault: &Path) -> &mut VaultWords {
+        let at = match self.vaults.iter().position(|open| open.vault == vault) {
+            Some(at) => at,
+            None => {
+                self.vaults.push(VaultWords {
+                    vault: vault.to_path_buf(),
+                    setup: Setup::default(),
+                    ignored_file: vault.join(IGNORED_FILE),
+                });
+                self.vaults.len() - 1
+            }
+        };
+        &mut self.vaults[at]
+    }
+}
 
 fn grammar(cx: &mut App) -> &mut Grammar {
     cx.default_global::<Grammar>()
@@ -79,22 +123,23 @@ pub fn generation(cx: &App) -> u64 {
     cx.try_global::<Grammar>().map_or(0, |g| g.generation)
 }
 
-/// Lower-cased phrases never flagged.
-pub fn ignored(cx: &App) -> Arc<HashSet<String>> {
+/// Lower-cased phrases never flagged in the vault of the note at `note`.
+pub fn ignored(note: Option<&Path>, cx: &App) -> Arc<HashSet<String>> {
     cx.try_global::<Grammar>()
-        .map(|g| g.setup.ignored.clone())
+        .map(|g| g.setup_for(note).ignored)
         .unwrap_or_default()
 }
 
-/// Follows the grammar settings.
-pub fn configure(settings: &GrammarSettings, cx: &mut App) {
+/// Follows the grammar settings of the vault at `vault`.
+pub fn configure(vault: &Path, settings: &GrammarSettings, cx: &mut App) {
     let options = CheckOptions {
         spelling: settings.spelling,
         english: english(settings.english),
     };
     let grammar = grammar(cx);
-    if grammar.setup.options != options {
-        grammar.setup.options = options;
+    let words = grammar.vault_mut(vault);
+    if words.setup.options != options {
+        words.setup.options = options;
         grammar.generation += 1;
     }
 }
@@ -112,8 +157,8 @@ fn english(variant: EnglishVariant) -> English {
 /// use, both off the main thread, then starts building the checker so
 /// the first paragraph doesn't wait for it.
 pub fn open_vault(vault: &Path, texts: NoteTexts, cx: &mut App) {
-    let file = vault.join(IGNORED_FILE);
-    grammar(cx).ignored_file = Some(file.clone());
+    let file = grammar(cx).vault_mut(vault).ignored_file.clone();
+    let vault = vault.to_path_buf();
     let load = cx.background_spawn(async move {
         let ignored = read_ignored(&file);
         let notes = texts.load();
@@ -124,23 +169,24 @@ pub fn open_vault(vault: &Path, texts: NoteTexts, cx: &mut App) {
         let (ignored, known) = load.await;
         cx.update(|cx| {
             let grammar = grammar(cx);
-            grammar.setup.ignored = Arc::new(ignored);
-            grammar.setup.known = Arc::new(known);
+            let words = grammar.vault_mut(&vault);
+            words.setup.ignored = Arc::new(ignored);
+            words.setup.known = Arc::new(known);
             grammar.generation += 1;
         })
         .ok();
         cx.background_executor().timer(WARM_UP_DELAY).await;
         // An empty batch builds the checker.
-        cx.update(|cx| drop(check(Vec::new(), cx))).ok();
+        cx.update(|cx| drop(check(Vec::new(), None, cx))).ok();
     })
     .detach();
 }
 
-/// Checks paragraphs on the worker. Resolves to nothing if the worker
-/// has gone.
-pub fn check(jobs: Vec<Job>, cx: &mut App) -> oneshot::Receiver<Checked> {
+/// Checks paragraphs of the note at `note` on the worker, with its
+/// vault's words and settings. Resolves to nothing if the worker has gone.
+pub fn check(jobs: Vec<Job>, note: Option<&Path>, cx: &mut App) -> oneshot::Receiver<Checked> {
     let (reply, receiver) = oneshot::channel();
-    let setup = grammar(cx).setup.clone();
+    let setup = grammar(cx).setup_for(note);
     // A worker that died drops the request, and with it the reply.
     WORKER
         .get_or_init(spawn_worker)
@@ -181,18 +227,21 @@ fn run_worker(requests: Receiver<Request>) {
     }
 }
 
-/// Never flags `phrase` again, here or on other devices.
-pub fn ignore(phrase: &str, cx: &mut App) {
+/// Never flags `phrase` again in the vault of the note at `note`, here
+/// or on other devices.
+pub fn ignore(phrase: &str, note: Option<&Path>, cx: &mut App) {
     let grammar = grammar(cx);
-    let mut ignored = (*grammar.setup.ignored).clone();
+    let Some(at) = grammar.vault_for(note) else {
+        return;
+    };
+    let words = &mut grammar.vaults[at];
+    let mut ignored = (*words.setup.ignored).clone();
     if !ignored.insert(phrase.to_lowercase()) {
         return;
     }
-    grammar.setup.ignored = Arc::new(ignored.clone());
+    words.setup.ignored = Arc::new(ignored.clone());
+    let file = words.ignored_file.clone();
     grammar.generation += 1;
-    let Some(file) = grammar.ignored_file.clone() else {
-        return;
-    };
     cx.background_spawn(async move {
         if let Err(error) = write_ignored(&file, &ignored) {
             eprintln!("could not save {}: {error}", file.display());
@@ -228,6 +277,21 @@ fn write_ignored(file: &Path, ignored: &HashSet<String>) -> std::io::Result<()> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn each_vault_keeps_its_own_ignore_list() {
+        let mut grammar = Grammar::default();
+        let (a, b) = (Path::new("/vaults/a"), Path::new("/vaults/b"));
+        grammar.vault_mut(a).setup.ignored = Arc::new(HashSet::from(["teh".to_owned()]));
+        grammar.vault_mut(b);
+        let ignored = |note: &str| grammar.setup_for(Some(Path::new(note))).ignored;
+        assert!(ignored("/vaults/a/Note.md").contains("teh"));
+        assert!(ignored("/vaults/b/Note.md").is_empty());
+        assert!(
+            grammar.setup_for(None).ignored.is_empty(),
+            "a note with no file goes with the vault opened last"
+        );
+    }
 
     #[test]
     fn ignored_phrases_round_trip_through_the_file() {

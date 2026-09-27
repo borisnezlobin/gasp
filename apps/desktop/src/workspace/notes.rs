@@ -214,6 +214,7 @@ impl Workspace {
         doc.update(cx, |doc, cx| doc.save_or_log(cx));
         std::fs::rename(old, &new).map_err(|error| format!("Couldn't rename the note: {error}"))?;
         self.note_moved(doc, old, &new, cx);
+        self.note_history_moved(old, &new, cx);
         if self.config.settings.files.update_links_on_rename {
             crate::knowledge::rename::update_links_after_rename(self, old, &new, cx);
         }
@@ -370,7 +371,10 @@ impl Workspace {
         }
         for change in changes {
             match change {
-                DiskChange::Renamed { from, to } => self.disk_renamed(&from, &to, cx),
+                DiskChange::Renamed { from, to } => {
+                    self.disk_renamed(&from, &to, cx);
+                    self.note_history_moved(&from, &to, cx);
+                }
                 DiskChange::Changed(path) => self.disk_changed(&path, window, cx),
                 DiskChange::Removed(path) => self.disk_removed(&path, window, cx),
             }
@@ -400,6 +404,7 @@ impl Workspace {
     /// rename from the title does, in open editors where they can be.
     pub fn entry_moved(&mut self, from: &Path, to: &Path, cx: &mut Context<Self>) {
         self.disk_renamed(from, to, cx);
+        self.note_history_moved(from, to, cx);
         if self.config.settings.files.update_links_on_rename {
             crate::knowledge::rename::update_links_after_rename(self, from, to, cx);
         }

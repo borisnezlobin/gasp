@@ -162,7 +162,7 @@ impl EditorView {
     pub fn ignore_flag(&mut self, flag: &Flag, cx: &mut Context<Self>) {
         self.close_preview(cx);
         let phrase = self.source.text()[flag.range.clone()].to_owned();
-        checker::ignore(&phrase, cx);
+        checker::ignore(&phrase, self.note_path(cx).as_deref(), cx);
         cx.notify();
     }
 
@@ -242,7 +242,7 @@ impl EditorView {
             return Vec::new();
         }
         let generation = checker::generation(cx);
-        let ignored = checker::ignored(cx);
+        let ignored = checker::ignored(self.note_path(cx).as_deref(), cx);
         let text = self.source.text();
         let typing_at = self.typing_at();
         let carried = std::mem::take(&mut self.prose.shown);
@@ -311,6 +311,12 @@ impl EditorView {
             .collect()
     }
 
+    /// The file of the note this editor shows, which says whose vault's
+    /// words and dismissed phrases apply.
+    fn note_path(&self, cx: &Context<Self>) -> Option<std::path::PathBuf> {
+        crate::paste::paste_context(cx.entity_id(), cx).note_path
+    }
+
     /// Where the cursor sits while nothing is selected: the end of a word
     /// being typed isn't flagged until the cursor moves on.
     fn typing_at(&self) -> Option<usize> {
@@ -332,13 +338,17 @@ impl EditorView {
                     Err(_) => return,
                 }
             }
-            let Ok((jobs, generation)) = view.update(cx, |view, cx| {
+            let Ok((jobs, generation, note)) = view.update(cx, |view, cx| {
                 let generation = checker::generation(cx);
-                (view.grammar_jobs(generation), generation)
+                (
+                    view.grammar_jobs(generation),
+                    generation,
+                    view.note_path(cx),
+                )
             }) else {
                 return;
             };
-            let Ok(reply) = cx.update(|cx| checker::check(jobs, cx)) else {
+            let Ok(reply) = cx.update(|cx| checker::check(jobs, note.as_deref(), cx)) else {
                 return;
             };
             let checked = reply.await.unwrap_or_default();

@@ -4,6 +4,7 @@
 //! bar says it.
 
 use std::path::Path;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use editor_desktop::actions::bind_keys;
@@ -14,10 +15,22 @@ use gpui::{Entity, TestAppContext, VisualTestContext};
 
 const NOTE: &str = "---\ntitle: Waves\nedited_seconds: 600\n---\n# Waves\n\nText.\n";
 
+/// Snapshots from these tests go to a folder of their own, never the
+/// real data folder.
+fn data_dir() {
+    static DIR: OnceLock<tempfile::TempDir> = OnceLock::new();
+    DIR.get_or_init(|| {
+        let dir = tempfile::tempdir().unwrap();
+        editor_desktop::recovery::store::use_data_dir(dir.path().to_path_buf());
+        dir
+    });
+}
+
 fn open_workspace<'a>(
     cx: &'a mut TestAppContext,
     vault: &Path,
 ) -> (Entity<Workspace>, &'a mut VisualTestContext) {
+    data_dir();
     cx.update(|cx| {
         bind_keys(cx);
         features::bind_view_keys(cx);
@@ -127,4 +140,46 @@ fn reloading_a_note_from_disk_is_not_editing(cx: &mut TestAppContext) {
         !items.iter().any(|item| item.ends_with("editing")),
         "{items:?}"
     );
+}
+
+#[gpui::test]
+fn a_moved_note_keeps_its_edit_time_and_snapshots_unopened(cx: &mut TestAppContext) {
+    let vault = tempfile::tempdir().unwrap();
+    std::fs::write(vault.path().join("Waves.md"), "# Waves\n").unwrap();
+    let phone = StatsFile {
+        device: "Phone".into(),
+        edited_seconds: [("Waves.md".to_owned(), 120)].into(),
+    };
+    let stats = vault.path().join(STATS_DIR);
+    std::fs::create_dir_all(&stats).unwrap();
+    std::fs::write(
+        stats.join("phone-abc123.json"),
+        serde_json::to_string(&phone).unwrap(),
+    )
+    .unwrap();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    let from = vault.path().join("Waves.md");
+    let to = vault.path().join("Physics/Light waves.md");
+    cx.update(|_, cx| editor_desktop::recovery::keep_version(&from, "an older draft", cx));
+    cx.run_until_parked();
+
+    std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+    std::fs::rename(&from, &to).unwrap();
+    workspace.update(cx, |workspace, cx| workspace.entry_moved(&from, &to, cx));
+    cx.executor().advance_clock(Duration::from_secs(60));
+    cx.run_until_parked();
+
+    let id = cx.read(|cx| workspace.read(cx).device_state(cx).device_id);
+    let loaded = load(vault.path(), &id);
+    assert_eq!(
+        loaded.own.edited_seconds.get("Physics/Light waves.md"),
+        Some(&120),
+        "the time spent on it moved with it"
+    );
+    let (store, relative) = cx
+        .read(|cx| editor_desktop::recovery::store_for(&to, cx))
+        .expect("the vault keeps snapshots");
+    let kept = store.list(&relative);
+    assert_eq!(kept.len(), 1, "its snapshot moved with it");
+    assert_eq!(store.read(&kept[0]).unwrap(), "an older draft");
 }

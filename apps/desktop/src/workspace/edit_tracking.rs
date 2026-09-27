@@ -102,6 +102,23 @@ impl Workspace {
         }
     }
 
+    /// A note or folder moved from `from` to `to`, open or not: the time
+    /// spent on each note in it and its recovery snapshots follow it.
+    pub(super) fn note_history_moved(&mut self, from: &Path, to: &Path, cx: &mut Context<Self>) {
+        crate::recovery::moved(from, to, cx);
+        let notes = match to.is_dir() {
+            true => crate::file_tree::ops::vault_files(to),
+            false => vec![String::new()],
+        };
+        for note in notes {
+            let (old, new) = match note.is_empty() {
+                true => (from.to_path_buf(), to.to_path_buf()),
+                false => (from.join(&note), to.join(&note)),
+            };
+            self.edit_time_moved(&old, &new, cx);
+        }
+    }
+
     /// Carries the time spent on a note to its new path.
     pub(super) fn edit_time_moved(&mut self, from: &Path, to: &Path, cx: &mut Context<Self>) {
         let (from, to) = (self.relative_name(from), self.relative_name(to));
