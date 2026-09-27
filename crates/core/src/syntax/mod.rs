@@ -44,6 +44,17 @@ pub fn parse(text: &str) -> SyntaxTree {
     }
 }
 
+/// A document read as plain lines with no structure yet, as a long note
+/// shows while its real parse runs in the background. Any edit to it
+/// parses the whole document.
+pub fn plain(text: &str) -> SyntaxTree {
+    SyntaxTree {
+        nodes: vec![Node::new(NodeKind::Document, 0..text.len())],
+        lines: LineIndex::new(text),
+        definitions: Default::default(),
+    }
+}
+
 /// Runs every pass after pulldown-cmark on a raw arena.
 fn process(mut nodes: Vec<Node>, text: &str, lines: &LineIndex) -> Vec<Node> {
     trim_text_newlines(&mut nodes, text);

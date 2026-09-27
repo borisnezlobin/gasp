@@ -223,6 +223,37 @@ fn edits_in_one_pane_show_in_the_other(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_long_note_opens_at_once_and_is_parsed_in_the_background(cx: &mut TestAppContext) {
+    let body: String = (0..4000)
+        .map(|at| format!("## Section {at}\n\nSome *text* for it.\n\n"))
+        .collect();
+    let note = format!("---\ntitle: Long\n---\n{body}");
+    assert!(note.len() >= editor_desktop::workspace::note_doc::BACKGROUND_PARSE_BYTES);
+    let vault = vault_with(&[("Long.md", &note)]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    // Opened without letting background work run: the text is there,
+    // as plain lines.
+    let editor = cx.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            workspace
+                .open_path(Path::new("Long.md"), OpenIn::ActiveTab, window, cx)
+                .unwrap();
+            workspace.active_editor(cx).unwrap()
+        })
+    });
+    assert!(editor.read_with(cx, |editor, _| editor.is_parsing()));
+    assert_eq!(editor.read_with(cx, |editor, _| editor.text()), note);
+    cx.run_until_parked();
+    assert!(!editor.read_with(cx, |editor, _| editor.is_parsing()));
+    let body_start = note.find("## Section 0").unwrap();
+    assert_eq!(
+        editor.read_with(cx, |editor, _| editor.cursor()),
+        body_start,
+        "the cursor still lands after the frontmatter"
+    );
+}
+
+#[gpui::test]
 fn lines_added_in_one_pane_are_drawn_in_the_other(cx: &mut TestAppContext) {
     let vault = vault_with(&[("a.md", "first\n\nsecond")]);
     let (workspace, cx) = open_workspace(cx, vault.path());
