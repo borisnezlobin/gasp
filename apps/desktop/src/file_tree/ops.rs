@@ -32,10 +32,10 @@ impl std::fmt::Display for NameError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             NameError::Empty => f.write_str("Give it a name."),
-            NameError::StartsWithDot => f.write_str("Names can't start with a dot."),
-            NameError::Forbidden(ch) => write!(f, "Names can't contain {ch}"),
+            NameError::StartsWithDot => f.write_str("Names can’t start with a dot."),
+            NameError::Forbidden(ch) => write!(f, "Names can’t contain {ch}"),
             NameError::Exists => f.write_str("Something with that name is already here."),
-            NameError::IntoItself => f.write_str("A folder can't move into itself."),
+            NameError::IntoItself => f.write_str("A folder can’t move into itself."),
         }
     }
 }

@@ -79,7 +79,7 @@ impl SettingsView {
 
     pub(super) fn remote_description(&self) -> String {
         if self.sync_remote().is_none() {
-            return "This vault isn't a git repository with a remote, so it doesn't sync. Clone your notes repository into this folder to set it up.".to_string();
+            return "This vault isn’t a git repository with a remote, so it doesn’t sync. Clone your notes repository into this folder to set it up.".to_string();
         }
         "The HTTPS address of the GitHub repository this vault syncs with.".to_string()
     }
@@ -89,7 +89,7 @@ impl SettingsView {
             format!("Signed in. The token is kept in {}.", store_name())
         } else {
             format!(
-                "Copy a fine-grained token that can read and write only your notes repository, then paste it here. It's kept in {}, never in the vault.",
+                "Copy a fine-grained token that can read and write only your notes repository, then paste it here. It’s kept in {}, never in the vault.",
                 store_name()
             )
         }

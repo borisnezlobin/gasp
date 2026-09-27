@@ -186,7 +186,7 @@ pub fn capture_chord(keystroke: &Keystroke, platform: Platform) -> Result<String
         "Hold Ctrl or Alt with the key, or use a function key."
     })?;
     let chord =
-        KeyChord::parse_for(&text, platform).map_err(|_| "That key can't be a shortcut.")?;
+        KeyChord::parse_for(&text, platform).map_err(|_| "That key can’t be a shortcut.")?;
     if is_reserved(chord, platform) {
         return Err("The system uses that shortcut. Try another.");
     }

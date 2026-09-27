@@ -129,7 +129,7 @@ fn couldnt_write(path: &Path) -> String {
         || path.display().to_string(),
         |name| name.to_string_lossy().into_owned(),
     );
-    format!("Couldn't write {name}")
+    format!("Couldn’t write {name}")
 }
 
 /// The note's PDF bytes.
@@ -212,7 +212,7 @@ fn save_with<T: Send + 'static>(
             .await
             .map_err(anyhow::Error::from)
             .and_then(|answer| answer)
-            .context("The save dialog didn't open")?;
+            .context("The save dialog didn’t open")?;
         let Some(destination) = chosen else {
             return Ok(None);
         };
@@ -377,11 +377,11 @@ impl Article {
         let math = &self.export.failed_math;
         match (images.len(), math.len()) {
             (0, 0) => None,
-            (1, _) => Some(format!("The image {} couldn't be found.", images[0])),
-            (count, _) if count > 1 => Some(format!("{count} images couldn't be found.")),
-            (_, 1) => Some("One equation couldn't be typeset and shows as LaTeX.".to_owned()),
+            (1, _) => Some(format!("The image {} couldn’t be found.", images[0])),
+            (count, _) if count > 1 => Some(format!("{count} images couldn’t be found.")),
+            (_, 1) => Some("One equation couldn’t be typeset and shows as LaTeX.".to_owned()),
             (_, count) => Some(format!(
-                "{count} equations couldn't be typeset and show as LaTeX."
+                "{count} equations couldn’t be typeset and show as LaTeX."
             )),
         }
     }
@@ -622,7 +622,7 @@ impl ExportDialog {
             Ok(()) => cx.open_with_system(&path),
             Err(error) => {
                 if let ExportState::Article(article) = &mut self.state {
-                    article.status = Some(format!("Couldn't write the preview: {error}").into());
+                    article.status = Some(format!("Couldn’t write the preview: {error}").into());
                 }
                 cx.notify();
             }

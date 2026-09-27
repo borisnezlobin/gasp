@@ -189,7 +189,7 @@ impl SettingsView {
             Some(value) => self.write(&item, Some(value), cx),
             None if buffer.is_empty() => {}
             None => {
-                self.error = Some((key, format!("“{buffer}” isn't a number.")));
+                self.error = Some((key, format!("“{buffer}” isn’t a number.")));
                 cx.notify();
             }
         }
@@ -297,7 +297,7 @@ impl SettingsView {
             .as_ref()
             .is_some_and(|(key, _)| *key == entry.key)
         {
-            self.error = Some((map.key.clone(), format!("There's no “{name}” here.")));
+            self.error = Some((map.key.clone(), format!("There’s no “{name}” here.")));
             return;
         }
         if let Some(field) = self.fields.get(&add_field_key(map_key)) {
@@ -406,7 +406,7 @@ impl SettingsView {
         if parse_color(&text).is_none() {
             self.error = Some((
                 theme_key(self.accent_token()),
-                format!("“{text}” isn't a colour. Try one like #2f5fd0."),
+                format!("“{text}” isn’t a colour. Try one like #2f5fd0."),
             ));
             cx.notify();
             return;

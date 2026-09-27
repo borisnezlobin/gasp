@@ -174,7 +174,7 @@ fn compile_delay(after: Spanned<String>) -> Result<Duration, FieldError> {
         FieldError::new(
             after.span(),
             format!(
-                "`{}` isn't a delay; write it like \"300ms\" or \"2s\"",
+                "`{}` isn’t a delay; write it like \"300ms\" or \"2s\"",
                 after.get_ref()
             ),
         )

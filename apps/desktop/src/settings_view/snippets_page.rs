@@ -307,7 +307,7 @@ impl SettingsView {
     /// What the row at the top of the snippets says about their file.
     pub(super) fn snippets_file_description(&self) -> String {
         if let Some(problem) = &self.typing_lists.problem {
-            return format!("The file can't be read, so nothing here changes it: {problem}");
+            return format!("The file can’t be read, so nothing here changes it: {problem}");
         }
         if self.typing_lists.snippets_from_vault {
             "Kept in .editor/snippets.txt, so they sync with your notes.".to_string()

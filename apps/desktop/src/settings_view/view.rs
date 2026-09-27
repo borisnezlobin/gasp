@@ -471,7 +471,7 @@ impl SettingsView {
         let wanted = self.token(slot.token())?;
         let shown = self.shown_font(slot);
         (!self.font_names.is_empty() && wanted != shown)
-            .then(|| format!("{wanted} isn't installed, so {shown} shows instead."))
+            .then(|| format!("{wanted} isn’t installed, so {shown} shows instead."))
     }
 
     // ---- Public API ----

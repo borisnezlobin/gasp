@@ -144,14 +144,14 @@ pub fn explanation(phase: &SyncPhase) -> Option<String> {
     let text = match phase {
         SyncPhase::Setup(problem) => setup_explanation(problem),
         SyncPhase::Offline { waiting: 0 } => {
-            "The notes repository can't be reached right now. Sync picks up again on its own once it can.".to_owned()
+            "The notes repository can’t be reached right now. Sync picks up again on its own once it can.".to_owned()
         }
         SyncPhase::Offline { waiting } => format!(
-            "The notes repository can't be reached right now. {} will sync once it can.",
+            "The notes repository can’t be reached right now. {} will sync once it can.",
             count(*waiting, "changed file")
         ),
         SyncPhase::SignIn { has_token: true } => {
-            "GitHub didn't accept this device's token. It may have expired. Paste a new one in sync settings.".to_owned()
+            "GitHub didn’t accept this device’s token. It may have expired. Paste a new one in sync settings.".to_owned()
         }
         SyncPhase::SignIn { has_token: false } => {
             "Your notes repository needs a GitHub token to sync. Paste one in sync settings.".to_owned()
@@ -171,14 +171,14 @@ fn setup_explanation(problem: &SetupProblem) -> String {
             expected,
             actual: Some(actual),
         } => format!(
-            "This vault is on the branch {actual}, but sync uses {expected}, so it doesn't sync here yet. Switch the vault to {expected} to move it to this app, or change the branch in sync settings."
+            "This vault is on the branch {actual}, but sync uses {expected}, so it doesn’t sync here yet. Switch the vault to {expected} to move it to this app, or change the branch in sync settings."
         ),
         SetupProblem::WrongBranch {
             expected,
             actual: None,
-        } => format!("This vault isn't on a branch. Check out {expected} to sync it."),
+        } => format!("This vault isn’t on a branch. Check out {expected} to sync it."),
         SetupProblem::Broken(message) => format!(
-            "Sync couldn't open this vault's git repository. Git said: {}",
+            "Sync couldn’t open this vault’s git repository. Git said: {}",
             plain_git_message(message)
         ),
     }
@@ -335,7 +335,7 @@ mod tests {
         );
         assert_eq!(
             explanation(&offline).unwrap(),
-            "The notes repository can't be reached right now. 3 changed files will sync once it can."
+            "The notes repository can’t be reached right now. 3 changed files will sync once it can."
         );
         let conflict = SyncPhase::Conflict { files: 1 };
         assert_eq!(headline(&conflict, None), "1 note changed on two devices");

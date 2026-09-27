@@ -134,7 +134,7 @@ impl LineParser<'_> {
             return Err(self.error(start, "`regex:` needs a regex after it"));
         }
         if let Err(problem) = fancy_regex::Regex::new(&expand_patterns_in_regex(&source)) {
-            return Err(self.error(start, format!("the regex doesn't compile: {problem}")));
+            return Err(self.error(start, format!("the regex doesn’t compile: {problem}")));
         }
         Ok(Trigger::Regex(source))
     }
@@ -148,7 +148,7 @@ impl LineParser<'_> {
     ) -> Result<usize, ParseError> {
         let c = self.chars[index];
         if c == STOP_GLYPH {
-            return Err(self.error(index, "a trigger can't contain a tab stop"));
+            return Err(self.error(index, "a trigger can’t contain a tab stop"));
         }
         if let Some((name, next)) = self.brace_name(index, end)
             && let Some((pattern, _, numbered)) = NamedPattern::parse_reference(&name)
@@ -287,7 +287,7 @@ impl LineParser<'_> {
         let close = self.matching_brace(digits_end, end)?;
         let raw = self.text((digits_end + 1, close));
         if raw.contains(STOP_GLYPH) {
-            return Err(self.error(digits_end + 1, "a placeholder can't contain a tab stop"));
+            return Err(self.error(digits_end + 1, "a placeholder can’t contain a tab stop"));
         }
         let placeholder = Some(decode_glyphs(&raw)).filter(|text| !text.is_empty());
         Ok((
@@ -372,7 +372,7 @@ impl StopCheck {
             Some(_) => self.numbered += 1,
         }
         if self.plain > 0 && self.numbered > 0 {
-            return Err("don't mix plain `●` with numbered tab stops like `●1`".to_string());
+            return Err("don’t mix plain `●` with numbered tab stops like `●1`".to_string());
         }
         if self.finals > 1 {
             return Err("there can be only one final tab stop `●0`".to_string());
@@ -422,7 +422,7 @@ impl OptionsBuilder {
             self.options.priority = number
                 .trim()
                 .parse()
-                .map_err(|_| format!("`{}` isn't a whole number", number.trim()))?;
+                .map_err(|_| format!("`{}` isn’t a whole number", number.trim()))?;
             return Ok(());
         }
         Err(format!(
@@ -432,7 +432,7 @@ impl OptionsBuilder {
 
     fn add_scope(&mut self, scope: Scope) -> Result<(), String> {
         if self.anywhere {
-            return Err("`anywhere` can't be combined with a context".to_string());
+            return Err("`anywhere` can’t be combined with a context".to_string());
         }
         if !self.options.scopes.contains(&scope) {
             self.options.scopes.push(scope);
@@ -442,7 +442,7 @@ impl OptionsBuilder {
 
     fn set_anywhere(&mut self) -> Result<(), String> {
         if !self.options.scopes.is_empty() {
-            return Err("`anywhere` can't be combined with a context".to_string());
+            return Err("`anywhere` can’t be combined with a context".to_string());
         }
         self.anywhere = true;
         Ok(())
@@ -616,7 +616,7 @@ mod tests {
         assert!(error.message.starts_with("unknown option `sometimes`"));
 
         let error = parse_snippet("ab → ●1 ●  math").unwrap_err();
-        assert!(error.message.contains("don't mix"));
+        assert!(error.message.contains("don’t mix"));
 
         let error = parse_snippet("ab → c  anywhere, math").unwrap_err();
         assert_eq!(error.column, 19);
@@ -628,7 +628,7 @@ mod tests {
         assert_eq!(error.column, 5);
 
         let error = parse_snippet("regex:( → c").unwrap_err();
-        assert!(error.message.contains("doesn't compile"));
+        assert!(error.message.contains("doesn’t compile"));
 
         let error = parse_snippet("ab → c  instant, on tab").unwrap_err();
         assert!(error.message.contains("either"));

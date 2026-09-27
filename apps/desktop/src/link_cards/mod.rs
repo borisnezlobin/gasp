@@ -236,7 +236,7 @@ impl EditorView {
         let (label, clickable) = match offer.state {
             OfferState::Offered => ("Make a card", true),
             OfferState::Fetching => ("Making a card\u{2026}", false),
-            OfferState::Failed => ("Couldn't reach the page", false),
+            OfferState::Failed => ("Couldn’t reach the page", false),
         };
         let chip = div()
             .id("card-offer")

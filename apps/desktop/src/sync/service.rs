@@ -490,7 +490,7 @@ impl SyncService {
             return Ok(());
         }
         editor_sync::set_remote_url(&self.root, engine::REMOTE, url).map_err(|_| {
-            "This vault isn't a git repository yet. Clone your notes repository into it first."
+            "This vault isn’t a git repository yet. Clone your notes repository into it first."
                 .to_owned()
         })?;
         self.open(cx);
@@ -500,11 +500,11 @@ impl SyncService {
     /// Keeps `token` for this vault's remote and syncs with it.
     pub fn sign_in(&mut self, token: Token, cx: &mut Context<Self>) -> Result<(), String> {
         let Some(url) = self.remote_url.clone() else {
-            return Err("Add the repository's address first.".to_owned());
+            return Err("Add the repository’s address first.".to_owned());
         };
         self.store
             .save(&url, &token)
-            .map_err(|error| format!("The token couldn't be saved: {error}"))?;
+            .map_err(|error| format!("The token couldn’t be saved: {error}"))?;
         self.signed_in = true;
         if let Presence::Ready(engine) = &self.presence {
             engine.set_token(Some(token));
@@ -518,7 +518,7 @@ impl SyncService {
         if let Some(url) = &self.remote_url {
             self.store
                 .delete(url)
-                .map_err(|error| format!("The token couldn't be removed: {error}"))?;
+                .map_err(|error| format!("The token couldn’t be removed: {error}"))?;
         }
         if let Presence::Ready(engine) = &self.presence {
             engine.set_token(None);

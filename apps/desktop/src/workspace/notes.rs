@@ -182,7 +182,7 @@ impl Workspace {
     ) {
         let old = doc.read(cx).path().to_path_buf();
         let result = clean_title(title)
-            .map_err(|_| "A note's title can't be empty or contain / \\ : * ? \" < > |".to_owned())
+            .map_err(|_| "A note’s title can’t be empty or contain / \\ : * ? \" < > |".to_owned())
             .and_then(|title| self.move_note_file(doc, &old, title, cx));
         if let Err(message) = result {
             self.set_titles(doc, &note_title(&old), cx);
@@ -209,10 +209,10 @@ impl Workspace {
             return Ok(());
         }
         if new.exists() && !is_same_file(old, &new) {
-            return Err(format!("There's already a note called “{title}”."));
+            return Err(format!("There’s already a note called “{title}”."));
         }
         doc.update(cx, |doc, cx| doc.save_or_log(cx));
-        std::fs::rename(old, &new).map_err(|error| format!("Couldn't rename the note: {error}"))?;
+        std::fs::rename(old, &new).map_err(|error| format!("Couldn’t rename the note: {error}"))?;
         self.note_moved(doc, old, &new, cx);
         self.note_history_moved(old, &new, cx);
         if self.config.settings.files.update_links_on_rename {

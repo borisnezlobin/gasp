@@ -53,8 +53,8 @@ pub enum CommandError {
 impl fmt::Display for CommandError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CommandError::NotFound(id) => write!(f, "there's no command called `{id}`"),
-            CommandError::NoHandler(id) => write!(f, "`{id}` isn't available here"),
+            CommandError::NotFound(id) => write!(f, "there’s no command called `{id}`"),
+            CommandError::NoHandler(id) => write!(f, "`{id}` isn’t available here"),
             CommandError::Cancelled(id) => write!(f, "`{id}` was cancelled"),
             CommandError::Failed(message) => f.write_str(message),
         }
