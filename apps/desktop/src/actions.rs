@@ -136,6 +136,18 @@ impl EditorView {
             let offset = self.offset_for_point(event.position, window);
             self.extend_by_unit(offset, cx);
         }
+        let hovered = self
+            .frame
+            .as_ref()
+            .and_then(|frame| frame.piece_at(event.position))
+            .and_then(|(_, piece)| match &piece.hit {
+                Hit::Checkbox { marker } => Some(marker.start),
+                _ => None,
+            });
+        if hovered != self.hovered_task {
+            self.hovered_task = hovered;
+            cx.notify();
+        }
         self.hover_code(Some(event.position), cx);
     }
 

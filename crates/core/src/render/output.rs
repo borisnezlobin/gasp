@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use crate::syntax::{Alignment, CalloutKind, Fold};
+use crate::syntax::{Alignment, CalloutKind, ConflictSide, Fold};
 
 /// A semantic style for a run of text. Themes map these to concrete values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -22,6 +22,8 @@ pub enum StyleKey {
     MathSource,
     Html,
     Frontmatter,
+    /// A property's name in the frontmatter.
+    FrontmatterKey,
     CalloutTitle,
     TaskDone,
     /// Markdown symbols that are shown, drawn fainter than the text.
@@ -69,6 +71,7 @@ const STYLE_NAMES: &[(StyleKey, &str)] = &[
     (StyleKey::MathSource, "math-source"),
     (StyleKey::Html, "html"),
     (StyleKey::Frontmatter, "frontmatter"),
+    (StyleKey::FrontmatterKey, "frontmatter-key"),
     (StyleKey::CalloutTitle, "callout-title"),
     (StyleKey::TaskDone, "task-done"),
     (StyleKey::MarkupDimmed, "markup-dimmed"),
@@ -96,8 +99,17 @@ pub enum LineStyle {
     MathBlock,
     Table,
     Frontmatter,
+    /// A frontmatter line shown as a property while the cursor is outside
+    /// the frontmatter: its key, if `keyed`, then its value in a column.
+    Property {
+        keyed: bool,
+    },
     Comment,
     FootnoteDefinition,
+    /// A line of one version of a sync conflict, markers included.
+    Conflict {
+        side: ConflictSide,
+    },
 }
 
 /// A run of source text sharing one set of styles.
@@ -189,6 +201,11 @@ pub enum WidgetKind {
     FootnoteSuperscript {
         label: String,
     },
+    /// Names the version of a sync conflict that starts on this line,
+    /// drawn instead of its marker.
+    ConflictLabel {
+        side: ConflictSide,
+    },
     LineBreak,
 }
 
@@ -226,6 +243,6 @@ mod tests {
         assert_eq!(StyleKey::Heading(2).name(), "heading-2");
         assert_eq!(StyleKey::FootnoteRef.name(), "footnote-ref");
         assert_eq!(StyleKey::MarkupDimmed.name(), "markup-dimmed");
-        assert_eq!(STYLE_NAMES.len(), 17);
+        assert_eq!(STYLE_NAMES.len(), 18);
     }
 }

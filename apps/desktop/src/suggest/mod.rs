@@ -16,8 +16,8 @@ use editor_core::document::Selection;
 use editor_core::pipeline::InputContext;
 use editor_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{
-    AnyElement, AppContext, Context, Corner, Entity, IntoElement, ParentElement, SharedString,
-    Subscription, Window, anchored, point,
+    AnyElement, AppContext, Context, Corner, Entity, IntoElement, ParentElement, Pixels,
+    SharedString, Subscription, Window, anchored, point, px,
 };
 
 use self::trigger::{Trigger, TriggerKind, find_trigger};
@@ -25,8 +25,8 @@ use crate::editor::EditorView;
 use crate::frame::FrameLayout;
 use crate::outline::{Heading, headings, headings_in};
 use crate::picker::fuzzy::{Candidate, Matcher, Query};
-use crate::ui::suggestions::{list_height, scroll_to_show};
-use crate::ui::{SuggestionRow, suggestion_list};
+use crate::ui::suggestions::{list_height, scroll_to_show, scrolled};
+use crate::ui::{ListHandlers, SuggestionRow, suggestion_list};
 use crate::vault_index::VaultIndex;
 
 /// The most suggestions a list holds; the popover scrolls through them.
@@ -49,6 +49,8 @@ pub struct OpenSuggestions {
     pub items: Vec<Suggestion>,
     pub highlighted: usize,
     pub first_visible: usize,
+    /// Wheel distance not yet worth a whole row.
+    scroll_rest: Pixels,
 }
 
 impl OpenSuggestions {
@@ -115,6 +117,7 @@ impl EditorView {
                 items,
                 highlighted,
                 first_visible,
+                scroll_rest: px(0.),
             }
         });
         if was_open || self.suggest.open.is_some() {
@@ -204,6 +207,28 @@ impl EditorView {
         open.highlighted = (open.highlighted as isize + step).rem_euclid(count) as usize;
         let rows = crate::ui::ui_theme(cx).suggestion_rows;
         open.first_visible = scroll_to_show(open.first_visible, open.highlighted, rows);
+        cx.notify();
+    }
+
+    /// Scrolls the list by `distance` (positive towards its end), a
+    /// whole row at a time. The highlight stays among the rows showing, so
+    /// Enter accepts one you can see.
+    pub fn scroll_suggestions(&mut self, distance: Pixels, _: &mut Window, cx: &mut Context<Self>) {
+        let theme = crate::ui::ui_theme(cx);
+        let Some(open) = self.suggest.open.as_mut() else {
+            return;
+        };
+        open.scroll_rest += distance;
+        let rows = (open.scroll_rest / theme.menu_row_height).trunc();
+        open.scroll_rest -= theme.menu_row_height * rows;
+        let visible = theme.suggestion_rows;
+        let first = scrolled(open.first_visible, rows as isize, open.items.len(), visible);
+        if first == open.first_visible {
+            return;
+        }
+        open.first_visible = first;
+        let last_shown = (first + visible).min(open.items.len()) - 1;
+        open.highlighted = open.highlighted.clamp(first, last_shown);
         cx.notify();
     }
 
@@ -306,8 +331,11 @@ impl EditorView {
             open.highlighted,
             &theme,
             cx,
-            Self::choose_suggestion,
-            Self::hover_suggestion,
+            ListHandlers {
+                choose: Self::choose_suggestion,
+                hover: Self::hover_suggestion,
+                scroll: Self::scroll_suggestions,
+            },
         );
         Some(
             anchored()

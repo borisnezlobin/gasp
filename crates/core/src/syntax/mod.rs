@@ -26,8 +26,8 @@ use std::ops::Range;
 pub use crate::pipeline::InputContext;
 pub use incremental::Edit;
 pub use kinds::{
-    Alignment, CalloutInfo, CalloutKind, CodeBlockInfo, Fold, HtmlKind, LinkInfo, LinkKind,
-    MarkupKind, NodeKind, SyntaxKind, WikiInfo,
+    Alignment, CalloutInfo, CalloutKind, CodeBlockInfo, ConflictSide, Fold, HtmlKind, LinkInfo,
+    LinkKind, MarkupKind, NodeKind, SyntaxKind, WikiInfo,
 };
 pub use tree::{LineIndex, Markup, Node, NodeId, SyntaxTree};
 
