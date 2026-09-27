@@ -32,6 +32,7 @@ mod panel;
 mod panes;
 pub mod prompt;
 mod render;
+pub mod right_panel;
 pub mod sidebar;
 mod sidebar_chrome;
 pub mod state;
@@ -59,6 +60,7 @@ use self::modal::{ModalHost, ModalLayer};
 use self::note_doc::NoteDoc;
 pub use self::pane::{Pane, ReadingProbe};
 use self::pane_tree::{PaneTree, SplitId};
+use self::right_panel::RightPanel;
 use self::sidebar::LeftPanel;
 use self::status::StatusInfo;
 use crate::editor::EditorView;
@@ -87,6 +89,7 @@ pub type CommandHandler = Rc<dyn Fn(&mut Workspace, &mut Window, &mut Context<Wo
 pub(crate) enum Drag {
     Divider(SplitId),
     Sidebar,
+    RightSidebar,
 }
 
 /// The cursor as last seen, for spotting big jumps.
@@ -109,6 +112,7 @@ pub struct Workspace {
     closed_tabs: Vec<PathBuf>,
     recent: Vec<PathBuf>,
     left_panel: LeftPanel,
+    right_panel: RightPanel,
     file_tree: Option<Entity<FileTree>>,
     /// The note the file tree marks as open.
     tree_active: Option<PathBuf>,
@@ -173,6 +177,8 @@ impl Workspace {
             &config.rules,
             theme.workspace.sidebar_width,
         );
+        let right_panel =
+            RightPanel::new(&config.device.right_sidebar, theme.workspace.sidebar_width);
         let mut workspace = Workspace {
             vault,
             config,
@@ -183,6 +189,7 @@ impl Workspace {
             closed_tabs: Vec::new(),
             recent: Vec::new(),
             left_panel,
+            right_panel,
             file_tree: None,
             tree_active: None,
             menu: MenuSlot::default(),

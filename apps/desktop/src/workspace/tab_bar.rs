@@ -32,6 +32,15 @@ impl Pane {
                         cx.emit(PaneEvent::Run("sidebar.files.toggle".into()))
                     }))
             });
+        let right_toggle =
+            self.show_right_sidebar_toggle.then(|| {
+                IconButton::new("pane-right-sidebar-toggle", IconName::SidebarSimpleRight)
+                    .command("sidebar.right.toggle", cx)
+                    .label("Show backlinks, outline and tags")
+                    .on_click(cx.listener(|_, _, _, cx| {
+                        cx.emit(PaneEvent::Run("sidebar.right.toggle".into()))
+                    }))
+            });
         let list_menu = self.menu.render_attached(TAB_LIST_KEY, ui.space_xs);
         div()
             .id("tab-bar")
@@ -88,6 +97,7 @@ impl Pane {
                     }))
                     .attach(list_menu),
             )
+            .children(right_toggle)
     }
 
     /// Scrolls the active tab back into view when the strip's width

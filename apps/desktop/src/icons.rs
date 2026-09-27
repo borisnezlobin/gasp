@@ -15,6 +15,7 @@ pub enum IconName {
     ArrowFatUp,
     ArrowLeft,
     ArrowRight,
+    ArrowSquareIn,
     ArrowSquareOut,
     ArrowUp,
     ArrowsClockwise,
@@ -24,6 +25,7 @@ pub enum IconName {
     Backspace,
     BookOpen,
     Bug,
+    CalendarBlank,
     CaretDown,
     CaretLeft,
     CaretRight,
@@ -73,6 +75,7 @@ pub enum IconName {
     Link,
     List,
     ListBullets,
+    ListDashes,
     MagnifyingGlass,
     MagnifyingGlassPlus,
     Minus,
@@ -90,11 +93,13 @@ pub enum IconName {
     Scissors,
     SelectionAll,
     SidebarSimple,
+    SidebarSimpleRight,
     SlidersHorizontal,
     SortAscending,
     Square,
     SquareSplitHorizontal,
     SquareSplitVertical,
+    Stamp,
     Swap,
     TextAa,
     TextB,
@@ -110,7 +115,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 99] = [
+const ICONS: [(IconName, &str, &[u8]); 104] = [
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -140,6 +145,11 @@ const ICONS: [(IconName, &str, &[u8]); 99] = [
         IconName::ArrowRight,
         "arrow-right",
         include_bytes!("../assets/icons/arrow-right.svg"),
+    ),
+    (
+        IconName::ArrowSquareIn,
+        "arrow-square-in",
+        include_bytes!("../assets/icons/arrow-square-in.svg"),
     ),
     (
         IconName::ArrowSquareOut,
@@ -185,6 +195,11 @@ const ICONS: [(IconName, &str, &[u8]); 99] = [
         IconName::Bug,
         "bug",
         include_bytes!("../assets/icons/bug.svg"),
+    ),
+    (
+        IconName::CalendarBlank,
+        "calendar-blank",
+        include_bytes!("../assets/icons/calendar-blank.svg"),
     ),
     (
         IconName::CaretDown,
@@ -432,6 +447,11 @@ const ICONS: [(IconName, &str, &[u8]); 99] = [
         include_bytes!("../assets/icons/list-bullets.svg"),
     ),
     (
+        IconName::ListDashes,
+        "list-dashes",
+        include_bytes!("../assets/icons/list-dashes.svg"),
+    ),
+    (
         IconName::MagnifyingGlass,
         "magnifying-glass",
         include_bytes!("../assets/icons/magnifying-glass.svg"),
@@ -517,6 +537,11 @@ const ICONS: [(IconName, &str, &[u8]); 99] = [
         include_bytes!("../assets/icons/sidebar-simple.svg"),
     ),
     (
+        IconName::SidebarSimpleRight,
+        "sidebar-simple-right",
+        include_bytes!("../assets/icons/sidebar-simple-right.svg"),
+    ),
+    (
         IconName::SlidersHorizontal,
         "sliders-horizontal",
         include_bytes!("../assets/icons/sliders-horizontal.svg"),
@@ -540,6 +565,11 @@ const ICONS: [(IconName, &str, &[u8]); 99] = [
         IconName::SquareSplitVertical,
         "square-split-vertical",
         include_bytes!("../assets/icons/square-split-vertical.svg"),
+    ),
+    (
+        IconName::Stamp,
+        "stamp",
+        include_bytes!("../assets/icons/stamp.svg"),
     ),
     (
         IconName::Swap,

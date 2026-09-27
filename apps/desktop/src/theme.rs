@@ -1435,6 +1435,9 @@ pub struct UiTheme {
     pub button_height: Pixels,
     pub button_padding_x: Pixels,
     pub button_background: Hsla,
+    /// Room kept beside wrapped text for a one-word button on its first
+    /// line, such as a backlink's Link.
+    pub inline_button_width: Pixels,
     pub accent: Hsla,
     pub on_accent: Hsla,
     /// What keyboard focus looks like: see [`focus_ring`].
@@ -1585,6 +1588,7 @@ impl Default for UiTheme {
             button_height: px(28.),
             button_padding_x: px(12.),
             button_background: hsla(0., 0., 0., 0.05),
+            inline_button_width: px(52.),
             accent: rgb(0x000000).into(),
             on_accent: rgb(0xffffff).into(),
             focus_ring: default_focus_ring(),
