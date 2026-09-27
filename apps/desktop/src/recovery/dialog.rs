@@ -373,7 +373,11 @@ fn diff_row(
     match row {
         // An empty line keeps its height.
         DiffRow::Same(text) if text.is_empty() => line.child(" ").into_any_element(),
-        DiffRow::Same(text) => line.child(text.clone()).into_any_element(),
+        // Unchanged lines are context: demoted, so the change leads.
+        DiffRow::Same(text) => line
+            .text_color(style.text_muted)
+            .child(text.clone())
+            .into_any_element(),
         DiffRow::Changed(stretches) => {
             let marks = MarkStyles {
                 added,
