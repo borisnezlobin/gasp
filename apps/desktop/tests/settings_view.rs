@@ -431,6 +431,28 @@ fn space_toggles_a_setting_and_writes_only_changes(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn pasted_quotes_wait_on_smart_quotes(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let root = dir.path();
+    let (view, cx, _) = open(cx, root);
+    go_to_section(&view, "Editor", cx);
+    go_to_control(&view, "editor.smart-quotes", cx);
+    cx.simulate_keystrokes("space");
+    assert_eq!(read_settings(root), "[editor]\nsmart-quotes = false\n");
+    cx.simulate_keystrokes("down space");
+    assert_eq!(
+        read_settings(root),
+        "[editor]\nsmart-quotes = false\n",
+        "the paste switch does nothing while smart quotes are off"
+    );
+    cx.simulate_keystrokes("up space down space");
+    assert_eq!(
+        read_settings(root),
+        "[editor]\ncurl-pasted-quotes = false\n"
+    );
+}
+
+#[gpui::test]
 fn arrows_change_choices_and_delete_resets(cx: &mut TestAppContext) {
     let dir = vault(Some(USER_FILE));
     let root = dir.path();

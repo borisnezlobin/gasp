@@ -4,7 +4,7 @@
 use std::time::Instant;
 
 use gpui::{
-    App, BorderStyle, Bounds, BoxShadow, ContentMask, Corners, Element, ElementId,
+    App, AvailableSpace, BorderStyle, Bounds, BoxShadow, ContentMask, Corners, Element, ElementId,
     ElementInputHandler, Entity, GlobalElementId, InspectorElementId, IntoElement, LayoutId,
     Pixels, Style, TransformationMatrix, Window, fill, point, px, quad, relative, size,
     transparent_black,
@@ -14,6 +14,10 @@ use crate::editor::{EditorView, HighlightKind};
 use crate::frame::{FrameLayout, PlacedLine};
 use crate::line_layout::{Piece, PieceContent, Surface};
 use crate::theme::Theme;
+
+/// Suggestions draw above the text and the editor's own overlays, below
+/// menus.
+const SUGGESTION_LAYER: usize = 1;
 
 /// Draws an [`EditorView`].
 pub struct EditorElement {
@@ -87,13 +91,25 @@ impl Element for EditorElement {
                 .flat_map(|range| frame.range_rects(range, &view.theme))
                 .collect();
             let caret = frame.caret_bounds(view.cursor(), &view.theme);
+            if view.focus_handle.is_focused(window)
+                && let Some(mut popover) = view.suggestion_popover(&frame, cx)
+            {
+                popover.layout_as_root(AvailableSpace::min_size(), window, cx);
+                window.defer_draw(popover, window.element_offset(), SUGGESTION_LAYER);
+            }
+            // Math and code highlighting can wait for the first frame.
             if crate::first_frame::is_waiting() {
                 let view = cx.entity().downgrade();
                 crate::first_frame::defer(move |cx| {
-                    view.update(cx, |view, cx| view.start_math_renders(cx)).ok();
+                    view.update(cx, |view, cx| {
+                        view.start_math_renders(cx);
+                        view.start_code_loads(cx);
+                    })
+                    .ok();
                 });
             } else {
                 view.start_math_renders(cx);
+                view.start_code_loads(cx);
             }
             view.timings.layout.push(started.elapsed());
             Prepainted {

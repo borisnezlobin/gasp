@@ -8,11 +8,13 @@
 mod footnote;
 mod format;
 mod indent;
+mod lines;
 mod link;
 
 pub use footnote::{FootnoteCommand, insert_or_jump_footnote};
 pub use format::{Format, toggle_format};
 pub use indent::{indent, outdent};
+pub use lines::{duplicate_lines, move_lines_down, move_lines_up, toggle_tasks};
 pub use link::insert_link;
 
 use crate::document::{Document, Selection};

@@ -1,6 +1,7 @@
 //! Auto-pairing of brackets, quotes and `$`: typing an opener inserts its
 //! closer, typing a closer steps over one that is already there, and
-//! backspace between an empty pair deletes both.
+//! backspace between an empty pair deletes both. Emphasis markers such as
+//! `*` only wrap a selection, so `**` around a word is two keystrokes.
 
 use crate::document::{Document, SelectionRange};
 
@@ -28,6 +29,8 @@ impl Pair {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AutoPairStep {
     pub pairs: Vec<Pair>,
+    /// Markers that wrap a selection but never pair at a bare caret.
+    pub wrap_only: Vec<char>,
 }
 
 impl Default for AutoPairStep {
@@ -42,12 +45,16 @@ impl Default for AutoPairStep {
                 Pair::new('`', '`'),
                 Pair::new('$', '$'),
             ],
+            wrap_only: vec!['*', '_', '~', '=', '%'],
         }
     }
 }
 
 impl PipelineStep for AutoPairStep {
     fn run(&self, request: EditRequest, cx: &StepContext<'_>) -> StepOutcome {
+        if cx.context == InputContext::Code {
+            return close_code_span(request, cx);
+        }
         match &request {
             EditRequest::InsertText(text) => match single_char(text) {
                 Some(typed) if self.handles(typed) => {
@@ -63,6 +70,19 @@ impl PipelineStep for AutoPairStep {
     }
 }
 
+/// Inside code nothing pairs, but typing the closing backtick of a code
+/// span steps over the one paired when the span was opened.
+fn close_code_span(request: EditRequest, cx: &StepContext<'_>) -> StepOutcome {
+    let is_backtick = matches!(&request, EditRequest::InsertText(text) if text == "`");
+    let [range] = cx.selection.ranges() else {
+        return StepOutcome::Continue(request);
+    };
+    if is_backtick && range.is_empty() && cx.doc.char_after(range.head) == Some('`') {
+        return StepOutcome::Emit(plan_each(cx, |range| RangePlan::move_caret(range.head + 1)));
+    }
+    StepOutcome::Continue(request)
+}
+
 fn single_char(text: &str) -> Option<char> {
     let mut chars = text.chars();
     let first = chars.next()?;
@@ -71,9 +91,11 @@ fn single_char(text: &str) -> Option<char> {
 
 impl AutoPairStep {
     fn handles(&self, typed: char) -> bool {
-        self.pairs
-            .iter()
-            .any(|pair| pair.open == typed || pair.close == typed)
+        self.wrap_only.contains(&typed)
+            || self
+                .pairs
+                .iter()
+                .any(|pair| pair.open == typed || pair.close == typed)
     }
 
     fn opening(&self, typed: char) -> Option<Pair> {
@@ -90,6 +112,9 @@ impl AutoPairStep {
         if range.is_empty() && next == Some(typed) && self.is_closer(typed) {
             return RangePlan::move_caret(range.head + typed_len);
         }
+        if !range.is_empty() && self.wrap_only.contains(&typed) {
+            return wrap_selection(cx.doc, range, Pair::new(typed, typed));
+        }
         let Some(pair) = self.opening(typed) else {
             return RangePlan::replace(range.range(), &typed.to_string());
         };
@@ -105,7 +130,8 @@ impl AutoPairStep {
 
     /// Pairs only where a closer can't be mistaken for part of a word: the
     /// next character must be a space, a closer or the end, and a quote or
-    /// `$` must not follow a letter or digit (so `don't` and `5$` stay).
+    /// `$` must not follow a letter or digit (so `don't` and `5$` stay) or
+    /// itself (so a third backtick of a code fence stays single).
     fn should_pair(&self, cx: &StepContext<'_>, offset: usize, pair: Pair) -> bool {
         let next_is_free = cx
             .doc
@@ -121,7 +147,7 @@ impl AutoPairStep {
         let after_word = cx
             .doc
             .char_before(offset)
-            .is_some_and(char::is_alphanumeric);
+            .is_some_and(|previous| previous.is_alphanumeric() || previous == pair.open);
         !closes_math && !after_word
     }
 

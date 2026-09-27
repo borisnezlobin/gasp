@@ -3,8 +3,8 @@
 
 use editor_config::EventKind;
 use gpui::{
-    AnyElement, Context, CursorStyle, Entity, MouseButton, MouseMoveEvent, Window, canvas, div,
-    prelude::*, relative,
+    AnyElement, Context, CursorStyle, Entity, MouseButton, MouseDownEvent, MouseMoveEvent,
+    SharedString, Window, canvas, div, prelude::*, relative,
 };
 
 use super::pane::Pane;
@@ -61,36 +61,64 @@ impl Workspace {
             .into_any_element()
     }
 
-    /// The gap between two panes' surfaces, with a handle to drag.
+    /// The gap between two panes' surfaces, with a handle to drag. A line
+    /// shows in the gap under the pointer and while dragging, so the
+    /// handle is findable; a double-click shares the space evenly.
     fn render_divider(&self, split: &Split<Entity<Pane>>, cx: &mut Context<Self>) -> AnyElement {
         let theme = &self.theme.workspace;
-        let gap = ui_theme(cx).surface_gap;
+        let ui = ui_theme(cx);
+        let gap = ui.surface_gap;
+        let grab = theme.divider_grab_width.max(gap);
         let id = split.id;
-        let offset = (theme.divider_grab_width - gap) / 2.;
-        let handle = div().id(("divider", id.0)).absolute().on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |workspace, _, _, cx| workspace.start_drag(Drag::Divider(id), cx)),
-        );
+        let dragging = self.drag == Some(Drag::Divider(id));
+        let group: SharedString = format!("divider-{}", id.0).into();
+        let inset = (grab - ui.divider_line_width) / 2.;
+        let line = div()
+            .absolute()
+            .rounded_full()
+            .when(dragging, |line| line.bg(ui.divider_active))
+            .group_hover(group.clone(), |style| style.bg(ui.divider_active));
+        let line = match split.axis {
+            Axis::Row => line.top_0().bottom_0().left(inset).w(ui.divider_line_width),
+            Axis::Column => line.left_0().right_0().top(inset).h(ui.divider_line_width),
+        };
+        let handle = div()
+            .id(("divider", id.0))
+            .debug_selector(move || format!("divider-{}", id.0))
+            .group(group)
+            .absolute()
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |workspace, event: &MouseDownEvent, _, cx| {
+                    if event.click_count >= 2 {
+                        workspace.equalize_split(id, cx);
+                    } else {
+                        workspace.start_drag(Drag::Divider(id), cx);
+                    }
+                }),
+            )
+            .child(line);
+        let offset = (grab - gap) / 2.;
         let handle = match split.axis {
             Axis::Row => handle
                 .top_0()
                 .bottom_0()
                 .left(-offset)
-                .w(theme.divider_grab_width)
+                .w(grab)
                 .cursor(CursorStyle::ResizeLeftRight),
             Axis::Column => handle
                 .left_0()
                 .right_0()
                 .top(-offset)
-                .h(theme.divider_grab_width)
+                .h(grab)
                 .cursor(CursorStyle::ResizeUpDown),
         };
-        let line = div().relative().flex_none();
-        let line = match split.axis {
-            Axis::Row => line.w(gap).h_full(),
-            Axis::Column => line.h(gap).w_full(),
+        let gap_box = div().relative().flex_none();
+        let gap_box = match split.axis {
+            Axis::Row => gap_box.w(gap).h_full(),
+            Axis::Column => gap_box.h(gap).w_full(),
         };
-        line.child(handle).into_any_element()
+        gap_box.child(handle).into_any_element()
     }
 
     fn render_left_panel(&self, window: &Window, cx: &mut Context<Self>) -> Option<AnyElement> {
@@ -258,7 +286,10 @@ impl Render for Workspace {
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .on_mouse_up(
                 MouseButton::Left,
-                cx.listener(|workspace, _, _, cx| workspace.end_drag(cx)),
+                cx.listener(|workspace, _, _, cx| {
+                    workspace.end_drag(cx);
+                    workspace.clear_tab_drops(cx);
+                }),
             )
             .relative()
             .flex()

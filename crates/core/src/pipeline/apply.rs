@@ -99,6 +99,14 @@ fn insert_each(cx: &StepContext<'_>, text: &str) -> Transaction {
     plan_each(cx, |range| RangePlan::replace(range.range(), text))
 }
 
+/// `request` as the apply step would make it, ignoring every other step.
+pub(super) fn as_typed(request: EditRequest, cx: &StepContext<'_>) -> Transaction {
+    match ApplyStep.run(request, cx) {
+        StepOutcome::Emit(transaction) => transaction,
+        _ => unreachable!("the apply step always emits"),
+    }
+}
+
 /// Turns whatever request reaches it into a transaction.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ApplyStep;

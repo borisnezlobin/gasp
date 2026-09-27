@@ -136,6 +136,8 @@ impl Workspace {
         let span = crate::trace::span("note-editor");
         let config = &self.config;
         let editor = doc.update(cx, |doc, cx| doc.new_editor(config, cx));
+        let index = self.vault_index().clone();
+        editor.update(cx, |editor, cx| editor.set_vault_index(index, cx));
         drop(span);
         let title_text = note_title(path);
         let title = cx.new(|cx| {
@@ -379,7 +381,7 @@ impl Workspace {
         }
     }
 
-    fn handle_empty_pane(
+    pub(crate) fn handle_empty_pane(
         &mut self,
         pane: &Entity<Pane>,
         window: &mut Window,

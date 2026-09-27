@@ -61,6 +61,16 @@ fn run(marked: &str, request: EditRequest) -> String {
     run_in(&Pipeline::builtin(), marked, request, InputContext::Text)
 }
 
+/// Runs the built-in pipeline with smart quotes off, as auto-pair sees
+/// quotes then.
+fn run_straight(marked: &str, request: EditRequest) -> String {
+    let mut pipeline = Pipeline::builtin();
+    pipeline
+        .set_enabled(step_names::SMART_QUOTES, false)
+        .unwrap();
+    run_in(&pipeline, marked, request, InputContext::Text)
+}
+
 fn typed(text: &str) -> EditRequest {
     EditRequest::InsertText(text.to_owned())
 }
@@ -165,13 +175,13 @@ fn list_leaves_other_enters_alone() {
 fn auto_pair_inserts_closers() {
     assert_eq!(run("a |", typed("(")), "a (|)");
     assert_eq!(run("|)", typed("[")), "[|])");
-    assert_eq!(run("say |", typed("\"")), "say \"|\"");
+    assert_eq!(run_straight("say |", typed("\"")), "say \"|\"");
     assert_eq!(run("|", typed("$")), "$|$");
 }
 
 #[test]
 fn auto_pair_skips_where_it_would_be_wrong() {
-    assert_eq!(run("don|", typed("'")), "don'|");
+    assert_eq!(run_straight("don|", typed("'")), "don'|");
     assert_eq!(run("5|", typed("$")), "5$|");
     assert_eq!(run("|word", typed("(")), "(|word");
     let pipeline = Pipeline::builtin();
@@ -200,6 +210,63 @@ fn auto_pair_wraps_selection() {
         .run(typed("["), &doc, &backwards, &FixedContext::default(), 0)
         .unwrap();
     assert_eq!(tr.selection.unwrap().primary(), SelectionRange::new(5, 1));
+}
+
+#[test]
+fn emphasis_markers_wrap_a_selection_but_never_pair() {
+    assert_eq!(run("«word»", typed("*")), "*«word»*");
+    let once = run("«word»", typed("*"));
+    let (doc, selection) = parse(&once);
+    let mut state = EditorState::new(doc);
+    state
+        .apply(Transaction::select(selection, Origin::Input, 0))
+        .unwrap();
+    let twice = Pipeline::builtin()
+        .run(
+            typed("*"),
+            state.doc(),
+            state.selection(),
+            &FixedContext::default(),
+            1,
+        )
+        .unwrap();
+    state.apply(twice).unwrap();
+    assert_eq!(render(state.doc(), state.selection()), "**«word»**");
+    assert_eq!(run("a |", typed("*")), "a *|");
+    assert_eq!(run("«x»", typed("~")), "~«x»~");
+}
+
+#[test]
+fn a_code_fence_types_three_backticks() {
+    let pipeline = Pipeline::builtin();
+    let (doc, selection) = parse("|");
+    let mut state = EditorState::new(doc);
+    state
+        .apply(Transaction::select(selection, Origin::Input, 0))
+        .unwrap();
+    for _ in 0..3 {
+        let step = pipeline
+            .run(
+                typed("`"),
+                state.doc(),
+                state.selection(),
+                &FixedContext::default(),
+                1,
+            )
+            .unwrap();
+        state.apply(step).unwrap();
+    }
+    assert_eq!(render(state.doc(), state.selection()), "```|");
+}
+
+#[test]
+fn the_closing_backtick_of_a_code_span_steps_over() {
+    let pipeline = Pipeline::builtin();
+    let in_code = |marked: &str| run_in(&pipeline, marked, typed("`"), InputContext::Code);
+    assert_eq!(in_code("`code|`"), "`code`|");
+    assert_eq!(in_code("```\nx|\n```"), "```\nx`|\n```");
+    let bracket = run_in(&pipeline, "f(|)", typed(")"), InputContext::Code);
+    assert_eq!(bracket, "f()|)", "only backticks step over in code");
 }
 
 #[test]
@@ -376,4 +443,95 @@ fn typing_a_list_through_the_editor_undoes_in_steps() {
     assert_eq!(render(state.doc(), state.selection()), "- a\n- b\n|");
     state.undo(10_000);
     assert_eq!(state.doc().to_string(), "");
+}
+
+#[test]
+fn quotes_open_after_spaces_and_brackets_and_close_after_words() {
+    assert_eq!(curly_quote('"', None), Some('“'));
+    assert_eq!(curly_quote('"', Some(' ')), Some('“'));
+    assert_eq!(curly_quote('"', Some('(')), Some('“'));
+    assert_eq!(curly_quote('"', Some('—')), Some('“'));
+    assert_eq!(curly_quote('"', Some('d')), Some('”'));
+    assert_eq!(curly_quote('"', Some('.')), Some('”'));
+    assert_eq!(curly_quote('\'', Some('t')), Some('’'));
+    assert_eq!(curly_quote('\'', Some('“')), Some('‘'));
+    assert_eq!(curly_quote('a', None), None);
+}
+
+#[test]
+fn typed_quotes_curl_in_text() {
+    assert_eq!(run("say |", typed("\"")), "say “|");
+    assert_eq!(run("“hi|", typed("\"")), "“hi”|");
+    assert_eq!(run("it|", typed("'")), "it’|");
+    assert_eq!(run("|", typed("'")), "‘|");
+    assert_eq!(run("a «word» b", typed("\"")), "a “«word»” b");
+}
+
+#[test]
+fn quotes_stay_straight_in_code_math_links_and_unclosed_spans() {
+    let pipeline = Pipeline::builtin();
+    let straight =
+        |marked: &str, context: InputContext| run_in(&pipeline, marked, typed("\""), context);
+    assert_eq!(straight("x|", InputContext::Code), "x\"|");
+    assert_eq!(straight("x|", InputContext::Math), "x\"|");
+    assert_eq!(straight("x|", InputContext::Frontmatter), "x\"|");
+    assert_eq!(straight("[[a|", InputContext::Text), "[[a\"|");
+    assert_eq!(straight("`a|", InputContext::Text), "`a\"|");
+    assert_eq!(straight("`a` b|", InputContext::Text), "`a` b”|");
+}
+
+#[test]
+fn undo_after_a_curl_gives_back_the_straight_quote() {
+    let pipeline = Pipeline::builtin();
+    let (doc, selection) = parse("say |");
+    let mut state = EditorState::new(doc);
+    state
+        .apply(Transaction::select(selection, Origin::Input, 0))
+        .unwrap();
+    let steps = pipeline.run_steps(
+        typed("\""),
+        state.doc(),
+        state.selection(),
+        &FixedContext::default(),
+        1,
+    );
+    assert_eq!(steps.len(), 2);
+    for step in steps {
+        state.apply(step).unwrap();
+    }
+    assert_eq!(render(state.doc(), state.selection()), "say “|");
+    assert!(state.undo(2));
+    assert_eq!(render(state.doc(), state.selection()), "say \"|");
+    assert!(state.undo(3));
+    assert_eq!(render(state.doc(), state.selection()), "say |");
+}
+
+#[test]
+fn pasted_quotes_curl_outside_code_math_frontmatter_and_links() {
+    assert_eq!(
+        curl_quotes("He said \"hi\" and it's fine.", None),
+        "He said “hi” and it’s fine."
+    );
+    assert_eq!(
+        curl_quotes("\"a\"", Some('x')),
+        "”a”",
+        "the first quote closes after a word"
+    );
+    assert_eq!(
+        curl_quotes("`say \"x\"` and $f'(x)$ \"y\"", None),
+        "`say \"x\"` and $f'(x)$ “y”"
+    );
+    assert_eq!(
+        curl_quotes("---\ntitle: \"T\"\n---\n\"body\"", None),
+        "---\ntitle: \"T\"\n---\n“body”"
+    );
+    assert_eq!(
+        curl_quotes("```\nprint(\"x\")\n```\n", None),
+        "```\nprint(\"x\")\n```\n"
+    );
+    assert_eq!(curl_quotes("[[It's]] 'q'", None), "[[It's]] ‘q’");
+    assert_eq!(
+        curl_quotes("see https://x.com/a'b now", None),
+        "see https://x.com/a'b now"
+    );
 }

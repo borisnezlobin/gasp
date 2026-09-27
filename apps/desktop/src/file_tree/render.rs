@@ -346,7 +346,7 @@ impl FileTree {
             )
             .debug_selector(|| format!("tree-menu-{}", item.label()))
             .hover(|style| style.bg(ui.menu_highlight))
-            .child(menu_icon(Some(item.icon()), &ui))
+            .child(menu_icon(Some(item.icon()), false, &ui))
             .child(item.label())
             .on_click(cx.listener(move |tree, _: &ClickEvent, window, cx| {
                 tree.run_menu_item(item, window, cx);

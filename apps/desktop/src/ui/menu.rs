@@ -400,7 +400,7 @@ impl DropdownMenu {
             return separator(theme);
         };
         let disabled = !item.is_selectable();
-        let leading = has_icons.then(|| menu_icon(item.leading_icon(), theme));
+        let leading = has_icons.then(|| menu_icon(item.leading_icon(), disabled, theme));
         let selector = format!("menu-item-{label}");
         menu_row(
             ElementId::NamedInteger("menu-item".into(), index as u64),
@@ -493,16 +493,17 @@ pub fn menu_row(
 }
 
 /// The icon column of a menu row. It keeps its width when the row has no
-/// icon, so labels line up.
-pub fn menu_icon(name: Option<IconName>, theme: &UiTheme) -> Div {
+/// icon, so labels line up, and fades with a disabled row's label.
+pub fn menu_icon(name: Option<IconName>, disabled: bool, theme: &UiTheme) -> Div {
+    let color = if disabled {
+        theme.icon_disabled
+    } else {
+        theme.icon
+    };
     div()
         .flex_none()
         .size(theme.small_icon_size)
-        .children(name.map(|name| {
-            icon(name)
-                .size(theme.small_icon_size)
-                .text_color(theme.icon)
-        }))
+        .children(name.map(|name| icon(name).size(theme.small_icon_size).text_color(color)))
 }
 
 fn separator(theme: &UiTheme) -> AnyElement {

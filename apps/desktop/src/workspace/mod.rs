@@ -18,6 +18,7 @@ pub mod files;
 pub mod help;
 pub mod history;
 pub mod launcher;
+mod layout;
 pub mod links;
 pub mod menus;
 pub mod modal;
@@ -37,6 +38,8 @@ pub mod startup;
 pub mod state;
 pub mod status;
 pub mod tab_bar;
+pub mod tab_drag;
+mod tab_moves;
 mod tabs;
 pub mod watcher;
 pub mod welcome;
@@ -66,6 +69,7 @@ use crate::note_texts::NoteTexts;
 use crate::sync::SyncService;
 use crate::theme::Theme;
 use crate::ui::{HasMenuSlot, MenuSlot};
+use crate::vault_index::{VaultIndex, index_changes};
 
 /// Where [`Workspace::open_path`] puts a note.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -132,6 +136,8 @@ pub struct Workspace {
     sync: Option<Entity<SyncService>>,
     sync_indicator: Option<AnyView>,
     tasks: Vec<Task<()>>,
+    /// The notes and tags editors suggest from.
+    vault_index: Entity<VaultIndex>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -174,6 +180,7 @@ impl Workspace {
         let show_title = config.settings.editor.show_inline_title;
         crate::ui::hints::set_rules(config.rules.clone(), cx);
         let pane = cx.new(|cx| Pane::new(&vault, show_title, cx));
+        let vault_index = cx.new(|_| VaultIndex::new(&vault));
         let left_panel = LeftPanel::new(
             &config.settings,
             &config.rules,
@@ -210,8 +217,10 @@ impl Workspace {
             sync: None,
             sync_indicator: None,
             tasks: Vec::new(),
+            vault_index,
             _subscriptions: Vec::new(),
         };
+        workspace.scan_vault_index(cx);
         workspace.subscribe_to_pane(&pane, window, cx);
         workspace.observe_window(window, cx);
         workspace.add_launcher_tab(&pane, window, cx);
@@ -440,5 +449,65 @@ impl Workspace {
         } else {
             self.vault.join(path)
         }
+    }
+
+    /// The notes and tags editors suggest from.
+    pub fn vault_index(&self) -> &Entity<VaultIndex> {
+        &self.vault_index
+    }
+
+    /// Reads every note's name and tags on a background thread, once the
+    /// window's first frame is on screen: it reads every note.
+    fn scan_vault_index(&mut self, cx: &mut Context<Self>) {
+        if crate::first_frame::is_waiting() {
+            let this = cx.weak_entity();
+            crate::first_frame::defer(move |cx| {
+                this.update(cx, |workspace, cx| workspace.scan_vault_index(cx))
+                    .ok();
+            });
+            return;
+        }
+        let root = self.vault.clone();
+        let index = self.vault_index.clone();
+        let scan = cx.background_spawn(async move { VaultIndex::scan(&root) });
+        // Code block grammars take a moment to load; have them ready
+        // before the first code block is drawn.
+        cx.background_spawn(async {
+            crate::preview::code_highlight::load_syntaxes();
+        })
+        .detach();
+        let task = cx.spawn(async move |_, cx| {
+            let scanned = scan.await;
+            index
+                .update(cx, |index, cx| {
+                    *index = scanned;
+                    cx.notify();
+                })
+                .ok();
+        });
+        self.tasks.push(task);
+    }
+
+    /// Brings the index up to date with files changed on disk, reading
+    /// them on a background thread.
+    pub(crate) fn update_vault_index(
+        &mut self,
+        changed: Vec<PathBuf>,
+        removed: Vec<PathBuf>,
+        cx: &mut Context<Self>,
+    ) {
+        let root = self.vault.clone();
+        let index = self.vault_index.clone();
+        let read = cx.background_spawn(async move { index_changes(&root, &changed, &removed) });
+        cx.spawn(async move |_, cx| {
+            let changes = read.await;
+            index
+                .update(cx, |index, cx| {
+                    index.apply(changes);
+                    cx.notify();
+                })
+                .ok();
+        })
+        .detach();
     }
 }

@@ -84,7 +84,17 @@ impl SettingsView {
         self.sync_fields(cx);
     }
 
+    /// Whether `item` can't apply because a switch it needs is off.
+    pub(super) fn is_inactive(&self, item: &SettingItem) -> bool {
+        super::model::required_switch(&item.key)
+            .and_then(|switch| self.item_for(switch))
+            .is_some_and(|switch| self.current_value(switch) == Value::Bool(false))
+    }
+
     pub(super) fn toggle(&mut self, item: &SettingItem, cx: &mut Context<Self>) {
+        if self.is_inactive(item) {
+            return;
+        }
         let on = self.current_value(item).as_bool().unwrap_or(false);
         self.write(item, Some(Value::Bool(!on)), cx);
     }

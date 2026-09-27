@@ -1,7 +1,8 @@
 //! The commands the editor view runs, looked up by id.
 
 use editor_core::commands::{
-    FootnoteCommand, Format, indent, insert_link, insert_or_jump_footnote, outdent, toggle_format,
+    FootnoteCommand, Format, duplicate_lines, indent, insert_link, insert_or_jump_footnote,
+    move_lines_down, move_lines_up, outdent, toggle_format, toggle_tasks,
 };
 use editor_core::footnotes::FootnoteSettings;
 use editor_core::motion;
@@ -28,10 +29,10 @@ const MOTIONS: [(&str, &str, Motion); 12] = [
     ("cursor.page-down", "select.page-down", Motion::PageDown),
 ];
 
-const HANDLERS: [(&str, Handler); 25] = [
+const HANDLERS: [(&str, Handler); 29] = [
     ("select.all", |view, _, cx| view.select_all(cx)),
     ("edit.delete-backward", |view, _, cx| {
-        view.delete_or(|doc, at| doc.prev_char_boundary(at)..at, cx)
+        view.delete_backward(cx)
     }),
     ("edit.delete-forward", |view, _, cx| {
         view.delete_or(|doc, at| at..doc.next_char_boundary(at), cx)
@@ -51,6 +52,18 @@ const HANDLERS: [(&str, Handler); 25] = [
     ("edit.newline", |view, _, cx| view.newline(cx)),
     ("edit.indent", |view, _, cx| view.run_edit(indent, cx)),
     ("edit.outdent", |view, _, cx| view.run_edit(outdent, cx)),
+    ("edit.move-line-up", |view, _, cx| {
+        view.run_edit(move_lines_up, cx)
+    }),
+    ("edit.move-line-down", |view, _, cx| {
+        view.run_edit(move_lines_down, cx)
+    }),
+    ("edit.duplicate-line", |view, _, cx| {
+        view.run_edit(duplicate_lines, cx)
+    }),
+    ("edit.toggle-task", |view, _, cx| {
+        view.run_edit(toggle_tasks, cx)
+    }),
     ("edit.undo", |view, _, cx| view.undo(cx)),
     ("edit.redo", |view, _, cx| view.redo(cx)),
     ("edit.copy", |view, _, cx| view.copy_selection_or_line(cx)),
@@ -104,6 +117,9 @@ fn find(id: &str) -> Option<Found> {
 impl EditorView {
     /// Runs a command by id. Returns false when the view doesn't know it.
     pub fn run_command(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if self.run_suggestion_key(id, cx) {
+            return true;
+        }
         match find(id) {
             Some(Found::Motion(motion, extend)) => self.apply_motion(motion, extend, window, cx),
             Some(Found::Format(format)) => {
@@ -111,6 +127,21 @@ impl EditorView {
             }
             Some(Found::Handler(handler)) => handler(self, window, cx),
             None => return false,
+        }
+        true
+    }
+
+    /// While suggestions show, Up and Down move through them and Enter or
+    /// Tab accept one, whatever keys those commands are bound to.
+    fn run_suggestion_key(&mut self, id: &str, cx: &mut Context<Self>) -> bool {
+        if self.suggestions().is_none() {
+            return false;
+        }
+        match id {
+            "cursor.up" => self.move_suggestion(-1, cx),
+            "cursor.down" => self.move_suggestion(1, cx),
+            "edit.newline" | "edit.indent" => return self.accept_suggestion(cx),
+            _ => return false,
         }
         true
     }
