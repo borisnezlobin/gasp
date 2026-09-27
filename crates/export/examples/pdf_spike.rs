@@ -12,7 +12,8 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use editor_export::pdf::{
-    PdfOptions, compile_note, evict_memory, fonts_for, load_fonts, typst_source, warm_up, write_pdf,
+    CompiledNote, PdfOptions, TypstNote, compile_note, evict_memory, fonts_for, load_fonts,
+    typst_source, warm_up, write_pdf,
 };
 
 #[derive(Default)]
@@ -157,6 +158,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         millis(median(layout_times)),
         millis(median(pdf_times))
     );
+    report_and_write(&args, &note, &compiled, &pdf)
+}
+
+/// Prints what the export made and writes the PDF, plus the Typst source
+/// and page images when asked for.
+fn report_and_write(
+    args: &Args,
+    note: &TypstNote,
+    compiled: &CompiledNote,
+    pdf: &[u8],
+) -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "{} pages, {} bytes, {} equations ({} not converted, {} failed to typeset), {} images",
         compiled.document.pages().len(),
@@ -169,7 +181,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for site in &compiled.replaced_math {
         println!("  equation shown as source: {}", site.latex);
     }
-    std::fs::write(&args.out, &pdf)?;
+    std::fs::write(&args.out, pdf)?;
     if let Some(path) = &args.typ {
         std::fs::write(path, note.source())?;
     }
