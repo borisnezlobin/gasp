@@ -217,6 +217,15 @@ impl EditorView {
             .collect()
     }
 
+    /// Whether there is an edit to undo.
+    pub fn can_undo(&self) -> bool {
+        self.state.history().can_undo()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        self.state.history().can_redo()
+    }
+
     pub fn cursor(&self) -> usize {
         self.state.selection().primary().head
     }
