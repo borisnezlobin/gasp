@@ -544,7 +544,7 @@ impl VaultSearch {
                     .flex()
                     .flex_none()
                     .max_w(gpui::relative(0.7))
-                    .child(truncated(name).grow()),
+                    .child(truncated(name)),
             )
             .child(
                 div()
@@ -555,13 +555,16 @@ impl VaultSearch {
                     .text_color(self.surface.detail_text)
                     .child(truncated(folder).grow()),
             )
-            .child(
-                div()
-                    .flex_none()
-                    .text_size(ui.small_font_size)
-                    .text_color(self.surface.detail_text)
-                    .child(note.match_count.to_string()),
-            )
+            // A note found only by its name has no count to show.
+            .when(note.match_count > 0, |row| {
+                row.child(
+                    div()
+                        .flex_none()
+                        .text_size(ui.small_font_size)
+                        .text_color(self.surface.detail_text)
+                        .child(note.match_count.to_string()),
+                )
+            })
     }
 
     /// One matching line, indented under its note's name, with the matches
