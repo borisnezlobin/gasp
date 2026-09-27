@@ -104,10 +104,16 @@ pub struct PdfFile {
 }
 
 /// The note's PDF, with the default export settings and the installed
-/// fonts they name.
-pub fn pdf_file(text: &str, note_path: Option<&Path>) -> anyhow::Result<PdfFile> {
+/// fonts they name. Images are looked for beside the note, then from
+/// `vault_root`, as Obsidian finds them.
+pub fn pdf_file(
+    text: &str,
+    note_path: Option<&Path>,
+    vault_root: Option<&Path>,
+) -> anyhow::Result<PdfFile> {
     let options = PdfOptions::default();
-    let exported = export_pdf(text, note_path, None, &options, &fonts_for(&options));
+    let fonts = fonts_for(&options);
+    let exported = export_pdf(text, note_path, vault_root, &options, &fonts);
     evict_memory(TYPST_CACHE_EXPORTS);
     let exported = exported?;
     Ok(PdfFile {
@@ -127,8 +133,12 @@ fn couldnt_write(path: &Path) -> String {
 }
 
 /// The note's PDF bytes.
-pub fn pdf_bytes(text: &str, note_path: Option<&Path>) -> anyhow::Result<Vec<u8>> {
-    Ok(pdf_file(text, note_path)?.bytes)
+pub fn pdf_bytes(
+    text: &str,
+    note_path: Option<&Path>,
+    vault_root: Option<&Path>,
+) -> anyhow::Result<Vec<u8>> {
+    Ok(pdf_file(text, note_path, vault_root)?.bytes)
 }
 
 /// Exports the note and writes the PDF to `destination`; returns its page
@@ -136,16 +146,18 @@ pub fn pdf_bytes(text: &str, note_path: Option<&Path>) -> anyhow::Result<Vec<u8>
 pub fn write_pdf(
     text: &str,
     note_path: Option<&Path>,
+    vault_root: Option<&Path>,
     destination: &Path,
 ) -> anyhow::Result<usize> {
-    let file = pdf_file(text, note_path)?;
+    let file = pdf_file(text, note_path, vault_root)?;
     std::fs::write(destination, file.bytes).with_context(|| couldnt_write(destination))?;
     Ok(file.pages)
 }
 
-/// The note as an article for the website.
-pub fn html_article(text: &str, note_path: Option<&Path>) -> HtmlExport {
-    export_html(text, note_path, None, &HtmlOptions::default())
+/// The note as an article for the website, its images found as the
+/// PDF's are.
+pub fn html_article(text: &str, note_path: Option<&Path>, vault_root: Option<&Path>) -> HtmlExport {
+    export_html(text, note_path, vault_root, &HtmlOptions::default())
 }
 
 /// Gets Typst ready in the background the first time the dialog opens, so
@@ -219,6 +231,7 @@ fn save_with<T: Send + 'static>(
 pub fn save_pdf(
     text: String,
     note_path: Option<PathBuf>,
+    vault_root: Option<PathBuf>,
     cx: &mut App,
 ) -> Task<anyhow::Result<Option<(PathBuf, usize)>>> {
     let folder = save_folder(note_path.as_deref());
@@ -226,7 +239,14 @@ pub fn save_pdf(
     save_with(
         &folder,
         &name,
-        move |destination| write_pdf(&text, note_path.as_deref(), destination),
+        move |destination| {
+            write_pdf(
+                &text,
+                note_path.as_deref(),
+                vault_root.as_deref(),
+                destination,
+            )
+        },
         cx,
     )
 }
@@ -236,11 +256,17 @@ pub fn save_pdf(
 pub fn print(
     text: String,
     note_path: Option<PathBuf>,
+    vault_root: Option<PathBuf>,
     cx: &mut App,
 ) -> Task<anyhow::Result<PathBuf>> {
     let destination = print_path(note_path.as_deref());
     let writing = cx.background_spawn(async move {
-        write_pdf(&text, note_path.as_deref(), &destination)?;
+        write_pdf(
+            &text,
+            note_path.as_deref(),
+            vault_root.as_deref(),
+            &destination,
+        )?;
         anyhow::Ok(destination)
     });
     cx.spawn(async move |cx| {
@@ -388,6 +414,8 @@ impl ExportState {
 pub struct ExportDialog {
     text: String,
     note_path: Option<PathBuf>,
+    /// Where images are looked for when they aren't beside the note.
+    vault_root: Option<PathBuf>,
     selected: usize,
     state: ExportState,
     focus_handle: FocusHandle,
@@ -409,12 +437,19 @@ impl ExportDialog {
         Self {
             text,
             note_path,
+            vault_root: None,
             selected: 0,
             state: ExportState::Choosing,
             focus_handle: cx.focus_handle(),
             theme: crate::ui::ui_theme(cx),
             export_task: None,
         }
+    }
+
+    /// Finds images from the vault's root too, as the note's links do.
+    pub fn with_vault_root(mut self, vault_root: impl Into<PathBuf>) -> Self {
+        self.vault_root = Some(vault_root.into());
+        self
     }
 
     pub fn selected_format(&self) -> ExportFormat {
@@ -460,7 +495,12 @@ impl ExportDialog {
     }
 
     fn export_pdf(&mut self, cx: &mut Context<Self>) {
-        let saving = save_pdf(self.text.clone(), self.note_path.clone(), cx);
+        let saving = save_pdf(
+            self.text.clone(),
+            self.note_path.clone(),
+            self.vault_root.clone(),
+            cx,
+        );
         self.export_task = Some(cx.spawn(async move |this, cx| {
             let result = saving.await.map(|saved| {
                 saved.map(|(path, pages)| Saved {
@@ -479,9 +519,10 @@ impl ExportDialog {
 
     fn export_html(&mut self, cx: &mut Context<Self>) {
         let text = self.text.clone();
-        let note_path = self.note_path.clone();
-        let exporting =
-            cx.background_spawn(async move { html_article(&text, note_path.as_deref()) });
+        let (note_path, vault_root) = (self.note_path.clone(), self.vault_root.clone());
+        let exporting = cx.background_spawn(async move {
+            html_article(&text, note_path.as_deref(), vault_root.as_deref())
+        });
         self.export_task = Some(cx.spawn(async move |this, cx| {
             let export = exporting.await;
             this.update(cx, |dialog, cx| {

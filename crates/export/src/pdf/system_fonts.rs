@@ -3,8 +3,11 @@
 //! The default body font, Iowan Old Style, and Courier New ship with macOS
 //! but can't be embedded in the app, so they are read from the system font
 //! folders. Parsing every installed font would take longer than the export
-//! itself, so only files whose name starts with a wanted family are read,
-//! and each family is looked up once per process.
+//! itself, so only files whose name could be a wanted family's are read,
+//! and the family names inside them decide. File names are often short
+//! forms, such as Windows' `cour.ttf` and `courbd.ttf` for Courier New,
+//! so a file is a candidate when its name starts like the family's.
+//! Each family is looked up once per process.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -56,12 +59,26 @@ pub(crate) fn normalise(name: &str) -> String {
         .collect()
 }
 
+/// Letters a file name must share with a family's for its fonts to be
+/// read: enough to skip nearly every file, few enough for `cour.ttf`.
+const CANDIDATE_PREFIX: usize = 4;
+
+/// Whether a font file named `stem` could hold the family `key` (both
+/// normalised): its name starts like the family's.
+fn is_candidate(stem: &str, key: &str) -> bool {
+    let prefix = key
+        .char_indices()
+        .nth(CANDIDATE_PREFIX)
+        .map_or(key, |(at, _)| &key[..at]);
+    stem.starts_with(prefix)
+}
+
 fn load_family(key: &str) -> Vec<Font> {
     FONT_FILES
         .iter()
         .filter(|path| {
             path.file_stem()
-                .is_some_and(|stem| normalise(&stem.to_string_lossy()).starts_with(key))
+                .is_some_and(|stem| is_candidate(&normalise(&stem.to_string_lossy()), key))
         })
         .filter_map(|path| std::fs::read(path).ok())
         .flat_map(|data| Font::iter(Bytes::new(data)))
@@ -134,6 +151,17 @@ mod tests {
     fn normalises_family_names() {
         assert_eq!(normalise("Iowan Old Style"), "iowanoldstyle");
         assert_eq!(normalise("IowanOldStyle-Bold"), "iowanoldstylebold");
+    }
+
+    #[test]
+    fn short_file_names_are_candidates_for_their_family() {
+        let courier = normalise("Courier New");
+        for stem in ["cour", "courbd", "couri", "courbi", "CourierNew-Bold"] {
+            assert!(is_candidate(&normalise(stem), &courier), "{stem}");
+        }
+        assert!(!is_candidate("arial", &courier));
+        assert!(is_candidate("times", &normalise("Times New Roman")));
+        assert!(is_candidate("pt", "pt"), "short families match whole");
     }
 
     #[test]
