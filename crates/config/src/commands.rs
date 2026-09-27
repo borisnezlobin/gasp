@@ -204,6 +204,7 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("app.print", "Print", "App"),
     spec("app.export", "Export", "App"),
     spec("sync.now", "Sync now", "App"),
+    spec("sync.resolve-conflicts", "Resolve sync conflicts", "App"),
     spec("settings.open", "Open settings", "App"),
     spec("vault.open", "Open another vault", "App"),
     spec("pane.split-right", "Split right", "Tabs and panels"),

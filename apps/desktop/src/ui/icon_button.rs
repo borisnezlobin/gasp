@@ -1,6 +1,6 @@
 //! A square button with one Phosphor icon, a hover fill, a pressed fill,
-//! an "on" state and a disabled state, and a tooltip naming what it does
-//! and its shortcut.
+//! an "on" state, a toggle state and a disabled state, and a tooltip
+//! naming what it does and its shortcut.
 
 use std::rc::Rc;
 
@@ -12,6 +12,7 @@ use super::tooltip::Tooltip;
 use super::ui_theme;
 use crate::icons::{IconName, icon};
 use crate::keymap::RunCommand;
+use crate::picker::shortcut::Shortcut;
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
@@ -24,6 +25,7 @@ pub struct IconButton {
     tooltip: Option<Tooltip>,
     command: Option<SharedString>,
     active: bool,
+    toggled: bool,
     disabled: bool,
     small: bool,
     on_click: Option<ClickHandler>,
@@ -39,6 +41,7 @@ impl IconButton {
             tooltip: None,
             command: None,
             active: false,
+            toggled: false,
             disabled: false,
             small: false,
             on_click: None,
@@ -51,6 +54,16 @@ impl IconButton {
     pub fn command(mut self, id: &str, cx: &App) -> IconButton {
         self.tooltip = Some(Tooltip::for_command(id, cx));
         self.command = Some(id.to_owned().into());
+        self
+    }
+
+    /// A tooltip for a button that runs no command but has a key.
+    pub fn tooltip_with_shortcut(
+        mut self,
+        label: impl Into<SharedString>,
+        shortcut: Option<Shortcut>,
+    ) -> IconButton {
+        self.tooltip = Some(Tooltip::new(label, shortcut));
         self
     }
 
@@ -69,6 +82,14 @@ impl IconButton {
     /// Shown as on, such as the sidebar view that's showing.
     pub fn active(mut self, active: bool) -> IconButton {
         self.active = active;
+        self
+    }
+
+    /// A toggle that's on, such as "Match case": the "on" fill with a
+    /// hairline ring, so it reads as pressed in, not just hovered.
+    pub fn toggled(mut self, toggled: bool) -> IconButton {
+        self.active |= toggled;
+        self.toggled = toggled;
         self
     }
 
@@ -144,6 +165,16 @@ impl RenderOnce for IconButton {
             .size(size)
             .rounded(theme.icon_button_radius)
             .when(self.active, |button| button.bg(theme.control_active))
+            // The ring is a shadow and shows through a see-through fill,
+            // so a toggle that's on takes the same fill made opaque.
+            .when(self.toggled, |button| {
+                button
+                    .bg(crate::theme::over(
+                        theme.control_active,
+                        theme.menu_background,
+                    ))
+                    .shadow(vec![theme.ring(theme.menu_ring)])
+            })
             .when(!self.disabled, |button| {
                 button
                     .hover(|style| style.bg(theme.control_hover))

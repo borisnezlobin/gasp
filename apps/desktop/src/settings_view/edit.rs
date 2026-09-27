@@ -214,6 +214,7 @@ impl SettingsView {
         for (field, text) in values {
             field.update(cx, |field, cx| field.set_text(&text, cx));
         }
+        self.sync_remote_field(cx);
         let accent = self.token(ACCENT_TOKEN).unwrap_or_default();
         self.hex_field.update(cx, |field, cx| {
             field.set_text(&accent, cx);
@@ -248,6 +249,14 @@ impl SettingsView {
             return;
         };
         let text = field.read(cx).text().trim().to_string();
+        if key == super::sync_page::REMOTE_FIELD {
+            self.commit_remote(&text, cx);
+            return;
+        }
+        if let Some(list_key) = key.strip_suffix('+').filter(|k| self.is_list(k)) {
+            self.add_list_entry(list_key, &text, cx);
+            return;
+        }
         if let Some(map_key) = key.strip_suffix('+') {
             self.add_map_entry(map_key, &text, cx);
             return;

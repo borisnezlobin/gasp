@@ -93,6 +93,31 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Font size",
         "The size of body text in points. Headings scale with it.",
     ),
+    (
+        "sync.auto",
+        "Sync automatically",
+        "Sync a minute after you stop typing, when you come back to the window, and every few minutes. When it's off, sync runs only when you ask.",
+    ),
+    (
+        "sync.interval-minutes",
+        "Minutes between checks",
+        "How often sync looks for changes made on other devices while nothing else is happening.",
+    ),
+    (
+        "sync.branch",
+        "Branch",
+        "The branch this device commits to and sends.",
+    ),
+    (
+        "sync.legacy-branch",
+        "Also bring in",
+        "A branch older sync tools still use. Its changes come into the branch above, one way. Leave it empty once they're retired.",
+    ),
+    (
+        "sync.device-only",
+        "Files that stay on each device",
+        "Patterns for files that never sync, such as window layouts. Add one and press Enter.",
+    ),
 ];
 
 /// How each option of a choice reads. Values are unique across settings.
@@ -132,12 +157,16 @@ pub fn required_switch(key: &str) -> Option<&'static str> {
 }
 
 /// The smallest value a number setting takes, when it isn't zero.
-const MINIMUMS: &[(&str, i64)] = &[("appearance.base-font-size", 6)];
+const MINIMUMS: &[(&str, i64)] = &[
+    ("appearance.base-font-size", 6),
+    ("sync.interval-minutes", 1),
+];
 
 /// One page of the settings screen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Page {
     General,
+    Sync,
     Appearance,
     Sidebar,
     Shortcuts,
@@ -198,6 +227,10 @@ pub enum RowSpec {
     /// The vault's folder, with a button to open another.
     Vault,
     Version,
+    /// The address of the repository the vault syncs with.
+    SyncRemote,
+    /// Signing in to it with a token.
+    SyncAccount,
 }
 
 const fn setting(key: &'static str) -> RowSpec {
@@ -226,6 +259,19 @@ pub const PAGES: &[PageSpec] = &[
         icon: IconName::SlidersHorizontal,
         group: "App",
         cards: &[&[RowSpec::Vault, RowSpec::Version]],
+    },
+    PageSpec {
+        page: Page::Sync,
+        id: SYNC_SECTION,
+        title: "Sync",
+        icon: IconName::CloudCheck,
+        group: "App",
+        cards: &[
+            &[RowSpec::SyncRemote, RowSpec::SyncAccount],
+            &[setting("sync.auto"), setting("sync.interval-minutes")],
+            &[setting("sync.branch"), setting("sync.legacy-branch")],
+            &[setting("sync.device-only")],
+        ],
     },
     PageSpec {
         page: Page::Appearance,
@@ -317,6 +363,9 @@ pub const PAGES: &[PageSpec] = &[
     },
 ];
 
+/// The id of the Sync page.
+pub const SYNC_SECTION: &str = "sync";
+
 /// The id of the page listing every command's keys.
 pub const SHORTCUTS_SECTION: &str = "keyboard-shortcuts";
 
@@ -337,6 +386,7 @@ fn fallback_page(key: &str) -> Page {
         "files" => Page::Files,
         "sidebar" => Page::Sidebar,
         "prose" => Page::Prose,
+        "sync" => Page::Sync,
         _ => Page::General,
     }
 }

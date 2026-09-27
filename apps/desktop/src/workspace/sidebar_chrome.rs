@@ -1,5 +1,5 @@
 //! The file sidebar's chrome around whatever the left panel hosts: a
-//! header with the view buttons and the sidebar button, the file tree's
+//! header with the search button and the sidebar button, the file tree's
 //! tools (new note, new folder, sort order, collapse all), and a footer
 //! with the vault switcher, help and settings.
 
@@ -57,9 +57,8 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let ui = ui_theme(cx);
-        let files = self
-            .command_button("sidebar-files", IconName::Folder, "file-tree.focus", cx)
-            .map(|button| button.label("Files").active(true));
+        // The file tree is the sidebar's only view, so there's no button
+        // for it that looks like a selected tab; Mod+Shift+E focuses it.
         let search = self.command_button(
             "sidebar-search",
             IconName::MagnifyingGlass,
@@ -79,7 +78,6 @@ impl Workspace {
             .flex_row()
             .items_center()
             .gap(ui.space_xs)
-            .children(files)
             .children(search);
         div()
             .flex()
@@ -167,7 +165,7 @@ impl Workspace {
                     .size(ui.small_icon_size)
                     .text_color(ui.icon),
             )
-            .child(div().min_w_0().truncate().child(name))
+            .child(crate::ui::truncated(name))
             .children(vault_menu);
         let help = IconButton::new("sidebar-help", IconName::Question)
             .tooltip("Keyboard shortcuts")

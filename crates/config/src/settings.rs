@@ -18,6 +18,7 @@ pub struct Settings {
     pub files: FileSettings,
     pub editor: EditorSettings,
     pub appearance: AppearanceSettings,
+    pub sync: SyncSettings,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -231,6 +232,45 @@ pub struct AppearanceSettings {
 impl Default for AppearanceSettings {
     fn default() -> Self {
         AppearanceSettings { base_font_size: 12 }
+    }
+}
+
+/// Files that stay on the device where they're written, as globs relative
+/// to the vault root.
+pub const DEFAULT_DEVICE_ONLY: &[&str] = &[
+    ".editor/device.toml",
+    ".obsidian/workspace*.json",
+    "**/.DS_Store",
+    ".trash/**",
+];
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct SyncSettings {
+    /// Whether the vault syncs on its own after edits and every few minutes.
+    pub auto: bool,
+    /// Minutes between checks for changes from other devices.
+    pub interval_minutes: u32,
+    /// The branch this app commits to and pushes.
+    pub branch: String,
+    /// A branch older sync tools push to, merged in one way. Empty turns it off.
+    pub legacy_branch: String,
+    /// Files that never sync, as globs relative to the vault.
+    pub device_only: Vec<String>,
+}
+
+impl Default for SyncSettings {
+    fn default() -> Self {
+        SyncSettings {
+            auto: true,
+            interval_minutes: 5,
+            branch: "master".to_string(),
+            legacy_branch: "main".to_string(),
+            device_only: DEFAULT_DEVICE_ONLY
+                .iter()
+                .map(|glob| glob.to_string())
+                .collect(),
+        }
     }
 }
 
