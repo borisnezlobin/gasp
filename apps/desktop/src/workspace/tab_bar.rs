@@ -8,7 +8,7 @@ use gpui::{
 
 use super::pane::{Pane, PaneEvent, PaneMenu, Tab, TabState};
 use crate::icons::{IconName, icon};
-use crate::theme::UiTheme;
+use crate::theme::{UiTheme, over};
 use crate::ui::{IconButton, MenuAnchor, Tooltip, ui_theme};
 
 /// The tab-list button, which its menu hangs under.
@@ -239,7 +239,9 @@ impl Pane {
 
     /// The close button over the unsaved dot. The active tab always shows
     /// its close button; other tabs show it on hover. An unsaved note
-    /// shows its dot until hovered.
+    /// shows its dot until hovered. A saved background tab keeps no room
+    /// for the button: it floats over the end of the title on hover, on
+    /// the tab's hover colour, so the title gets the whole tab.
     fn render_tab_end(
         &self,
         index: usize,
@@ -251,10 +253,31 @@ impl Pane {
     ) -> impl IntoElement {
         let slot = ui.small_icon_size + ui.space_md;
         let hide_until_hover = !active || dirty;
+        let floating = !active && !dirty;
+        // Opaque when floating, so the title's end doesn't show through.
+        let tab_fill = over(ui.control_hover, ui.app_background);
+        let [rest, hovered, pressed] = if floating {
+            [
+                tab_fill,
+                over(ui.control_hover, tab_fill),
+                over(ui.control_pressed, tab_fill),
+            ]
+        } else {
+            [
+                ui.control_hover.opacity(0.),
+                ui.control_hover,
+                ui.control_pressed,
+            ]
+        };
         div()
             .relative()
             .flex_none()
             .size(slot)
+            .when(floating, |end| {
+                end.absolute()
+                    .top((ui.tab_height - slot) / 2.)
+                    .right(ui.space_sm)
+            })
             .when(dirty, |end| {
                 end.child(
                     div()
@@ -280,10 +303,10 @@ impl Pane {
                     .when(hide_until_hover, |close| {
                         close
                             .invisible()
-                            .group_hover(group, |style| style.visible())
+                            .group_hover(group, move |style| style.visible().bg(rest))
                     })
-                    .hover(|style| style.bg(ui.control_hover))
-                    .active(|style| style.bg(ui.control_pressed))
+                    .hover(move |style| style.bg(hovered))
+                    .active(move |style| style.bg(pressed))
                     .tooltip(Tooltip::for_command("tab.close", cx).builder())
                     .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                     .on_click(cx.listener(move |_, _, _, cx| cx.emit(PaneEvent::CloseTab(index))))
