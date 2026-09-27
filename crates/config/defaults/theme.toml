@@ -75,6 +75,14 @@ drop-indicator = "{color.text}"
 # A find or search match; the current one takes the highlight colour.
 search-match = "rgba(250, 219, 56, 0.45)"
 active-search-match = "{color.highlight}"
+# The wavy underlines the grammar checker draws: a misspelling, then a
+# spacing, repeated-word or article problem.
+flag-spelling   = "#d1162d"
+flag-mechanical = "#0868d3"
+# Comparing a note with an earlier version: lines that restoring it brings
+# back, and lines it removes.
+diff-added   = "rgba(5, 126, 53, 0.12)"
+diff-removed = "rgba(209, 22, 45, 0.1)"
 # A switch's knob.
 knob        = "{color.background}"
 # Grouped rows on the settings screen and the conflict resolver.
@@ -95,6 +103,7 @@ keyword  = "#7a4390"
 function = "#2f5f93"
 type     = "#26707a"
 
+# Tints behind sentences by length, for sentence-length highlighting.
 [color.sentence]
 short  = "#e3f2fd"
 medium = "#fff3e0"
@@ -178,6 +187,10 @@ card        = "#1f1e1b"
 code-highlight = "rgba(255, 255, 255, 0.06)"
 search-match = "rgba(234, 179, 8, 0.2)"
 active-search-match = "#6b5a17"
+flag-spelling   = "#f1707d"
+flag-mechanical = "#5ea4f2"
+diff-added   = "rgba(82, 200, 126, 0.16)"
+diff-removed = "rgba(241, 112, 125, 0.14)"
 this-device  = "#5ea4f2"
 other-device = "#a88ef8"
 

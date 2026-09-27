@@ -95,6 +95,12 @@ pub fn launch_bench(note: LoadedNote, bench: BenchConfig) {
             window.set_window_title(BENCH_WINDOW_TITLE);
             window.focus(&view.focus_handle);
             view.set_log_timings(false);
+            if !bench.prose {
+                let mut prose = editor_config::settings::ProseSettings::default();
+                prose.sentence_length.enabled = false;
+                prose.grammar.enabled = false;
+                view.apply_prose_settings(&prose, cx);
+            }
             view.start_bench(bench, window, cx);
             cx.activate(true);
         });

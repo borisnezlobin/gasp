@@ -14,6 +14,8 @@ pub enum HoverTarget {
     Footnote { label: String },
     /// An underlined footnote problem, such as an unused definition.
     Problem { message: String },
+    /// A word or phrase the grammar checker underlined.
+    Flag,
 }
 
 /// URL schemes that never point at a note.

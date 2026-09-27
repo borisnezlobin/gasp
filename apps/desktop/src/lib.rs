@@ -36,6 +36,8 @@ pub mod palette;
 pub mod paste;
 pub mod picker;
 pub mod preview;
+pub mod prose;
+pub mod recovery;
 pub mod settings_view;
 pub mod stats;
 pub mod styling;

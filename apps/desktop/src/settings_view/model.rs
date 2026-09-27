@@ -59,6 +59,31 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Sentences with more words than this count as long.",
     ),
     (
+        "prose.grammar.enabled",
+        "Check writing",
+        "Underline doubled words, stray spaces and a or an mix-ups as you write. Code, math, links, HTML and quotes are left alone.",
+    ),
+    (
+        "prose.grammar.spelling",
+        "Check spelling",
+        "Underline misspelled words too. A word you've used in three or more notes is never flagged.",
+    ),
+    (
+        "prose.grammar.english",
+        "Spelling",
+        "Which English the dictionary follows, such as colour or color.",
+    ),
+    (
+        "recovery.interval-minutes",
+        "Minutes between snapshots",
+        "While you edit a note, a copy is saved this often, outside the vault, so an earlier version can be recovered.",
+    ),
+    (
+        "recovery.keep-days",
+        "Keep snapshots for",
+        "Days a snapshot is kept before it's deleted.",
+    ),
+    (
         "files.attachments-folder",
         "Attachments folder",
         "Where pasted and dropped images are saved, relative to the note.",
@@ -189,17 +214,33 @@ const CHOICE_LABELS: &[(&str, &str)] = &[
     ("light", "Light"),
     ("dark", "Dark"),
     ("match-system", "Match system"),
+    ("american", "American"),
+    ("british", "British"),
+    ("canadian", "Canadian"),
+    ("australian", "Australian"),
 ];
 
 /// Settings the desktop app doesn't read yet, by key prefix. Showing them
 /// would be controls that do nothing, so they stay hidden until their
 /// feature lands.
-const UNWIRED: &[&str] = &["prose."];
+const UNWIRED: &[&str] = &[];
 
 /// Settings that only apply while another (a switch) is on, as
 /// (setting, the switch it needs). Their rows fade and stop taking input
 /// while the switch is off.
-const REQUIRES: &[(&str, &str)] = &[("editor.curl-pasted-quotes", "editor.smart-quotes")];
+const REQUIRES: &[(&str, &str)] = &[
+    ("editor.curl-pasted-quotes", "editor.smart-quotes"),
+    (
+        "prose.sentence-length.short-below",
+        "prose.sentence-length.enabled",
+    ),
+    (
+        "prose.sentence-length.long-above",
+        "prose.sentence-length.enabled",
+    ),
+    ("prose.grammar.spelling", "prose.grammar.enabled"),
+    ("prose.grammar.english", "prose.grammar.spelling"),
+];
 
 /// The switch `key` needs on to apply, if any.
 pub fn required_switch(key: &str) -> Option<&'static str> {
@@ -213,6 +254,10 @@ pub fn required_switch(key: &str) -> Option<&'static str> {
 const MINIMUMS: &[(&str, i64)] = &[
     ("appearance.base-font-size", 6),
     ("sync.interval-minutes", 1),
+    ("recovery.interval-minutes", 1),
+    ("recovery.keep-days", 1),
+    ("prose.sentence-length.short-below", 1),
+    ("prose.sentence-length.long-above", 1),
 ];
 
 /// One page of the settings screen.
@@ -406,6 +451,10 @@ pub const PAGES: &[PageSpec] = &[
                 setting("files.update-links-on-rename"),
             ],
             &[setting("files.trash")],
+            &[
+                setting("recovery.interval-minutes"),
+                setting("recovery.keep-days"),
+            ],
         ],
     },
     PageSpec {
@@ -433,11 +482,18 @@ pub const PAGES: &[PageSpec] = &[
         title: "Prose",
         icon: IconName::Article,
         group: "Writing",
-        cards: &[&[
-            setting("prose.sentence-length.enabled"),
-            setting("prose.sentence-length.short-below"),
-            setting("prose.sentence-length.long-above"),
-        ]],
+        cards: &[
+            &[
+                setting("prose.sentence-length.enabled"),
+                setting("prose.sentence-length.short-below"),
+                setting("prose.sentence-length.long-above"),
+            ],
+            &[
+                setting("prose.grammar.enabled"),
+                setting("prose.grammar.spelling"),
+                setting("prose.grammar.english"),
+            ],
+        ],
     },
 ];
 
@@ -464,7 +520,7 @@ fn fallback_page(key: &str) -> Page {
     match key.split('.').next().unwrap_or_default() {
         "appearance" => Page::Appearance,
         "editor" | "markdown" => Page::Editor,
-        "files" => Page::Files,
+        "files" | "recovery" => Page::Files,
         "sidebar" => Page::Sidebar,
         "prose" => Page::Prose,
         "daily-notes" | "templates" => Page::DailyNotes,
@@ -1048,10 +1104,16 @@ mod tests {
     }
 
     #[test]
-    fn unwired_settings_are_hidden() {
+    fn prose_and_recovery_settings_show() {
         let keys: Vec<String> = setting_items().into_iter().map(|item| item.key).collect();
-        assert!(!keys.iter().any(|key| key.starts_with("prose.")));
-        assert!(keys.contains(&"files.trash".to_string()));
+        for key in [
+            "prose.sentence-length.enabled",
+            "prose.grammar.enabled",
+            "recovery.keep-days",
+            "files.trash",
+        ] {
+            assert!(keys.contains(&key.to_string()), "{key}");
+        }
     }
 
     #[test]

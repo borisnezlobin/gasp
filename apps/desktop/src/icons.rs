@@ -39,6 +39,7 @@ pub enum IconName {
     Clipboard,
     ClipboardText,
     Clock,
+    ClockCounterClockwise,
     CloudArrowUp,
     CloudCheck,
     CloudSlash,
@@ -115,7 +116,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 104] = [
+const ICONS: [(IconName, &str, &[u8]); 105] = [
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -265,6 +266,11 @@ const ICONS: [(IconName, &str, &[u8]); 104] = [
         IconName::Clock,
         "clock",
         include_bytes!("../assets/icons/clock.svg"),
+    ),
+    (
+        IconName::ClockCounterClockwise,
+        "clock-counter-clockwise",
+        include_bytes!("../assets/icons/clock-counter-clockwise.svg"),
     ),
     (
         IconName::CloudArrowUp,

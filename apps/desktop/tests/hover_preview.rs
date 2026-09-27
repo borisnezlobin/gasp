@@ -77,6 +77,7 @@ fn shown(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> Option<String
             PreviewContent::Missing { link } => format!("missing {}", link.name()),
             PreviewContent::Footnote { view } => format!("footnote {}", view.read(cx).text()),
             PreviewContent::Message(message) => message.clone(),
+            PreviewContent::Flag(flag) => format!("flag {}", flag.message),
         })
     })
 }

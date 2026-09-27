@@ -282,7 +282,8 @@ fn every_section_is_listed_in_order(cx: &mut TestAppContext) {
             "Keyboard shortcuts",
             "Editor",
             "Files and links",
-            "Daily notes and templates"
+            "Daily notes and templates",
+            "Prose"
         ]
     );
     go_to_section(&view, "Keyboard shortcuts", cx);

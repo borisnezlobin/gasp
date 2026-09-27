@@ -288,6 +288,11 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("template.insert", "Insert template", "Editing"),
     spec("note.rename", "Rename note", "Notes and navigation"),
     spec("note.delete", "Move note to trash", "Notes and navigation"),
+    spec(
+        "note.recover",
+        "Recover a previous version",
+        "Notes and navigation",
+    ),
     spec("note.import-image", "Insert image from file", "Editing"),
     spec("edit.paste-plain", "Paste as plain text", "Editing"),
     spec("code.copy-block", "Copy code block", "Editing"),

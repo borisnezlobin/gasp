@@ -49,6 +49,8 @@ pub enum PreviewContent {
     Footnote { view: Entity<EditorView> },
     /// Something to say instead, such as a footnote with no definition.
     Message(String),
+    /// What the grammar checker found, with its fixes.
+    Flag(editor_prose::Flag),
 }
 
 /// An open popover and the link it belongs to.
@@ -106,13 +108,18 @@ impl EditorView {
             Hit::Text => frame.offset_at(position)?,
             _ => placed.visual.start + piece.range.start,
         };
-        hover_target_at(self.source.tree(), offset).or_else(|| {
-            let problem = self.footnote_problem_at(offset)?;
-            let target = HoverTarget::Problem {
-                message: problem.message.clone(),
-            };
-            Some((target, problem.range.clone()))
-        })
+        hover_target_at(self.source.tree(), offset)
+            .or_else(|| {
+                let problem = self.footnote_problem_at(offset)?;
+                let target = HoverTarget::Problem {
+                    message: problem.message.clone(),
+                };
+                Some((target, problem.range.clone()))
+            })
+            .or_else(|| {
+                let flag = self.flag_at(offset)?;
+                Some((HoverTarget::Flag, flag.range.clone()))
+            })
     }
 
     /// The pointer moved in the text. `now` opens a preview without the
@@ -210,6 +217,10 @@ impl EditorView {
         let content = match &target {
             HoverTarget::Footnote { label } => self.footnote_preview(label, cx),
             HoverTarget::Problem { message } => PreviewContent::Message(message.clone()),
+            HoverTarget::Flag => match self.flag_at(range.start) {
+                Some(flag) if flag.range == range => PreviewContent::Flag(flag.clone()),
+                _ => return,
+            },
             HoverTarget::Note { link } => match NoteLink::parse(link) {
                 Some(link) => self.note_preview(link, cx),
                 None => return,

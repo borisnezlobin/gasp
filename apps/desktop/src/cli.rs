@@ -6,7 +6,7 @@ use crate::bench::BenchConfig;
 
 pub const USAGE: &str = "\
 usage: editor [PATH]
-       editor --bench-layout PATH [--keystrokes N] [--scroll-pages N] [--in-code]
+       editor --bench-layout PATH [--keystrokes N] [--scroll-pages N] [--in-code] [--no-prose]
        editor --bench-index VAULT
 
 PATH is a folder of notes (a vault) or a note, which opens its vault
@@ -15,8 +15,9 @@ with that note showing. With no PATH, the last vault opens again.
 --bench-layout opens a lone editor on PATH (a note, or a folder whose
 notes are joined into one long note), types into the middle and scrolls
 through it, then prints frame timings and quits. --in-code types in the
-first code block after the middle instead. On Linux without a display,
-run it under xvfb-run.
+first code block after the middle instead. --no-prose turns sentence
+tints and grammar flags off, to measure what they cost. On Linux
+without a display, run it under xvfb-run.
 
 --bench-index builds VAULT's link index and prints how long that, a
 save, a backlinks list, an unlinked-mentions search and a rename take.";
@@ -53,6 +54,10 @@ fn parse_bench(args: &[String]) -> Result<Command, String> {
     if let Some(at) = rest.iter().position(|arg| arg == "--in-code") {
         rest.remove(at);
         config.in_code = true;
+    }
+    if let Some(at) = rest.iter().position(|arg| arg == "--no-prose") {
+        rest.remove(at);
+        config.prose = false;
     }
     for pair in rest.chunks(2) {
         let [flag, value] = pair else {
@@ -116,6 +121,12 @@ mod tests {
         };
         assert!(config.in_code);
         assert_eq!(config.keystrokes, 5);
+        assert!(config.prose);
+        let parsed = parse(&args(&["--bench-layout", "c", "--no-prose"]));
+        let Ok(Command::Bench { config, .. }) = parsed else {
+            panic!("expected a bench command");
+        };
+        assert!(!config.prose);
     }
 
     #[test]
