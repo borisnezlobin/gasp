@@ -140,6 +140,7 @@ impl Element for EditorElement {
                         view.start_math_renders(cx);
                         view.start_code_loads(cx);
                         view.start_remote_images(cx);
+                        view.find_vault_images(cx);
                     })
                     .ok();
                 });
@@ -147,6 +148,7 @@ impl Element for EditorElement {
                 view.start_math_renders(cx);
                 view.start_code_loads(cx);
                 view.start_remote_images(cx);
+                view.find_vault_images(cx);
             }
             drop(phase);
             let copy_button = view.copy_button_for(&frame, bounds).map(|button| {
@@ -698,7 +700,9 @@ fn paint_overlays(placed: &PlacedLine, text_left: Pixels, theme: &Theme, window:
         let width = overlay.width + padding * 2.;
         let height = overlay.height + padding * 2.;
         let x = text_left + row.x_for(overlay.anchor) - padding;
-        let y = placed.top + row.top - height - theme.space_xs;
+        // Flush with the row: a gap would show a sliver of the line above,
+        // such as the foot of its own rendered math, under the card.
+        let y = placed.top + row.top - height;
         let card = Bounds::new(point(x, y), size(width, height));
         paint_card(card, theme, window);
         let image_bounds = Bounds::new(
@@ -727,12 +731,16 @@ fn paint_card(bounds: Bounds<Pixels>, theme: &Theme, window: &mut Window) {
             spread_radius: px(0.),
         }],
     );
+    // The card covers part of the line above, so it takes the raised
+    // popover colour and a ring. On the page's own colour it had no visible
+    // edge, and whatever peeked out around it (that line's rendered math,
+    // say) read as part of the preview.
     window.paint_quad(quad(
         bounds,
         radius,
-        theme.background,
-        px(0.),
-        transparent_black(),
+        theme.popover,
+        px(1.),
+        theme.popover_ring,
         BorderStyle::default(),
     ));
 }

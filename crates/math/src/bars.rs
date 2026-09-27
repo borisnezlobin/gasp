@@ -14,7 +14,7 @@ const DELIMITER_COMMANDS: [&str; 19] = [
 ];
 
 /// Commands whose braced argument is text, copied verbatim.
-const TEXT_COMMANDS: [&str; 10] = [
+pub(crate) const TEXT_COMMANDS: [&str; 10] = [
     "text",
     "textrm",
     "textit",
@@ -91,7 +91,7 @@ fn copy_protected_argument<'a>(name: &str, after: &'a str, output: &mut String) 
 }
 
 /// Splits `\name` (letters, or one other character) off the front of `text`.
-fn split_command(text: &str) -> (&str, &str) {
+pub(crate) fn split_command(text: &str) -> (&str, &str) {
     let body = &text[1..];
     let letters = body
         .bytes()
