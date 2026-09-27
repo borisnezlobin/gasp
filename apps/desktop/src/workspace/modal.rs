@@ -1,6 +1,9 @@
 //! The modal slot: one dialog at a time, centred near the top of the
 //! window. It closes on the dialog's `DismissEvent`, on Escape or on a
 //! click outside, and gives focus back to where it was.
+//!
+//! The slot only places the dialog. Each dialog draws its own surface
+//! (`crate::ui::dialog`) at its own width, so the shadow always hugs it.
 
 use std::any::TypeId;
 
@@ -9,15 +12,13 @@ use gpui::{
     MouseButton, Subscription, Window, div, prelude::*,
 };
 
-use crate::theme::WorkspaceTheme;
+use crate::theme::UiTheme;
 
 struct ActiveModal {
     view: AnyView,
     type_id: TypeId,
     focus: FocusHandle,
     previous_focus: Option<FocusHandle>,
-    /// Draws at its own size instead of the standard modal width.
-    self_sized: bool,
     _dismiss: Subscription,
 }
 
@@ -67,7 +68,6 @@ impl ModalLayer {
             type_id: TypeId::of::<V>(),
             focus,
             previous_focus,
-            self_sized: false,
             _dismiss: dismiss,
         });
         cx.notify();
@@ -83,12 +83,9 @@ impl ModalLayer {
         modal.previous_focus
     }
 
-    /// Lets the open modal size itself, as the settings screen does.
-    pub fn set_self_sized(&mut self) {
-        if let Some(modal) = &mut self.active {
-            modal.self_sized = true;
-        }
-    }
+    /// Every modal sizes itself, so this does nothing. It stays for the
+    /// callers that ask for it.
+    pub fn set_self_sized(&mut self) {}
 
     /// Whether the modal holds keyboard focus.
     pub fn has_focus(&self, window: &Window, cx: &App) -> bool {
@@ -100,7 +97,7 @@ impl ModalLayer {
     /// Draws the modal over everything, with a backdrop that closes it.
     pub fn render<T: ModalHost>(
         &self,
-        theme: &WorkspaceTheme,
+        theme: &UiTheme,
         cx: &mut Context<T>,
     ) -> Option<impl IntoElement> {
         let modal = self.active.as_ref()?;
@@ -112,7 +109,8 @@ impl ModalLayer {
                 .flex()
                 .flex_col()
                 .items_center()
-                .pt(theme.modal_top_offset)
+                .px(theme.surface_gap)
+                .pt(theme.dialog_top_offset)
                 .bg(theme.backdrop)
                 .occlude()
                 .on_mouse_down(
@@ -128,15 +126,9 @@ impl ModalLayer {
                 .child(
                     div()
                         .id("modal")
-                        .when(!modal.self_sized, |modal| modal.w(theme.modal_width))
+                        .flex()
+                        .justify_center()
                         .max_w_full()
-                        .rounded(theme.radius_lg)
-                        .shadow(vec![gpui::BoxShadow {
-                            color: theme.shadow,
-                            offset: gpui::point(gpui::px(0.), theme.shadow_offset),
-                            blur_radius: theme.shadow_blur,
-                            spread_radius: gpui::px(0.),
-                        }])
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .child(modal.view.clone()),
                 ),

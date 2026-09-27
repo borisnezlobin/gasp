@@ -44,7 +44,11 @@ impl SettingsView {
     /// The key an error from the last write is kept under, for each row.
     fn error_key(row: &ControlRow) -> Option<String> {
         match row {
-            ControlRow::Setting(item) | ControlRow::MapAdd(item) => Some(item.key.clone()),
+            ControlRow::Setting(item) | ControlRow::MapAdd(item) | ControlRow::ListAdd(item) => {
+                Some(item.key.clone())
+            }
+            ControlRow::SyncRemote => Some(super::sync_page::REMOTE_FIELD.to_string()),
+            ControlRow::SyncAccount => Some(super::sync_page::TOKEN_KEY.to_string()),
             ControlRow::MapEntry { item, .. } => Some(item.key.clone()),
             ControlRow::Font(slot) => Some(theme_key(slot.token())),
             ControlRow::Accent => Some(theme_key(ACCENT_TOKEN)),
@@ -162,6 +166,12 @@ impl SettingsView {
             ControlRow::Vault => self.vault_control(focused, cx),
             ControlRow::Version => return None,
             ControlRow::Shortcut(shortcut) => self.shortcut_control(shortcut, focused, cx),
+            ControlRow::SyncRemote => return self.remote_control(row, focused),
+            ControlRow::SyncAccount => self.account_control(focused, cx),
+            ControlRow::ListAdd(item) => self.list_add_control(item, row, focused, cx),
+            ControlRow::ListEntry { list, value } => {
+                self.list_entry_control(list, value, focused, cx)
+            }
         };
         // An error hangs under the control rather than pushing rows down.
         let note = self
@@ -202,7 +212,7 @@ impl SettingsView {
             .into_any_element()
     }
 
-    fn reset_button(
+    pub(super) fn reset_button(
         &self,
         key: &str,
         cx: &mut Context<Self>,
@@ -376,7 +386,7 @@ impl SettingsView {
         stepper(id, minus, shown, plus, focused, style).into_any_element()
     }
 
-    fn field_control(&self, row: &ControlRow, focused: bool) -> AnyElement {
+    pub(super) fn field_control(&self, row: &ControlRow, focused: bool) -> AnyElement {
         let Some(field) = self.field_for(row) else {
             return div().into_any_element();
         };
@@ -505,7 +515,11 @@ impl SettingsView {
                     .gap(style.control_gap)
                     .p(style.gap_sm)
                     .rounded(style.radius)
-                    .when(focused, |group| group.shadow(vec![style.focus()]))
+                    // Opaque under the ring, which would otherwise fill
+                    // the group in behind the swatches.
+                    .when(focused, |group| {
+                        group.bg(style.card_background).shadow(vec![style.focus()])
+                    })
                     .children(swatches),
             )
             .child(field_box(self.hex_field.clone(), None, typing, style).w(style.hex_field_width))

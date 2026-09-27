@@ -18,7 +18,7 @@ use gpui::{
 };
 
 use crate::icons::{IconName, icon};
-use crate::theme::{FindUiTheme, Theme};
+use crate::theme::UiTheme;
 
 /// The key context the dialog sets.
 pub const EXPORT_CONTEXT: &str = "ExportDialog";
@@ -183,7 +183,7 @@ pub struct ExportDialog {
     selected: usize,
     state: ExportState,
     focus_handle: FocusHandle,
-    theme: FindUiTheme,
+    theme: UiTheme,
     export_task: Option<Task<()>>,
 }
 
@@ -203,10 +203,7 @@ impl ExportDialog {
             selected: 0,
             state: ExportState::Choosing,
             focus_handle: cx.focus_handle(),
-            theme: FindUiTheme {
-                font_family: crate::ui::ui_theme(cx).font_family,
-                ..Theme::default().find_ui
-            },
+            theme: crate::ui::ui_theme(cx),
             export_task: None,
         }
     }
@@ -273,51 +270,55 @@ impl ExportDialog {
     }
 
     fn render_choice(&self, index: usize, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = &self.theme;
+        let ui = &self.theme;
         let format = ExportFormat::ALL[index];
         let available = format.is_available();
-        let (text, detail_color) = if available {
-            (theme.text, theme.muted_text)
+        let (text, detail_color, icon_color) = if available {
+            (ui.text, ui.text_detail, ui.icon)
         } else {
-            (theme.disabled_text, theme.disabled_text)
-        };
-        let background = if index == self.selected {
-            theme.row_selected_background
-        } else {
-            gpui::transparent_black()
+            (ui.text_faint, ui.text_faint, ui.icon_disabled)
         };
         let detail: SharedString = if available && self.state == ExportState::Exporting {
             "Exporting…".into()
         } else {
             format.detail().into()
         };
+        let selected = index == self.selected;
         div()
             .id(("export-format", index))
             .flex()
             .items_center()
-            .gap(theme.gap)
-            .p(theme.panel_padding)
-            .rounded(theme.radius)
-            .bg(background)
-            .when(available, |row| {
-                row.hover(|style| style.bg(theme.button_hover_background))
+            .gap(ui.space_md + ui.space_xs)
+            .h(ui.row_height)
+            .px(ui.row_padding_x)
+            .rounded(ui.row_radius)
+            .when(selected, |row| row.bg(ui.row_selected))
+            .when(available && !selected, |row| {
+                row.hover(|style| style.bg(ui.row_hover))
             })
             .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| this.choose(index, cx)))
-            .child(icon(format.icon()).size(theme.icon_size).text_color(text))
-            .child(div().text_color(text).child(format.label()))
+            .child(
+                icon(format.icon())
+                    .flex_none()
+                    .size(ui.icon_size - gpui::px(2.))
+                    .text_color(icon_color),
+            )
+            .child(div().flex_none().text_color(text).child(format.label()))
             .child(
                 div()
+                    .flex()
                     .flex_1()
-                    .text_size(theme.small_font_size)
+                    .min_w_0()
+                    .text_size(ui.small_font_size)
                     .text_color(detail_color)
-                    .child(detail),
+                    .child(crate::ui::truncated(detail).grow()),
             )
     }
 }
 
 impl Render for ExportDialog {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = self.theme.clone();
+        let ui = self.theme.clone();
         let error = match &self.state {
             ExportState::Failed(message) => Some(message.clone()),
             _ => None,
@@ -325,42 +326,31 @@ impl Render for ExportDialog {
         let choices: Vec<_> = (0..ExportFormat::ALL.len())
             .map(|index| self.render_choice(index, cx).into_any_element())
             .collect();
-        div()
+        crate::ui::dialog(&ui)
             .key_context(EXPORT_CONTEXT)
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(|this, _: &SelectNext, _, cx| this.step(true, cx)))
             .on_action(cx.listener(|this, _: &SelectPrevious, _, cx| this.step(false, cx)))
             .on_action(cx.listener(|this, _: &Confirm, _, cx| this.confirm(cx)))
             .on_action(cx.listener(|_, _: &Cancel, _, cx| cx.emit(DismissEvent)))
-            .flex()
-            .flex_col()
-            .gap(theme.gap)
-            .w(theme.dialog_width)
-            .p(theme.panel_padding)
-            .rounded(theme.radius)
-            .bg(theme.panel_background)
-            .shadow(vec![gpui::BoxShadow {
-                color: theme.panel_shadow,
-                offset: gpui::point(gpui::px(0.), gpui::px(2.)),
-                blur_radius: theme.panel_shadow_blur,
-                spread_radius: gpui::px(0.),
-            }])
-            .font_family(theme.font_family.clone())
-            .text_size(theme.font_size)
-            .text_color(theme.text)
+            .w(ui.small_dialog_width)
+            .p(ui.dialog_padding)
             .child(
                 div()
-                    .px(theme.panel_padding)
-                    .text_size(theme.title_font_size)
+                    .px(ui.row_padding_x)
+                    .pt(ui.space_md)
+                    .pb(ui.space_md)
+                    .text_size(ui.font_size + gpui::px(2.))
                     .child("Export this note"),
             )
             .children(choices)
             .when_some(error, |dialog, error| {
                 dialog.child(
                     div()
-                        .px(theme.panel_padding)
-                        .text_size(theme.small_font_size)
-                        .text_color(theme.error_text)
+                        .px(ui.row_padding_x)
+                        .py(ui.space_md)
+                        .text_size(ui.small_font_size)
+                        .text_color(ui.error)
                         .child(error),
                 )
             })

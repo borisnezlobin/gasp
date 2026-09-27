@@ -202,9 +202,10 @@ fn assert_rows_do_not_overlap(view: &Entity<SettingsView>, cx: &mut VisualTestCo
                 "{page:?} row {index} text overflows"
             );
             let Some(control) = bounds(cx, format!("settings-control-{name}")) else {
-                assert_eq!(
-                    *row,
-                    ControlRow::Version,
+                // The version, and the repository of a vault that isn't a
+                // git clone, have nothing to change.
+                assert!(
+                    matches!(row, ControlRow::Version | ControlRow::SyncRemote),
                     "{page:?} row {index} has no control"
                 );
                 continue;
@@ -228,6 +229,7 @@ fn assert_rows_do_not_overlap(view: &Entity<SettingsView>, cx: &mut VisualTestCo
 fn page_id(page: Page) -> &'static str {
     match page {
         Page::General => "general",
+        Page::Sync => "sync",
         Page::Appearance => "appearance",
         Page::Sidebar => "sidebar",
         Page::Shortcuts => "keyboard-shortcuts",
@@ -273,6 +275,7 @@ fn every_section_is_listed_in_order(cx: &mut TestAppContext) {
         titles(&view, cx),
         [
             "General",
+            "Sync",
             "Appearance",
             "Sidebar",
             "Keyboard shortcuts",

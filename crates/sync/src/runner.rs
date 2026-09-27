@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use crate::error::SyncError;
-use crate::scheduler::{MergeReport, Scheduler, StepFailure, StepReport, SyncStatus, SyncStep};
+use crate::scheduler::{
+    FailureKind, MergeReport, Scheduler, StepFailure, StepReport, SyncStatus, SyncStep,
+};
 use crate::vault::{Author, MergeOutcome, Vault};
 
 /// Runs one scheduler step against `vault` and reports how it went.
@@ -56,8 +58,17 @@ fn failure_report(vault: &Vault, error: SyncError) -> StepReport {
         return StepReport::Merged(MergeReport::Conflicts { files });
     }
     StepReport::Failed(StepFailure {
-        offline: error.is_offline(),
+        kind: failure_kind(&error),
         waiting: vault.unpushed_changes().unwrap_or(0),
         message: error.to_string(),
     })
+}
+
+fn failure_kind(error: &SyncError) -> FailureKind {
+    match error {
+        SyncError::Offline(_) => FailureKind::Offline,
+        SyncError::Auth(_) => FailureKind::SignIn,
+        SyncError::PushRejected(_) => FailureKind::Rejected,
+        _ => FailureKind::Other,
+    }
 }

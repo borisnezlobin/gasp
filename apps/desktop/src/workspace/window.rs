@@ -139,6 +139,7 @@ pub fn open_welcome_window(cx: &mut App) -> anyhow::Result<()> {
     let options = window_options(&DeviceSettings::default(), cx);
     let window = cx.open_window(options, |window, cx| cx.new(|cx| Welcome::new(window, cx)))?;
     window.update(cx, |_, window, cx| {
+        window.set_window_title("Open a vault");
         crate::first_frame::release_when_presented(window);
         cx.activate(true);
     })?;

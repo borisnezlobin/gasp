@@ -235,7 +235,6 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.update_window_title(window, cx);
         self.sync_sidebar_toggle(window, cx);
-        let theme = self.theme().clone();
         let ui = ui_theme(cx);
         let panes = self.render_node(self.panes.root(), cx);
         let overlays = self.left_panel.overlays();
@@ -289,8 +288,12 @@ impl Render for Workspace {
                     .children(overlaid)
                     .children(self.render_left_edge(cx)),
             )
-            .child(render_status_bar(self.status.as_ref(), &ui))
+            .child(render_status_bar(
+                self.status.as_ref(),
+                self.sync_indicator.clone(),
+                &ui,
+            ))
             .children(self.menu.render_overlay(window, cx))
-            .children(self.modal.render(&theme.workspace, cx))
+            .children(self.modal.render(&ui, cx))
     }
 }

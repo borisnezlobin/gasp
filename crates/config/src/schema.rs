@@ -28,6 +28,8 @@ pub enum SettingKind {
     Choice(Vec<String>),
     /// A table from names to values of one kind.
     Map(Box<SettingKind>),
+    /// A list of values of one kind, such as file patterns.
+    List(Box<SettingKind>),
 }
 
 /// One setting as a settings screen sees it.
@@ -82,6 +84,7 @@ fn kind_of(schema: &SchemaObject) -> Option<SettingKind> {
     }
     match single_type(schema)? {
         InstanceType::Object => map_kind(schema),
+        InstanceType::Array => list_kind(schema),
         other => scalar_kind(other),
     }
 }
@@ -106,6 +109,16 @@ fn map_kind(schema: &SchemaObject) -> Option<SettingKind> {
         return None;
     };
     Some(SettingKind::Map(Box::new(kind_of(values)?)))
+}
+
+fn list_kind(schema: &SchemaObject) -> Option<SettingKind> {
+    let SingleOrVec::Single(items) = schema.array.as_ref()?.items.as_ref()? else {
+        return None;
+    };
+    let Schema::Object(items) = items.as_ref() else {
+        return None;
+    };
+    Some(SettingKind::List(Box::new(kind_of(items)?)))
 }
 
 fn single_type(schema: &SchemaObject) -> Option<InstanceType> {
@@ -148,6 +161,11 @@ mod tests {
     fn overrides_are_a_map_of_modes() {
         let overrides = find("markdown.symbols.overrides");
         assert!(matches!(overrides.kind, SettingKind::Map(_)));
+        let device_only = find("sync.device-only");
+        assert_eq!(
+            device_only.kind,
+            SettingKind::List(Box::new(SettingKind::Text))
+        );
     }
 
     #[test]
