@@ -15,6 +15,7 @@ pub enum IconName {
     ArrowRight,
     ArrowsClockwise,
     Article,
+    Asterisk,
     BookOpen,
     CaretDown,
     CaretLeft,
@@ -22,6 +23,7 @@ pub enum IconName {
     CaretUp,
     Check,
     CheckSquare,
+    Checks,
     ClipboardText,
     Clock,
     CloudArrowUp,
@@ -35,6 +37,8 @@ pub enum IconName {
     Export,
     Eye,
     EyeSlash,
+    FileHtml,
+    FilePdf,
     FilePlus,
     FileText,
     Folder,
@@ -63,11 +67,13 @@ pub enum IconName {
     Rows,
     SidebarSimple,
     Square,
+    Swap,
     TextAa,
     TextB,
     TextItalic,
     TextStrikethrough,
     TextSuperscript,
+    TextT,
     TextUnderline,
     Trash,
     Warning,
@@ -76,7 +82,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 65] = [
+const ICONS: [(IconName, &str, &[u8]); 71] = [
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -106,6 +112,11 @@ const ICONS: [(IconName, &str, &[u8]); 65] = [
         IconName::Article,
         "article",
         include_bytes!("../assets/icons/article.svg"),
+    ),
+    (
+        IconName::Asterisk,
+        "asterisk",
+        include_bytes!("../assets/icons/asterisk.svg"),
     ),
     (
         IconName::BookOpen,
@@ -141,6 +152,11 @@ const ICONS: [(IconName, &str, &[u8]); 65] = [
         IconName::CheckSquare,
         "check-square",
         include_bytes!("../assets/icons/check-square.svg"),
+    ),
+    (
+        IconName::Checks,
+        "checks",
+        include_bytes!("../assets/icons/checks.svg"),
     ),
     (
         IconName::ClipboardText,
@@ -206,6 +222,16 @@ const ICONS: [(IconName, &str, &[u8]); 65] = [
         IconName::EyeSlash,
         "eye-slash",
         include_bytes!("../assets/icons/eye-slash.svg"),
+    ),
+    (
+        IconName::FileHtml,
+        "file-html",
+        include_bytes!("../assets/icons/file-html.svg"),
+    ),
+    (
+        IconName::FilePdf,
+        "file-pdf",
+        include_bytes!("../assets/icons/file-pdf.svg"),
     ),
     (
         IconName::FilePlus,
@@ -348,6 +374,11 @@ const ICONS: [(IconName, &str, &[u8]); 65] = [
         include_bytes!("../assets/icons/square.svg"),
     ),
     (
+        IconName::Swap,
+        "swap",
+        include_bytes!("../assets/icons/swap.svg"),
+    ),
+    (
         IconName::TextAa,
         "text-aa",
         include_bytes!("../assets/icons/text-aa.svg"),
@@ -371,6 +402,11 @@ const ICONS: [(IconName, &str, &[u8]); 65] = [
         IconName::TextSuperscript,
         "text-superscript",
         include_bytes!("../assets/icons/text-superscript.svg"),
+    ),
+    (
+        IconName::TextT,
+        "text-t",
+        include_bytes!("../assets/icons/text-t.svg"),
     ),
     (
         IconName::TextUnderline,
