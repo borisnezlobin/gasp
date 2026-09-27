@@ -1830,6 +1830,11 @@ pub struct UiTheme {
     pub dialog_width: Pixels,
     pub small_dialog_width: Pixels,
     pub wide_dialog_width: Pixels,
+    /// Source shown in a dialog, such as export's HTML preview: the code
+    /// font, its fill and how tall the scrolling box is.
+    pub code_font_family: SharedString,
+    pub source_background: Hsla,
+    pub source_preview_height: Pixels,
     pub dialog_top_offset: Pixels,
     pub dialog_shadow: Hsla,
     pub dialog_shadow_blur: Pixels,
@@ -2019,6 +2024,12 @@ impl UiTheme {
             dialog_width: px(560.),
             small_dialog_width: px(360.),
             wide_dialog_width: px(640.),
+            code_font_family: MONO_FALLBACKS[0].into(),
+            // The faint fill buttons use, laid over the dialog, so the box
+            // shows in both modes (the note's code fill matches the
+            // popover in dark mode).
+            source_background: over(p.fill, p.popover),
+            source_preview_height: px(300.),
             dialog_top_offset: px(96.),
             dialog_shadow: p.popover_shadow,
             dialog_shadow_blur: px(40.),
@@ -2090,6 +2101,7 @@ impl UiTheme {
     pub fn themed(palette: &Palette, installed: &[String]) -> UiTheme {
         UiTheme {
             font_family: first_installed(&UI_FONT_CANDIDATES, installed),
+            code_font_family: first_installed(MONO_FALLBACKS, installed),
             keycap: KeycapTheme::with_installed_fonts(installed).on_text(palette.text),
             ..UiTheme::from_palette(palette)
         }
