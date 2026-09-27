@@ -118,3 +118,28 @@ fn brackets_pair_and_markers_wrap_a_selection(cx: &mut TestAppContext) {
     assert_eq!(text(&view, cx), "**word** ");
     assert_eq!(view.read_with(cx, |view, _| view.selected_range()), 2..6);
 }
+
+#[gpui::test]
+fn lines_move_and_duplicate_from_their_keys(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "one\ntwo\nthree");
+    view.update(cx, |view, cx| view.move_to(5, false, cx));
+    press(cx, "edit.move-line-up");
+    assert_eq!(text(&view, cx), "two\none\nthree");
+    assert_eq!(view.read_with(cx, |view, _| view.cursor()), 1);
+    press(cx, "edit.move-line-down");
+    press(cx, "edit.move-line-down");
+    assert_eq!(text(&view, cx), "one\nthree\ntwo");
+    press(cx, "edit.duplicate-line");
+    assert_eq!(text(&view, cx), "one\nthree\ntwo\ntwo");
+    press(cx, "edit.undo");
+    assert_eq!(text(&view, cx), "one\nthree\ntwo");
+}
+
+#[gpui::test]
+fn toggle_task_checks_the_line(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "- [ ] milk");
+    view.update(cx, |view, cx| {
+        view.run_edit(editor_core::commands::toggle_tasks, cx)
+    });
+    assert_eq!(text(&view, cx), "- [x] milk");
+}
