@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use editor_config::commands::BUILTIN_COMMANDS;
+use editor_config::commands::{BUILTIN_COMMANDS, PLATFORM_COMMANDS};
 use editor_config::loader::{CONFIG_DIR, build_rules, build_theme};
 use editor_config::theme::{Theme as Tokens, TokenValue};
 use editor_config::{Config, RuleSet};
@@ -106,7 +106,11 @@ fn write_theme_value(
 }
 
 fn known_commands() -> Vec<&'static str> {
-    BUILTIN_COMMANDS.iter().map(|spec| spec.id).collect()
+    BUILTIN_COMMANDS
+        .iter()
+        .map(|spec| spec.id)
+        .chain(PLATFORM_COMMANDS.iter().copied())
+        .collect()
 }
 
 /// The built-in rules with the vault's on top, or just the built-in ones
