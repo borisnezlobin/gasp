@@ -782,7 +782,7 @@ fn frontmatter_fences_collapse() {
         &element(),
         &[
             "[frontmatter] ~collapsed~",
-            "[frontmatter] {frontmatter:title: x}",
+            "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:title}{frontmatter:x}",
             "[frontmatter] ~collapsed~",
             "body",
         ],
@@ -796,7 +796,7 @@ fn frontmatter_fences_show_with_cursor() {
         &element(),
         &[
             "[frontmatter] {frontmatter,markup-dimmed:---}",
-            "[frontmatter] {frontmatter:title: x}",
+            "[frontmatter] {frontmatter,frontmatter-key:title}{frontmatter:: x}",
             "[frontmatter] {frontmatter,markup-dimmed:---}",
             "body",
         ],
@@ -1095,6 +1095,32 @@ fn the_separator_never_makes_a_heading() {
             .iter()
             .all(|node| !matches!(node.kind, syntax::NodeKind::Heading { .. })),
         "the line above ======= stays a paragraph"
+    );
+}
+
+#[test]
+fn frontmatter_reads_as_properties_away_from_the_cursor() {
+    check(
+        "---\ntitle: Waves\ntags:\n  - physics\n---\n\n‸",
+        &element(),
+        &[
+            "[frontmatter] ~collapsed~",
+            "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:title}{frontmatter:Waves}",
+            "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:tags}",
+            "[frontmatter property { keyed: false }] {frontmatter:  - physics}",
+            "[frontmatter] ~collapsed~",
+            "",
+            "",
+        ],
+    );
+    check(
+        "---\ntitle: ‸Waves\n---",
+        &element(),
+        &[
+            "[frontmatter] {frontmatter,markup-dimmed:---}",
+            "[frontmatter] {frontmatter,frontmatter-key:title}{frontmatter:: Waves}",
+            "[frontmatter] {frontmatter,markup-dimmed:---}",
+        ],
     );
 }
 

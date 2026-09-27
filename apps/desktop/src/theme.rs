@@ -124,6 +124,7 @@ palette! {
     /// Full strength: [`Palette::focus`] gives the ring's colour.
     focus_ring = "color.focus-ring",
     link = "color.link",
+    link_underline = "color.link-underline",
     selection = "color.selection",
     hover = "color.hover",
     divider = "color.divider",
@@ -214,6 +215,9 @@ pub struct Theme {
     /// Line height as a multiple of the font size.
     pub line_height_factor: f32,
     pub code_line_height_factor: f32,
+    pub heading_line_height_factor: f32,
+    /// Room above a heading, in ems of its size.
+    pub heading_space_above: f32,
     pub ui_line_height_factor: f32,
     /// The widest the text column gets with readable line length on.
     pub editor_max_width: Pixels,
@@ -233,6 +237,8 @@ pub struct Theme {
     pub cursor_width: Pixels,
     /// Extra width that shows a selected line break.
     pub newline_selection_width: Pixels,
+    /// Room at each end of inline code, inside its fill.
+    pub inline_code_padding: Pixels,
     pub composition_underline_thickness: Pixels,
     pub rule_thickness: Pixels,
     pub quote_bar_width: Pixels,
@@ -241,6 +247,12 @@ pub struct Theme {
     /// Width of the slot a list bullet or checkbox is drawn in.
     pub list_marker_width: Pixels,
     pub bullet_size: Pixels,
+    /// The column a note's property values start in, from the
+    /// frontmatter's inset.
+    pub property_key_width: Pixels,
+    /// A task checkbox's side at body size.
+    pub checkbox_size: Pixels,
+    pub checkbox_border_width: Pixels,
     /// Columns a tab takes at the start of a line.
     pub tab_columns: usize,
     pub background: Hsla,
@@ -259,6 +271,8 @@ pub struct Theme {
     pub accent: Hsla,
     pub composition_underline: Hsla,
     pub link: Hsla,
+    /// A link's underline: quieter than its text.
+    pub link_underline: Hsla,
     pub tag_background: Hsla,
     pub highlight: Hsla,
     pub divider: Hsla,
@@ -360,6 +374,8 @@ impl Theme {
             code_scale: read.number("font.scale.code", 0.95),
             line_height_factor: read.number("font.line-height.body", 1.6),
             code_line_height_factor: read.number("font.line-height.code", 1.45),
+            heading_line_height_factor: read.number("font.heading.line-height", 1.3),
+            heading_space_above: read.number("font.heading.space-above", 0.5),
             ui_line_height_factor: read.number("font.line-height.ui", 1.3),
             editor_max_width: space("size.editor-max-width", 720.),
             text_padding: space("space.xxl", 24.),
@@ -377,12 +393,16 @@ impl Theme {
             image_corner_radius: space("radius.sm", 4.),
             cursor_width: px(2.),
             newline_selection_width: space("space.sm", 4.) * 1.5,
+            inline_code_padding: space("space.xs", 2.) * 1.5,
             composition_underline_thickness: px(1.),
             rule_thickness: px(1.),
             quote_bar_width: px(3.),
             quote_indent: space("space.xl", 16.),
             list_marker_width: base * 1.25,
             bullet_size: base * 0.3,
+            checkbox_size: base * 0.875,
+            property_key_width: base * 7.,
+            checkbox_border_width: px(1.5),
             tab_columns: 4,
             ..colors
         }
@@ -400,7 +420,7 @@ impl Theme {
         scaled
     }
 
-    fn sizes_mut(&mut self) -> [&mut Pixels; 25] {
+    fn sizes_mut(&mut self) -> [&mut Pixels; 29] {
         [
             &mut self.body_font_size,
             &mut self.title_font_size,
@@ -421,12 +441,16 @@ impl Theme {
             &mut self.image_corner_radius,
             &mut self.cursor_width,
             &mut self.newline_selection_width,
+            &mut self.inline_code_padding,
             &mut self.composition_underline_thickness,
             &mut self.rule_thickness,
             &mut self.quote_bar_width,
             &mut self.quote_indent,
             &mut self.list_marker_width,
             &mut self.bullet_size,
+            &mut self.checkbox_size,
+            &mut self.checkbox_border_width,
+            &mut self.property_key_width,
         ]
     }
 
@@ -567,6 +591,7 @@ fn read_colors(palette: &Palette) -> Theme {
         accent: p.accent,
         composition_underline: p.text,
         link: p.link,
+        link_underline: p.link_underline,
         tag_background: p.hover,
         highlight: p.highlight,
         divider: p.divider,
@@ -602,6 +627,8 @@ fn zero_sizes() -> Theme {
         code_scale: 1.,
         line_height_factor: 1.,
         code_line_height_factor: 1.,
+        heading_line_height_factor: 1.,
+        heading_space_above: 0.,
         ui_line_height_factor: 1.,
         editor_max_width: zero,
         text_padding: zero,
@@ -619,12 +646,16 @@ fn zero_sizes() -> Theme {
         image_corner_radius: zero,
         cursor_width: zero,
         newline_selection_width: zero,
+        inline_code_padding: zero,
         composition_underline_thickness: zero,
         rule_thickness: zero,
         quote_bar_width: zero,
         quote_indent: zero,
         list_marker_width: zero,
         bullet_size: zero,
+        checkbox_size: zero,
+        property_key_width: zero,
+        checkbox_border_width: zero,
         tab_columns: 4,
         background: black,
         surface: black,
@@ -641,6 +672,7 @@ fn zero_sizes() -> Theme {
         accent: black,
         composition_underline: black,
         link: black,
+        link_underline: black,
         tag_background: black,
         highlight: black,
         divider: black,

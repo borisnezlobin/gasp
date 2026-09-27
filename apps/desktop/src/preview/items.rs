@@ -139,7 +139,6 @@ pub fn line_tone(plan: &LinePlan) -> LineTone {
             LineStyle::CodeBlock { .. } => LineTone { code: true, ..tone },
             LineStyle::Frontmatter => LineTone {
                 small: true,
-                muted: true,
                 ..tone
             },
             LineStyle::CalloutHeader { kind } => LineTone {

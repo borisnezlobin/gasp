@@ -311,6 +311,104 @@ fn clicking_a_checkbox_toggles_the_task(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn checkboxes_draw_their_state_and_know_the_pointer(cx: &mut TestAppContext) {
+    let note = "- [ ] open\n- [x] done\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    let state = |line: &VisualLine| {
+        line.pieces().find_map(|piece| match piece.content {
+            PieceContent::Checkbox { checked } => Some(checked),
+            _ => None,
+        })
+    };
+    assert_eq!(state(&visual(&view, cx, 0)), Some(false));
+    assert_eq!(state(&visual(&view, cx, 1)), Some(true));
+    let hovered = |view: &Entity<EditorView>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |view, _| view.hovered_task())
+    };
+    assert_eq!(hovered(&view, cx), None);
+    let checkbox = piece_center(&view, cx, 0, |piece| {
+        matches!(piece.hit, Hit::Checkbox { .. })
+    });
+    cx.simulate_mouse_move(checkbox, None, Modifiers::none());
+    assert_eq!(hovered(&view, cx), Some(2), "the open task's marker");
+    cx.simulate_mouse_move(point(px(1.), px(1.)), None, Modifiers::none());
+    assert_eq!(hovered(&view, cx), None);
+}
+
+#[gpui::test]
+fn inline_code_gets_room_for_its_rounded_fill(cx: &mut TestAppContext) {
+    let note = "see `x` and ==y== now\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    let line = visual(&view, cx, 0);
+    let pieces: Vec<&Piece> = line.pieces().collect();
+    let fills = |piece: &Piece| match &piece.content {
+        PieceContent::Text(text) => text.backgrounds.clone(),
+        _ => Vec::new(),
+    };
+    let code = pieces
+        .iter()
+        .position(|piece| fills(piece).iter().any(|fill| fill.padded))
+        .expect("the code has a padded fill");
+    assert!(pieces[code].x > pieces[code - 1].right(), "room before");
+    assert!(pieces[code + 1].x > pieces[code].right(), "room after");
+    let highlight = pieces
+        .iter()
+        .flat_map(|piece| fills(piece))
+        .find(|fill| !fill.padded)
+        .expect("the highlight has a fill");
+    assert_eq!(
+        highlight.range.len(),
+        1,
+        "the fill covers just the highlight"
+    );
+}
+
+#[gpui::test]
+fn list_numbers_end_where_bullets_end(cx: &mut TestAppContext) {
+    let note = "- a\n\n1. b\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    let marker_right = |line: &VisualLine| line.pieces().next().unwrap().right();
+    let text_x = |line: &VisualLine| line.pieces().nth(1).unwrap().x;
+    let (bullet, number) = (visual(&view, cx, 0), visual(&view, cx, 2));
+    assert!((marker_right(&bullet) - marker_right(&number)).abs() < px(0.5));
+    assert_eq!(text_x(&bullet), text_x(&number));
+}
+
+#[gpui::test]
+fn headings_have_room_above_them(cx: &mut TestAppContext) {
+    let note = "text\n## Heading\ntext\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    assert!(visual(&view, cx, 1).rows[0].top > px(0.));
+    assert_eq!(visual(&view, cx, 2).rows[0].top, px(0.));
+}
+
+#[gpui::test]
+fn frontmatter_lines_up_property_values(cx: &mut TestAppContext) {
+    let note = "---\ntitle: Waves\nsubject: physics\ntags:\n  - a\n---\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    let value_x = |line: &VisualLine| line.pieces().last().unwrap().x;
+    let title = visual(&view, cx, 1);
+    assert_eq!(title.pieces().count(), 2, "the colon hides");
+    assert_eq!(value_x(&title), value_x(&visual(&view, cx, 2)));
+    let item = visual(&view, cx, 4);
+    assert!(
+        value_x(&item) >= value_x(&title),
+        "list items sit in the value column"
+    );
+    place_cursor(&view, cx, 5);
+    let colon = note.find(':').unwrap();
+    assert!(
+        shows_text_at(&visual(&view, cx, 1), colon),
+        "the cursor shows the source"
+    );
+}
+
+#[gpui::test]
 fn clicking_a_callout_header_folds_it(cx: &mut TestAppContext) {
     let note = "> [!note]+ Title\n> body\n\nend";
     let (view, cx) = open(cx, note);

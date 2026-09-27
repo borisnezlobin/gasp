@@ -24,6 +24,20 @@ pub struct TextPiece {
     pub slice: Range<usize>,
     /// Where the slice starts in `shaped`.
     pub slice_x: Pixels,
+    /// Fills behind parts of `shaped`, such as inline code.
+    pub backgrounds: Vec<Background>,
+}
+
+/// A rounded fill behind some of a text piece's bytes. GPUI would fill
+/// the whole line height with square ends; these hug the glyphs and are
+/// painted under the selection.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Background {
+    /// Bytes of the shaped text.
+    pub range: Range<usize>,
+    pub color: Hsla,
+    /// Inline code gets room at its ends, which layout leaves for it.
+    pub padded: bool,
 }
 
 impl TextPiece {
@@ -34,6 +48,14 @@ impl TextPiece {
             shaped,
             line_height,
             slice_x: px(0.),
+            backgrounds: Vec::new(),
+        }
+    }
+
+    pub fn with_backgrounds(self, backgrounds: Vec<Background>) -> Self {
+        Self {
+            backgrounds,
+            ..self
         }
     }
 
@@ -68,6 +90,11 @@ pub enum PieceContent {
     Quad {
         color: Hsla,
         radius: Pixels,
+    },
+    /// A task's box, drawn at the piece's left edge, as wide as it is
+    /// tall.
+    Checkbox {
+        checked: bool,
     },
 }
 
