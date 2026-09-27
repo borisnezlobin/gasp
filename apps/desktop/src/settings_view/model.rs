@@ -3,6 +3,7 @@
 //! titles and descriptions, search, and the list of keyboard shortcuts.
 
 use std::borrow::Cow;
+use std::sync::OnceLock;
 
 use editor_config::commands::BUILTIN_COMMANDS;
 use editor_config::keys::KeyChord;
@@ -11,7 +12,7 @@ use editor_config::{Platform, RuleSet};
 use serde_json::Value;
 
 use crate::icons::IconName;
-use crate::picker::shortcut::shortcut_label;
+use crate::picker::shortcut::{KeyQuery, Shortcut};
 
 /// Title and description for each setting. A setting missing here gets a
 /// title made from its key and the schema's description, so a new one
@@ -665,6 +666,9 @@ pub fn is_user_rule(id: &str, command: &str) -> bool {
 pub struct ShortcutKey {
     /// As this platform writes it, such as `Ctrl+Shift+P` or `⇧⌘P`.
     pub label: String,
+    pub shortcut: Shortcut,
+    /// The id of the rule binding it, which removing it goes by.
+    pub rule: Option<String>,
     /// The id of the user's rule, when the user added this key.
     pub user_rule: Option<String>,
 }
@@ -679,19 +683,53 @@ pub struct ShortcutRow {
     /// (key, other command's title) for each key another command in the
     /// same key context also uses.
     pub conflicts: Vec<(String, String)>,
+    /// The keys the command comes with, when the user changed them.
+    pub changed_from: Option<Vec<Shortcut>>,
+    /// What text searches look in, lowercased once.
+    haystack: String,
+}
+
+/// A search as the shortcut rows read it: words, and the same text read
+/// as keys when it can be.
+pub struct ShortcutQuery {
+    words: String,
+    keys: Option<KeyQuery>,
+}
+
+impl ShortcutQuery {
+    pub fn new(query: &str) -> ShortcutQuery {
+        ShortcutQuery {
+            words: query.trim().to_lowercase(),
+            keys: KeyQuery::parse(query, Platform::current()),
+        }
+    }
+
+    /// The keys searched for, when the search reads as keys.
+    pub fn keys(&self) -> Option<&KeyQuery> {
+        self.keys.as_ref()
+    }
 }
 
 impl ShortcutRow {
+    /// Whether the row matches a search: by its words, or by its keys
+    /// when the search reads as keys ("cmd f", "ctrl shift p").
     pub fn matches(&self, query: &str) -> bool {
-        let keys: Vec<&str> = self.keys.iter().map(|key| key.label.as_str()).collect();
-        let haystack = format!(
-            "{} {} {} {}",
-            self.title,
-            self.id,
-            self.category,
-            keys.join(" ")
-        );
-        words_match(&haystack, query)
+        self.matches_query(&ShortcutQuery::new(query))
+    }
+
+    pub fn matches_query(&self, query: &ShortcutQuery) -> bool {
+        if let Some(keys) = &query.keys {
+            if self.keys.iter().any(|key| keys.matches(key.shortcut.chord)) {
+                return true;
+            }
+            if keys.only_keys {
+                return false;
+            }
+        }
+        query
+            .words
+            .split_whitespace()
+            .all(|word| self.haystack.contains(word))
     }
 
     pub fn labels(&self) -> Vec<String> {
@@ -737,10 +775,19 @@ pub fn conflicts_for(
     command: &str,
     chord: KeyChord,
 ) -> Vec<String> {
+    conflicts_in(&bound_keys(rules, platform), platform, command, chord)
+}
+
+fn conflicts_in(
+    bound: &[Bound<'_>],
+    platform: Platform,
+    command: &str,
+    chord: KeyChord,
+) -> Vec<String> {
     let chord = chord.resolve(platform);
     let context = key_context(command);
-    let mut titles: Vec<String> = bound_keys(rules, platform)
-        .into_iter()
+    let mut titles: Vec<String> = bound
+        .iter()
         .filter(|bound| bound.command != command && bound.chord == chord)
         .filter(|bound| bound.context == context)
         .map(|bound| command_title(bound.command))
@@ -757,43 +804,87 @@ pub fn command_title(command: &str) -> String {
         .map_or_else(|| command.to_string(), |spec| spec.title.to_string())
 }
 
-/// Every built-in command with its keys, in registry order.
-pub fn shortcut_rows(rules: &RuleSet, platform: Platform) -> Vec<ShortcutRow> {
-    BUILTIN_COMMANDS
+/// The built-in rules, parsed once.
+pub fn default_rules() -> &'static RuleSet {
+    static DEFAULTS: OnceLock<RuleSet> = OnceLock::new();
+    DEFAULTS.get_or_init(RuleSet::defaults)
+}
+
+/// The ids of the built-in key rules that run `command`, on any platform.
+pub fn default_rule_ids(command: &str) -> Vec<String> {
+    default_rules()
+        .rules()
         .iter()
-        .map(|spec| shortcut_row(rules, platform, spec.id, spec.title, spec.category))
+        .filter(|rule| rule.is_key() && rule.command == command)
+        .filter_map(|rule| rule.id.clone())
         .collect()
 }
 
-fn shortcut_row(
-    rules: &RuleSet,
-    platform: Platform,
-    id: &str,
-    title: &str,
-    category: &str,
-) -> ShortcutRow {
-    let mut keys = Vec::new();
-    let mut conflicts = Vec::new();
-    for rule in rules.key_rules(platform).filter(|rule| rule.command == id) {
+/// Every built-in command with its keys, in registry order.
+pub fn shortcut_rows(rules: &RuleSet, platform: Platform) -> Vec<ShortcutRow> {
+    let bound = bound_keys(rules, platform);
+    BUILTIN_COMMANDS
+        .iter()
+        .map(|spec| {
+            let mut row = ShortcutRow {
+                id: spec.id.to_string(),
+                title: spec.title.to_string(),
+                category: spec.category.to_string(),
+                keys: Vec::new(),
+                conflicts: Vec::new(),
+                changed_from: None,
+                haystack: String::new(),
+            };
+            fill_keys(&mut row, rules, &bound, platform);
+            row
+        })
+        .collect()
+}
+
+fn fill_keys(row: &mut ShortcutRow, rules: &RuleSet, bound: &[Bound<'_>], platform: Platform) {
+    for rule in rules
+        .key_rules(platform)
+        .filter(|rule| rule.command == row.id)
+    {
         let Some(chord) = rule.keys else {
             continue;
         };
-        let label = shortcut_label(chord, platform);
+        let shortcut = Shortcut::new(chord, platform);
+        let label = shortcut.label();
         if rule.when.is_none() {
-            for other in conflicts_for(rules, platform, id, chord) {
-                conflicts.push((label.clone(), other));
+            for other in conflicts_in(bound, platform, &row.id, chord) {
+                row.conflicts.push((label.clone(), other));
             }
         }
-        let user_rule = rule.id.clone().filter(|rule_id| is_user_rule(rule_id, id));
-        keys.push(ShortcutKey { label, user_rule });
+        let user_rule = rule
+            .id
+            .clone()
+            .filter(|rule_id| is_user_rule(rule_id, &row.id));
+        row.keys.push(ShortcutKey {
+            label,
+            shortcut,
+            rule: rule.id.clone(),
+            user_rule,
+        });
     }
-    ShortcutRow {
-        id: id.to_string(),
-        title: title.to_string(),
-        category: category.to_string(),
-        keys,
-        conflicts,
-    }
+    let defaults: Vec<Shortcut> = default_rules()
+        .keys_for(&row.id, platform)
+        .into_iter()
+        .map(|chord| Shortcut::new(chord, platform))
+        .collect();
+    let mut now: Vec<KeyChord> = row.keys.iter().map(|key| key.shortcut.chord).collect();
+    let mut before: Vec<KeyChord> = defaults.iter().map(|shortcut| shortcut.chord).collect();
+    now.sort();
+    before.sort();
+    row.changed_from = (now != before).then_some(defaults);
+    row.haystack = format!(
+        "{} {} {} {}",
+        row.title,
+        row.id,
+        row.category,
+        row.labels().join(" ")
+    )
+    .to_lowercase();
 }
 
 #[cfg(test)]
