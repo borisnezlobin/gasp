@@ -235,10 +235,11 @@ impl Workspace {
                 device.open_tabs.push(self.relative_name(path));
             }
         }
+        device.panes = Some(self.pane_layout(cx));
         device
     }
 
-    fn relative_name(&self, path: &Path) -> String {
+    pub(crate) fn relative_name(&self, path: &Path) -> String {
         let relative = path.strip_prefix(&self.vault).unwrap_or(path);
         relative
             .components()
@@ -250,6 +251,10 @@ impl Workspace {
     /// Reopens the tabs saved in `.editor/device.toml`.
     pub fn restore_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let device = self.config.device.clone();
+        if let Some(layout) = &device.panes {
+            self.restore_layout(layout, window, cx);
+            return;
+        }
         let pane = self.active_pane.clone();
         let mut opened = Vec::new();
         for name in &device.open_tabs {

@@ -47,6 +47,11 @@ impl Workspace {
             PaneEvent::OpenMenu(kind, anchor) => {
                 self.open_pane_menu(pane, *kind, anchor.clone(), window, cx)
             }
+            PaneEvent::DropTab {
+                from,
+                index,
+                target,
+            } => self.drop_tab(from, *index, pane, *target, window, cx),
         }
     }
 
@@ -108,17 +113,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<Pane> {
-        let show_title = self.config.settings.editor.show_inline_title;
-        let vault = self.vault.clone();
-        let probe = self.reading_probe.clone();
-        let pane = cx.new(|cx| {
-            let mut pane = Pane::new(&vault, show_title, cx);
-            pane.reading_probe = probe;
-            pane
-        });
+        let pane = self.new_pane(window, cx);
         let active = self.active_pane.clone();
         self.panes.split(&active, pane.clone(), axis);
-        self.subscribe_to_pane(&pane, window, cx);
         let path = duplicate.then(|| self.active_path(cx)).flatten();
         match path {
             Some(path) => {
@@ -130,6 +127,20 @@ impl Workspace {
             None => self.set_active_pane(pane.clone(), cx),
         }
         cx.notify();
+        pane
+    }
+
+    /// A pane with no tabs yet, which the caller puts in the tree.
+    pub(crate) fn new_pane(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Entity<Pane> {
+        let show_title = self.config.settings.editor.show_inline_title;
+        let vault = self.vault.clone();
+        let probe = self.reading_probe.clone();
+        let pane = cx.new(|cx| {
+            let mut pane = Pane::new(&vault, show_title, cx);
+            pane.reading_probe = probe;
+            pane
+        });
+        self.subscribe_to_pane(&pane, window, cx);
         pane
     }
 
@@ -190,23 +201,45 @@ impl Workspace {
     /// Follows the pointer while a divider or the sidebar edge is dragged.
     pub(crate) fn drag_to(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
         match self.drag {
-            Some(Drag::Divider(id)) => self.drag_divider(id, position),
+            Some(Drag::Divider(id)) => self.drag_divider(id, position, cx),
             Some(Drag::Sidebar) => self.drag_sidebar(position),
             None => return,
         }
         cx.notify();
     }
 
-    fn drag_divider(&mut self, id: SplitId, position: Point<Pixels>) {
+    /// Moves a divider under the pointer, stopping where either side
+    /// would get smaller than a pane can usefully be.
+    fn drag_divider(&mut self, id: SplitId, position: Point<Pixels>, cx: &mut Context<Self>) {
         let Some(split) = self.panes.split_by_id(id) else {
             return;
         };
+        let ui = crate::ui::ui_theme(cx);
         let bounds = split.bounds.get();
-        let ratio = match split.axis {
-            Axis::Row => (position.x - bounds.left()) / bounds.size.width.max(gpui::px(1.)),
-            Axis::Column => (position.y - bounds.top()) / bounds.size.height.max(gpui::px(1.)),
+        let (offset, length, min) = match split.axis {
+            Axis::Row => (
+                position.x - bounds.left(),
+                bounds.size.width,
+                ui.pane_min_width,
+            ),
+            Axis::Column => (
+                position.y - bounds.top(),
+                bounds.size.height,
+                ui.pane_min_height,
+            ),
         };
+        let length = length.max(gpui::px(1.));
+        // When the split is too small for two minimum panes, it stays even.
+        let floor = (min / length).min(0.5);
+        let ratio = (offset / length).clamp(floor, 1. - floor);
         self.panes.set_ratio(id, ratio);
+    }
+
+    /// A double-click on a divider shares its space evenly.
+    pub(crate) fn equalize_split(&mut self, id: SplitId, cx: &mut Context<Self>) {
+        self.drag = None;
+        self.panes.equalize(id);
+        cx.notify();
     }
 
     fn drag_sidebar(&mut self, position: Point<Pixels>) {

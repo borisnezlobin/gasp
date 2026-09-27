@@ -12,8 +12,8 @@ use editor_config::Config;
 use editor_config::theme::{Theme as Tokens, TokenValue};
 use editor_core::syntax::CalloutKind;
 use gpui::{
-    BoxShadow, Font, FontStyle, FontWeight, Hsla, Pixels, Rgba, SharedString, font, hsla, point,
-    px, rgb,
+    BoxShadow, Font, FontStyle, FontWeight, Hsla, Pixels, Point, Rgba, SharedString, font, hsla,
+    point, px, rgb,
 };
 
 /// Logical pixels per typographic point.
@@ -1423,6 +1423,24 @@ pub struct UiTheme {
     pub cut_opacity: f32,
     /// The soft edge where tabs run past the tab strip.
     pub tab_fade_width: Pixels,
+    /// The smallest a pane gets while its divider is dragged.
+    pub pane_min_width: Pixels,
+    pub pane_min_height: Pixels,
+    /// The line a divider shows under the pointer and while dragged.
+    pub divider_active: Hsla,
+    pub divider_line_width: Pixels,
+    /// Where a dragged tab will land on a pane: a soft fill with a ring.
+    pub drop_zone: Hsla,
+    pub drop_zone_ring: Hsla,
+    /// How long the drop zone takes to move to a new side.
+    pub drop_zone_motion: std::time::Duration,
+    /// The bar between tabs where a dragged tab will go.
+    pub drop_indicator: Hsla,
+    pub drop_indicator_width: Pixels,
+    /// Opacity of a tab's place in the strip while it's dragged.
+    pub dragged_tab_opacity: f32,
+    /// Where a dragged tab's stand-in hangs from the pointer.
+    pub drag_preview_offset: Point<Pixels>,
 }
 
 impl Default for UiTheme {
@@ -1484,7 +1502,7 @@ impl Default for UiTheme {
             },
             tab_height: px(30.),
             tab_radius: px(8.),
-            tab_min_width: px(72.),
+            tab_min_width: px(110.),
             tab_max_width: px(180.),
             tab_padding_x: px(10.),
             tab_gap: px(2.),
@@ -1545,6 +1563,17 @@ impl Default for UiTheme {
             drop_target: hsla(0., 0., 0., 0.08),
             cut_opacity: 0.5,
             tab_fade_width: px(24.),
+            pane_min_width: px(240.),
+            pane_min_height: px(160.),
+            divider_active: hsla(0., 0., 0., 0.18),
+            divider_line_width: px(2.),
+            drop_zone: hsla(0., 0., 0., 0.06),
+            drop_zone_ring: hsla(0., 0., 0., 0.16),
+            drop_zone_motion: std::time::Duration::from_millis(120),
+            drop_indicator: rgb(0x27272a).into(),
+            drop_indicator_width: px(2.),
+            dragged_tab_opacity: 0.35,
+            drag_preview_offset: point(px(10.), px(14.)),
         }
     }
 }

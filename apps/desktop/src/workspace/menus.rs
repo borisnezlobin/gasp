@@ -67,6 +67,11 @@ const VIEW: &[Entry] = &[
     Separator,
     Command("pane.split-right"),
     Command("pane.split-down"),
+    Command("pane.move-tab-left"),
+    Command("pane.move-tab-right"),
+    Command("pane.move-tab-up"),
+    Command("pane.move-tab-down"),
+    Command("pane.close"),
     Separator,
     Command("view.zoom-in"),
     Command("view.zoom-out"),
@@ -87,6 +92,8 @@ const GO: &[Entry] = &[
     Separator,
     Command("pane.focus-left"),
     Command("pane.focus-right"),
+    Command("pane.focus-up"),
+    Command("pane.focus-down"),
 ];
 
 /// Edit commands the OS also knows, so text fields in native dialogs get
