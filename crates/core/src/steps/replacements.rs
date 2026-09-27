@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use editor_snippets::Replacements;
 
 use crate::document::Selection;
@@ -13,12 +15,16 @@ pub const REPLACE_COMMAND: &str = "replacements";
 /// Applies typing replacements such as curly quotes, dashes and arrows.
 /// The typed character goes in first and the replacement is its own undo
 /// step, so undo right after gives back what was typed.
+///
+/// Curly quotes are left to the smart quotes step, which has its own
+/// setting and also curls pasted text, so a migrated table's quote entries
+/// don't fight it.
 pub struct ReplacementStep {
-    table: Replacements,
+    table: Arc<Replacements>,
 }
 
 impl ReplacementStep {
-    pub fn new(table: Replacements) -> Self {
+    pub fn new(table: Arc<Replacements>) -> Self {
         Self { table }
     }
 
@@ -30,7 +36,8 @@ impl ReplacementStep {
         let line = LineAround::read(cx, Key::Char(typed))?;
         let edit = self
             .table
-            .find(&line.before, typed, snippet_context(cx.context))?;
+            .find(&line.before, typed, snippet_context(cx.context))
+            .filter(|edit| self.table.entries[edit.entry].closing.is_none())?;
         let range = line.typed_offset(edit.replace.start)..line.typed_offset(edit.replace.end);
         let caret = line.caret_after_typing() - range.len() + edit.text.len();
         let changes = ChangeSet::replace(range, edit.text);

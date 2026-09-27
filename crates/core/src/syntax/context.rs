@@ -1,7 +1,7 @@
 //! The input context at an offset: what kind of text the cursor is in.
 
 use crate::document::Document;
-use crate::pipeline::{ContextProvider, InputContext};
+use crate::pipeline::{ContextProvider, InputContext, MathSpan};
 
 use super::kinds::{HtmlKind, LinkKind, MarkupKind, NodeKind};
 use super::tree::{Node, SyntaxTree};
@@ -39,6 +39,42 @@ impl SyntaxTree {
 impl ContextProvider for SyntaxTree {
     fn context_at(&self, _doc: &Document, offset: usize) -> InputContext {
         SyntaxTree::context_at(self, offset)
+    }
+
+    fn math_at(&self, _doc: &Document, offset: usize) -> Option<MathSpan> {
+        SyntaxTree::math_at(self, offset)
+    }
+}
+
+impl SyntaxTree {
+    /// The innermost math strictly around `offset`, as [`math_context`]
+    /// counts it.
+    pub fn math_at(&self, offset: usize) -> Option<MathSpan> {
+        let node = self
+            .path_at(offset)
+            .into_iter()
+            .rev()
+            .map(|id| self.node(id))
+            .find(|node| math_context(node, offset).is_some())?;
+        let delimiters: Vec<_> = node
+            .markup
+            .iter()
+            .filter(|m| m.kind == MarkupKind::MathDelimiter)
+            .map(|m| m.range.clone())
+            .collect();
+        let start = delimiters.first().map_or(node.range.start, |open| open.end);
+        let end = match delimiters.as_slice() {
+            [_, .., close] if close.start >= start => close.start,
+            _ => node.range.end,
+        };
+        Some(MathSpan {
+            outer: node.range.clone(),
+            inner: start..end.max(start),
+            block: matches!(
+                node.kind,
+                NodeKind::MathBlock | NodeKind::Math { display: true }
+            ),
+        })
     }
 }
 

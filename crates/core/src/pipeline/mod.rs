@@ -2,7 +2,8 @@
 //! through ordered, named steps before it becomes a [`Transaction`].
 //!
 //! ```text
-//! snippets → replacements → smart-quotes → emoji → footnotes → list-continuation → auto-pair → apply
+//! snippets → tab-stops → math → replacements → smart-quotes → emoji → footnotes
+//!          → list-continuation → auto-pair → apply
 //! ```
 //!
 //! A step can pass the request on unchanged, pass on a different request, or
@@ -13,17 +14,23 @@ mod apply;
 mod auto_pair;
 mod context;
 mod list;
+mod math;
 mod smart_quotes;
+mod tab_stops;
 
 use std::fmt;
 
 pub use apply::{ApplyStep, RangePlan, backspace_plan, plan_transaction};
 pub use auto_pair::AutoPairStep;
 pub use context::{
-    ContextFilter, ContextProvider, ContextSet, FixedContext, InputContext, UnknownContext,
+    ContextFilter, ContextProvider, ContextSet, FixedContext, InputContext, MathSpan,
+    UnknownContext,
 };
 pub use list::ListContinuationStep;
+pub(crate) use math::enlarge_in;
+pub use math::{MathOptions, MathStep, enlarge_brackets};
 pub use smart_quotes::{CURL_COMMAND, CURLS_IN, SmartQuoteStep, curl_quotes, curly_quote};
+pub use tab_stops::{TabStopStep, TabStops, follow_stops};
 
 use crate::document::{Document, Selection};
 use crate::transaction::{ChangeSet, Origin, Transaction};
@@ -31,6 +38,8 @@ use crate::transaction::{ChangeSet, Origin, Transaction};
 /// Names of the built-in steps, in their default order.
 pub mod step_names {
     pub const SNIPPETS: &str = "snippets";
+    pub const TAB_STOPS: &str = "tab-stops";
+    pub const MATH: &str = "math";
     pub const REPLACEMENTS: &str = "replacements";
     pub const SMART_QUOTES: &str = "smart-quotes";
     pub const EMOJI: &str = "emoji";
@@ -39,8 +48,10 @@ pub mod step_names {
     pub const AUTO_PAIR: &str = "auto-pair";
     pub const APPLY: &str = "apply";
 
-    pub const DEFAULT_ORDER: [&str; 8] = [
+    pub const DEFAULT_ORDER: [&str; 10] = [
         SNIPPETS,
+        TAB_STOPS,
+        MATH,
         REPLACEMENTS,
         SMART_QUOTES,
         EMOJI,
@@ -74,10 +85,32 @@ pub struct StepContext<'a> {
     pub selection: &'a Selection,
     /// The context at the primary cursor.
     pub context: InputContext,
+    /// The math around the primary cursor, when it's in math.
+    pub math: Option<&'a MathSpan>,
+    /// The tab stops of the snippet being filled in, if any.
+    pub tab_stops: Option<&'a TabStops>,
     pub timestamp_ms: u64,
 }
 
-impl StepContext<'_> {
+impl<'a> StepContext<'a> {
+    /// A context with no math span or tab stops, for commands that build
+    /// transactions the way steps do.
+    pub fn plain(
+        doc: &'a Document,
+        selection: &'a Selection,
+        context: InputContext,
+        timestamp_ms: u64,
+    ) -> Self {
+        StepContext {
+            doc,
+            selection,
+            context,
+            math: None,
+            tab_stops: None,
+            timestamp_ms,
+        }
+    }
+
     /// Wraps a change in an input transaction stamped with this request's time.
     pub fn transaction(&self, changes: ChangeSet, selection: Option<Selection>) -> Transaction {
         let transaction = Transaction::new(changes, Origin::Input, self.timestamp_ms);
@@ -99,8 +132,23 @@ pub enum StepOutcome {
     /// its own undo step, so undo right after gives back what was typed.
     /// The transaction applies to the document after the typing.
     EmitAfterTyping(Transaction),
+    /// Consume the request; this transaction is the result, and it leaves
+    /// tab stops to visit with Tab, in the new document's offsets.
+    EmitWithStops(Transaction, Vec<Vec<std::ops::Range<usize>>>),
     /// Consume the request and do nothing.
     Cancel,
+}
+
+/// What the pipeline made of a request.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PipelineOutput {
+    /// The transactions to apply in order, each its own undo step.
+    pub transactions: Vec<Transaction>,
+    /// Tab stops a snippet left, in the offsets of the document after the
+    /// transactions.
+    pub stops: Option<Vec<Vec<std::ops::Range<usize>>>>,
+    /// The step that consumed the request, if one did.
+    pub step: Option<String>,
 }
 
 /// One stage of the pipeline.
@@ -214,6 +262,12 @@ impl Pipeline {
         use step_names::*;
         let slots = vec![
             StepSlot::placeholder(SNIPPETS, ContextFilter::any()),
+            StepSlot::new(TAB_STOPS, Box::new(TabStopStep), ContextFilter::any()),
+            StepSlot::new(
+                MATH,
+                Box::new(MathStep::default()),
+                ContextFilter::only(&[Math]),
+            ),
             StepSlot::placeholder(REPLACEMENTS, ContextFilter::except(&[Code, Math])),
             StepSlot::new(
                 SMART_QUOTES,
@@ -393,29 +447,59 @@ impl Pipeline {
         contexts: &dyn ContextProvider,
         timestamp_ms: u64,
     ) -> Vec<Transaction> {
+        self.run_input(request, doc, selection, contexts, timestamp_ms, None)
+            .transactions
+    }
+
+    /// Runs a request through the steps, with the tab stops of a snippet
+    /// being filled in, and reports what came of it.
+    pub fn run_input(
+        &self,
+        request: EditRequest,
+        doc: &Document,
+        selection: &Selection,
+        contexts: &dyn ContextProvider,
+        timestamp_ms: u64,
+        tab_stops: Option<&TabStops>,
+    ) -> PipelineOutput {
+        let head = selection.primary().head;
+        let context = contexts.context_at(doc, head);
+        let math = (context == InputContext::Math)
+            .then(|| contexts.math_at(doc, head))
+            .flatten();
         let cx = StepContext {
             doc,
             selection,
-            context: contexts.context_at(doc, selection.primary().head),
+            context,
+            math: math.as_ref(),
+            tab_stops,
             timestamp_ms,
         };
         let mut request = request;
-        for step in self
-            .slots
-            .iter()
-            .filter_map(|slot| slot.runs_in(cx.context))
-        {
+        for slot in &self.slots {
+            let Some(step) = slot.runs_in(cx.context) else {
+                continue;
+            };
             let typed = request.clone();
-            match step.run(request, &cx) {
-                StepOutcome::Continue(next) => request = next,
-                StepOutcome::Emit(transaction) => return vec![transaction],
-                StepOutcome::EmitAfterTyping(after) => {
-                    return vec![apply::as_typed(typed, &cx), after];
+            let (transactions, stops) = match step.run(request, &cx) {
+                StepOutcome::Continue(next) => {
+                    request = next;
+                    continue;
                 }
-                StepOutcome::Cancel => return Vec::new(),
-            }
+                StepOutcome::Emit(transaction) => (vec![transaction], None),
+                StepOutcome::EmitAfterTyping(after) => {
+                    (vec![apply::as_typed(typed, &cx), after], None)
+                }
+                StepOutcome::EmitWithStops(transaction, stops) => (vec![transaction], Some(stops)),
+                StepOutcome::Cancel => (Vec::new(), None),
+            };
+            return PipelineOutput {
+                transactions,
+                stops,
+                step: Some(slot.name.clone()),
+            };
         }
-        Vec::new()
+        PipelineOutput::default()
     }
 }
 
