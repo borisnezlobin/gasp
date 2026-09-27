@@ -212,7 +212,13 @@ fn entry_kind(item: &fs::DirEntry, name: &str) -> Option<EntryKind> {
     if is_hidden(name) {
         return None;
     }
-    if item.path().is_dir() {
+    // The entry's type comes with the listing on most platforms; only a
+    // symlink needs a look at what it points to.
+    let is_dir = match item.file_type() {
+        Ok(kind) if !kind.is_symlink() => kind.is_dir(),
+        _ => item.path().is_dir(),
+    };
+    if is_dir {
         return Some(EntryKind::Folder);
     }
     EntryKind::of_file(name)

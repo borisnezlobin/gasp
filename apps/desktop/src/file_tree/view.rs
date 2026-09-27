@@ -145,6 +145,13 @@ impl FileTree {
     /// Starts watching off the main thread, since watching a folder means
     /// visiting every folder in it.
     fn start_watching(&mut self, cx: &mut Context<Self>) {
+        if crate::first_frame::is_waiting() {
+            let this = cx.weak_entity();
+            crate::first_frame::defer(move |cx| {
+                this.update(cx, |tree, cx| tree.start_watching(cx)).ok();
+            });
+            return;
+        }
         let root = self.model.root().to_path_buf();
         let starting = cx.background_spawn(async move {
             let _span = crate::trace::span("file-tree-watch");

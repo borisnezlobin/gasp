@@ -165,7 +165,11 @@ impl Workspace {
     ) {
         let recent = self.launcher_notes();
         let vault = self.vault.clone();
-        let launcher = cx.new(|cx| Launcher::new(&vault, recent, cx));
+        let found = self.recency.take();
+        let launcher = cx.new(|cx| match found {
+            Some(found) => Launcher::with_found(&vault, recent, found, cx),
+            None => Launcher::new(&vault, recent, cx),
+        });
         let subscription = cx.subscribe_in(&launcher, window, Self::on_open_recent);
         let tab = Tab::new(TabContent::Launcher(launcher), vec![subscription]);
         pane.update(cx, |pane, cx| pane.add_tab(tab, cx));
@@ -198,18 +202,9 @@ impl Workspace {
 
     /// This session's recent notes for a new launcher, which adds the
     /// vault's most recently changed notes itself, off the main thread.
-    /// The first launcher also gets the notes read while the app started,
-    /// so the window's first frame lists them.
-    fn launcher_notes(&mut self) -> Vec<PathBuf> {
+    fn launcher_notes(&self) -> Vec<PathBuf> {
         let mut notes: Vec<PathBuf> = self.recent.clone();
-        for path in &std::mem::take(&mut self.recency) {
-            if notes.len() >= MAX_RECENT {
-                break;
-            }
-            if !notes.contains(path) {
-                notes.push(path.clone());
-            }
-        }
+        notes.truncate(MAX_RECENT);
         notes.retain(|path| path.is_file());
         notes
     }

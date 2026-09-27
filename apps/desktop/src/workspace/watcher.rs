@@ -5,9 +5,10 @@ use std::path::{Path, PathBuf};
 
 use futures::channel::mpsc::{UnboundedReceiver, unbounded};
 use notify::event::{ModifyKind, RenameMode};
-use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{Event, EventKind};
 
 use super::files::is_hidden;
+use crate::vault_watch::WatchHandle;
 
 /// A change to the vault that open notes care about.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -92,22 +93,17 @@ pub fn normalize(mut changes: Vec<DiskChange>) -> Vec<DiskChange> {
 }
 
 /// Starts watching `vault`. Events arrive on the returned receiver; the
-/// watcher stops when it's dropped.
-pub fn watch(
-    vault: &Path,
-) -> notify::Result<(RecommendedWatcher, UnboundedReceiver<Vec<DiskChange>>)> {
+/// watch stops when the handle is dropped.
+pub fn watch(vault: &Path) -> notify::Result<(WatchHandle, UnboundedReceiver<Vec<DiskChange>>)> {
     let (sender, receiver) = unbounded();
     let root = vault.to_path_buf();
-    let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
-        if let Ok(event) = result {
-            let changes = classify(&event, &root);
-            if !changes.is_empty() {
-                let _ = sender.unbounded_send(changes);
-            }
+    let handle = crate::vault_watch::watch(vault, move |event| {
+        let changes = classify(event, &root);
+        if !changes.is_empty() {
+            let _ = sender.unbounded_send(changes);
         }
     })?;
-    watcher.watch(vault, RecursiveMode::Recursive)?;
-    Ok((watcher, receiver))
+    Ok((handle, receiver))
 }
 
 #[cfg(test)]
