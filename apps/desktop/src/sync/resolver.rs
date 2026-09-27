@@ -410,12 +410,10 @@ impl ConflictResolver {
     }
 }
 
-/// The settings look, with the interface font this system has.
+/// The settings look in the theme in effect, with the interface font
+/// this system has.
 pub(super) fn resolved_style(cx: &mut gpui::App) -> SettingsTheme {
-    SettingsTheme {
-        font_family: crate::ui::ui_theme(cx).font_family,
-        ..SettingsTheme::default()
-    }
+    crate::ui::settings_theme(cx)
 }
 
 /// The last few lines of `text`, for context above a conflict.
@@ -427,6 +425,8 @@ fn last_lines(text: &str) -> String {
 
 impl Render for ConflictResolver {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // The theme can change while the resolver is open.
+        self.style = resolved_style(cx);
         let style = self.style.clone();
         let size = modal_size(window.viewport_size(), &style);
         let root = div()

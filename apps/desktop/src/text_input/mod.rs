@@ -144,10 +144,7 @@ impl TextInput {
             state: LineState::default(),
             placeholder: SharedString::default(),
             style: TextInputStyle::default(),
-            theme: InputTheme {
-                font_family: crate::ui::ui_theme(cx).font_family,
-                ..InputTheme::default()
-            },
+            theme: crate::ui::input_theme(cx),
             invalid: false,
             bubbles_enter_and_escape: false,
             is_selecting: false,
@@ -376,6 +373,8 @@ impl TextInput {
 
 impl Render for TextInput {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // The theme can change while the input is shown.
+        self.theme.recolor(&crate::ui::input_theme(cx));
         let look = self.look();
         let theme = &self.theme;
         let focused = self.focus_handle.is_focused(window);

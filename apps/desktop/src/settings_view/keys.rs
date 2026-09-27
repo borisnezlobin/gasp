@@ -339,7 +339,7 @@ impl SettingsView {
             "right" => self.step_accent(1, cx),
             "enter" => window.focus(&self.hex_field.focus_handle(cx)),
             "delete" | "backspace" => {
-                self.write_token(super::model::ACCENT_TOKEN, None, cx);
+                self.write_token(self.accent_token(), None, cx);
             }
             _ => return false,
         }

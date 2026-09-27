@@ -318,6 +318,8 @@ impl ExportDialog {
 
 impl Render for ExportDialog {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // The theme can change while the dialog is open.
+        self.theme = crate::ui::ui_theme(cx);
         let ui = self.theme.clone();
         let error = match &self.state {
             ExportState::Failed(message) => Some(message.clone()),
