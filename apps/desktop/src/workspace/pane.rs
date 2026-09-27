@@ -22,6 +22,9 @@ use crate::text_input::TextInput;
 use crate::theme::Theme;
 use crate::ui::{HasMenuSlot, MenuAnchor, MenuItem, MenuSlot, ui_theme};
 
+/// The command the conflict banner runs.
+pub const RESOLVE_COMMAND: &str = "sync.resolve-conflicts";
+
 /// What an empty tab is called.
 pub const NEW_TAB_TITLE: &str = "New tab";
 
@@ -130,6 +133,8 @@ pub struct Pane {
     pub corner_inset: Pixels,
     pub(crate) reading_probe: Option<ReadingProbe>,
     pub(crate) menu: MenuSlot,
+    /// Notes a paused sync merge is waiting on, which get a banner.
+    sync_conflicts: Vec<PathBuf>,
 }
 
 impl EventEmitter<PaneEvent> for Pane {}
@@ -165,7 +170,64 @@ impl Pane {
             corner_inset: px(0.),
             reading_probe: None,
             menu: MenuSlot::default(),
+            sync_conflicts: Vec::new(),
         }
+    }
+
+    /// Marks the notes sync left in conflict, by absolute path.
+    pub fn set_sync_conflicts(&mut self, paths: Vec<PathBuf>, cx: &mut Context<Self>) {
+        if paths != self.sync_conflicts {
+            self.sync_conflicts = paths;
+            cx.notify();
+        }
+    }
+
+    /// Whether the active note is one sync left in conflict.
+    pub fn shows_sync_conflict(&self, cx: &App) -> bool {
+        self.active_tab()
+            .and_then(|tab| tab.path(cx))
+            .is_some_and(|path| self.sync_conflicts.iter().any(|known| known == path))
+    }
+
+    /// The strip over a note sync left in conflict, with the way out.
+    fn render_sync_banner(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if !self.shows_sync_conflict(cx) {
+            return None;
+        }
+        let ui = ui_theme(cx);
+        let style = crate::theme::SettingsTheme::default();
+        let resolve = crate::settings_view::controls::button(
+            "sync-banner-resolve",
+            "Resolve",
+            false,
+            false,
+            &style,
+        )
+        .debug_selector(|| "sync-banner-resolve".to_owned())
+        .on_click(cx.listener(|_, _, _, cx| cx.emit(PaneEvent::Run(RESOLVE_COMMAND.into()))));
+        let banner = div()
+            .id("sync-conflict-banner")
+            .debug_selector(|| "sync-conflict-banner".to_owned())
+            .flex_none()
+            .flex()
+            .items_center()
+            .gap(ui.space_md)
+            .px(ui.space_lg)
+            .py(ui.banner_padding_y)
+            .bg(ui.banner_background)
+            .text_size(ui.small_font_size)
+            .text_color(ui.text_muted)
+            .child(
+                crate::icons::icon(crate::icons::IconName::GitMerge)
+                    .flex_none()
+                    .size(ui.small_icon_size)
+                    .text_color(ui.sync_attention),
+            )
+            .child(div().flex_1().min_w_0().child(
+                "This note changed on this device and on another one, so it shows both versions.",
+            ))
+            .child(resolve);
+        Some(banner.into_any_element())
     }
 
     /// Shows a view above the note, such as the find bar, or removes it.
@@ -462,6 +524,7 @@ impl Render for Pane {
             .rounded(ui.surface_radius)
             .shadow(ui.surface_shadows())
             .child(self.render_note_header(cx))
+            .children(self.render_sync_banner(cx))
             .when_some(self.toolbar.clone(), |surface, toolbar| {
                 surface.child(div().flex_none().child(toolbar))
             })

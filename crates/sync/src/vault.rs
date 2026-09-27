@@ -648,6 +648,93 @@ fn settle_both(
     }
 }
 
+/// What a folder's git clone looks like, read without changing anything.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepoProbe {
+    /// The branch HEAD is on, or `None` when it's detached.
+    pub branch: Option<String>,
+    /// The URL of the remote asked about, if it exists.
+    pub remote_url: Option<String>,
+    /// `user.name` and `user.email` from git's config, when both are set.
+    pub author: Option<Author>,
+}
+
+/// Looks at the clone at `path` (not its parents) without writing to it.
+/// Returns `None` when `path` isn't the root of a git work tree.
+///
+/// [`Vault::open`] pins line endings and writes the device-only excludes,
+/// so this is how a caller checks a folder before letting sync touch it.
+pub fn probe(path: &Path, remote: &str) -> Option<RepoProbe> {
+    let repo = Repository::open(path).ok()?;
+    if repo.is_bare() {
+        return None;
+    }
+    let head = repo.find_reference("HEAD").ok()?;
+    let branch = head
+        .symbolic_target()
+        .and_then(|target| target.strip_prefix("refs/heads/"))
+        .map(str::to_owned);
+    let remote_url = repo
+        .find_remote(remote)
+        .ok()
+        .and_then(|remote| remote.url().map(str::to_owned))
+        .filter(|url| !url.is_empty());
+    let author = repo.config().ok().and_then(|config| {
+        let name = config.get_string("user.name").ok()?;
+        let email = config.get_string("user.email").ok()?;
+        Some(Author::new(name, email))
+    });
+    Some(RepoProbe {
+        branch,
+        remote_url,
+        author,
+    })
+}
+
+/// Points `remote` of the clone at `path` to `url`, adding the remote when
+/// it doesn't exist yet.
+pub fn set_remote_url(path: &Path, remote: &str, url: &str) -> SyncResult<()> {
+    let repo = Repository::open(path)?;
+    if repo.find_remote(remote).is_ok() {
+        repo.remote_set_url(remote, url)?;
+    } else {
+        repo.remote(remote, url)?;
+    }
+    Ok(())
+}
+
+impl Vault {
+    /// The commit the remote-tracking branch points to: the remote as of
+    /// the last fetch or push.
+    pub fn tracking_commit(&self) -> Option<Oid> {
+        self.repo.refname_to_id(&self.config.tracking_ref()).ok()
+    }
+
+    /// Paths that differ between two commits, where `None` is the empty
+    /// tree. Device-only files are left out.
+    pub fn changed_paths(&self, from: Option<Oid>, to: Option<Oid>) -> SyncResult<Vec<PathBuf>> {
+        if from == to {
+            return Ok(Vec::new());
+        }
+        let tree = |oid: Option<Oid>| -> SyncResult<Option<git2::Tree<'_>>> {
+            let Some(oid) = oid else { return Ok(None) };
+            Ok(Some(self.repo.find_commit(oid)?.tree()?))
+        };
+        let (old, new) = (tree(from)?, tree(to)?);
+        let diff = self
+            .repo
+            .diff_tree_to_tree(old.as_ref(), new.as_ref(), None)?;
+        let device_only = &self.config.device_only;
+        let paths = diff
+            .deltas()
+            .filter_map(|delta| delta.new_file().path().or(delta.old_file().path()))
+            .filter(|path| !device_only.matches(path))
+            .map(Path::to_owned)
+            .collect();
+        Ok(paths)
+    }
+}
+
 fn is_inside_vault(path: &Path) -> bool {
     path.components()
         .all(|component| matches!(component, Component::Normal(_)))

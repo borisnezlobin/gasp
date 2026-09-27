@@ -163,6 +163,10 @@ fn to_toml(value: &Value) -> Option<toml_edit::Value> {
             .map(toml_edit::Value::from)
             .or_else(|| number.as_f64().map(toml_edit::Value::from)),
         Value::String(text) => Some(text.as_str().into()),
+        Value::Array(items) => {
+            let items: Option<Vec<toml_edit::Value>> = items.iter().map(to_toml).collect();
+            Some(toml_edit::Value::Array(items?.into_iter().collect()))
+        }
         _ => None,
     }
 }
@@ -177,6 +181,13 @@ fn to_json(item: &Item) -> Option<Value> {
     }
     if let Some(number) = value.as_float() {
         return Some(Value::from(number));
+    }
+    if let Some(items) = value.as_array() {
+        let items: Option<Vec<Value>> = items
+            .iter()
+            .map(|item| to_json(&Item::Value(item.clone())))
+            .collect();
+        return items.map(Value::Array);
     }
     value.as_str().map(Value::from)
 }

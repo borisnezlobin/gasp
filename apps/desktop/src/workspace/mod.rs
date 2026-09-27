@@ -60,6 +60,7 @@ use self::sidebar::LeftPanel;
 use self::status::StatusInfo;
 use crate::editor::EditorView;
 use crate::file_tree::FileTree;
+use crate::sync::SyncService;
 use crate::theme::Theme;
 use crate::ui::{HasMenuSlot, MenuSlot};
 
@@ -120,6 +121,8 @@ pub struct Workspace {
     window_title: String,
     watcher: Option<notify::RecommendedWatcher>,
     rule_clock: Option<sidebar::ExecutorClock>,
+    sync: Option<Entity<SyncService>>,
+    sync_indicator: Option<AnyView>,
     tasks: Vec<Task<()>>,
     _subscriptions: Vec<Subscription>,
 }
@@ -188,6 +191,8 @@ impl Workspace {
             window_title: String::new(),
             watcher: None,
             rule_clock: None,
+            sync: None,
+            sync_indicator: None,
             tasks: Vec::new(),
             _subscriptions: Vec::new(),
         };
@@ -271,6 +276,47 @@ impl Workspace {
 
     pub fn file_tree(&self) -> Option<&Entity<FileTree>> {
         self.file_tree.as_ref()
+    }
+
+    /// Syncs the vault with `service`, shown in the status bar by
+    /// `indicator`. Notes it has conflicts in get a banner.
+    pub fn set_sync(
+        &mut self,
+        service: Entity<SyncService>,
+        indicator: AnyView,
+        cx: &mut Context<Self>,
+    ) {
+        let observe = cx.observe(&service, |workspace, _, cx| {
+            workspace.show_sync_conflicts(cx);
+            cx.notify();
+        });
+        self._subscriptions.push(observe);
+        self.sync = Some(service);
+        self.sync_indicator = Some(indicator);
+        cx.notify();
+    }
+
+    pub fn sync(&self) -> Option<&Entity<SyncService>> {
+        self.sync.as_ref()
+    }
+
+    /// Tells each pane which of its notes sync left in conflict.
+    fn show_sync_conflicts(&mut self, cx: &mut Context<Self>) {
+        let Some(service) = &self.sync else {
+            return;
+        };
+        let service = service.read(cx);
+        let root = service.root().to_path_buf();
+        let conflicted: Vec<PathBuf> = service
+            .conflicts()
+            .iter()
+            .map(|file| root.join(&file.path))
+            .collect();
+        for pane in self.panes.panes() {
+            pane.update(cx, |pane, cx| {
+                pane.set_sync_conflicts(conflicted.clone(), cx)
+            });
+        }
     }
 
     /// How the reading-view button learns whether a note shows as a

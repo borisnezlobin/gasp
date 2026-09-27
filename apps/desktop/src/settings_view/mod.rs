@@ -18,6 +18,7 @@ pub mod model;
 mod render;
 mod rows;
 pub mod store;
+mod sync_page;
 mod view;
 
 pub use menu::MenuTarget;

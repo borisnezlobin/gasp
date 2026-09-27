@@ -1224,6 +1224,19 @@ pub struct UiTheme {
     pub tab_shadow_blur: Pixels,
     pub dirty_dot_size: Pixels,
     pub conflict: Hsla,
+    /// The sync indicator at rest (synced).
+    pub sync_quiet: Hsla,
+    /// The sync indicator while it works or waits (syncing, offline).
+    pub sync_busy: Hsla,
+    /// The sync indicator when it needs the person (conflict, failure).
+    pub sync_attention: Hsla,
+    /// One turn of the syncing arrows.
+    pub sync_spin: std::time::Duration,
+    pub popover_width: Pixels,
+    pub popover_padding: Pixels,
+    /// The strip over a note that has a sync conflict.
+    pub banner_background: Hsla,
+    pub banner_padding_y: Pixels,
     pub note_header_height: Pixels,
     pub sidebar_padding: Pixels,
     pub sidebar_footer_height: Pixels,
@@ -1313,6 +1326,14 @@ impl Default for UiTheme {
             tab_shadow_blur: px(3.),
             dirty_dot_size: px(7.),
             conflict: rgb(0xc62828).into(),
+            sync_quiet: rgb(0xa1a1aa).into(),
+            sync_busy: rgb(0x52525b).into(),
+            sync_attention: rgb(0xc62828).into(),
+            sync_spin: std::time::Duration::from_millis(1600),
+            popover_width: px(320.),
+            popover_padding: px(12.),
+            banner_background: hsla(0., 0., 0., 0.035),
+            banner_padding_y: px(8.),
             note_header_height: px(44.),
             sidebar_padding: px(8.),
             sidebar_footer_height: px(44.),
@@ -1585,6 +1606,17 @@ impl SettingsTheme {
             offset: point(px(0.), self.ring_width),
             blur_radius: self.ring_width * 2.,
             spread_radius: px(0.),
+        }
+    }
+
+    /// A hairline ring of `color`, such as around the version of a
+    /// conflict that's kept.
+    pub fn ring(&self, color: Hsla) -> BoxShadow {
+        BoxShadow {
+            color,
+            offset: point(px(0.), px(0.)),
+            blur_radius: self.ring_blur,
+            spread_radius: self.ring_width,
         }
     }
 
