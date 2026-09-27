@@ -77,6 +77,8 @@ pub struct FileTree {
     pub(super) selected: Option<PathBuf>,
     pub(super) active: Option<PathBuf>,
     pub(super) scroll: UniformListScrollHandle,
+    /// Scrolling toward the edge a drag is held at.
+    pub(super) autoscroll: Option<Task<()>>,
     pub(super) edit: Option<InlineEdit>,
     pub(super) pending_trash: Option<PathBuf>,
     pub(super) menu: Option<ContextMenu>,
@@ -125,6 +127,7 @@ impl FileTree {
             selected: None,
             active: None,
             scroll: UniformListScrollHandle::new(),
+            autoscroll: None,
             edit: None,
             pending_trash: None,
             menu: None,
