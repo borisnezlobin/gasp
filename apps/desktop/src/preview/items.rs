@@ -101,6 +101,7 @@ fn replacement_item(range: Range<usize>, kind: WidgetKind) -> Item {
         | WidgetKind::FootnoteSuperscript { .. }
         | WidgetKind::ConflictLabel { .. }
         | WidgetKind::SubpathSeparator
+        | WidgetKind::PropertyList { .. }
         | WidgetKind::CalloutHeader { .. } => Item::Inline { range, kind },
         _ => Item::Block { range, kind },
     }

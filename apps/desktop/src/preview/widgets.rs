@@ -14,9 +14,10 @@ use crate::images::display_size;
 use crate::line_layout::{Hit, Overlay, Piece, PieceContent, RowKind, VisualRow};
 use crate::preview::items::{Attached, LineItems};
 use crate::preview::layout::LineLayouter;
+use crate::preview::layout::take_backgrounds;
 use crate::preview::math::{MathImage, MathKey, MathState};
 use crate::preview::wrap::{Chunk, Extent, RowBuilder};
-use crate::styling::text_run;
+use crate::styling::{fill_padding, text_run};
 
 const CALLOUT_ICONS: [(CalloutKind, IconName); 14] = [
     (CalloutKind::Note, IconName::PencilSimple),
@@ -98,6 +99,9 @@ impl LineLayouter<'_, '_> {
             WidgetKind::FootnoteSuperscript { label } => self.superscript(range, label, builder),
             WidgetKind::ConflictLabel { side } => self.conflict_label(range, *side, builder),
             WidgetKind::SubpathSeparator => self.subpath_separator(range, builder),
+            WidgetKind::PropertyList { items, tags } => {
+                self.property_list(range, items, *tags, builder)
+            }
             WidgetKind::CalloutHeader {
                 kind,
                 title,
@@ -289,6 +293,42 @@ impl LineLayouter<'_, '_> {
             self.label(" \u{203a} ", run, self.font_size(), self.line_height());
         piece.range = range.clone();
         builder.push_atomic(piece, extent);
+    }
+
+    /// A block list property's items as chips after its name, wrapping
+    /// in the value column like a one-line list. Each chip is one piece,
+    /// its fill reaching the room left at its ends.
+    fn property_list(
+        &mut self,
+        range: &Range<usize>,
+        items: &[String],
+        tags: bool,
+        builder: &mut RowBuilder,
+    ) {
+        let theme = self.theme();
+        let mut styles = vec![StyleKey::Frontmatter, StyleKey::PropertyChip];
+        if tags {
+            styles.insert(0, StyleKey::Tag);
+        }
+        let padding = fill_padding(&styles, theme);
+        let gap = theme.property_chip_gap;
+        for item in items {
+            let mut runs = vec![text_run(item.len(), &styles, &self.tone, false, theme)];
+            let mut backgrounds = Vec::new();
+            take_backgrounds(&mut runs, 0, padding, &mut backgrounds);
+            let Some(run) = runs.pop() else {
+                continue;
+            };
+            let (mut piece, extent) = self.label(item, run, self.font_size(), self.line_height());
+            piece.range = range.clone();
+            piece.width += padding * 2.;
+            if let PieceContent::Text(text) = &mut piece.content {
+                text.slice_x = -padding;
+                text.backgrounds = backgrounds;
+            }
+            builder.push_atomic(piece, extent);
+            builder.advance(gap);
+        }
     }
 
     /// "This device" or "Other device" above a sync conflict's version,
