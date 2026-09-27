@@ -7,6 +7,13 @@ license.workspace = true
 publish = false
 
 [dependencies]
+git2 = { version = "0.20", default-features = false, features = ["https", "vendored-libgit2"] }
+globset = "0.4"
+similar = "2"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
 
 [lints]
 workspace = true
