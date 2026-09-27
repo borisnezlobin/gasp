@@ -41,12 +41,31 @@ jobs:
         run: cargo test --workspace --locked
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - name: Editor layout bench
-        if: runner.os == 'Linux'
-        timeout-minutes: 15
+
+  bench:
+    name: Editor layout bench
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.94.1
+      - uses: Swatinem/rust-cache@v2
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Install GPUI packages, a virtual display and a window manager
         run: |
-          cargo build --release --locked -p editor-desktop
-          xvfb-run -a -s "-screen 0 1280x1024x24" target/release/editor --bench-layout fixtures/corpus
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+            libvulkan-dev libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev \
+            libssl-dev clang xvfb mesa-vulkan-drivers openbox
+      - name: Build the release editor
+        run: cargo build --release --locked -p editor-desktop
+      # GPUI's X11 client can miss its first map event without a window
+      # manager, so the window never draws. openbox provides one.
+      - name: Run the bench
+        timeout-minutes: 8
+        run: |
+          xvfb-run -a -s "-screen 0 1280x1024x24" sh -c \
+            'openbox & sleep 1; target/release/editor --bench-layout fixtures/corpus'
 
   lint:
     name: Format and complexity
