@@ -1,7 +1,9 @@
 //! Theme tokens for the editor view. Every visual value the view uses is
 //! defined here once.
 
-use gpui::{BoxShadow, Font, FontStyle, FontWeight, Hsla, Pixels, font, hsla, point, px, rgb};
+use gpui::{
+    BoxShadow, Font, FontStyle, FontWeight, Hsla, Pixels, SharedString, font, hsla, point, px, rgb,
+};
 
 /// Sizes, fonts and colours for the editor view.
 #[derive(Clone, Debug)]
@@ -230,10 +232,6 @@ pub struct WorkspaceTheme {
     pub ui_font_size: Pixels,
     pub ui_small_font_size: Pixels,
     pub title_font_size: Pixels,
-    pub tab_height: Pixels,
-    pub tab_min_width: Pixels,
-    pub tab_max_width: Pixels,
-    pub status_height: Pixels,
     pub sidebar_width: Pixels,
     pub sidebar_min_width: Pixels,
     pub sidebar_max_width: Pixels,
@@ -242,7 +240,6 @@ pub struct WorkspaceTheme {
     /// Width of the invisible strip that grabs a divider.
     pub divider_grab_width: Pixels,
     pub focus_line_width: Pixels,
-    pub dirty_dot_size: Pixels,
     pub icon_size: Pixels,
     pub small_icon_size: Pixels,
     pub modal_width: Pixels,
@@ -259,9 +256,6 @@ pub struct WorkspaceTheme {
     pub radius_lg: Pixels,
     pub shadow_blur: Pixels,
     pub shadow_offset: Pixels,
-    pub chrome_background: Hsla,
-    pub sidebar_background: Hsla,
-    pub active_tab_background: Hsla,
     /// Hover on the chrome (tabs, buttons in the tab bar).
     pub hover_background: Hsla,
     /// Hover and selection in lists on the note background.
@@ -285,10 +279,6 @@ impl Default for WorkspaceTheme {
             ui_font_size: px(13.),
             ui_small_font_size: px(12.),
             title_font_size: px(34.),
-            tab_height: px(32.),
-            tab_min_width: px(96.),
-            tab_max_width: px(200.),
-            status_height: px(24.),
             sidebar_width: px(260.),
             sidebar_min_width: px(160.),
             sidebar_max_width: px(520.),
@@ -296,7 +286,6 @@ impl Default for WorkspaceTheme {
             divider_width: px(1.),
             divider_grab_width: px(6.),
             focus_line_width: px(2.),
-            dirty_dot_size: px(8.),
             icon_size: px(16.),
             small_icon_size: px(14.),
             modal_width: px(560.),
@@ -313,9 +302,6 @@ impl Default for WorkspaceTheme {
             radius_lg: px(10.),
             shadow_blur: px(16.),
             shadow_offset: px(4.),
-            chrome_background: rgb(0xf4f4f5).into(),
-            sidebar_background: rgb(0xf4f4f5).into(),
-            active_tab_background: hsla(0., 0., 0.99, 1.),
             hover_background: rgb(0xe4e4e7).into(),
             list_hover_background: rgb(0xf4f4f5).into(),
             text: rgb(0x27272a).into(),
@@ -596,6 +582,255 @@ impl Default for FindUiTheme {
             dialog_width: px(320.),
             dialog_top_offset: px(96.),
             backdrop: hsla(0., 0., 0., 0.18),
+        }
+    }
+}
+
+// ---- Workspace chrome and the shared UI primitives in `crate::ui` ----
+//
+// The sidebar, tab bar, note header, status bar, menus, tooltips and icon
+// buttons. Values follow `crates/config/defaults/theme.toml`: Charter for
+// the UI, a black accent and a light grey app background around a white
+// note surface.
+
+/// The UI font and its fallbacks, first installed one wins. Charter ships
+/// with macOS; the rest are serifs common on Windows and Linux.
+pub const UI_FONT_CANDIDATES: [&str; 6] = [
+    "Charter",
+    "Bitstream Charter",
+    "Georgia",
+    "Liberation Serif",
+    "DejaVu Serif",
+    "Times New Roman",
+];
+
+/// Sizes, fonts and colours for the workspace chrome and `crate::ui`.
+#[derive(Clone, Debug)]
+pub struct UiTheme {
+    pub font_family: SharedString,
+    pub font_size: Pixels,
+    pub small_font_size: Pixels,
+    pub space_xs: Pixels,
+    pub space_sm: Pixels,
+    pub space_md: Pixels,
+    pub space_lg: Pixels,
+    pub space_xl: Pixels,
+    pub app_background: Hsla,
+    /// Each pane draws its note on a surface of the editor's background.
+    pub surface_radius: Pixels,
+    /// A hairline ring (a shadow, not a border) around the note surface.
+    pub surface_ring: Hsla,
+    pub surface_ring_width: Pixels,
+    /// Separators in menus.
+    pub hairline: Pixels,
+    /// Space between the note surface and the window edge or the next pane.
+    pub surface_gap: Pixels,
+    /// The widest the note column gets (`size.editor-max-width`).
+    pub readable_width: Pixels,
+    pub text: Hsla,
+    pub text_muted: Hsla,
+    pub text_faint: Hsla,
+    pub icon_button_size: Pixels,
+    pub icon_button_radius: Pixels,
+    pub icon_size: Pixels,
+    pub small_icon_size: Pixels,
+    pub icon: Hsla,
+    pub icon_active: Hsla,
+    pub icon_disabled: Hsla,
+    pub control_hover: Hsla,
+    pub control_pressed: Hsla,
+    /// The fill of a control that's on, such as the current sidebar view.
+    pub control_active: Hsla,
+    pub tooltip_background: Hsla,
+    pub tooltip_text: Hsla,
+    pub tooltip_hint: Hsla,
+    pub tooltip_padding_x: Pixels,
+    pub tooltip_padding_y: Pixels,
+    pub tooltip_radius: Pixels,
+    pub menu_background: Hsla,
+    pub menu_radius: Pixels,
+    pub menu_padding: Pixels,
+    pub menu_min_width: Pixels,
+    pub menu_max_width: Pixels,
+    pub menu_row_height: Pixels,
+    pub menu_row_padding_x: Pixels,
+    pub menu_row_radius: Pixels,
+    pub menu_highlight: Hsla,
+    pub menu_separator: Hsla,
+    pub menu_shadow: Hsla,
+    pub menu_shadow_blur: Pixels,
+    pub menu_shadow_offset: Pixels,
+    pub menu_ring: Hsla,
+    pub tab_bar_height: Pixels,
+    pub tab_height: Pixels,
+    pub tab_radius: Pixels,
+    pub tab_min_width: Pixels,
+    pub tab_max_width: Pixels,
+    pub tab_padding_x: Pixels,
+    pub tab_gap: Pixels,
+    pub tab_shadow: Hsla,
+    pub tab_shadow_blur: Pixels,
+    pub dirty_dot_size: Pixels,
+    pub conflict: Hsla,
+    pub note_header_height: Pixels,
+    pub sidebar_padding: Pixels,
+    pub sidebar_footer_height: Pixels,
+    pub tree_row_height: Pixels,
+    pub tree_indent: Pixels,
+    pub tree_row_radius: Pixels,
+    pub tree_row_gap: Pixels,
+    pub tree_active_background: Hsla,
+    pub tree_hover_background: Hsla,
+    pub indent_guide: Hsla,
+    /// The ring around the selected row while the tree has the keyboard.
+    pub tree_focus_ring: Hsla,
+    pub indent_guide_width: Pixels,
+    pub status_height: Pixels,
+    pub status_gap: Pixels,
+    pub help_row_height: Pixels,
+    pub keycap_background: Hsla,
+    pub keycap_padding_x: Pixels,
+    pub keycap_radius: Pixels,
+    pub backdrop: Hsla,
+}
+
+impl Default for UiTheme {
+    fn default() -> Self {
+        Self {
+            font_family: UI_FONT_CANDIDATES[0].into(),
+            font_size: px(14.),
+            small_font_size: px(12.),
+            space_xs: px(2.),
+            space_sm: px(4.),
+            space_md: px(8.),
+            space_lg: px(12.),
+            space_xl: px(16.),
+            app_background: rgb(0xf6f6f7).into(),
+            surface_radius: px(8.),
+            surface_ring: hsla(0., 0., 0., 0.07),
+            surface_ring_width: px(1.),
+            hairline: px(1.),
+            surface_gap: px(8.),
+            readable_width: px(720.),
+            text: rgb(0x27272a).into(),
+            text_muted: rgb(0x52525b).into(),
+            text_faint: rgb(0xa1a1aa).into(),
+            icon_button_size: px(28.),
+            icon_button_radius: px(6.),
+            icon_size: px(18.),
+            small_icon_size: px(14.),
+            icon: rgb(0x5f5f66).into(),
+            icon_active: rgb(0x18181b).into(),
+            icon_disabled: rgb(0xc8c8ce).into(),
+            control_hover: hsla(0., 0., 0., 0.05),
+            control_pressed: hsla(0., 0., 0., 0.1),
+            control_active: hsla(0., 0., 0., 0.07),
+            tooltip_background: rgb(0x1f1f22).into(),
+            tooltip_text: rgb(0xffffff).into(),
+            tooltip_hint: rgb(0xa1a1aa).into(),
+            tooltip_padding_x: px(8.),
+            tooltip_padding_y: px(4.),
+            tooltip_radius: px(6.),
+            menu_background: rgb(0xffffff).into(),
+            menu_radius: px(8.),
+            menu_padding: px(4.),
+            menu_min_width: px(220.),
+            menu_max_width: px(360.),
+            menu_row_height: px(28.),
+            menu_row_padding_x: px(10.),
+            menu_row_radius: px(5.),
+            menu_highlight: hsla(0., 0., 0., 0.06),
+            menu_separator: rgb(0xe4e4e7).into(),
+            menu_shadow: hsla(0., 0., 0., 0.16),
+            menu_shadow_blur: px(24.),
+            menu_shadow_offset: px(8.),
+            menu_ring: hsla(0., 0., 0., 0.08),
+            tab_bar_height: px(40.),
+            tab_height: px(30.),
+            tab_radius: px(8.),
+            tab_min_width: px(72.),
+            tab_max_width: px(180.),
+            tab_padding_x: px(10.),
+            tab_gap: px(2.),
+            tab_shadow: hsla(0., 0., 0., 0.1),
+            tab_shadow_blur: px(3.),
+            dirty_dot_size: px(7.),
+            conflict: rgb(0xc62828).into(),
+            note_header_height: px(44.),
+            sidebar_padding: px(8.),
+            sidebar_footer_height: px(44.),
+            tree_row_height: px(30.),
+            tree_indent: px(18.),
+            tree_row_radius: px(6.),
+            tree_row_gap: px(7.),
+            tree_active_background: hsla(0., 0., 0., 0.07),
+            tree_hover_background: hsla(0., 0., 0., 0.035),
+            indent_guide: hsla(0., 0., 0., 0.08),
+            tree_focus_ring: hsla(0., 0., 0., 0.28),
+            indent_guide_width: px(1.),
+            status_height: px(24.),
+            status_gap: px(16.),
+            help_row_height: px(32.),
+            keycap_background: hsla(0., 0., 0., 0.06),
+            keycap_padding_x: px(6.),
+            keycap_radius: px(4.),
+            backdrop: hsla(0., 0., 0., 0.12),
+        }
+    }
+}
+
+impl UiTheme {
+    /// The default tokens with the first candidate UI font found among
+    /// `installed` font family names.
+    pub fn with_installed_fonts(installed: &[String]) -> UiTheme {
+        let family = UI_FONT_CANDIDATES
+            .iter()
+            .find(|candidate| installed.iter().any(|name| name == *candidate))
+            .unwrap_or(&UI_FONT_CANDIDATES[0]);
+        UiTheme {
+            font_family: (*family).into(),
+            ..UiTheme::default()
+        }
+    }
+
+    /// The shadow under menus and tooltips, with a hairline ring.
+    pub fn menu_shadows(&self) -> Vec<BoxShadow> {
+        vec![
+            BoxShadow {
+                color: self.menu_shadow,
+                offset: point(px(0.), self.menu_shadow_offset),
+                blur_radius: self.menu_shadow_blur,
+                spread_radius: px(0.),
+            },
+            self.ring(self.menu_ring),
+        ]
+    }
+
+    /// The ring around the note surface.
+    pub fn surface_shadows(&self) -> Vec<BoxShadow> {
+        vec![self.ring(self.surface_ring)]
+    }
+
+    /// The lift under the active tab.
+    pub fn tab_shadows(&self) -> Vec<BoxShadow> {
+        vec![
+            BoxShadow {
+                color: self.tab_shadow,
+                offset: point(px(0.), px(1.)),
+                blur_radius: self.tab_shadow_blur,
+                spread_radius: px(0.),
+            },
+            self.ring(self.surface_ring),
+        ]
+    }
+
+    /// A hairline ring of `color`, drawn as a shadow.
+    pub fn ring(&self, color: Hsla) -> BoxShadow {
+        BoxShadow {
+            color,
+            offset: point(px(0.), px(0.)),
+            blur_radius: px(0.),
+            spread_radius: self.surface_ring_width,
         }
     }
 }

@@ -1,11 +1,15 @@
-//! A pane: a row of tabs, an optional toolbar (the find bar goes there)
-//! and the active tab's note or launcher.
+//! A pane: a row of tabs, and under it the note surface with the note's
+//! header bar, an optional toolbar (the find bar goes there) and the
+//! active tab's note or launcher. The tab bar is drawn in `tab_bar.rs` and
+//! the header in `note_header.rs`.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use gpui::{
-    AnyView, App, Context, Entity, EventEmitter, FocusHandle, Focusable, MouseButton, ScrollHandle,
-    SharedString, Subscription, Window, div, prelude::*,
+    AnyElement, AnyView, App, Context, Entity, EventEmitter, FocusHandle, Focusable, MouseButton,
+    MouseDownEvent, ScrollHandle, ScrollWheelEvent, SharedString, Subscription, Window, div,
+    prelude::*,
 };
 
 use super::files::note_title;
@@ -14,11 +18,15 @@ use super::launcher::Launcher;
 use super::note_doc::{Conflict, NoteDoc};
 use super::title_input::TitleInput;
 use crate::editor::EditorView;
-use crate::icons::{IconName, icon};
-use crate::theme::{Theme, WorkspaceTheme};
+use crate::theme::Theme;
+use crate::ui::{HasMenuSlot, MenuAnchor, MenuItem, MenuSlot, ui_theme};
 
 /// What an empty tab is called.
 pub const NEW_TAB_TITLE: &str = "New tab";
+
+/// Tells whether an editor shows its note as a finished page, with the
+/// Markdown symbols hidden. The reading-view button shows this state.
+pub type ReadingProbe = Rc<dyn Fn(&EditorView) -> bool>;
 
 /// A tab showing a note.
 #[derive(Clone)]
@@ -74,12 +82,29 @@ impl Tab {
     }
 }
 
-/// What the pane's own controls ask the workspace to do.
+/// The menus a pane's controls open. The workspace fills them in, since
+/// it knows which commands can run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PaneMenu {
+    /// The `⌄` list of every tab.
+    TabList,
+    /// The `⋯` menu in the note header.
+    More,
+    /// A right-click on the note.
+    Editor,
+}
+
+/// What the pane's own controls ask the workspace to do.
+#[derive(Clone, Debug, PartialEq)]
 pub enum PaneEvent {
     ActivateTab(usize),
     CloseTab(usize),
     NewTab,
+    /// Run a command in this pane.
+    Run(SharedString),
+    /// Show this folder in the file tree.
+    Reveal(PathBuf),
+    OpenMenu(PaneMenu, MenuAnchor),
 }
 
 pub struct Pane {
@@ -88,11 +113,19 @@ pub struct Pane {
     active: usize,
     pub(crate) history: NavHistory,
     toolbar: Option<AnyView>,
-    tab_scroll: ScrollHandle,
-    theme: Theme,
+    pub(super) tab_scroll: ScrollHandle,
+    pub(super) theme: Theme,
+    pub(super) vault: PathBuf,
     show_inline_title: bool,
     /// Whether this is the focused pane of several, which is marked.
     pub(crate) marked_focused: bool,
+    /// Whether the workspace has other panes.
+    pub(crate) in_split: bool,
+    /// Whether the tab bar starts with the sidebar button, because the
+    /// sidebar that has its own is hidden.
+    pub show_sidebar_toggle: bool,
+    pub(crate) reading_probe: Option<ReadingProbe>,
+    pub(crate) menu: MenuSlot,
 }
 
 impl EventEmitter<PaneEvent> for Pane {}
@@ -103,8 +136,15 @@ impl Focusable for Pane {
     }
 }
 
+impl HasMenuSlot for Pane {
+    fn menu_slot(&mut self) -> &mut MenuSlot {
+        &mut self.menu
+    }
+}
+
 impl Pane {
-    pub fn new(show_inline_title: bool, cx: &mut Context<Self>) -> Self {
+    /// An empty pane on `vault`'s notes.
+    pub fn new(vault: &Path, show_inline_title: bool, cx: &mut Context<Self>) -> Self {
         Pane {
             focus_handle: cx.focus_handle(),
             tabs: Vec::new(),
@@ -113,8 +153,13 @@ impl Pane {
             toolbar: None,
             tab_scroll: ScrollHandle::new(),
             theme: Theme::default(),
+            vault: vault.to_path_buf(),
             show_inline_title,
             marked_focused: false,
+            in_split: false,
+            show_sidebar_toggle: false,
+            reading_probe: None,
+            menu: MenuSlot::default(),
         }
     }
 
@@ -155,6 +200,30 @@ impl Pane {
     /// The tab showing `path`, if any.
     pub fn index_of_path(&self, path: &Path, cx: &App) -> Option<usize> {
         self.tabs.iter().position(|tab| tab.path(cx) == Some(path))
+    }
+
+    pub fn can_go_back(&self) -> bool {
+        self.history.can_go_back()
+    }
+
+    pub fn can_go_forward(&self) -> bool {
+        self.history.can_go_forward()
+    }
+
+    /// The open menu, if any.
+    pub fn open_menu(&self) -> Option<Entity<crate::ui::DropdownMenu>> {
+        self.menu.menu()
+    }
+
+    /// Opens a menu of `items` from one of the pane's controls.
+    pub fn show_menu(
+        &mut self,
+        items: Vec<MenuItem>,
+        anchor: MenuAnchor,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.menu.open(items, anchor, window, cx);
     }
 
     /// Adds a tab after the active one and shows it.
@@ -204,155 +273,15 @@ impl Pane {
         cx.notify();
     }
 
-    fn render_tab(&self, index: usize, tab: &Tab, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = &self.theme.workspace;
-        let active = index == self.active;
-        let group: SharedString = format!("tab-{index}").into();
-        let state = TabState::of(tab, cx);
-        div()
-            .id(("tab", index))
-            .group(group.clone())
-            .relative()
-            .flex()
-            .flex_row()
-            .flex_none()
-            .items_center()
-            .gap(theme.space_sm)
-            .h_full()
-            .min_w(theme.tab_min_width)
-            .max_w(theme.tab_max_width)
-            .pl(theme.space_lg)
-            .pr(theme.space_sm)
-            .border_r(theme.divider_width)
-            .border_color(theme.divider)
-            .text_color(if active { theme.text } else { theme.text_muted })
-            .when(active, |tab| tab.bg(theme.active_tab_background))
-            .when(!active, |tab| {
-                tab.hover(|style| style.bg(theme.hover_background))
-            })
-            .when(active && self.marked_focused, |tab| {
-                tab.child(focus_line(theme))
-            })
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |_, _, _, cx| cx.emit(PaneEvent::ActivateTab(index))),
-            )
-            .on_mouse_down(
-                MouseButton::Middle,
-                cx.listener(move |_, _, _, cx| cx.emit(PaneEvent::CloseTab(index))),
-            )
-            .when(state.conflict.is_some(), |tab| {
-                tab.child(
-                    icon(IconName::WarningCircle)
-                        .flex_none()
-                        .size(theme.small_icon_size)
-                        .text_color(theme.conflict),
-                )
-            })
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .truncate()
-                    .child(SharedString::from(state.title)),
-            )
-            .child(self.render_tab_end(index, group, state.dirty, cx))
+    /// Whether the active note shows as a finished page.
+    pub fn is_reading(&self, cx: &App) -> bool {
+        match (&self.reading_probe, self.active_editor()) {
+            (Some(probe), Some(editor)) => probe(editor.read(cx)),
+            _ => false,
+        }
     }
 
-    /// The close button, which shows on hover, over the unsaved dot.
-    fn render_tab_end(
-        &self,
-        index: usize,
-        group: SharedString,
-        dirty: bool,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let theme = &self.theme.workspace;
-        let slot = theme.icon_size + theme.space_sm;
-        div()
-            .relative()
-            .flex_none()
-            .size(slot)
-            .when(dirty, |end| {
-                end.child(
-                    div()
-                        .absolute()
-                        .top((slot - theme.dirty_dot_size) / 2.)
-                        .left((slot - theme.dirty_dot_size) / 2.)
-                        .size(theme.dirty_dot_size)
-                        .rounded_full()
-                        .bg(theme.text_muted)
-                        .group_hover(group.clone(), |style| style.invisible()),
-                )
-            })
-            .child(
-                div()
-                    .id(("close-tab", index))
-                    .absolute()
-                    .inset_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded(theme.radius_sm)
-                    .invisible()
-                    .group_hover(group, |style| style.visible())
-                    .hover(|style| style.bg(theme.hover_background))
-                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .on_click(cx.listener(move |_, _, _, cx| cx.emit(PaneEvent::CloseTab(index))))
-                    .child(
-                        icon(IconName::X)
-                            .size(theme.small_icon_size)
-                            .text_color(theme.text_muted),
-                    ),
-            )
-    }
-
-    fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = self.theme.workspace.clone();
-        let tabs: Vec<_> = (0..self.tabs.len())
-            .map(|index| {
-                self.render_tab(index, &self.tabs[index], cx)
-                    .into_any_element()
-            })
-            .collect();
-        div()
-            .flex()
-            .flex_row()
-            .flex_none()
-            .h(theme.tab_height)
-            .bg(theme.chrome_background)
-            .border_b(theme.divider_width)
-            .border_color(theme.divider)
-            .child(
-                div()
-                    .id("tab-strip")
-                    .flex()
-                    .flex_row()
-                    .min_w_0()
-                    .overflow_x_scroll()
-                    .track_scroll(&self.tab_scroll)
-                    .children(tabs),
-            )
-            .child(
-                div()
-                    .id("new-tab")
-                    .flex()
-                    .flex_none()
-                    .items_center()
-                    .justify_center()
-                    .w(theme.tab_height)
-                    .h_full()
-                    .hover(|style| style.bg(theme.hover_background))
-                    .on_click(cx.listener(|_, _, _, cx| cx.emit(PaneEvent::NewTab)))
-                    .child(
-                        icon(IconName::Plus)
-                            .size(theme.small_icon_size)
-                            .text_color(theme.text_muted),
-                    ),
-            )
-    }
-
-    fn render_content(&self) -> gpui::AnyElement {
+    fn render_content(&self, cx: &mut Context<Self>) -> AnyElement {
         let Some(tab) = self.active_tab() else {
             return div().flex_1().into_any_element();
         };
@@ -362,30 +291,83 @@ impl Pane {
                 .min_h_0()
                 .child(launcher.clone())
                 .into_any_element(),
-            TabContent::Note(note) => div()
-                .flex()
-                .flex_col()
-                .flex_1()
-                .min_h_0()
-                .bg(self.theme.background)
-                .when(self.show_inline_title, |content| {
-                    content.child(note.title.clone())
-                })
-                .child(div().flex_1().min_h_0().child(note.editor.clone()))
-                .into_any_element(),
+            TabContent::Note(note) => self.render_note(note, cx),
         }
+    }
+
+    /// The title and the note in a column of readable width, centred.
+    /// Wheel turns beside the column scroll the note too.
+    fn render_note(&self, note: &NoteTab, cx: &mut Context<Self>) -> AnyElement {
+        let ui = ui_theme(cx);
+        let column_width = ui.readable_width + self.theme.text_padding * 2.;
+        let editor = note.editor.clone();
+        let gutter = |id: &'static str| {
+            let editor = editor.clone();
+            div()
+                .id(id)
+                .debug_selector(|| id.to_owned())
+                .flex_1()
+                .min_w_0()
+                .h_full()
+                .on_scroll_wheel(move |event: &ScrollWheelEvent, _, cx| {
+                    let theme = &editor.read(cx).theme;
+                    let line = theme.line_height(theme.body_font_size);
+                    let delta = event.delta.pixel_delta(line);
+                    editor.update(cx, |editor, cx| editor.scroll_by(-delta.y, cx));
+                })
+        };
+        let column = div()
+            .flex()
+            .flex_col()
+            .flex_shrink()
+            .w(column_width)
+            .min_w_0()
+            .h_full()
+            .when(self.show_inline_title, |column| {
+                column.child(note.title.clone())
+            })
+            .child(div().flex_1().min_h_0().child(note.editor.clone()));
+        div()
+            .id("pane-note")
+            .flex()
+            .flex_row()
+            .flex_1()
+            .min_h_0()
+            .on_mouse_down(MouseButton::Right, cx.listener(Self::on_note_right_click))
+            .child(gutter("pane-gutter-left"))
+            .child(column)
+            .child(gutter("pane-gutter-right"))
+            .into_any_element()
+    }
+
+    /// A right-click on the note: the editor takes focus, keeping its
+    /// selection, and its context menu opens.
+    fn on_note_right_click(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(editor) = self.active_editor() {
+            window.focus(&editor.focus_handle(cx));
+        }
+        cx.stop_propagation();
+        cx.emit(PaneEvent::OpenMenu(
+            PaneMenu::Editor,
+            MenuAnchor::Pointer(event.position),
+        ));
     }
 }
 
 /// A tab's visible state.
-struct TabState {
-    title: String,
-    dirty: bool,
-    conflict: Option<Conflict>,
+pub(super) struct TabState {
+    pub title: String,
+    pub dirty: bool,
+    pub conflict: Option<Conflict>,
 }
 
 impl TabState {
-    fn of(tab: &Tab, cx: &App) -> TabState {
+    pub fn of(tab: &Tab, cx: &App) -> TabState {
         let doc = tab.note().map(|note| note.doc.read(cx));
         TabState {
             title: tab.title(cx),
@@ -395,18 +377,24 @@ impl TabState {
     }
 }
 
-fn focus_line(theme: &WorkspaceTheme) -> impl IntoElement {
-    div()
-        .absolute()
-        .top_0()
-        .left_0()
-        .right_0()
-        .h(theme.focus_line_width)
-        .bg(theme.accent)
-}
-
 impl Render for Pane {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let ui = ui_theme(cx);
+        let surface = div()
+            .id("pane-surface")
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_h_0()
+            .min_w_0()
+            .bg(self.theme.background)
+            .rounded(ui.surface_radius)
+            .shadow(ui.surface_shadows())
+            .child(self.render_note_header(cx))
+            .when_some(self.toolbar.clone(), |surface, toolbar| {
+                surface.child(div().flex_none().child(toolbar))
+            })
+            .child(self.render_content(cx));
         div()
             .id("pane")
             .track_focus(&self.focus_handle)
@@ -415,12 +403,8 @@ impl Render for Pane {
             .size_full()
             .min_w_0()
             .min_h_0()
-            .font_family(self.theme.body_font_family)
-            .text_size(self.theme.workspace.ui_font_size)
             .child(self.render_tab_bar(cx))
-            .when_some(self.toolbar.clone(), |pane, toolbar| {
-                pane.child(div().flex_none().child(toolbar))
-            })
-            .child(self.render_content())
+            .child(surface)
+            .children(self.menu.render_overlay(window, cx))
     }
 }

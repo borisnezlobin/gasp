@@ -96,6 +96,73 @@ pub fn tree_order(a: &Entry, b: &Entry) -> Ordering {
         .then_with(|| a.file_name().cmp(b.file_name()))
 }
 
+/// How the tree orders each folder. Folders always come before files.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum SortOrder {
+    /// By name, A to Z.
+    #[default]
+    NameAscending,
+    /// By name, Z to A.
+    NameDescending,
+    /// Files changed most recently first; folders by name.
+    ModifiedNewest,
+    /// Files changed longest ago first; folders by name.
+    ModifiedOldest,
+}
+
+/// Sorts one folder's entries. `modified` reads a file's change time.
+pub fn sort_entries(
+    entries: &mut [Entry],
+    order: SortOrder,
+    modified: impl Fn(&Entry) -> Option<std::time::SystemTime>,
+) {
+    match order {
+        SortOrder::NameAscending => entries.sort_by(tree_order),
+        SortOrder::NameDescending => entries.sort_by(|a, b| {
+            b.is_folder()
+                .cmp(&a.is_folder())
+                .then_with(|| tree_order(b, a))
+        }),
+        SortOrder::ModifiedNewest | SortOrder::ModifiedOldest => {
+            let newest = order == SortOrder::ModifiedNewest;
+            entries.sort_by_cached_key(|entry| {
+                let time = (!entry.is_folder()).then(|| modified(entry)).flatten();
+                (!entry.is_folder(), ModifiedKey { time, newest })
+            });
+            sort_runs_by_name(entries);
+        }
+    }
+}
+
+/// Orders files by change time, with folders (no time) all equal.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct ModifiedKey {
+    time: Option<std::time::SystemTime>,
+    newest: bool,
+}
+
+impl Ord for ModifiedKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if self.newest {
+            other.time.cmp(&self.time)
+        } else {
+            self.time.cmp(&other.time)
+        }
+    }
+}
+
+impl PartialOrd for ModifiedKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Folders, which sort as equals by time, go by name.
+fn sort_runs_by_name(entries: &mut [Entry]) {
+    let folders = entries.iter().take_while(|entry| entry.is_folder()).count();
+    entries[..folders].sort_by(tree_order);
+}
+
 /// Compares names the way people count: `Note 2` before `Note 10`, and
 /// without regard to case.
 pub fn natural_cmp(a: &str, b: &str) -> Ordering {
@@ -206,6 +273,34 @@ mod tests {
         entries.sort_by(tree_order);
         let names: Vec<&str> = entries.iter().map(Entry::label).collect();
         assert_eq!(names, ["c", "z", "a.png", "b"]);
+    }
+
+    #[test]
+    fn sort_orders_keep_folders_first() {
+        let entries = || {
+            vec![
+                Entry::new("b.md", EntryKind::Note),
+                Entry::new("z", EntryKind::Folder),
+                Entry::new("a.md", EntryKind::Note),
+                Entry::new("c", EntryKind::Folder),
+            ]
+        };
+        let names = |entries: &[Entry]| -> Vec<String> {
+            entries.iter().map(|e| e.label().to_string()).collect()
+        };
+        let mut sorted = entries();
+        sort_entries(&mut sorted, SortOrder::NameDescending, |_| None);
+        assert_eq!(names(&sorted), ["z", "c", "b", "a"]);
+        let time = |entry: &Entry| {
+            let seconds = if entry.label() == "a" { 10 } else { 20 };
+            Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(seconds))
+        };
+        let mut sorted = entries();
+        sort_entries(&mut sorted, SortOrder::ModifiedNewest, time);
+        assert_eq!(names(&sorted), ["c", "z", "b", "a"]);
+        let mut sorted = entries();
+        sort_entries(&mut sorted, SortOrder::ModifiedOldest, time);
+        assert_eq!(names(&sorted), ["c", "z", "a", "b"]);
     }
 
     #[test]

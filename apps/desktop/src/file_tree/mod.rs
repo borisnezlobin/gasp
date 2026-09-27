@@ -15,7 +15,7 @@ mod watch;
 
 use std::path::PathBuf;
 
-pub use entries::{Entry, EntryKind, display_name, natural_cmp};
+pub use entries::{Entry, EntryKind, SortOrder, display_name, natural_cmp};
 pub use menu::MenuItem;
 pub use model::{Row, TreeModel};
 pub use view::{FileTree, FileTreeOptions};
