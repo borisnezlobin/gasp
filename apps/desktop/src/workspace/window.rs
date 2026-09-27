@@ -122,7 +122,7 @@ fn open_started_vault_window(
         workspace.focus_active(window, cx);
         cx.activate(true);
         trace::on_first_frame(window);
-        crate::first_frame::release_when_presented(window);
+        crate::first_frame::release_when_presented(window, cx);
     })?;
     Ok(window)
 }
@@ -140,7 +140,7 @@ pub fn open_welcome_window(cx: &mut App) -> anyhow::Result<()> {
     let window = cx.open_window(options, |window, cx| cx.new(|cx| Welcome::new(window, cx)))?;
     window.update(cx, |_, window, cx| {
         window.set_window_title("Open a vault");
-        crate::first_frame::release_when_presented(window);
+        crate::first_frame::release_when_presented(window, cx);
         cx.activate(true);
     })?;
     Ok(())
