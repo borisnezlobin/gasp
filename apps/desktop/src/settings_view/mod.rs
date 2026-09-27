@@ -16,6 +16,7 @@ mod edit;
 mod keys;
 mod menu;
 pub mod model;
+pub mod popover;
 mod render;
 mod rows;
 pub mod snippet_editor;
