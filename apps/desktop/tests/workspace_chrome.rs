@@ -373,6 +373,14 @@ fn the_reading_button_runs_its_command(cx: &mut TestAppContext) {
     assert_eq!(runs.get(), 1);
 }
 
+/// What leads the note menu before Undo: Look up on macOS, as in its own
+/// text menus.
+const LOOK_UP_ITEMS: &[&str] = if cfg!(target_os = "macos") {
+    &["Look up", "-"]
+} else {
+    &[]
+};
+
 #[gpui::test]
 fn the_note_menu_formats_the_selection(cx: &mut TestAppContext) {
     let vault = vault_with(&[("a.md", "hello world")]);
@@ -392,6 +400,8 @@ fn the_note_menu_formats_the_selection(cx: &mut TestAppContext) {
     });
     cx.run_until_parked();
     let items = menu_labels(&workspace, cx).expect("the note menu is open");
+    let (look_up, items) = items.split_at(LOOK_UP_ITEMS.len());
+    assert_eq!(look_up, LOOK_UP_ITEMS);
     assert_eq!(
         items[..10],
         [
@@ -472,7 +482,7 @@ fn the_note_menu_disables_what_has_nothing_to_act_on(cx: &mut TestAppContext) {
     right_click_note(cx);
     assert_eq!(disabled_items(&workspace, cx), ["Redo"]);
     let undo = menu_labels(&workspace, cx).unwrap();
-    assert_eq!(undo[0], "Undo");
+    assert_eq!(undo[LOOK_UP_ITEMS.len()], "Undo");
     click(cx, "menu-item-Undo");
     assert_eq!(editor_text(&workspace, cx), "hello world");
 }
@@ -495,8 +505,12 @@ fn the_note_menu_works_from_the_keyboard(cx: &mut TestAppContext) {
         first_mouse: false,
     });
     cx.run_until_parked();
-    // Down past the disabled items (nothing to undo or paste) to Cut,
-    // Copy, Select all and Format, Right into it, Down to Italic.
+    // Down past Look up on macOS and the disabled items (nothing to undo
+    // or paste) to Cut, Copy, Select all and Format, Right into it, Down
+    // to Italic.
+    for _ in LOOK_UP_ITEMS.iter().filter(|item| **item != "-") {
+        cx.simulate_keystrokes("down");
+    }
     cx.simulate_keystrokes("down down down down right");
     cx.run_until_parked();
     let submenu = cx.read(|cx| {
