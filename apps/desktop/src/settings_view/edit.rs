@@ -2,11 +2,12 @@
 //! tokens to `.editor/theme.toml`, each reported as it's written.
 
 use editor_config::schema::SettingKind;
+use editor_config::theme::{Theme as Tokens, TokenValue};
 use gpui::{Context, Entity, Window};
 use serde_json::Value;
 
 use super::config_files::{self, default_token};
-use super::model::{ACCENT_TOKEN, FontSlot, SettingItem, minimum_for};
+use super::model::{ACCENT_TOKEN, FontSlot, SettingItem, minimum_for, theme_number};
 use super::store;
 use super::view::{ControlRow, SettingsEvent, SettingsView, add_field_key, theme_key};
 use crate::text_input::{TextInput, TextInputEvent};
@@ -20,6 +21,13 @@ impl SettingsView {
         value: Option<Value>,
         cx: &mut Context<Self>,
     ) {
+        if let Some(number) = theme_number(&item.key) {
+            let value = value
+                .and_then(|value| value.as_f64())
+                .map(|n| number.clamp(n));
+            self.write_token_number(number.token, value, cx);
+            return;
+        }
         match store::write_setting(&self.vault_root, &item.key, value.as_ref(), &item.default) {
             Ok(file) => {
                 self.file = file;
@@ -41,12 +49,22 @@ impl SettingsView {
     }
 
     pub(super) fn current_value(&self, item: &SettingItem) -> Value {
+        if let Some(number) = theme_number(&item.key) {
+            return self
+                .tokens
+                .get(number.token)
+                .and_then(TokenValue::as_f64)
+                .map_or_else(|| item.default.clone(), Value::from);
+        }
         self.file
             .get(&item.key)
             .unwrap_or_else(|| item.default.clone())
     }
 
     pub(super) fn is_changed(&self, item: &SettingItem) -> bool {
+        if theme_number(&item.key).is_some() {
+            return self.current_value(item) != item.default;
+        }
         self.file.get(&item.key).is_some()
     }
 
@@ -100,6 +118,11 @@ impl SettingsView {
         cx: &mut Context<Self>,
     ) {
         let current = self.current_value(item);
+        if let Some(number) = theme_number(&item.key) {
+            let next = number.stepped(current.as_f64().unwrap_or(number.min), direction);
+            self.write(item, Some(Value::from(next)), cx);
+            return;
+        }
         let minimum = minimum_for(&item.key);
         let value = match item.kind {
             SettingKind::Integer => {
@@ -266,8 +289,28 @@ impl SettingsView {
 
     /// Writes a theme token (`None` resets it) and reports `theme.<token>`.
     pub(super) fn write_token(&mut self, token: &str, value: Option<&str>, cx: &mut Context<Self>) {
+        let written = config_files::write_theme_token(&self.vault_root, token, value);
+        self.take_tokens(token, written, cx);
+        self.sync_fields(cx);
+    }
+
+    /// Writes a number token (`None` resets it) and reports
+    /// `theme.<token>`.
+    fn write_token_number(&mut self, token: &str, value: Option<f64>, cx: &mut Context<Self>) {
+        let written = config_files::write_theme_number(&self.vault_root, token, value);
+        self.take_tokens(token, written, cx);
+    }
+
+    /// Uses the theme a token write produced, or keeps its error, and
+    /// reports `theme.<token>`.
+    fn take_tokens(
+        &mut self,
+        token: &str,
+        written: Result<Tokens, String>,
+        cx: &mut Context<Self>,
+    ) {
         let key = theme_key(token);
-        match config_files::write_theme_token(&self.vault_root, token, value) {
+        match written {
             Ok(tokens) => {
                 self.tokens = tokens;
                 self.error = None;
@@ -276,7 +319,6 @@ impl SettingsView {
             }
             Err(message) => self.error = Some((key, message)),
         }
-        self.sync_fields(cx);
         cx.notify();
     }
 

@@ -514,6 +514,10 @@ impl SettingsView {
 
 fn number_text(value: &Value) -> String {
     match value {
+        // 720.0 reads as 720.
+        Value::Number(number) if number.as_f64().is_some_and(|n| n.fract() == 0.) => {
+            format!("{}", number.as_f64().unwrap_or_default() as i64)
+        }
         Value::Number(number) => number.to_string(),
         other => other.to_string(),
     }

@@ -48,6 +48,8 @@ pub struct Theme {
     pub medium_weight: FontWeight,
     pub bold_weight: FontWeight,
     pub body_font_size: Pixels,
+    /// The note's inline title above its text.
+    pub title_font_size: Pixels,
     /// Font sizes for heading levels 1 to 6.
     pub heading_font_sizes: [Pixels; 6],
     pub small_font_size: Pixels,
@@ -177,6 +179,7 @@ impl Theme {
             medium_weight: FontWeight(read.number("font.weight.medium", 500.)),
             bold_weight: FontWeight(read.number("font.weight.bold", 700.)),
             body_font_size: scale("font.scale.body", 1.),
+            title_font_size: scale("font.scale.title", 2.),
             heading_font_sizes: [
                 heading(1, 1.8),
                 heading(2, 1.5),
@@ -230,9 +233,10 @@ impl Theme {
         scaled
     }
 
-    fn sizes_mut(&mut self) -> [&mut Pixels; 24] {
+    fn sizes_mut(&mut self) -> [&mut Pixels; 25] {
         [
             &mut self.body_font_size,
+            &mut self.title_font_size,
             &mut self.small_font_size,
             &mut self.editor_max_width,
             &mut self.text_padding,
@@ -418,6 +422,7 @@ fn zero_sizes() -> Theme {
         medium_weight: FontWeight::MEDIUM,
         bold_weight: FontWeight::BOLD,
         body_font_size: zero,
+        title_font_size: zero,
         heading_font_sizes: [zero; 6],
         small_font_size: zero,
         code_scale: 1.,
