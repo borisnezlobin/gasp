@@ -163,7 +163,7 @@ impl Workspace {
                 .left_0()
                 .bottom_0()
                 .shadow(vec![gpui::BoxShadow {
-                    color: theme.shadow,
+                    color: ui.overlay_shadow,
                     offset: gpui::point(theme.shadow_offset / 2., gpui::px(0.)),
                     blur_radius: theme.shadow_blur,
                     spread_radius: gpui::px(0.),

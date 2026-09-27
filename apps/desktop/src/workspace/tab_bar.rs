@@ -193,7 +193,7 @@ impl Pane {
             .pr(ui.space_sm)
             .rounded(ui.tab_radius)
             .text_color(if active { ui.text } else { ui.text_muted })
-            .when(active, |tab| tab.bg(self.theme.background))
+            .when(active, |tab| tab.bg(ui.note_background))
             .when(raised, |tab| tab.shadow(ui.tab_shadows()))
             .when(!active, |tab| tab.hover(|style| style.bg(ui.control_hover)))
             // The name in full, except under the tab's own menu.

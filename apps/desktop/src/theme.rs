@@ -15,7 +15,7 @@ use editor_core::syntax::CalloutKind;
 use crate::preview::code_highlight::CodeKind;
 use gpui::{
     BoxShadow, Font, FontStyle, FontWeight, Hsla, Pixels, Point, Rgba, SharedString, font, hsla,
-    point, px, rgb,
+    point, px,
 };
 
 /// Logical pixels per typographic point.
@@ -59,9 +59,135 @@ pub fn over(top: Hsla, bottom: Hsla) -> Hsla {
     .into()
 }
 
-/// The focus ring's colour before the theme is read.
-fn default_focus_ring() -> Hsla {
-    hsla(0., 0., 0.1, FOCUS_RING_ALPHA)
+/// Declares [`Palette`]: one field per colour token.
+macro_rules! palette {
+    ($($(#[$doc:meta])* $field:ident = $token:literal,)*) => {
+        /// Every colour the app draws with, read once from the resolved
+        /// tokens of the current mode (`color.*`, with `dark.color.*` in
+        /// dark mode). The theme structs below take their colours from
+        /// here, so one set of tokens drives the whole app.
+        #[derive(Clone, Debug, PartialEq)]
+        pub struct Palette {
+            $($(#[$doc])* pub $field: Hsla,)*
+            /// Syntax colours in code blocks, one per [`CodeKind`].
+            pub code: [Hsla; 7],
+            pub callouts: CalloutColors,
+            /// Opacity of a callout's tinted surface.
+            pub callout_tint: f32,
+            /// Opacity of a file tree entry that's been cut.
+            pub cut_opacity: f32,
+        }
+
+        impl Palette {
+            /// Reads each colour from `tokens`, taking `fallback`'s for
+            /// any that are missing or malformed.
+            fn read(tokens: &Tokens, fallback: Option<&Palette>) -> Palette {
+                let read = TokenReader { tokens };
+                Palette {
+                    $($field: read.color($token, fallback.map(|f| f.$field)),)*
+                    code: CodeKind::ALL.map(|kind| {
+                        read.color(kind.token(), fallback.map(|f| f.code[kind as usize]))
+                    }),
+                    callouts: read_callouts(&read, fallback),
+                    callout_tint: read.number(
+                        "opacity.callout",
+                        fallback.map_or(0.1, |f| f.callout_tint),
+                    ),
+                    cut_opacity: read.number("opacity.cut", fallback.map_or(0.5, |f| f.cut_opacity)),
+                }
+            }
+        }
+    };
+}
+
+palette! {
+    background = "color.background",
+    surface = "color.surface",
+    sidebar = "color.sidebar",
+    /// The window around the note surfaces.
+    app_background = "color.app-background",
+    /// Menus, pickers and dialogs.
+    popover = "color.popover",
+    tooltip = "color.tooltip",
+    tooltip_text = "color.tooltip-text",
+    tooltip_hint = "color.tooltip-hint",
+    text = "color.text",
+    text_muted = "color.text-muted",
+    text_faint = "color.text-faint",
+    text_detail = "color.text-detail",
+    text_strong = "color.text-strong",
+    icon = "color.icon",
+    icon_strong = "color.icon-strong",
+    icon_disabled = "color.icon-disabled",
+    accent = "color.accent",
+    on_accent = "color.on-accent",
+    /// Full strength: [`Palette::focus`] gives the ring's colour.
+    focus_ring = "color.focus-ring",
+    link = "color.link",
+    selection = "color.selection",
+    hover = "color.hover",
+    divider = "color.divider",
+    shadow = "color.shadow",
+    syncing = "color.syncing",
+    conflict = "color.conflict",
+    highlight = "color.highlight",
+    code_background = "color.code-background",
+    fill_faint = "color.fill-faint",
+    fill = "color.fill",
+    fill_strong = "color.fill-strong",
+    fill_pressed = "color.fill-pressed",
+    field = "color.field",
+    field_error = "color.field-error",
+    ring = "color.ring",
+    popover_ring = "color.popover-ring",
+    popover_shadow = "color.popover-shadow",
+    tab_shadow = "color.tab-shadow",
+    backdrop = "color.backdrop",
+    indent_guide = "color.indent-guide",
+    drop_target = "color.drop-target",
+    divider_active = "color.divider-active",
+    drop_zone = "color.drop-zone",
+    drop_zone_ring = "color.drop-zone-ring",
+    drop_indicator = "color.drop-indicator",
+    search_match = "color.search-match",
+    active_search_match = "color.active-search-match",
+    knob = "color.knob",
+    card = "color.card",
+}
+
+/// Each callout type's colour from its `color.callout.<name>` token.
+fn read_callouts(read: &TokenReader<'_>, fallback: Option<&Palette>) -> CalloutColors {
+    CalloutColors(
+        CALLOUT_NAMES
+            .iter()
+            .map(|(kind, name)| {
+                let old = fallback.map(|f| f.callouts.get(*kind));
+                (*kind, read.color(&format!("color.callout.{name}"), old))
+            })
+            .collect(),
+    )
+}
+
+impl Palette {
+    /// The colours `tokens` describe. Tokens that are missing or
+    /// malformed keep the built-in light value.
+    pub fn from_tokens(tokens: &Tokens) -> Palette {
+        Palette::read(tokens, Some(Palette::builtin()))
+    }
+
+    /// The built-in light palette, read once.
+    pub fn builtin() -> &'static Palette {
+        static BUILTIN: std::sync::OnceLock<Palette> = std::sync::OnceLock::new();
+        BUILTIN.get_or_init(|| Palette::read(&Config::defaults().theme, None))
+    }
+
+    /// The colour of the focus ring: see [`focus_ring`].
+    pub fn focus(&self) -> Hsla {
+        Hsla {
+            a: self.focus_ring.a * FOCUS_RING_ALPHA,
+            ..self.focus_ring
+        }
+    }
 }
 
 /// Sizes, fonts and colours for the editor view.
@@ -149,22 +275,22 @@ pub struct Theme {
 #[derive(Clone, Debug, PartialEq)]
 pub struct CalloutColors(Vec<(CalloutKind, Hsla)>);
 
-/// Obsidian's callout colours, as `color.callout.<type>` tokens can override.
-const CALLOUT_DEFAULTS: [(CalloutKind, &str, u32); 14] = [
-    (CalloutKind::Note, "note", 0x086ddd),
-    (CalloutKind::Abstract, "abstract", 0x00bfbc),
-    (CalloutKind::Info, "info", 0x086ddd),
-    (CalloutKind::Todo, "todo", 0x086ddd),
-    (CalloutKind::Tip, "tip", 0x00bfbc),
-    (CalloutKind::Success, "success", 0x08b94e),
-    (CalloutKind::Question, "question", 0xec7500),
-    (CalloutKind::Warning, "warning", 0xec7500),
-    (CalloutKind::Failure, "failure", 0xe93147),
-    (CalloutKind::Danger, "danger", 0xe93147),
-    (CalloutKind::Bug, "bug", 0xe93147),
-    (CalloutKind::Example, "example", 0x7852ee),
-    (CalloutKind::Quote, "quote", 0x9e9e9e),
-    (CalloutKind::Custom, "custom", 0x086ddd),
+/// Each callout type's `color.callout.<name>` token.
+const CALLOUT_NAMES: [(CalloutKind, &str); 14] = [
+    (CalloutKind::Note, "note"),
+    (CalloutKind::Abstract, "abstract"),
+    (CalloutKind::Info, "info"),
+    (CalloutKind::Todo, "todo"),
+    (CalloutKind::Tip, "tip"),
+    (CalloutKind::Success, "success"),
+    (CalloutKind::Question, "question"),
+    (CalloutKind::Warning, "warning"),
+    (CalloutKind::Failure, "failure"),
+    (CalloutKind::Danger, "danger"),
+    (CalloutKind::Bug, "bug"),
+    (CalloutKind::Example, "example"),
+    (CalloutKind::Quote, "quote"),
+    (CalloutKind::Custom, "custom"),
 ];
 
 impl CalloutColors {
@@ -180,15 +306,9 @@ impl Default for Theme {
     /// The built-in theme at the built-in base font size.
     fn default() -> Self {
         let config = Config::defaults();
-        Self::from_config(&config)
+        Self::from_config(&config, false)
     }
 }
-
-/// The built-in code colours, in [`CodeKind`] order, for themes that
-/// don't set them.
-const CODE_SYNTAX_DEFAULTS: [u32; 7] = [
-    0x6e6e78, 0x3d6e45, 0x9a5b1e, 0x9a5b1e, 0x7a4390, 0x2f5f93, 0x26707a,
-];
 
 impl Theme {
     /// The colour of code of this kind.
@@ -196,9 +316,12 @@ impl Theme {
         self.code_syntax[kind as usize]
     }
 
-    /// The theme a loaded config describes.
-    pub fn from_config(config: &Config) -> Self {
-        Self::from_tokens(&config.theme, config.settings.appearance.base_font_size)
+    /// The theme a loaded config describes, in light or dark mode.
+    pub fn from_config(config: &Config, dark: bool) -> Self {
+        Self::from_tokens(
+            config.theme.for_mode(dark),
+            config.settings.appearance.base_font_size,
+        )
     }
 
     /// Builds the theme from resolved tokens and a base size in points.
@@ -206,7 +329,7 @@ impl Theme {
     pub fn from_tokens(tokens: &Tokens, base_font_points: u32) -> Self {
         let read = TokenReader { tokens };
         let base = px(base_font_points.max(1) as f32 * PIXELS_PER_POINT);
-        let colors = read_colors(&read);
+        let colors = read_colors(&Palette::from_tokens(tokens));
         let scale = |name: &str, default: f32| base * read.number(name, default);
         let space = |name: &str, default: f32| px(read.number(name, default));
         let heading = |level: usize, default: f32| scale(&format!("font.scale.h{level}"), default);
@@ -255,7 +378,6 @@ impl Theme {
             list_marker_width: base * 1.25,
             bullet_size: base * 0.3,
             tab_columns: 4,
-            callout_tint: 0.1,
             ..colors
         }
     }
@@ -407,45 +529,37 @@ const MONO_FALLBACKS: &[&str] = &[
     "Noto Sans Mono",
 ];
 
-/// Colours read from tokens, with every size left at zero for
+/// The editor's colours from `palette`, with every size left at zero for
 /// [`Theme::from_tokens`] to fill in.
-fn read_colors(read: &TokenReader<'_>) -> Theme {
-    let text = read.color("color.text", 0x27272a);
-    let highlight = read.color("color.highlight", 0xfff59d);
-    let mut search_match = highlight;
-    search_match.a *= 0.55;
+fn read_colors(palette: &Palette) -> Theme {
+    let p = palette;
     Theme {
-        background: read.color("color.background", 0xffffff),
-        surface: read.color("color.surface", 0xfafafa),
-        text,
-        text_muted: read.color("color.text-muted", 0x52525b),
-        text_faint: read.color("color.text-faint", 0xa1a1aa),
-        heading_text: text,
-        markup_dimmed: read.color("color.text-faint", 0xa1a1aa),
-        code_text: text,
-        code_background: read.color("color.code-background", 0xf4f4f5),
-        code_syntax: CodeKind::ALL
-            .map(|kind| read.color(kind.token(), CODE_SYNTAX_DEFAULTS[kind as usize])),
-        selection: read.color("color.selection", 0xe4e4e7),
-        cursor: read.color("color.accent", 0x000000),
-        accent: read.color("color.accent", 0x000000),
-        composition_underline: text,
-        link: read.color("color.link", 0x000000),
-        tag_background: read.color("color.hover", 0xf4f4f5),
-        highlight,
-        divider: read.color("color.divider", 0xe4e4e7),
-        error: read.color("color.conflict", 0xc62828),
-        shadow: read.color("color.shadow", 0x0000001f),
-        search_match,
-        active_search_match: read.color("color.highlight", 0xfff59d),
-        callout_colors: CalloutColors(
-            CALLOUT_DEFAULTS
-                .iter()
-                .map(|(kind, name, rgb)| {
-                    (*kind, read.color(&format!("color.callout.{name}"), *rgb))
-                })
-                .collect(),
-        ),
+        background: p.background,
+        surface: p.surface,
+        text: p.text,
+        text_muted: p.text_muted,
+        text_faint: p.text_faint,
+        heading_text: p.text,
+        markup_dimmed: p.text_faint,
+        code_text: p.text,
+        code_background: p.code_background,
+        code_syntax: p.code,
+        selection: p.selection,
+        cursor: p.accent,
+        accent: p.accent,
+        composition_underline: p.text,
+        link: p.link,
+        tag_background: p.hover,
+        highlight: p.highlight,
+        divider: p.divider,
+        error: p.conflict,
+        shadow: p.shadow,
+        search_match: p.search_match,
+        active_search_match: p.active_search_match,
+        callout_tint: p.callout_tint,
+        callout_colors: p.callouts.clone(),
+        find_ui: FindUiTheme::from_palette(p),
+        workspace: WorkspaceTheme::from_palette(p),
         ..zero_sizes()
     }
 }
@@ -536,13 +650,15 @@ impl TokenReader<'_> {
             .map_or(default, |value| value as f32)
     }
 
-    /// A colour token; `default` is `0xrrggbb`, or `0xrrggbbaa` when it
-    /// needs more than six hex digits.
-    fn color(&self, name: &str, default: u32) -> Hsla {
+    /// A colour token, or `fallback` when it's missing or malformed.
+    /// With no fallback it's a loud magenta, so a token the built-in
+    /// theme lacks shows up at once.
+    fn color(&self, name: &str, fallback: Option<Hsla>) -> Hsla {
         self.tokens
             .text(name)
             .and_then(parse_color)
-            .unwrap_or_else(|| hex_color(default))
+            .or(fallback)
+            .unwrap_or(hsla(0.83, 1., 0.5, 1.))
     }
 }
 
@@ -654,6 +770,13 @@ pub struct PickerTheme {
 
 impl Default for PickerTheme {
     fn default() -> Self {
+        Self::from_palette(Palette::builtin())
+    }
+}
+
+impl PickerTheme {
+    /// The built-in sizes in the colours of `p`.
+    pub fn from_palette(p: &Palette) -> Self {
         Self {
             font_family: PLATFORM_FONTS.0.into(),
             width: px(560.),
@@ -675,16 +798,16 @@ impl Default for PickerTheme {
             keycap: KeycapTheme::default(),
             shadow_blur: px(32.),
             shadow_offset_y: px(8.),
-            background: hsla(0., 0., 1., 1.),
-            shadow: hsla(0., 0., 0., 0.18),
-            text: hsla(0., 0., 0.13, 1.),
-            detail_text: hsla(0., 0., 0.5, 1.),
-            match_text: hsla(0., 0., 0., 1.),
+            background: p.popover,
+            shadow: p.popover_shadow,
+            text: p.text,
+            detail_text: p.text_detail,
+            match_text: p.text_strong,
             match_weight: FontWeight::BOLD,
-            icon: hsla(0., 0., 0.45, 1.),
-            selected_row: hsla(0., 0., 0.92, 1.),
-            hovered_row: hsla(0., 0., 0.96, 1.),
-            warning_text: hsla(0.03, 0.7, 0.42, 1.),
+            icon: p.icon,
+            selected_row: p.fill_strong,
+            hovered_row: p.fill_faint,
+            warning_text: p.conflict,
         }
     }
 }
@@ -744,6 +867,13 @@ pub struct WorkspaceTheme {
 
 impl Default for WorkspaceTheme {
     fn default() -> Self {
+        Self::from_palette(Palette::builtin())
+    }
+}
+
+impl WorkspaceTheme {
+    /// The built-in sizes in the colours of `p`.
+    pub fn from_palette(p: &Palette) -> Self {
         Self {
             ui_font_size: px(13.),
             ui_small_font_size: px(12.),
@@ -770,17 +900,17 @@ impl Default for WorkspaceTheme {
             radius_lg: px(10.),
             shadow_blur: px(16.),
             shadow_offset: px(4.),
-            hover_background: rgb(0xe4e4e7).into(),
-            list_hover_background: rgb(0xf4f4f5).into(),
-            text: rgb(0x27272a).into(),
-            text_muted: rgb(0x52525b).into(),
-            text_faint: rgb(0xa1a1aa).into(),
-            divider: rgb(0xe4e4e7).into(),
-            accent: rgb(0x000000).into(),
-            on_accent: rgb(0xffffff).into(),
-            conflict: rgb(0xc62828).into(),
-            shadow: hsla(0., 0., 0., 0.12),
-            backdrop: hsla(0., 0., 0., 0.08),
+            hover_background: p.fill_strong,
+            list_hover_background: p.hover,
+            text: p.text,
+            text_muted: p.text_muted,
+            text_faint: p.text_faint,
+            divider: p.divider,
+            accent: p.accent,
+            on_accent: p.on_accent,
+            conflict: p.conflict,
+            shadow: p.shadow,
+            backdrop: p.backdrop,
         }
     }
 }
@@ -848,9 +978,16 @@ pub struct PanelTheme {
 
 impl Default for PanelTheme {
     fn default() -> Self {
+        Self::from_palette(Palette::builtin())
+    }
+}
+
+impl PanelTheme {
+    /// The built-in sizes in the colours of `p`.
+    pub fn from_palette(p: &Palette) -> Self {
         Self {
             font_family: PLATFORM_FONTS.0.into(),
-            pane_background: hsla(0., 0., 1., 1.),
+            pane_background: p.background,
             font_size: px(13.),
             small_font_size: px(12.),
             title_font_size: px(20.),
@@ -865,32 +1002,32 @@ impl Default for PanelTheme {
             radius: px(6.),
             ring_width: px(1.5),
             ring_blur: px(0.5),
-            background: hsla(0., 0., 0.97, 1.),
-            text: hsla(0., 0., 0.15, 1.),
-            muted_text: hsla(0., 0., 0.45, 1.),
-            icon: hsla(0., 0., 0.4, 1.),
-            hover: hsla(0., 0., 0., 0.04),
-            selected: hsla(0., 0., 0.92, 1.),
-            selected_focused: hsla(0., 0., 0.88, 1.),
-            focus_ring: default_focus_ring(),
-            active_text: hsla(0., 0., 0.05, 1.),
-            active_marker: hsla(0., 0., 0.05, 1.),
+            background: p.surface,
+            text: p.text,
+            muted_text: p.text_detail,
+            icon: p.icon,
+            hover: p.fill_faint,
+            selected: over(p.fill_strong, p.surface),
+            selected_focused: over(p.fill_pressed, p.surface),
+            focus_ring: p.focus(),
+            active_text: p.text_strong,
+            active_marker: p.text_strong,
             active_marker_width: px(2.),
-            drop_target: hsla(0., 0., 0., 0.12),
-            cut_opacity: 0.5,
-            error_text: hsla(0.0, 0.65, 0.42, 1.),
-            menu_background: hsla(0., 0., 1., 1.),
-            menu_shadow: hsla(0., 0., 0., 0.18),
+            drop_target: p.drop_target,
+            cut_opacity: p.cut_opacity,
+            error_text: p.conflict,
+            menu_background: p.popover,
+            menu_shadow: p.popover_shadow,
             menu_shadow_blur: px(16.),
             menu_shadow_offset: px(4.),
             menu_width: px(220.),
             control_inset: px(2.),
-            control_background: hsla(0., 0., 0., 0.07),
-            control_selected: hsla(0., 0., 0.08, 1.),
-            control_selected_text: hsla(0., 0., 1., 1.),
+            control_background: p.fill_strong,
+            control_selected: p.accent,
+            control_selected_text: p.on_accent,
             toggle_width: px(34.),
             toggle_height: px(20.),
-            toggle_knob: hsla(0., 0., 1., 1.),
+            toggle_knob: p.knob,
             toggle_knob_inset: px(2.),
             sidebar_width: px(200.),
             content_max_width: px(640.),
@@ -956,17 +1093,24 @@ pub struct FindUiTheme {
 
 impl Default for FindUiTheme {
     fn default() -> Self {
+        Self::from_palette(Palette::builtin())
+    }
+}
+
+impl FindUiTheme {
+    /// The built-in sizes in the colours of `p`.
+    pub fn from_palette(p: &Palette) -> Self {
         Self {
             font_family: PLATFORM_FONTS.0.into(),
             font_size: px(14.),
             small_font_size: px(12.),
             title_font_size: px(16.),
-            text: hsla(0., 0., 0.13, 1.),
-            muted_text: hsla(0., 0., 0.45, 1.),
-            disabled_text: hsla(0., 0., 0.7, 1.),
-            error_text: hsla(0.0, 0.65, 0.42, 1.),
-            panel_background: hsla(0., 0., 0.97, 1.),
-            panel_shadow: hsla(0., 0., 0., 0.12),
+            text: p.text,
+            muted_text: p.text_detail,
+            disabled_text: p.text_faint,
+            error_text: p.conflict,
+            panel_background: p.surface,
+            panel_shadow: p.shadow,
             panel_shadow_blur: px(12.),
             panel_padding: px(8.),
             gap: px(6.),
@@ -974,18 +1118,18 @@ impl Default for FindUiTheme {
             button_size: px(28.),
             button_padding_x: px(10.),
             icon_size: px(16.),
-            icon: hsla(0., 0., 0.3, 1.),
-            button_hover_background: hsla(0., 0., 0.9, 1.),
-            accent_background: hsla(0., 0., 0.07, 1.),
-            accent_text: hsla(0., 0., 1., 1.),
+            icon: p.icon,
+            button_hover_background: p.fill,
+            accent_background: p.accent,
+            accent_text: p.on_accent,
             row_padding_y: px(3.),
-            row_selected_background: hsla(0., 0., 0.9, 1.),
+            row_selected_background: p.fill_strong,
             result_indent: px(12.),
-            match_background: hsla(0.14, 0.95, 0.6, 0.45),
+            match_background: p.search_match,
             search_panel_width: px(360.),
             dialog_width: px(320.),
             dialog_top_offset: px(96.),
-            backdrop: hsla(0., 0., 0., 0.18),
+            backdrop: p.backdrop,
         }
     }
 }
@@ -1040,6 +1184,99 @@ mod tests {
             parse_color("#00ff00").unwrap()
         );
         assert!(theme.callout_surface(CalloutKind::Bug).a < 0.2);
+    }
+
+    /// The WCAG contrast ratio of `a` over `b`.
+    fn contrast(a: Hsla, b: Hsla) -> f32 {
+        let luminance = |color: Hsla| {
+            let rgb = over(color, b).to_rgb();
+            let channel = |c: f32| {
+                if c <= 0.039_28 {
+                    c / 12.92
+                } else {
+                    ((c + 0.055) / 1.055).powf(2.4)
+                }
+            };
+            0.2126 * channel(rgb.r) + 0.7152 * channel(rgb.g) + 0.0722 * channel(rgb.b)
+        };
+        let (a, b) = (luminance(a), luminance(b));
+        (a.max(b) + 0.05) / (a.min(b) + 0.05)
+    }
+
+    fn palette(dark: bool) -> Palette {
+        Palette::from_tokens(Config::defaults().theme.for_mode(dark))
+    }
+
+    #[test]
+    fn dark_mode_has_its_own_palette() {
+        let (light, dark) = (palette(false), palette(true));
+        assert_eq!(&light, Palette::builtin());
+        assert!(dark.background.l < 0.15, "a near-black page");
+        assert!(dark.background.l > 0.05, "but not pure black");
+        // Surfaces get lighter as they rise.
+        assert!(dark.app_background.l < dark.background.l);
+        assert!(dark.background.l < dark.popover.l);
+        assert!(dark.popover.l < dark.tooltip.l);
+        // The accent is light, not paint.
+        assert!(dark.accent.l > 0.8 && dark.accent.s < 0.3);
+    }
+
+    #[test]
+    fn text_reads_in_both_modes() {
+        for dark in [false, true] {
+            let p = palette(dark);
+            for surface in [p.background, p.popover, p.app_background, p.card] {
+                assert!(contrast(p.text, surface) >= 7., "body text, dark: {dark}");
+                assert!(
+                    contrast(p.text_muted, surface) >= 4.5,
+                    "muted, dark: {dark}"
+                );
+            }
+            for surface in [p.background, p.popover] {
+                assert!(
+                    contrast(p.text_detail, surface) >= 4.5,
+                    "detail, dark: {dark}"
+                );
+            }
+            for color in p.code {
+                assert!(
+                    contrast(color, p.code_background) >= 4.5,
+                    "code, dark: {dark}"
+                );
+            }
+            for back in [p.selection, p.highlight, p.active_search_match] {
+                assert!(contrast(p.text, back) >= 4.5, "marked text, dark: {dark}");
+            }
+            assert!(contrast(p.on_accent, p.accent) >= 4.5);
+            assert!(contrast(p.tooltip_text, p.tooltip) >= 7.);
+        }
+    }
+
+    #[test]
+    fn dark_callout_titles_read_on_their_tint() {
+        let p = palette(true);
+        for (kind, _) in CALLOUT_NAMES {
+            let color = p.callouts.get(kind);
+            let surface = over(
+                Hsla {
+                    a: p.callout_tint,
+                    ..color
+                },
+                p.background,
+            );
+            assert!(contrast(color, surface) >= 4.5, "{kind:?}");
+        }
+    }
+
+    #[test]
+    fn a_vault_can_set_dark_colours() {
+        let (tokens, _) =
+            build_theme("theme.toml", Some("[dark.color]\ntext = \"#ff0000\"\n")).unwrap();
+        let light = Theme::from_tokens(tokens.for_mode(false), 12);
+        let dark = Theme::from_tokens(tokens.for_mode(true), 12);
+        assert_eq!(dark.text, parse_color("#ff0000").unwrap());
+        assert_ne!(light.text, dark.text);
+        assert_eq!(dark.heading_text, dark.text);
     }
 
     #[test]
@@ -1125,6 +1362,13 @@ pub struct InputTheme {
 
 impl Default for InputTheme {
     fn default() -> Self {
+        Self::from_palette(Palette::builtin())
+    }
+}
+
+impl InputTheme {
+    /// The built-in sizes in the colours of `p`.
+    pub fn from_palette(p: &Palette) -> Self {
         Self {
             font_family: PLATFORM_FONTS.0.into(),
             font_size: px(13.),
@@ -1136,17 +1380,17 @@ impl Default for InputTheme {
             inline_height: px(24.),
             padding_x: px(8.),
             radius: px(6.),
-            background: hsla(0., 0., 0., 0.06),
-            focused_background: hsla(0., 0., 1., 1.),
-            error_background: hsla(0.0, 0.8, 0.95, 1.),
-            focus_ring: default_focus_ring(),
+            background: p.field,
+            focused_background: p.background,
+            error_background: p.field_error,
+            focus_ring: p.focus(),
             ring_width: px(1.5),
             ring_blur: px(0.5),
-            text: hsla(0., 0., 0.13, 1.),
-            title_text: hsla(0., 0., 0.07, 1.),
-            placeholder: hsla(0., 0., 0.6, 1.),
-            selection: hsla(0.6, 0.9, 0.6, 0.3),
-            caret: hsla(0., 0., 0.1, 1.),
+            text: p.text,
+            title_text: p.text_strong,
+            placeholder: p.text_faint,
+            selection: p.selection,
+            caret: p.accent,
             caret_width: px(1.5),
             composition_underline_thickness: px(1.),
         }
@@ -1154,6 +1398,19 @@ impl Default for InputTheme {
 }
 
 impl InputTheme {
+    /// Takes `other`'s colours and keeps this input's sizes.
+    pub fn recolor(&mut self, other: &InputTheme) {
+        self.background = other.background;
+        self.focused_background = other.focused_background;
+        self.error_background = other.error_background;
+        self.focus_ring = other.focus_ring;
+        self.text = other.text;
+        self.title_text = other.title_text;
+        self.placeholder = other.placeholder;
+        self.selection = other.selection;
+        self.caret = other.caret;
+    }
+
     /// Height of one line of input text at `font_size`.
     pub fn line_height(&self, font_size: Pixels) -> Pixels {
         font_size * self.line_height_factor
@@ -1249,7 +1506,7 @@ impl Default for KeycapTheme {
             fill: hsla(0., 0., 0., 0.),
             glyph: hsla(0., 0., 0., 0.),
         }
-        .on_text(rgb(0x27272a).into())
+        .on_text(Palette::builtin().text)
     }
 }
 
@@ -1471,10 +1728,21 @@ pub struct UiTheme {
     pub dragged_tab_opacity: f32,
     /// Where a dragged tab's stand-in hangs from the pointer.
     pub drag_preview_offset: Point<Pixels>,
+    /// The note surface each pane draws on, and the active tab.
+    pub note_background: Hsla,
+    /// The shadow under the sidebar where it slides over the note.
+    pub overlay_shadow: Hsla,
 }
 
 impl Default for UiTheme {
     fn default() -> Self {
+        Self::from_palette(Palette::builtin())
+    }
+}
+
+impl UiTheme {
+    /// The built-in sizes in the colours of `p`.
+    pub fn from_palette(p: &Palette) -> Self {
         Self {
             font_family: UI_FONT_CANDIDATES[0].into(),
             font_size: px(14.),
@@ -1484,33 +1752,33 @@ impl Default for UiTheme {
             space_md: px(8.),
             space_lg: px(12.),
             space_xl: px(16.),
-            app_background: rgb(0xf6f6f7).into(),
+            app_background: p.app_background,
             surface_radius: px(8.),
-            surface_ring: hsla(0., 0., 0., 0.07),
+            surface_ring: p.ring,
             surface_ring_width: px(1.),
             hairline: px(1.),
             surface_gap: px(8.),
             readable_width: px(720.),
-            text: rgb(0x27272a).into(),
-            text_muted: rgb(0x52525b).into(),
-            text_faint: rgb(0xa1a1aa).into(),
+            text: p.text,
+            text_muted: p.text_muted,
+            text_faint: p.text_faint,
             icon_button_size: px(28.),
             icon_button_radius: px(6.),
             icon_size: px(18.),
             small_icon_size: px(14.),
-            icon: rgb(0x5f5f66).into(),
-            icon_active: rgb(0x18181b).into(),
-            icon_disabled: rgb(0xc8c8ce).into(),
-            control_hover: hsla(0., 0., 0., 0.05),
-            control_pressed: hsla(0., 0., 0., 0.1),
-            control_active: hsla(0., 0., 0., 0.07),
-            tooltip_background: rgb(0x1f1f22).into(),
-            tooltip_text: rgb(0xffffff).into(),
-            tooltip_hint: rgb(0xa1a1aa).into(),
+            icon: p.icon,
+            icon_active: p.icon_strong,
+            icon_disabled: p.icon_disabled,
+            control_hover: p.fill,
+            control_pressed: p.fill_pressed,
+            control_active: p.fill_strong,
+            tooltip_background: p.tooltip,
+            tooltip_text: p.tooltip_text,
+            tooltip_hint: p.tooltip_hint,
             tooltip_padding_x: px(8.),
             tooltip_padding_y: px(4.),
             tooltip_radius: px(6.),
-            menu_background: rgb(0xffffff).into(),
+            menu_background: p.popover,
             menu_radius: px(8.),
             menu_padding: px(4.),
             menu_min_width: px(220.),
@@ -1518,13 +1786,13 @@ impl Default for UiTheme {
             menu_row_height: px(28.),
             menu_row_padding_x: px(10.),
             menu_row_radius: px(5.),
-            menu_highlight: hsla(0., 0., 0., 0.06),
-            menu_separator: rgb(0xe4e4e7).into(),
-            menu_shadow: hsla(0., 0., 0., 0.16),
+            menu_highlight: p.fill_strong,
+            menu_separator: p.divider,
+            menu_shadow: p.popover_shadow,
             menu_shadow_blur: px(24.),
             menu_shadow_offset: px(8.),
-            menu_ring: hsla(0., 0., 0., 0.08),
-            match_text: rgb(0x000000).into(),
+            menu_ring: p.popover_ring,
+            match_text: p.text_strong,
             match_weight: FontWeight::BOLD,
             suggestion_rows: 8,
             suggestion_gap: px(4.),
@@ -1540,17 +1808,17 @@ impl Default for UiTheme {
             tab_max_width: px(180.),
             tab_padding_x: px(10.),
             tab_gap: px(2.),
-            tab_shadow: hsla(0., 0., 0., 0.1),
+            tab_shadow: p.tab_shadow,
             tab_shadow_blur: px(3.),
             dirty_dot_size: px(7.),
-            conflict: rgb(0xc62828).into(),
-            sync_quiet: rgb(0xa1a1aa).into(),
-            sync_busy: rgb(0x52525b).into(),
-            sync_attention: rgb(0xc62828).into(),
+            conflict: p.conflict,
+            sync_quiet: p.text_faint,
+            sync_busy: p.syncing,
+            sync_attention: p.conflict,
             sync_spin: std::time::Duration::from_millis(1600),
             popover_width: px(320.),
             popover_padding: px(12.),
-            banner_background: hsla(0., 0., 0., 0.035),
+            banner_background: p.fill_faint,
             banner_padding_y: px(8.),
             note_header_height: px(44.),
             sidebar_padding: px(8.),
@@ -1559,56 +1827,58 @@ impl Default for UiTheme {
             tree_indent: px(18.),
             tree_row_radius: px(6.),
             tree_row_gap: px(7.),
-            tree_active_background: hsla(0., 0., 0., 0.07),
-            tree_hover_background: hsla(0., 0., 0., 0.035),
-            indent_guide: hsla(0., 0., 0., 0.08),
-            tree_focus_ring: hsla(0., 0., 0., 0.28),
+            tree_active_background: p.fill_strong,
+            tree_hover_background: p.fill_faint,
+            indent_guide: p.indent_guide,
+            tree_focus_ring: p.focus(),
             indent_guide_width: px(1.),
             status_height: px(24.),
             status_gap: px(16.),
             help_row_height: px(32.),
-            keycap: KeycapTheme::default(),
-            backdrop: hsla(0., 0., 0., 0.12),
-            text_detail: rgb(0x71717a).into(),
+            keycap: KeycapTheme::default().on_text(p.text),
+            backdrop: p.backdrop,
+            text_detail: p.text_detail,
             dialog_radius: px(12.),
             dialog_padding: px(6.),
             dialog_width: px(560.),
             small_dialog_width: px(360.),
             wide_dialog_width: px(640.),
             dialog_top_offset: px(96.),
-            dialog_shadow: hsla(0., 0., 0., 0.16),
+            dialog_shadow: p.popover_shadow,
             dialog_shadow_blur: px(40.),
             dialog_shadow_offset: px(12.),
             row_height: px(36.),
             compact_row_height: px(26.),
             row_radius: px(6.),
             row_padding_x: px(10.),
-            row_selected: hsla(0., 0., 0., 0.07),
-            row_hover: hsla(0., 0., 0., 0.035),
+            row_selected: p.fill_strong,
+            row_hover: p.fill_faint,
             button_height: px(28.),
             button_padding_x: px(12.),
-            button_background: hsla(0., 0., 0., 0.05),
+            button_background: p.fill,
             inline_button_width: px(52.),
-            accent: rgb(0x000000).into(),
-            on_accent: rgb(0xffffff).into(),
-            focus_ring: default_focus_ring(),
-            match_background: hsla(0.14, 0.95, 0.6, 0.45),
-            error: rgb(0xc62828).into(),
+            accent: p.accent,
+            on_accent: p.on_accent,
+            focus_ring: p.focus(),
+            match_background: p.search_match,
+            error: p.conflict,
             find_bar_width: px(480.),
-            drop_target: hsla(0., 0., 0., 0.08),
-            cut_opacity: 0.5,
+            drop_target: p.drop_target,
+            cut_opacity: p.cut_opacity,
             tab_fade_width: px(24.),
             pane_min_width: px(240.),
             pane_min_height: px(160.),
-            divider_active: hsla(0., 0., 0., 0.18),
+            divider_active: p.divider_active,
             divider_line_width: px(2.),
-            drop_zone: hsla(0., 0., 0., 0.06),
-            drop_zone_ring: hsla(0., 0., 0., 0.16),
+            drop_zone: p.drop_zone,
+            drop_zone_ring: p.drop_zone_ring,
             drop_zone_motion: std::time::Duration::from_millis(120),
-            drop_indicator: rgb(0x27272a).into(),
+            drop_indicator: p.drop_indicator,
             drop_indicator_width: px(2.),
             dragged_tab_opacity: 0.35,
             drag_preview_offset: point(px(10.), px(14.)),
+            note_background: p.background,
+            overlay_shadow: p.shadow,
         }
     }
 }
@@ -1636,10 +1906,16 @@ impl UiTheme {
     /// The default tokens with the first candidate UI font found among
     /// `installed` font family names.
     pub fn with_installed_fonts(installed: &[String]) -> UiTheme {
+        UiTheme::themed(Palette::builtin(), installed)
+    }
+
+    /// The tokens in the colours of `palette`, with the first candidate
+    /// UI font found among `installed` font family names.
+    pub fn themed(palette: &Palette, installed: &[String]) -> UiTheme {
         UiTheme {
             font_family: first_installed(&UI_FONT_CANDIDATES, installed),
-            keycap: KeycapTheme::with_installed_fonts(installed),
-            ..UiTheme::default()
+            keycap: KeycapTheme::with_installed_fonts(installed).on_text(palette.text),
+            ..UiTheme::from_palette(palette)
         }
     }
 
@@ -1691,6 +1967,13 @@ impl UiTheme {
 /// `color.accent` in `theme.toml`. The first is the built-in accent.
 pub const ACCENT_CHOICES: [&str; 6] = [
     "#000000", "#2f5fd0", "#7048c8", "#1f8a4c", "#c2541b", "#c02b4a",
+];
+
+/// The same hues for dark mode, as written to `dark.color.accent`: light
+/// enough to read on the dark note (at least 4.5:1). The first is the
+/// built-in dark accent.
+pub const DARK_ACCENT_CHOICES: [&str; 6] = [
+    "#ebe7e0", "#8fb0f5", "#b59cf2", "#6fcf97", "#f0a06c", "#f38ba3",
 ];
 
 /// Tokens for the settings screen: the modal, its section list, the
@@ -1791,8 +2074,7 @@ impl SettingsTheme {
     pub fn from_tokens(tokens: &Tokens) -> Self {
         let read = TokenReader { tokens };
         let space = |name: &str, default: f32| px(read.number(name, default));
-        let mut focus_ring = read.color("color.focus-ring", 0x000000);
-        focus_ring.a *= FOCUS_RING_ALPHA;
+        let p = Palette::from_tokens(tokens);
         Self {
             font_family: read.text("font.ui", "Charter").into(),
             code_font_family: read.text("font.code", "Courier New").into(),
@@ -1845,24 +2127,24 @@ impl SettingsTheme {
             ring_blur: px(0.5),
             shadow_blur: px(12.),
             shadow_offset: px(2.),
-            background: read.color("color.background", 0xffffff),
-            card_background: read.color("color.sidebar", 0xf4f4f5),
-            hover: read.color("color.hover", 0xf4f4f5),
-            selected: read.color("color.selection", 0xe4e4e7),
-            text: read.color("color.text", 0x27272a),
-            text_muted: read.color("color.text-muted", 0x52525b),
-            text_faint: read.color("color.text-faint", 0xa1a1aa),
+            background: p.popover,
+            card_background: p.card,
+            hover: p.hover,
+            selected: p.selection,
+            text: p.text,
+            text_muted: p.text_muted,
+            text_faint: p.text_faint,
             inactive_opacity: 0.4,
-            divider: read.color("color.divider", 0xe4e4e7),
-            accent: read.color("color.accent", 0x000000),
-            on_accent: read.color("color.on-accent", 0xffffff),
-            control_background: read.color("color.background", 0xffffff),
-            control_ring: read.color("color.shadow", 0x0000001f),
-            toggle_off: read.color("color.text-faint", 0xa1a1aa),
-            knob: read.color("color.background", 0xffffff),
-            focus_ring,
-            warning: read.color("color.conflict", 0xc62828),
-            shadow: read.color("color.shadow", 0x0000001f),
+            divider: p.divider,
+            accent: p.accent,
+            on_accent: p.on_accent,
+            control_background: p.popover,
+            control_ring: p.shadow,
+            toggle_off: p.text_faint,
+            knob: p.knob,
+            focus_ring: p.focus(),
+            warning: p.conflict,
+            shadow: p.shadow,
         }
     }
 

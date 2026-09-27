@@ -20,13 +20,13 @@ use super::capture::Capture;
 use super::config_files;
 use super::menu::OpenMenu;
 use super::model::{
-    ACCENT_DESCRIPTION, ACCENT_TITLE, FontSlot, PAGES, Page, PageSpec, RowSpec, SettingItem,
-    ShortcutQuery, ShortcutRow, map_name_label, map_names, page_cards, setting_items,
-    shortcut_rows, theme_number_items, words_match,
+    ACCENT_DESCRIPTION, ACCENT_TITLE, ACCENT_TOKEN, DARK_ACCENT_TOKEN, FontSlot, PAGES, Page,
+    PageSpec, RowSpec, SettingItem, ShortcutQuery, ShortcutRow, map_name_label, map_names,
+    page_cards, setting_items, shortcut_rows, theme_number_items, words_match,
 };
 use super::store::{SettingsFile, settings_path};
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
-use crate::theme::{KeycapTheme, SettingsTheme, Theme};
+use crate::theme::{ACCENT_CHOICES, DARK_ACCENT_CHOICES, KeycapTheme, SettingsTheme, Theme};
 
 /// What the settings screen tells its host about files it wrote.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -195,6 +195,8 @@ pub struct SettingsView {
     pub(super) shortcuts: Vec<ShortcutRow>,
     pub(super) file: SettingsFile,
     pub(super) tokens: Tokens,
+    /// Whether the screen draws, and edits the accent of, the dark theme.
+    pub(super) dark: bool,
     pub(super) font_names: Vec<String>,
     /// The family each theme font draws with: the one it names, or a
     /// fallback when the system doesn't have it.
@@ -287,6 +289,7 @@ impl SettingsView {
             shortcuts: shortcut_rows(rules, Platform::current()),
             rules: rules.clone(),
             tokens,
+            dark: crate::ui::is_dark(cx),
             font_names,
             shown_fonts: Default::default(),
             search,
@@ -375,9 +378,10 @@ impl SettingsView {
     /// Rebuilds the screen's own look from the theme tokens, with fonts the
     /// system doesn't have replaced by ones it does.
     pub(super) fn restyle(&mut self) {
-        let mut theme = Theme::from_tokens(&self.tokens, 12);
+        let tokens = self.tokens.for_mode(self.dark);
+        let mut theme = Theme::from_tokens(tokens, 12);
         theme.resolve_fonts(&self.font_names);
-        let mut style = SettingsTheme::from_tokens(&self.tokens);
+        let mut style = SettingsTheme::from_tokens(tokens);
         self.shown_fonts = [
             theme.body_font_family.to_string(),
             theme.ui_font_family.to_string(),
@@ -386,6 +390,35 @@ impl SettingsView {
         style.font_family = theme.ui_font_family;
         style.code_font_family = theme.code_font_family;
         self.style = style;
+    }
+
+    /// Follows the app into light or dark mode.
+    pub(super) fn follow_theme(&mut self, cx: &mut Context<Self>) {
+        let dark = crate::ui::is_dark(cx);
+        if dark != self.dark {
+            self.dark = dark;
+            self.keycaps = crate::ui::ui_theme(cx).keycap;
+            self.restyle();
+            self.sync_fields(cx);
+        }
+    }
+
+    /// The token the accent row edits: each mode has its own accent.
+    pub(super) fn accent_token(&self) -> &'static str {
+        if self.dark {
+            DARK_ACCENT_TOKEN
+        } else {
+            ACCENT_TOKEN
+        }
+    }
+
+    /// The swatches the accent row offers in the current mode.
+    pub(super) fn accent_choices(&self) -> &'static [&'static str] {
+        if self.dark {
+            &DARK_ACCENT_CHOICES
+        } else {
+            &ACCENT_CHOICES
+        }
     }
 
     /// The family a theme font draws with now.

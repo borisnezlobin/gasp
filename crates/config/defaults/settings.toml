@@ -39,6 +39,7 @@ time-format = "HH:mm"
 
 [appearance]
 base-font-size = 12
+theme          = "match-system"   # "light" | "dark" | "match-system"
 
 [sync]
 auto             = true

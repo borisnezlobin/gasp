@@ -115,7 +115,7 @@ impl EditorView {
     /// looked up in `image_dirs`.
     pub fn new(text: &str, image_dirs: Vec<PathBuf>, cx: &mut Context<Self>) -> Self {
         let config = Config::defaults();
-        let mut base_theme = Theme::from_config(&config);
+        let mut base_theme = Theme::from_config(&config, crate::ui::is_dark(cx));
         base_theme.resolve_fonts(&cx.text_system().all_font_names());
         let source = Source::new(text);
         let column_width = px(INITIAL_COLUMN_WIDTH);
@@ -163,7 +163,7 @@ impl EditorView {
     /// Takes the theme and Markdown symbol settings from a loaded config,
     /// as when the config folder changes.
     pub fn apply_config(&mut self, config: &Config, cx: &mut Context<Self>) {
-        let mut theme = Theme::from_config(config);
+        let mut theme = Theme::from_config(config, crate::ui::is_dark(cx));
         theme.resolve_fonts(&cx.text_system().all_font_names());
         self.base_theme = theme;
         self.symbols = config.settings.markdown.symbols.clone();

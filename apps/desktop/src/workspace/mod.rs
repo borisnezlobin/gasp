@@ -214,6 +214,7 @@ impl Workspace {
         workspace.scan_vault_index(cx);
         workspace.subscribe_to_pane(&pane, window, cx);
         workspace.observe_window(window, cx);
+        workspace.observe_appearance(window, cx);
         workspace.add_launcher_tab(&pane, window, cx);
         workspace
     }
@@ -384,6 +385,35 @@ impl Workspace {
         self.config = loader.config().clone();
         self.left_panel
             .apply_settings(&self.config.settings, &self.config.rules);
+        self.apply_theme(cx);
+        self.restyle_editors(cx);
+    }
+
+    /// Follows the system's light or dark appearance as it changes, for
+    /// the theme setting that matches it.
+    fn observe_appearance(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        crate::ui::set_system_dark(crate::ui::is_dark_appearance(window.appearance()), cx);
+        self.apply_theme(cx);
+        let observe = cx.observe_window_appearance(window, |workspace, window, cx| {
+            let dark = crate::ui::is_dark_appearance(window.appearance());
+            crate::ui::set_system_dark(dark, cx);
+            if workspace.apply_theme(cx) {
+                workspace.restyle_editors(cx);
+            }
+        });
+        self._subscriptions.push(observe);
+    }
+
+    /// Puts the light or dark theme the settings ask for in effect.
+    /// Answers whether it changed.
+    fn apply_theme(&mut self, cx: &mut Context<Self>) -> bool {
+        let choice = self.config.settings.appearance.theme;
+        let dark = choice.is_dark(crate::ui::system_dark(cx));
+        crate::ui::set_theme(&self.config.theme, dark, cx)
+    }
+
+    /// Gives every open note the current config and theme.
+    fn restyle_editors(&mut self, cx: &mut Context<Self>) {
         let editors: Vec<Entity<EditorView>> = self
             .panes()
             .iter()
