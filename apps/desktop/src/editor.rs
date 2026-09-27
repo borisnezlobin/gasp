@@ -132,6 +132,10 @@ pub struct EditorView {
     /// A view that only shows its note, such as a hover preview: edits,
     /// suggestions and the caret are off.
     pub(crate) read_only: bool,
+    /// Whether markup around the cursor shows as source. Only the editor
+    /// with the keyboard reveals it; each frame sets this from its focus,
+    /// so a split showing the same note elsewhere reads as a preview.
+    pub(crate) reveals_at_cursor: bool,
     pub(crate) footnotes: FootnoteChecks,
     pub(crate) hover: HoverState,
     pub(crate) cards: LinkCards,
@@ -241,6 +245,7 @@ impl EditorView {
             tab_stops: None,
             curl_pasted_quotes: config.settings.editor.curl_pasted_quotes,
             read_only: false,
+            reveals_at_cursor: true,
             footnotes: FootnoteChecks::default(),
             hover: HoverState::default(),
             cards: LinkCards::default(),
@@ -717,9 +722,13 @@ impl EditorView {
         (bounds.left() + (bounds.size.width - width) / 2., width)
     }
 
-    /// Plans `lines` for the current selection and settings.
+    /// Plans `lines` for the current selection and settings. An editor
+    /// without the keyboard plans as if nothing were selected.
     pub(crate) fn plan(&self, lines: Range<usize>) -> Vec<LinePlan> {
-        let selections = self.selected_ranges();
+        let selections = match self.reveals_at_cursor {
+            true => self.selected_ranges(),
+            false => Vec::new(),
+        };
         let input = RenderInput {
             text: self.source.text(),
             tree: self.source.tree(),
