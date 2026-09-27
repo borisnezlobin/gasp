@@ -15,6 +15,19 @@ pub struct DeviceSettings {
     /// tabs flat, for older versions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub panes: Option<PaneLayout>,
+    /// The sidebar on the right: backlinks, outline and the rest.
+    pub right_sidebar: RightSidebarState,
+}
+
+/// Whether the right sidebar is open, what it shows and how wide it is.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct RightSidebarState {
+    pub open: bool,
+    /// The view it shows, such as `backlinks`. Empty is the first one.
+    pub view: String,
+    /// Its width in pixels, when it isn't the default.
+    pub width: Option<u32>,
 }
 
 /// A pane with its tabs, or a split of two layouts.

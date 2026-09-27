@@ -263,6 +263,7 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.update_window_title(window, cx);
         self.sync_sidebar_toggle(window, cx);
+        self.sync_right_sidebar_toggle(cx);
         let ui = ui_theme(cx);
         let panes = self.render_node(self.panes.root(), cx);
         let overlays = self.left_panel.overlays();
@@ -271,6 +272,12 @@ impl Render for Workspace {
             (None, panel)
         } else {
             (panel, None)
+        };
+        let right = self.render_right_panel(cx);
+        let right_gap = if right.is_some() {
+            gpui::px(0.)
+        } else {
+            ui.surface_gap
         };
         let left_gap = if pushed.is_some() {
             gpui::px(0.)
@@ -313,9 +320,10 @@ impl Render for Workspace {
                             .min_w_0()
                             .min_h_0()
                             .pl(left_gap)
-                            .pr(ui.surface_gap)
+                            .pr(right_gap)
                             .child(panes),
                     )
+                    .children(right)
                     .children(overlaid)
                     .children(self.render_left_edge(cx)),
             )
