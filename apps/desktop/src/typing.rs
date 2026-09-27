@@ -126,6 +126,7 @@ impl EditorView {
 
     fn pipeline_output(&mut self, request: EditRequest) -> PipelineOutput {
         let started = std::time::Instant::now();
+        let phase = crate::keytrace::span("pipeline");
         let output = self.pipeline.run_input(
             request,
             self.state.doc(),
@@ -134,6 +135,7 @@ impl EditorView {
             self.now_ms(),
             self.tab_stops.as_ref(),
         );
+        drop(phase);
         self.timings.pipeline.push(started.elapsed());
         output
     }

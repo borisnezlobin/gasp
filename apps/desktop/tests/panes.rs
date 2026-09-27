@@ -352,3 +352,19 @@ fn splits_and_their_sizes_survive_a_restart(cx: &mut TestAppContext) {
     assert_eq!(active_title(&restored, cx), "b");
     assert_eq!(saved_layout(&restored, cx).split, Some(SplitAxis::Column));
 }
+
+#[gpui::test]
+fn a_split_starts_below_the_frontmatter(cx: &mut TestAppContext) {
+    let vault = tempfile::tempdir().unwrap();
+    let note = "---\ntags: [physics]\n---\n# Waves\n";
+    std::fs::write(vault.path().join("waves.md"), note).unwrap();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open_tabs(&workspace, cx, &["waves.md"]);
+    run(&workspace, cx, "pane.split-right");
+    let [left, right] = panes(&workspace, cx).try_into().unwrap();
+    let body = note.find("# Waves").unwrap();
+    for pane in [left, right] {
+        let cursor = cx.read(|cx| pane.read(cx).active_editor().unwrap().read(cx).cursor());
+        assert_eq!(cursor, body, "the frontmatter shows as properties");
+    }
+}

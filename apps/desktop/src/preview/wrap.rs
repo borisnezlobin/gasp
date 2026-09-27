@@ -3,8 +3,10 @@
 //! Text is shaped once per chunk (a stretch of visible source set at one
 //! size). A chunk that fits is used as shaped; one that doesn't is broken
 //! after whitespace, or anywhere when a single word is too long, and each
-//! row's part is shaped on its own. GPUI caches shaped lines across frames,
-//! so unchanged lines cost a lookup.
+//! row shows a slice of it. GPUI caches shaped lines across frames, so
+//! unchanged text costs a lookup — and a long chunk is shaped in segments
+//! of a few words, so typing in a long paragraph reshapes only the
+//! segment being typed in rather than the whole paragraph.
 
 use std::ops::Range;
 
@@ -53,6 +55,7 @@ pub struct Shaper<'a> {
 
 impl Shaper<'_> {
     pub fn shape(&self, text: &str, font_size: Pixels, runs: &[TextRun]) -> ShapedLine {
+        let _phase = crate::keytrace::span("layout-lines: of which shape");
         self.text_system
             .shape_line(SharedString::from(text.to_owned()), font_size, runs, None)
     }
@@ -71,6 +74,107 @@ pub struct Chunk {
     /// Fills behind parts of the text, painted by the editor rather than
     /// as run backgrounds.
     pub backgrounds: Vec<Background>,
+}
+
+/// Chunks longer than this are shaped in segments.
+const SEGMENT_BYTES: usize = 64;
+/// A segment ends at the first word after this many bytes that the word
+/// hash picks, and at the first word after [`SEGMENT_MAX`] regardless.
+const SEGMENT_MIN: usize = 32;
+const SEGMENT_MAX: usize = 160;
+/// One word in this many is picked to end a segment.
+const SEGMENT_ODDS: u32 = 4;
+
+impl Chunk {
+    /// The chunk as segments, each ending after whitespace, so a row can
+    /// wrap between any two of them just as it would inside the whole.
+    fn segments(&self) -> Vec<Chunk> {
+        if self.text.len() <= SEGMENT_BYTES {
+            return vec![self.clone()];
+        }
+        let cuts = segment_cuts(&self.text);
+        let mut runs = self.runs.iter().cloned().peekable();
+        let mut carried: Option<TextRun> = None;
+        cuts.windows(2)
+            .map(|cut| self.segment(cut[0]..cut[1], &mut runs, &mut carried))
+            .collect()
+    }
+
+    /// The segment over `range`, taking its runs from `runs` and splitting
+    /// the run that crosses its end.
+    fn segment(
+        &self,
+        range: Range<usize>,
+        runs: &mut impl Iterator<Item = TextRun>,
+        carried: &mut Option<TextRun>,
+    ) -> Chunk {
+        let mut own = Vec::new();
+        let mut filled = 0;
+        while filled < range.len() {
+            let Some(mut run) = carried.take().or_else(|| runs.next()) else {
+                break;
+            };
+            let room = range.len() - filled;
+            if run.len > room {
+                *carried = Some(TextRun {
+                    len: run.len - room,
+                    ..run.clone()
+                });
+                run.len = room;
+            }
+            filled += run.len;
+            own.push(run);
+        }
+        let backgrounds = self
+            .backgrounds
+            .iter()
+            .filter(|background| {
+                background.range.start < range.end && background.range.end > range.start
+            })
+            .map(|background| Background {
+                range: background.range.start.max(range.start) - range.start
+                    ..background.range.end.min(range.end) - range.start,
+                ..background.clone()
+            })
+            .collect();
+        Chunk {
+            range: self.range.start + range.start..self.range.start + range.end,
+            text: self.text[range].to_owned(),
+            font_size: self.font_size,
+            line_height: self.line_height,
+            runs: own,
+            backgrounds,
+        }
+    }
+}
+
+/// Where a long text's segments start and end. A cut depends only on the
+/// words just before it, not on its offset, so typing moves the cuts near
+/// the cursor and leaves the rest of the paragraph's segments, and their
+/// shaping, as they were.
+fn segment_cuts(text: &str) -> Vec<usize> {
+    let mut cuts = vec![0];
+    let mut word_start = 0;
+    for at in break_points(text) {
+        if at == text.len() {
+            break;
+        }
+        let since = at - cuts[cuts.len() - 1];
+        let picked = word_hash(&text[word_start..at]).is_multiple_of(SEGMENT_ODDS);
+        word_start = at;
+        if since >= SEGMENT_MAX || since >= SEGMENT_MIN && picked {
+            cuts.push(at);
+        }
+    }
+    cuts.push(text.len());
+    cuts
+}
+
+/// FNV-1a: cheap, and the same on every run.
+fn word_hash(word: &str) -> u32 {
+    word.bytes().fold(0x811c_9dc5, |hash, byte| {
+        (hash ^ u32::from(byte)).wrapping_mul(0x0100_0193)
+    })
 }
 
 /// Builds the rows of one line.
@@ -195,9 +299,16 @@ impl RowBuilder {
         }
     }
 
-    /// Places a chunk of text, wrapping it across rows as needed. The
-    /// chunk is shaped once and each row shows a slice of it.
+    /// Places a chunk of text, wrapping it across rows as needed. Each
+    /// segment of the chunk is shaped once and each row shows a slice of
+    /// one.
     pub fn push_chunk(&mut self, chunk: &Chunk, shaper: &Shaper<'_>) {
+        for segment in chunk.segments() {
+            self.push_segment(&segment, shaper);
+        }
+    }
+
+    fn push_segment(&mut self, chunk: &Chunk, shaper: &Shaper<'_>) {
         let shaped = shaper.shape(&chunk.text, chunk.font_size, &chunk.runs);
         let whole =
             TextPiece::whole(shaped, chunk.line_height).with_backgrounds(chunk.backgrounds.clone());
@@ -369,6 +480,30 @@ mod tests {
         assert_eq!(break_points("ab cd  ef"), vec![3, 7, 9]);
         assert_eq!(break_points(" lead"), vec![1, 5]);
         assert_eq!(break_points(""), vec![0]);
+    }
+
+    #[test]
+    fn segments_cut_where_words_start_and_hold_through_edits() {
+        let text = "the quick brown fox jumps over the lazy dog and keeps running ".repeat(8);
+        let cuts = segment_cuts(&text);
+        assert_eq!((cuts[0], *cuts.last().unwrap()), (0, text.len()));
+        for pair in cuts.windows(2) {
+            assert!(pair[1] - pair[0] <= SEGMENT_MAX + 16, "{cuts:?}");
+            assert!(pair[1] == text.len() || text[..pair[1]].ends_with(' '));
+        }
+        // Typing a word near the start leaves the later cuts where they
+        // were in the text after it.
+        let typed = format!("new {text}");
+        let later: Vec<usize> = segment_cuts(&typed)
+            .iter()
+            .map(|cut| cut.saturating_sub(4))
+            .collect();
+        let kept = cuts
+            .iter()
+            .filter(|cut| **cut > 200 && later.contains(cut))
+            .count();
+        let total = cuts.iter().filter(|cut| **cut > 200).count();
+        assert_eq!(kept, total, "{cuts:?} {later:?}");
     }
 
     #[test]

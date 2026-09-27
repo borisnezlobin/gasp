@@ -98,6 +98,21 @@ impl LineMetrics {
         self.heights.splice(old_lines, fresh);
     }
 
+    /// How many lines from `first` fit in `room` by their current
+    /// heights, counting the one that crosses its bottom.
+    pub fn lines_within(&self, first: usize, room: Pixels) -> usize {
+        let mut used = px(0.);
+        let rest = self.heights.get(first..).unwrap_or_default();
+        let fitting = rest
+            .iter()
+            .take_while(|height| {
+                used += **height;
+                used < room
+            })
+            .count();
+        (fitting + 1).min(rest.len())
+    }
+
     pub fn total_height(&self) -> Pixels {
         self.heights
             .iter()
@@ -161,6 +176,15 @@ mod tests {
         assert_eq!(metrics.line_at_y(row * 10.).0, 2);
         assert_eq!(metrics.top_of(2), row * 2.);
         assert_eq!(metrics.total_height(), row * 3.);
+    }
+
+    #[test]
+    fn counts_the_lines_that_fit() {
+        let (metrics, theme) = metrics("a\nb\nc\nd", 600.);
+        let row = theme.body_line_height();
+        assert_eq!(metrics.lines_within(0, row * 1.5), 2);
+        assert_eq!(metrics.lines_within(1, row * 10.), 3);
+        assert_eq!(metrics.lines_within(9, row), 0);
     }
 
     #[test]

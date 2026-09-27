@@ -22,11 +22,13 @@ use crate::footnotes::FootnoteChecks;
 use crate::frame::{FrameLayout, PlacedLine};
 use crate::hover::HoverState;
 use crate::images::ImageStore;
+use crate::line_cache::{LayoutEpoch, LineCache};
 use crate::line_layout::{LayoutContext, LayoutResources, VisualLine, layout_line};
 use crate::link_cards::LinkCards;
 use crate::metrics::{Estimator, LineMetrics};
-use crate::preview::code_highlight::CodeHighlighter;
+use crate::preview::code_highlight::{CodeHighlighter, spans_for_line};
 use crate::preview::folds::Folds;
+use crate::preview::layout::{frame_for, layout_framed};
 use crate::preview::math::{MathStore, RenderFn};
 use crate::preview::reveal::reveal_settings;
 use crate::preview::source::{Source, SourceChange};
@@ -37,8 +39,10 @@ use crate::theme::Theme;
 /// Edits between timing reports when logging is on.
 const TIMING_LOG_INTERVAL: usize = 100;
 
-/// Lines planned together while laying out a frame.
-const PLAN_CHUNK: usize = 48;
+/// The fewest lines planned together while laying out a frame; a frame
+/// plans about as many lines as its estimates say fit, so it doesn't
+/// plan lines it won't show.
+const PLAN_CHUNK: usize = 8;
 
 /// The column width assumed before the first frame.
 const INITIAL_COLUMN_WIDTH: f32 = 700.;
@@ -144,6 +148,8 @@ pub struct EditorView {
     pub(crate) code_copy: crate::code_copy::CodeCopy,
     /// Sentence-length tints and grammar flags.
     pub(crate) prose: crate::prose::ProseState,
+    /// Lines laid out in earlier frames, reused while they're unchanged.
+    pub(crate) line_cache: LineCache,
     clock: Instant,
 }
 
@@ -243,6 +249,7 @@ impl EditorView {
             code_line_numbers: config.settings.editor.code_line_numbers,
             code_copy: crate::code_copy::CodeCopy::default(),
             prose: crate::prose::ProseState::from_settings(&config.settings.prose),
+            line_cache: LineCache::default(),
             clock: Instant::now(),
         };
         view.apply_typing_settings(config);
@@ -408,6 +415,35 @@ impl EditorView {
         cx.notify();
     }
 
+    /// Where the note's body starts: the line after its frontmatter, or
+    /// the start when it has none.
+    pub fn body_start(&self) -> usize {
+        let tree = self.source.tree();
+        let frontmatter = tree
+            .path_at(0)
+            .into_iter()
+            .map(|id| tree.node(id))
+            .find(|node| node.kind == editor_core::syntax::NodeKind::Frontmatter);
+        let Some(node) = frontmatter else {
+            return 0;
+        };
+        let line = self.source.line_of(node.range.end.saturating_sub(1));
+        let next = (line + 1).min(self.source.line_count().saturating_sub(1));
+        match next > line {
+            true => self.source.line_range(next).start,
+            false => self.source.line_range(line).end,
+        }
+    }
+
+    /// Puts the cursor where the body starts, so a note opens with its
+    /// frontmatter shown as properties rather than as source.
+    pub fn place_cursor_after_frontmatter(&mut self, cx: &mut Context<Self>) {
+        let start = self.body_start();
+        if start > 0 && self.selected_range() == (0..0) {
+            self.select(start, start, cx);
+        }
+    }
+
     /// Moves the head, keeping the anchor when `extend` is set.
     pub fn move_to(&mut self, offset: usize, extend: bool, cx: &mut Context<Self>) {
         let anchor = if extend { self.anchor() } else { offset };
@@ -463,17 +499,21 @@ impl EditorView {
             [edit] => Some(edit.clone()),
             _ => None,
         };
+        let phase = crate::keytrace::span("state-apply");
         if self.state.apply(transaction).is_err() {
             return;
         }
+        drop(phase);
         self.goal_x = None;
         self.timings.input_started.get_or_insert_with(Instant::now);
         // One edit, as typing makes, updates the source in place; anything
         // else finds what changed by comparing the whole text.
         match single_edit {
             Some(edit) => {
+                let phase = crate::keytrace::span("source-update");
                 let change = self.source.replace(edit.range, &edit.insert);
                 self.source_changed(change);
+                drop(phase);
                 self.after_edit(cx);
             }
             None => self.after_history_step(cx),
@@ -542,6 +582,7 @@ impl EditorView {
 
     /// Everything an edit settles once the source matches the document.
     fn after_edit(&mut self, cx: &mut Context<Self>) {
+        let _phase = crate::keytrace::span("after-edit");
         self.close_preview(cx);
         self.marked = None;
         self.autoscroll = true;
@@ -623,9 +664,11 @@ impl EditorView {
         self.timings.paint.push(paint_started.elapsed());
         self.frame = Some(frame);
         let Some(input_started) = self.timings.input_started.take() else {
+            crate::keytrace::end_frame(false);
             return;
         };
         self.timings.input_to_paint.push(input_started.elapsed());
+        crate::keytrace::end_frame(true);
         if self.log_timings
             && self
                 .timings
@@ -658,6 +701,7 @@ impl EditorView {
             column_width: self.column_width,
         };
         self.metrics = LineMetrics::build(&self.source, &estimator);
+        self.line_cache.clear();
         self.autoscroll = true;
     }
 
@@ -688,7 +732,8 @@ impl EditorView {
         plans
     }
 
-    /// Lays out a planned line against the current column.
+    /// Lays out a planned line against the current column, or takes it
+    /// from the line cache when nothing it depends on changed.
     pub(crate) fn layout_plan(&mut self, plan: &LinePlan, window: &Window) -> VisualLine {
         let context = LayoutContext {
             source: &self.source,
@@ -705,7 +750,32 @@ impl EditorView {
             math: &mut self.math,
             code: &mut self.code,
         };
-        layout_line(plan, &context, &mut resources)
+        let cache = &mut self.line_cache;
+        cache.begin_frame(LayoutEpoch {
+            column_width: context.column_width,
+            zoom: context.zoom,
+            scale_factor: context.scale_factor,
+            code_line_numbers: context.code_line_numbers,
+        });
+        let composing = context
+            .marked
+            .as_ref()
+            .is_some_and(|marked| marked.start <= plan.range.end && plan.range.start <= marked.end);
+        if plan.collapsed || composing {
+            return layout_line(plan, &context, &mut resources);
+        }
+        let frame = frame_for(plan, &context);
+        let spans = spans_for_line(plan, context.source, resources.code);
+        let text = &context.source.text()[plan.range.clone()];
+        let Some(key) = LineCache::key(plan, text, &frame, spans.as_ref()) else {
+            return layout_framed(plan, frame, spans, &context, &mut resources);
+        };
+        if let Some(visual) = cache.get(&key, plan, text, &frame) {
+            return visual;
+        }
+        let visual = layout_framed(plan, frame, spans, &context, &mut resources);
+        cache.insert(key, plan, text, &visual);
+        visual
     }
 
     /// Lays out one document line and records its height.
@@ -784,7 +854,10 @@ impl EditorView {
                 let line = self.source.line_of(offset.min(self.source.text().len()));
                 self.scroll_y = self.header_height + self.metrics.top_of(line);
             }
-            None => self.apply_autoscroll(viewport, window),
+            None => {
+                let _phase = crate::keytrace::span("autoscroll");
+                self.apply_autoscroll(viewport, window)
+            }
         }
         self.scroll_y = self.scroll_y.clamp(px(0.), self.max_scroll(viewport));
         // The pane placed the inline title for the old scroll before this
@@ -802,11 +875,16 @@ impl EditorView {
             let plan = match plans.next() {
                 Some(plan) => plan,
                 None => {
-                    plans = self.plan(line..line + PLAN_CHUNK).into_iter();
+                    let _phase = crate::keytrace::span("plan");
+                    let room = bounds.bottom() - top;
+                    let count = self.metrics.lines_within(line, room).max(PLAN_CHUNK);
+                    plans = self.plan(line..line + count).into_iter();
                     plans.next().expect("the line exists")
                 }
             };
+            let phase = crate::keytrace::span("layout-lines");
             let visual = self.layout_plan(&plan, window);
+            drop(phase);
             self.metrics.set(line, visual.height);
             let height = visual.height;
             lines.push(PlacedLine { top, visual });
