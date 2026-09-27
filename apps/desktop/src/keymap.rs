@@ -32,11 +32,15 @@ pub fn bind_keys(cx: &mut App) {
 pub fn bind_rules(rules: &RuleSet, cx: &mut App) {
     let bindings = all_bindings(rules, Platform::current())
         .into_iter()
-        .map(|binding| {
-            let action = RunCommand {
-                id: binding.command.into(),
-            };
-            KeyBinding::new(&binding.keystroke, action, Some(binding.context))
+        .flat_map(|binding| {
+            keystroke_variants(&binding.keystroke)
+                .into_iter()
+                .map(move |keystroke| {
+                    let action = RunCommand {
+                        id: binding.command.clone().into(),
+                    };
+                    KeyBinding::new(&keystroke, action, Some(binding.context))
+                })
         });
     cx.bind_keys(bindings);
     // The app menu normally owns Quit; without one, Cmd+Q or Ctrl+Q quits.
@@ -108,6 +112,63 @@ const NAMED_KEYS: [(NamedKey, &str); 14] = [
     (NamedKey::PageDown, "pagedown"),
 ];
 
+/// Symbols and the character Shift turns them into on a US layout.
+const SHIFTED_SYMBOLS: [(char, char); 21] = [
+    ('\\', '|'),
+    ('/', '?'),
+    ('=', '+'),
+    ('-', '_'),
+    ('[', '{'),
+    (']', '}'),
+    (';', ':'),
+    ('\'', '"'),
+    (',', '<'),
+    ('.', '>'),
+    ('`', '~'),
+    ('1', '!'),
+    ('2', '@'),
+    ('3', '#'),
+    ('4', '$'),
+    ('5', '%'),
+    ('6', '^'),
+    ('7', '&'),
+    ('8', '*'),
+    ('9', '('),
+    ('0', ')'),
+];
+
+/// The keystrokes that should trigger a binding. On Linux GPUI reports
+/// Shift plus a symbol as the shifted character without Shift (Ctrl+Shift+\
+/// arrives as `ctrl-|`), so such bindings also get that spelling.
+pub fn keystroke_variants(keystroke: &str) -> Vec<String> {
+    let mut variants = vec![keystroke.to_owned()];
+    let Some((modifiers, key)) = keystroke
+        .rsplit_once('-')
+        .filter(|(_, key)| !key.is_empty())
+    else {
+        return variants;
+    };
+    let mut chars = key.chars();
+    let (Some(symbol), None) = (chars.next(), chars.next()) else {
+        return variants;
+    };
+    let shifted = SHIFTED_SYMBOLS
+        .iter()
+        .find(|(plain, _)| *plain == symbol)
+        .map(|(_, shifted)| *shifted);
+    let has_shift = modifiers.split('-').any(|part| part == "shift");
+    if let (Some(shifted), true) = (shifted, has_shift) {
+        let others: Vec<&str> = modifiers
+            .split('-')
+            .filter(|part| *part != "shift")
+            .collect();
+        let prefix = others.join("-");
+        let separator = if prefix.is_empty() { "" } else { "-" };
+        variants.push(format!("{prefix}{separator}{shifted}"));
+    }
+    variants
+}
+
 /// A resolved chord as a GPUI keystroke string, such as `alt-backspace`.
 pub fn keystroke_for(chord: KeyChord, platform: Platform) -> String {
     let chord = chord.resolve(platform);
@@ -169,6 +230,21 @@ mod tests {
                 assert!(parsed.is_ok(), "{binding:?} on {platform:?}");
             }
         }
+    }
+
+    #[test]
+    fn shift_with_a_symbol_also_binds_the_shifted_character() {
+        assert_eq!(
+            keystroke_variants("ctrl-shift-\\"),
+            vec!["ctrl-shift-\\".to_owned(), "ctrl-|".to_owned()]
+        );
+        assert_eq!(
+            keystroke_variants("shift-cmd-/"),
+            vec!["shift-cmd-/", "cmd-?"]
+        );
+        assert_eq!(keystroke_variants("ctrl-shift-p"), vec!["ctrl-shift-p"]);
+        assert_eq!(keystroke_variants("cmd--"), vec!["cmd--"]);
+        assert_eq!(keystroke_variants("ctrl-\\"), vec!["ctrl-\\"]);
     }
 
     #[test]
