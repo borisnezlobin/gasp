@@ -52,7 +52,8 @@ emojis = "0.9"
 # Link card metadata. GPUI already builds this reqwest fork with rustls and
 # the system's roots; `blocking` adds no crates.
 reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["blocking", "rustls-tls-native-roots"] }
-# The native view behind a window, for Look up. GPUI already builds it.
+# The native view behind a window, for Look up and printing. GPUI already
+# builds it.
 raw-window-handle = "0.6"
 
 # The system's credential store for sync tokens. Linux keeps them in a
@@ -60,7 +61,8 @@ raw-window-handle = "0.6"
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 keyring = { version = "3", features = ["apple-native", "windows-native"] }
 
-# AppKit messages for Look up. GPUI already builds it on macOS.
+# AppKit messages for Look up and the print panel (PDFKit), through the
+# Objective-C runtime. GPUI already builds it on macOS.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc = "0.2"
 

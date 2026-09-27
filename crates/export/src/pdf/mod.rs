@@ -10,6 +10,7 @@ pub(crate) mod convert;
 pub(crate) mod escape;
 pub(crate) mod images;
 pub(crate) mod preprocess;
+mod raster;
 mod system_fonts;
 pub(crate) mod world;
 
@@ -22,6 +23,7 @@ use typst_layout::PagedDocument;
 
 pub use compile::CompileDiagnostic;
 pub use convert::{ConvertOptions, MathSite, TypstBody, markdown_to_typst};
+pub use raster::{PageImage, page_size_pt, pixel_per_pt, render_page, render_pages};
 pub use system_fonts::system_fonts;
 pub use world::load_fonts;
 
