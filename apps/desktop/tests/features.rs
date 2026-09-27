@@ -13,7 +13,7 @@ use editor_desktop::settings_view::SettingsView;
 use editor_desktop::switcher::QuickSwitcher;
 use editor_desktop::vault_search::VaultSearch;
 use editor_desktop::workspace::{OpenIn, Workspace};
-use gpui::{Entity, TestAppContext, VisualTestContext};
+use gpui::{Entity, Focusable, TestAppContext, VisualTestContext};
 use tempfile::TempDir;
 
 fn vault_with(notes: &[(&str, &str)]) -> TempDir {
@@ -195,4 +195,31 @@ fn the_file_tree_fills_the_left_panel(cx: &mut TestAppContext) {
     let (workspace, cx) = open_workspace(cx, vault.path());
     let has_panel = cx.read(|cx| workspace.read(cx).left_panel().view().is_some());
     assert!(has_panel);
+}
+
+#[gpui::test]
+fn escape_from_a_revealed_file_tree_hides_it_and_returns_to_the_note(cx: &mut TestAppContext) {
+    let vault = vault_with(&[("Note.md", "text")]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    cx.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            workspace
+                .open_path(Path::new("Note.md"), OpenIn::ActiveTab, window, cx)
+                .unwrap()
+        })
+    });
+    cx.run_until_parked();
+    let visible =
+        |cx: &mut VisualTestContext| cx.read(|cx| workspace.read(cx).left_panel().is_visible());
+    assert!(!visible(cx), "the default panel waits at the edge");
+    press(cx, "file-tree.focus");
+    assert!(visible(cx), "focusing the tree reveals it");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(!visible(cx), "Escape lets the revealed panel hide");
+    let editor_focused = cx.update(|window, cx| {
+        let editor = workspace.read(cx).active_editor(cx).unwrap();
+        editor.focus_handle(cx).is_focused(window)
+    });
+    assert!(editor_focused, "the note has the keyboard again");
 }
