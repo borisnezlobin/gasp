@@ -121,7 +121,7 @@ const TEXTS: &[(&str, &str, &str)] = &[
     (
         "editor.renumber-footnotes",
         "Keep footnotes in order",
-        "Once you pause typing, numbered footnotes renumber to follow the text and ^[1] typos become [^1]. The Renumber footnotes command does it whenever you ask.",
+        "Once you pause typing, numbered footnotes renumber to follow the text and footnote typos are fixed. The Renumber footnotes command does it whenever you ask.",
     ),
     (
         "editor.code-line-numbers",
