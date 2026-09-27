@@ -210,6 +210,9 @@ pub struct EditorSettings {
     pub smart_quotes: bool,
     /// Whether pasted text gets curly quotes too, while smart quotes are on.
     pub curl_pasted_quotes: bool,
+    /// Whether typing an opening bracket adds its closing one, and typing
+    /// a mark such as `*` over a selection wraps it.
+    pub auto_pair: bool,
 }
 
 impl Default for EditorSettings {
@@ -218,6 +221,7 @@ impl Default for EditorSettings {
             show_inline_title: true,
             smart_quotes: true,
             curl_pasted_quotes: true,
+            auto_pair: true,
         }
     }
 }

@@ -150,3 +150,13 @@ fn typing_a_code_span_leaves_no_stray_backtick(cx: &mut TestAppContext) {
     cx.simulate_input("in `code \"x\"` they stay.");
     assert_eq!(text(&view, cx), "in `code \"x\"` they stay.");
 }
+
+#[gpui::test]
+fn the_setting_turns_auto_pairing_off(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "");
+    let mut config = Config::defaults();
+    config.settings.editor.auto_pair = false;
+    view.update(cx, |view, cx| view.apply_config(&config, cx));
+    cx.simulate_input("f(x");
+    assert_eq!(text(&view, cx), "f(x");
+}
