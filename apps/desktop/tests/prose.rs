@@ -39,6 +39,20 @@ fn vault_with(text: &str) -> TempDir {
     vault
 }
 
+/// A vault with sentence-length tints turned on, as Mod+J would leave it;
+/// they start off.
+fn vault_with_tints(text: &str) -> TempDir {
+    let vault = vault_with(text);
+    let config = vault.path().join(".editor");
+    std::fs::create_dir_all(&config).unwrap();
+    std::fs::write(
+        config.join("settings.toml"),
+        "[prose.sentence-length]\nenabled = true\n",
+    )
+    .unwrap();
+    vault
+}
+
 fn open_workspace<'a>(
     cx: &'a mut TestAppContext,
     vault: &Path,
@@ -106,7 +120,7 @@ fn sentences_are_tinted_by_length_and_the_key_toggles_them(cx: &mut TestAppConte
     let text = format!(
         "# A heading that is not tinted\n\nShort one. {long}\n\n```\ncode. More code.\n```\n"
     );
-    let vault = vault_with(&text);
+    let vault = vault_with_tints(&text);
     let (workspace, cx) = open_workspace(cx, vault.path());
     let editor = editor(&workspace, cx);
     assert_eq!(
@@ -121,14 +135,15 @@ fn sentences_are_tinted_by_length_and_the_key_toggles_them(cx: &mut TestAppConte
     cx.run_until_parked();
     assert!(tinted(&editor, cx).is_empty());
     let settings = std::fs::read_to_string(vault.path().join(".editor/settings.toml")).unwrap();
-    assert!(settings.contains("enabled = false"), "{settings}");
+    // Off is the default, so the setting leaves the file.
+    assert!(!settings.contains("enabled = true"), "{settings}");
     press(cx, "prose.toggle-sentence-highlighting");
     assert!(editor.read_with(cx, |view, _| view.is_highlighting_sentences()));
 }
 
 #[gpui::test]
 fn typing_resegments_only_what_changed(cx: &mut TestAppContext) {
-    let vault = vault_with("One two three four five six seven.\n\nOther paragraph.\n");
+    let vault = vault_with_tints("One two three four five six seven.\n\nOther paragraph.\n");
     let (workspace, cx) = open_workspace(cx, vault.path());
     let editor = editor(&workspace, cx);
     assert_eq!(tinted(&editor, cx)[0].1, Length::Medium);
