@@ -231,7 +231,9 @@ pub struct SettingsView {
     pub(super) tokens: Tokens,
     /// Whether the screen draws, and edits the accent of, the dark theme.
     pub(super) dark: bool,
-    pub(super) font_names: Vec<String>,
+    /// The installed font families, or `None` while they're still
+    /// being listed.
+    pub(super) font_names: Option<Vec<String>>,
     /// The family each theme font draws with: the one it names, or a
     /// fallback when the system doesn't have it.
     pub(super) shown_fonts: [String; 3],
@@ -324,7 +326,7 @@ impl SettingsView {
                 .with_style(TextInputStyle::Query)
         });
         let tokens = config_files::load_tokens(&vault_root);
-        let font_names = crate::ui::installed_fonts(cx).to_vec();
+        let font_names = crate::ui::installed_fonts(cx).map(|names| names.to_vec());
         let mut view = SettingsView {
             focus_handle: cx.focus_handle(),
             file: SettingsFile::load(&settings_path(&vault_root)).unwrap_or_default(),
@@ -369,6 +371,14 @@ impl SettingsView {
         subscriptions.extend(view.build_fields(window, cx));
         view._subscriptions = subscriptions;
         view.sync_fields(cx);
+        if view.font_names.is_none() {
+            let fonts = crate::ui::observe_installed_fonts(cx, |view: &mut Self, cx| {
+                if let Some(names) = crate::ui::installed_fonts(cx) {
+                    view.set_font_names(names.to_vec(), cx);
+                }
+            });
+            view._subscriptions.push(fonts);
+        }
         view
     }
 
@@ -434,7 +444,7 @@ impl SettingsView {
     pub(super) fn restyle(&mut self) {
         let tokens = self.tokens.for_mode(self.dark);
         let mut theme = Theme::from_tokens(tokens, 12);
-        theme.resolve_fonts(&self.font_names);
+        theme.resolve_fonts(self.font_names.as_deref().unwrap_or_default());
         let mut style = SettingsTheme::from_tokens(tokens);
         self.shown_fonts = [
             theme.body_font_family.to_string(),
@@ -482,10 +492,14 @@ impl SettingsView {
     }
 
     /// Why a theme font draws with another family, when it does.
-    pub(super) fn font_note(&self, slot: FontSlot) -> Option<String> {
+    pub fn font_note(&self, slot: FontSlot) -> Option<String> {
         let wanted = self.token(slot.token())?;
         let shown = self.shown_font(slot);
-        (!self.font_names.is_empty() && wanted != shown)
+        let listed = self
+            .font_names
+            .as_ref()
+            .is_some_and(|names| !names.is_empty());
+        (listed && wanted != shown)
             .then(|| format!("{wanted} isn’t installed, so {shown} shows instead."))
     }
 
@@ -519,11 +533,14 @@ impl SettingsView {
         cx.notify();
     }
 
-    /// Replaces the font names the font menus offer. The screen reads them
-    /// from the system when it opens; tests set their own.
+    /// Replaces the font names the font menus offer, and fills an open
+    /// font menu with them. The screen takes them from the app, when
+    /// they've been listed; tests set their own.
     pub fn set_font_names(&mut self, names: Vec<String>, cx: &mut Context<Self>) {
-        self.font_names = names;
+        self.font_names = Some(names);
         self.restyle();
+        self.invalidate_layouts();
+        self.refill_font_menu(cx);
         cx.notify();
     }
 

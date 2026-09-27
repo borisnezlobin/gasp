@@ -6,10 +6,9 @@
 //!
 //! These are general enough to share with other screens.
 
-use gpui::{
-    AnyElement, Corner, Div, ElementId, Hsla, SharedString, Stateful, anchored, deferred, div,
-    point, prelude::*, px,
-};
+use gpui::{AnyElement, Div, ElementId, Hsla, SharedString, Stateful, div, point, prelude::*, px};
+
+use super::popover::Popover;
 
 use crate::icons::{IconName, icon};
 use crate::picker::shortcut::Shortcut;
@@ -499,7 +498,7 @@ pub fn capture_field(
 /// A note hung under the control before it in a relative container, such
 /// as why a value or key was refused. It's drawn over the rows below, so
 /// showing it moves nothing.
-pub fn control_note(message: impl Into<SharedString>, style: &SettingsTheme) -> Div {
+pub fn control_note(message: impl Into<SharedString>, style: &SettingsTheme) -> Popover<Div> {
     let panel = div()
         .occlude()
         .max_w(style.menu_width)
@@ -557,18 +556,11 @@ pub fn swatch(
 }
 
 /// A popover panel hung under the right edge of whatever comes before it
-/// in a relative container, drawn above everything else.
-pub fn popover(panel: impl IntoElement, style: &SettingsTheme) -> Div {
-    div().absolute().top_full().right_0().child(
-        deferred(
-            anchored()
-                .anchor(Corner::TopRight)
-                .offset(point(px(0.), style.menu_offset))
-                .snap_to_window_with_margin(style.nav_padding)
-                .child(panel),
-        )
-        .with_priority(1),
-    )
+/// in a relative container, or over it when there isn't room below,
+/// drawn above everything else. Its height is capped to the room on the
+/// side it takes.
+pub fn popover<E: IntoElement + Styled + 'static>(panel: E, style: &SettingsTheme) -> Popover<E> {
+    super::popover::popover(panel, style.menu_offset, style.menu_margin)
 }
 
 /// The panel a dropdown's options sit on.
@@ -608,6 +600,7 @@ pub fn menu_option(
     div()
         .id(id)
         .flex_none()
+        .w_full()
         .flex()
         .items_center()
         .gap(style.control_gap)

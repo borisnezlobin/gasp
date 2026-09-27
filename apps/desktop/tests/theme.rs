@@ -7,9 +7,11 @@ use editor_config::RuleSet;
 use editor_desktop::actions::bind_keys;
 use editor_desktop::features;
 use editor_desktop::settings_view::SettingsView;
-use editor_desktop::ui::{is_dark, set_system_dark, ui_theme};
+use editor_desktop::ui::{
+    installed_fonts, is_dark, set_installed_fonts, set_system_dark, ui_theme,
+};
 use editor_desktop::workspace::{OpenIn, Workspace};
-use gpui::{AppContext as _, Entity, Hsla, TestAppContext, VisualTestContext};
+use gpui::{AppContext as _, Entity, Hsla, SharedString, TestAppContext, VisualTestContext};
 use tempfile::TempDir;
 
 fn vault(settings: &str) -> TempDir {
@@ -131,4 +133,59 @@ fn open_settings_repaint_in_the_new_mode(cx: &mut TestAppContext) {
         settings.read(cx).style().background
     });
     assert!(is_darkish(drawn));
+}
+
+// ---- Fonts listed after startup ----
+
+fn note_fonts(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> [SharedString; 3] {
+    cx.update(|_, cx| {
+        let editor = workspace.read(cx).active_editor(cx).unwrap();
+        editor.read(cx).theme().font_families()
+    })
+}
+
+fn hand_over_fonts(names: &[&str], cx: &mut VisualTestContext) {
+    let names = names.iter().map(|name| name.to_string()).collect();
+    cx.update(|_, cx| set_installed_fonts(names, cx));
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn fonts_listed_after_startup_leave_installed_theme_fonts_alone(cx: &mut TestAppContext) {
+    let vault = vault("");
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    // Nothing lists the fonts in tests; the note draws by the names the
+    // theme gives until the list is handed over.
+    assert!(cx.update(|_, cx| installed_fonts(cx)).is_none());
+    let before = note_fonts(&workspace, cx);
+    let ui_before = cx.update(|_, cx| ui_theme(cx));
+    let mut installed: Vec<&str> = before.iter().map(|family| family.as_ref()).collect();
+    installed.extend([
+        ui_before.font_family.as_ref(),
+        ui_before.keycap.font_family.as_ref(),
+    ]);
+    installed.extend(["DejaVu Sans", "Liberation Mono"]);
+    hand_over_fonts(&installed, cx);
+    // Every font the theme names is installed, so nothing changes.
+    assert_eq!(note_fonts(&workspace, cx), before);
+    let ui_after = cx.update(|_, cx| ui_theme(cx));
+    assert_eq!(ui_after.font_family, ui_before.font_family);
+    assert_eq!(ui_after.keycap.font_family, ui_before.keycap.font_family);
+}
+
+#[gpui::test]
+fn fonts_listed_after_startup_replace_missing_theme_fonts(cx: &mut TestAppContext) {
+    let vault = vault("");
+    std::fs::write(
+        vault.path().join(".editor/theme.toml"),
+        "[font]\ncode = \"Missing Mono\"\n",
+    )
+    .unwrap();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    assert_eq!(note_fonts(&workspace, cx)[2], "Missing Mono");
+    // One mono fallback for each platform.
+    let fallbacks = ["Menlo", "Consolas", "Liberation Mono"];
+    hand_over_fonts(&fallbacks, cx);
+    let code = note_fonts(&workspace, cx)[2].clone();
+    assert!(fallbacks.contains(&code.as_ref()), "code font {code}");
 }

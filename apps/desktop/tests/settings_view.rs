@@ -1081,3 +1081,199 @@ fn search_by_keys_waits_for_a_chord_and_searches_for_it(cx: &mut TestAppContext)
     assert!(!view.read_with(cx, |view, _| view.searching_by_keys()));
     assert_eq!(view.read_with(cx, |view, _| view.query().to_string()), "");
 }
+
+// ---- Dropdown menus: placement, long lists, fonts listed late ----
+
+/// A long font list, as a Mac with many fonts has.
+fn many_fonts() -> Vec<String> {
+    (0..300).map(|n| format!("Family {n:03}")).collect()
+}
+
+fn with_many_fonts(view: &Entity<SettingsView>, cx: &mut VisualTestContext) {
+    view.update(cx, |view, cx| view.set_font_names(many_fonts(), cx));
+}
+
+fn resize(view: &Entity<SettingsView>, height: f32, cx: &mut VisualTestContext) {
+    cx.simulate_resize(size(px(1920.), px(height)));
+    view.update(cx, |_, cx| cx.notify());
+    cx.run_until_parked();
+}
+
+fn drawn(cx: &mut VisualTestContext, selector: &str) -> Bounds<Pixels> {
+    cx.run_until_parked();
+    bounds(cx, selector.to_string()).unwrap_or_else(|| panic!("{selector} drawn"))
+}
+
+fn assert_near(a: Pixels, b: Pixels, what: &str) {
+    assert!((a - b).abs() < px(0.5), "{what}: {a:?} is not {b:?}");
+}
+
+#[gpui::test]
+fn a_menu_near_the_window_bottom_opens_above_its_button(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    with_many_fonts(&view, cx);
+    go_to_section(&view, "Appearance", cx);
+    let style = view.read_with(cx, |view, _| view.style().clone());
+    // A short window leaves the Interface font's button too little room
+    // below for its menu, and more above.
+    resize(&view, 600., cx);
+    let button = drawn(cx, "dropdown-font.ui");
+    let room_below = px(600.) - button.bottom() - style.menu_offset - style.menu_margin;
+    let room_above = button.top() - style.menu_offset - style.menu_margin;
+    assert!(room_below < style.menu_max_height && room_above > room_below);
+    click(cx, "dropdown-font.ui");
+    let menu = drawn(cx, "settings-menu");
+    // It hangs over the button, right edges aligned, and is cut to the
+    // room above rather than slid up the window or past its top.
+    assert_near(
+        menu.bottom(),
+        button.top() - style.menu_offset,
+        "menu bottom",
+    );
+    assert_near(menu.right(), button.right(), "menu right edge");
+    assert!(menu.top() >= style.menu_margin, "{menu:?} runs off the top");
+    assert_near(menu.size.height, room_above, "menu height");
+    // The options scroll inside it: the ones in view are drawn.
+    drawn(cx, "menu-option-Family 000");
+
+    // With room below, the same menu hangs under its button.
+    cx.simulate_keystrokes("escape");
+    resize(&view, 1080., cx);
+    let button = drawn(cx, "dropdown-font.ui");
+    click(cx, "dropdown-font.ui");
+    let menu = drawn(cx, "settings-menu");
+    assert_near(menu.top(), button.bottom() + style.menu_offset, "menu top");
+    assert_near(menu.right(), button.right(), "menu right edge");
+}
+
+#[gpui::test]
+fn a_short_menu_opens_below_its_button(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    go_to_section(&view, "Appearance", cx);
+    let style = view.read_with(cx, |view, _| view.style().clone());
+    resize(&view, 600., cx);
+    let button = drawn(cx, "dropdown-appearance.theme");
+    click(cx, "dropdown-appearance.theme");
+    let menu = drawn(cx, "settings-menu");
+    assert_near(menu.top(), button.bottom() + style.menu_offset, "menu top");
+    assert_near(menu.right(), button.right(), "menu right edge");
+    // Every option shows; nothing scrolls.
+    let options = view.read_with(cx, |view, _| view.menu_options());
+    for option in options {
+        drawn(cx, &format!("menu-option-{option}"));
+    }
+}
+
+#[gpui::test]
+fn the_font_menu_builds_only_the_options_in_view(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    with_many_fonts(&view, cx);
+    go_to_section(&view, "Appearance", cx);
+    click(cx, "dropdown-font.ui");
+    cx.run_until_parked();
+    let shown = view.read_with(cx, |view, _| view.menu_options());
+    assert_eq!(shown.len(), 301);
+    let built = view.read_with(cx, |view, _| view.menu_rows_built());
+    // About ten fit; the list builds those and one it measures.
+    assert!((1..=14).contains(&built), "built {built} of 301 options");
+    drawn(cx, "menu-option-Charter");
+    drawn(cx, "menu-option-Family 005");
+    assert!(bounds(cx, "menu-option-Family 250".into()).is_none());
+    // Filtering builds only the matches in view, too.
+    cx.simulate_input("family 2");
+    cx.run_until_parked();
+    let built = view.read_with(cx, |view, _| view.menu_rows_built());
+    assert!((1..=14).contains(&built), "built {built} filtered options");
+    drawn(cx, "menu-option-Family 200");
+}
+
+#[gpui::test]
+fn arrow_keys_scroll_a_far_option_into_view(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    with_many_fonts(&view, cx);
+    go_to_section(&view, "Appearance", cx);
+    click(cx, "dropdown-font.ui");
+    for _ in 0..60 {
+        cx.simulate_keystrokes("down");
+    }
+    // The current font is first, so the sixtieth step is Family 059.
+    let menu = drawn(cx, "settings-menu");
+    let option = drawn(cx, "menu-option-Family 059");
+    assert!(
+        option.top() >= menu.top() && option.bottom() <= menu.bottom(),
+        "{option:?} is outside {menu:?}"
+    );
+    // Moving down brought it in at the list's bottom edge, not its top:
+    // the options before it still show above it. (Debug bounds outlive
+    // the frame that drew them, so positions, not absence, are checked.)
+    let style = view.read_with(cx, |view, _| view.style().clone());
+    assert_near(
+        option.bottom(),
+        menu.bottom() - style.gap_sm,
+        "option bottom",
+    );
+    let earlier = drawn(cx, "menu-option-Family 050");
+    let nine_rows = style.control_height * 9.;
+    assert_near(earlier.top(), option.top() - nine_rows, "earlier option");
+    // And back up to the top, where the current font is.
+    cx.simulate_keystrokes("pageup pageup pageup pageup pageup pageup pageup pageup");
+    let first = drawn(cx, "menu-option-Charter");
+    let list_top = menu.top() + style.gap_sm + style.control_height + style.gap_xs;
+    assert_near(first.top(), list_top, "first option");
+    cx.simulate_keystrokes("down down enter");
+    assert_eq!(token(&view, "font.ui", cx), "Family 001");
+}
+
+#[gpui::test]
+fn fonts_listed_late_fill_an_open_menu_and_the_notes(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let root = dir.path();
+    write_config(root, "theme.toml", "[font]\ntext = \"Missing Serif\"\n");
+    // Nothing lists the fonts in tests until they're handed over.
+    let (view, cx, _) = open(cx, root);
+    let text = editor_desktop::settings_view::FontSlot::Text;
+    // Until the list arrives a font is drawn by the name it's given.
+    assert_eq!(
+        view.read_with(cx, |view, _| view.shown_font(text).to_string()),
+        "Missing Serif"
+    );
+    assert_eq!(view.read_with(cx, |view, _| view.font_note(text)), None);
+    go_to_section(&view, "Appearance", cx);
+    click(cx, "dropdown-font.text");
+    assert!(view.read_with(cx, |view, _| view.menu_loading()));
+    drawn(cx, "settings-menu-status");
+    assert_eq!(
+        view.read_with(cx, |view, _| view.menu_options()),
+        ["Missing Serif", "Charter"]
+    );
+    cx.simulate_input("serif");
+
+    cx.update(|_, cx| {
+        editor_desktop::ui::set_installed_fonts(FONTS.map(String::from).to_vec(), cx)
+    });
+    cx.run_until_parked();
+    // The open menu fills, keeping its filter, and stops saying it's
+    // loading.
+    assert!(!view.read_with(cx, |view, _| view.menu_loading()));
+    assert_eq!(
+        view.read_with(cx, |view, _| view.menu_options()),
+        ["Missing Serif", "Liberation Serif", "Noto Serif"]
+    );
+    let menu = drawn(cx, "settings-menu");
+    let last = drawn(cx, "menu-option-Noto Serif");
+    // The loading line is gone: the last option ends the panel.
+    let style = view.read_with(cx, |view, _| view.style().clone());
+    assert_near(last.bottom(), menu.bottom() - style.gap_sm, "last option");
+    // The row now says the named font is missing and what shows instead.
+    let note = view.read_with(cx, |view, _| view.font_note(text));
+    let note = note.expect("a note once the fonts are listed");
+    assert!(note.starts_with("Missing Serif isn’t installed"), "{note}");
+    assert_ne!(
+        view.read_with(cx, |view, _| view.shown_font(text).to_string()),
+        "Missing Serif"
+    );
+}
