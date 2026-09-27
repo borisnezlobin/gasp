@@ -11,7 +11,9 @@
 
 use std::any::Any;
 use std::ffi::c_void;
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use futures::channel::mpsc::UnboundedSender;
 use objc::runtime::{Class, Imp, NO, Object, Sel, class_addMethod};
@@ -66,16 +68,34 @@ pub fn listen(gestures: UnboundedSender<Gesture>) -> bool {
     if GESTURES.set(gestures).is_err() {
         return false;
     }
-    let method: extern "C" fn(&Object, Sel, *mut Object) = quick_look_with_event;
+    // A three-finger tap, and a force click where AppKit turns it into a
+    // Look up gesture, arrive as `quickLookWithEvent:`; a force click
+    // also arrives as pressure, which reaches the view that was clicked
+    // whatever the trackpad's Look up setting.
+    let quick_look = add_event_method(class, "quickLookWithEvent:", quick_look_with_event);
+    let pressure = add_event_method(
+        class,
+        "pressureChangeWithEvent:",
+        pressure_change_with_event,
+    );
+    quick_look || pressure
+}
+
+/// Gives `class` the event method `selector`, `-(void)name:(NSEvent *)`.
+/// Answers false when the class already has one of its own.
+fn add_event_method(
+    class: &Class,
+    selector: &str,
+    method: extern "C" fn(&Object, Sel, *mut Object),
+) -> bool {
     // SAFETY: the method has the signature its type encoding (`v@:@`)
-    // gives, `-(void)quickLookWithEvent:(NSEvent *)event`, and adding it
-    // leaves the class's other methods alone. NSView only inherits it, so
-    // the class itself doesn't have it yet.
+    // gives, and adding it leaves the class's other methods alone.
+    // NSView only inherits these, so the class itself doesn't have them.
     let added = unsafe {
         let imp = std::mem::transmute::<extern "C" fn(&Object, Sel, *mut Object), Imp>(method);
         class_addMethod(
             class as *const Class as *mut Class,
-            Sel::register("quickLookWithEvent:"),
+            Sel::register(selector),
             imp,
             c"v@:@".as_ptr(),
         )
@@ -83,10 +103,47 @@ pub fn listen(gestures: UnboundedSender<Gesture>) -> bool {
     added != NO
 }
 
+/// The pressure stage the last pressure event reached: 1 is a click,
+/// 2 a force click.
+static LAST_STAGE: AtomicIsize = AtomicIsize::new(0);
+
+extern "C" fn pressure_change_with_event(view: &Object, _: Sel, event: *mut Object) {
+    // SAFETY: AppKit calls this on the main thread with a pressure NSEvent,
+    // which answers `stage` with an NSInteger.
+    let stage: isize = unsafe { send(event, "stage", ()) };
+    let previous = LAST_STAGE.swap(stage, Ordering::Relaxed);
+    if stage == 2 && previous < 2 {
+        quick_look_with_event(view, Sel::register("quickLookWithEvent:"), event);
+    }
+}
+
+/// When the last gesture went out, so one force click that arrives as
+/// both pressure and a Look up gesture shows one popover.
+static LAST_SENT: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// How close together two gestures count as one.
+const SAME_GESTURE: Duration = Duration::from_millis(500);
+
+/// Whether a gesture now is a new one, noting it as sent.
+fn is_new_gesture() -> bool {
+    let Ok(mut last) = LAST_SENT.lock() else {
+        return true;
+    };
+    let now = Instant::now();
+    let new = last.is_none_or(|sent| now.duration_since(sent) > SAME_GESTURE);
+    if new {
+        *last = Some(now);
+    }
+    new
+}
+
 extern "C" fn quick_look_with_event(view: &Object, _: Sel, event: *mut Object) {
     let Some(gestures) = GESTURES.get() else {
         return;
     };
+    if !is_new_gesture() {
+        return;
+    }
     let view = view as *const Object as *mut Object;
     let nil: *mut Object = std::ptr::null_mut();
     // SAFETY: AppKit calls this on the main thread with an NSEvent, whose

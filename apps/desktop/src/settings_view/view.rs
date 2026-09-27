@@ -581,9 +581,11 @@ impl SettingsView {
                 cx.notify();
             }),
             None => {
+                let radius = self.style.card_radius;
                 let preview = cx.new(|cx| {
                     let mut preview = EditorView::with_config(PREVIEW_NOTE, Vec::new(), config, cx);
                     preview.read_only = true;
+                    preview.corner_radius = radius;
                     preview
                 });
                 self.preview = Some(preview);
