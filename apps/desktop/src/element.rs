@@ -7,7 +7,8 @@ use gpui::{
     App, AvailableSpace, BorderStyle, Bounds, BoxShadow, ContentMask, Corners, CursorStyle,
     Element, ElementId, ElementInputHandler, Entity, GlobalElementId, Hitbox, HitboxBehavior, Hsla,
     InspectorElementId, IntoElement, LayoutId, Pixels, SharedString, Style, TextRun,
-    TransformationMatrix, Window, fill, point, px, quad, relative, size, transparent_black,
+    TransformationMatrix, UnderlineStyle, Window, fill, point, px, quad, relative, size,
+    transparent_black,
 };
 
 use crate::code_copy::{CopyButton, blocks_on_screen, copied_width, copy_icon_size};
@@ -15,6 +16,7 @@ use crate::editor::{EditorView, HighlightKind};
 use crate::frame::{FrameLayout, PlacedLine};
 use crate::icons::IconName;
 use crate::line_layout::{Hit, Piece, PieceContent, Surface};
+use crate::prose::ProseFrame;
 use crate::theme::Theme;
 
 /// Suggestions and hover previews draw above the text and the editor's
@@ -45,6 +47,8 @@ pub struct Prepainted {
     /// The line of the link card under the pointer, and whether the
     /// pointer is on its Open button.
     hovered_card: Option<(usize, bool)>,
+    /// Sentence tints and grammar underlines.
+    prose: ProseFrame,
 }
 
 impl IntoElement for EditorElement {
@@ -100,6 +104,7 @@ impl Element for EditorElement {
                 .flat_map(|range| frame.range_rects(range, &view.theme))
                 .collect();
             let caret = frame.caret_bounds(view.cursor(), &view.theme);
+            let prose = view.prose_frame(&frame, cx);
             if view.focus_handle.is_focused(window)
                 && let Some(mut popover) = view.suggestion_popover(&frame, cx)
             {
@@ -146,6 +151,7 @@ impl Element for EditorElement {
                 copy_button,
                 hovered_task: view.hovered_task,
                 hovered_card: view.hovered_card,
+                prose,
             }
         })
     }
@@ -231,6 +237,9 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
     let frame = &prepainted.frame;
     paint_surfaces(frame, theme, window);
     paint_bands(frame, theme, window);
+    for (rect, color) in &prepainted.prose.tints {
+        window.paint_quad(fill(*rect, *color).corner_radii(theme.radius_sm));
+    }
     paint_text_backgrounds(frame, theme, window);
     for (kind, rect) in &frame.highlights {
         let color = match kind {
@@ -255,11 +264,25 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
     for placed in &frame.lines {
         paint_line(placed, &context, window, cx);
     }
+    paint_flag_underlines(&prepainted.prose, theme, window);
     if let Some(caret) = prepainted.caret.filter(|_| focused) {
         window.paint_quad(fill(caret, theme.cursor));
     }
     for placed in &frame.lines {
         paint_overlays(placed, frame.text_left, theme, window);
+    }
+}
+
+/// The grammar checker's wavy underlines, over the text so a descender
+/// never hides one.
+fn paint_flag_underlines(prose: &ProseFrame, theme: &Theme, window: &mut Window) {
+    for (origin, width, color) in &prose.underlines {
+        let style = UnderlineStyle {
+            thickness: theme.flag_underline_thickness,
+            color: Some(*color),
+            wavy: true,
+        };
+        window.paint_underline(*origin, *width, &style);
     }
 }
 

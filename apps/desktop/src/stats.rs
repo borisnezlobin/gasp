@@ -118,6 +118,8 @@ mod tests {
 pub struct Timings {
     /// Laying out the visible lines (styling, shaping, geometry).
     pub layout: Samples,
+    /// The part of layout spent on sentence tints and grammar flags.
+    pub prose: Samples,
     /// Painting the laid-out lines.
     pub paint: Samples,
     /// From an edit to the end of the next frame's paint.
@@ -128,6 +130,7 @@ pub struct Timings {
 impl Timings {
     pub fn clear(&mut self) {
         self.layout.clear();
+        self.prose.clear();
         self.paint.clear();
         self.input_to_paint.clear();
     }
@@ -135,6 +138,7 @@ impl Timings {
     pub fn report(&self) -> String {
         [
             ("layout", &self.layout),
+            ("  of which prose", &self.prose),
             ("paint", &self.paint),
             ("input-to-paint", &self.input_to_paint),
         ]

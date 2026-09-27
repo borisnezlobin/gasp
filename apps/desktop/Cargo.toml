@@ -22,6 +22,8 @@ anyhow = "1"
 env_logger = { version = "0.11", default-features = false }
 editor-config = { path = "../../crates/config" }
 editor-core = { path = "../../crates/core" }
+editor-prose = { path = "../../crates/prose" }
+similar = "2.7"
 editor-export = { path = "../../crates/export" }
 editor-sync = { path = "../../crates/sync" }
 gpui = "=0.2.2"

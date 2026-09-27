@@ -20,7 +20,7 @@ const DESKTOP: [Platform; 3] = [Platform::Macos, Platform::Windows, Platform::Li
 /// Commands for features that aren't built yet (PLAN.md, phase 4). They
 /// have their keys already; the test fails once one runs, so it leaves
 /// this list.
-const NOT_BUILT_YET: [&str; 1] = ["prose.toggle-sentence-highlighting"];
+const NOT_BUILT_YET: [&str; 0] = [];
 
 fn vault() -> TempDir {
     let vault = tempfile::tempdir().unwrap();

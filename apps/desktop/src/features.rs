@@ -110,6 +110,8 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     install_file_tree(workspace, window, cx);
     install_sync(workspace, window, cx);
     crate::knowledge::install(workspace, window, cx);
+    crate::prose::commands::install(workspace, cx);
+    crate::recovery::install(workspace, cx);
     workspace.on_command("palette.open", open_palette);
     workspace.on_command("switcher.open", open_switcher);
     workspace.on_command("outline.jump-to-heading", open_outline);

@@ -26,6 +26,11 @@ const MORE_GROUPS: [&[Command]; 5] = [
             "Reveal in file tree",
             IconName::FolderOpen,
         ),
+        (
+            "note.recover",
+            "Recover a previous version",
+            IconName::ClockCounterClockwise,
+        ),
     ],
     &[
         (
@@ -220,7 +225,15 @@ impl Workspace {
         let items = match kind {
             PaneMenu::TabList => self.tab_list_items(pane, cx),
             PaneMenu::More => self.more_items(pane, cx),
-            PaneMenu::Editor => self.editor_items(pane, cx),
+            PaneMenu::Editor => {
+                // A menu replaces any preview or flag card under the pointer.
+                if let Some(editor) = pane.read(cx).active_editor() {
+                    editor.update(cx, |editor, cx| editor.close_preview(cx));
+                }
+                let mut items = flag_items(pane, &anchor, cx);
+                items.extend(self.editor_items(pane, cx));
+                items
+            }
             PaneMenu::Tab(index) => self.tab_items(pane, index, cx),
         };
         if !items.is_empty() {
@@ -387,6 +400,44 @@ impl Workspace {
         items.extend(INSERT_ITEMS.into_iter().map(command));
         items
     }
+}
+
+/// A right-click on a grammar flag: its fixes and Ignore come first, as
+/// in any word processor.
+fn flag_items(pane: &Entity<Pane>, anchor: &MenuAnchor, cx: &App) -> Vec<MenuItem> {
+    let MenuAnchor::Pointer(position) = anchor else {
+        return Vec::new();
+    };
+    let Some(editor) = pane.read(cx).active_editor() else {
+        return Vec::new();
+    };
+    let Some(flag) = editor.read(cx).flag_at_point(*position) else {
+        return Vec::new();
+    };
+    let mut items: Vec<MenuItem> = flag
+        .replacements
+        .iter()
+        .map(|fix| {
+            let (editor, flag, fix) = (editor.downgrade(), flag.clone(), fix.clone());
+            MenuItem::action(crate::prose::card::fix_label(&fix), move |_, cx| {
+                editor
+                    .update(cx, |editor, cx| editor.accept_flag(&flag, &fix, cx))
+                    .ok();
+            })
+        })
+        .collect();
+    let ignore = {
+        let editor = editor.downgrade();
+        MenuItem::action("Ignore", move |_, cx| {
+            editor
+                .update(cx, |editor, cx| editor.ignore_flag(&flag, cx))
+                .ok();
+        })
+        .with_icon(IconName::EyeSlash)
+    };
+    items.push(ignore);
+    items.push(MenuItem::Separator);
+    items
 }
 
 /// Which editing commands have something to act on in a pane's note.

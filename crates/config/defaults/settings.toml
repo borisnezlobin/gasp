@@ -16,6 +16,11 @@ enabled     = true
 short-below = 7
 long-above  = 18
 
+[prose.grammar]
+enabled  = true
+spelling = true
+english  = "american"   # "american" | "british" | "canadian" | "australian"
+
 [files]
 attachments-folder     = "./images"
 update-links-on-rename = true
@@ -38,6 +43,10 @@ template = ""             # a note to start each day from, such as "Templates/Da
 folder      = "Templates"
 date-format = "YYYY-MM-DD"
 time-format = "HH:mm"
+
+[recovery]
+interval-minutes = 5   # between snapshots of a note you're editing
+keep-days        = 7
 
 [appearance]
 base-font-size = 12

@@ -133,6 +133,8 @@ pub struct EditorView {
     pub(crate) code_line_numbers: bool,
     /// The copy button on the code block under the pointer.
     pub(crate) code_copy: crate::code_copy::CodeCopy,
+    /// Sentence-length tints and grammar flags.
+    pub(crate) prose: crate::prose::ProseState,
     clock: Instant,
 }
 
@@ -229,6 +231,7 @@ impl EditorView {
             drawn_height: std::cell::Cell::new(px(0.)),
             code_line_numbers: config.settings.editor.code_line_numbers,
             code_copy: crate::code_copy::CodeCopy::default(),
+            prose: crate::prose::ProseState::from_settings(&config.settings.prose),
             clock: Instant::now(),
         };
         view.check_footnotes_soon(cx);
@@ -246,6 +249,9 @@ impl EditorView {
         self.apply_typing_settings(&config.settings.editor);
         self.clear_preview_cache();
         self.code_line_numbers = config.settings.editor.code_line_numbers;
+        self.apply_prose_settings(&config.settings.prose, cx);
+        crate::prose::checker::configure(&config.settings.prose.grammar, cx);
+        crate::recovery::configure(&config.settings.recovery, cx);
         self.set_zoom(self.zoom, cx);
     }
 
@@ -555,6 +561,7 @@ impl EditorView {
         self.folds.map(&change.edit);
         self.code
             .text_changed(change.edit.old.clone(), change.edit.new_len);
+        self.prose_edited();
     }
 
     /// Replaces the whole text, as when the file changed on disk. The

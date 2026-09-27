@@ -205,6 +205,7 @@ impl NoteDoc {
     fn write(&mut self, cx: &mut Context<Self>) -> io::Result<()> {
         let text = self.current_text(cx);
         let contents = self.line_ending.apply(&text);
+        crate::recovery::before_save(&self.path, &self.saved_text, cx);
         atomic_write(&self.path, &contents)?;
         self.saved_text = text;
         self.disk_text = contents;
@@ -230,6 +231,9 @@ impl NoteDoc {
             cx.notify();
             return DiskOutcome::Conflicted;
         }
+        // Whatever replaced the file, the version it replaced stays
+        // recoverable.
+        crate::recovery::keep_version(&self.path, &self.saved_text, cx);
         self.adopt(contents, cx);
         DiskOutcome::Reloaded
     }

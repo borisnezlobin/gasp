@@ -39,6 +39,7 @@ impl EditorView {
                 missing_note(link.name(), &theme, cx.listener(Self::create_previewed))
             }
             PreviewContent::Message(message) => message_line(message, &theme, window),
+            PreviewContent::Flag(flag) => crate::prose::card::flag_card(flag, &theme, window, cx),
         };
         let viewport = window.viewport_size().height;
         let gap = theme.suggestion_gap;

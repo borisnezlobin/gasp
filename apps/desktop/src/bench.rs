@@ -20,6 +20,9 @@ pub struct BenchConfig {
     /// Type at the end of a code block's first line instead of in the
     /// middle of the note, to measure highlighting.
     pub in_code: bool,
+    /// Whether sentence tints and grammar flags are on, to measure what
+    /// they cost.
+    pub prose: bool,
 }
 
 impl Default for BenchConfig {
@@ -29,6 +32,7 @@ impl Default for BenchConfig {
             keystrokes: 300,
             scroll_pages: 100,
             in_code: false,
+            prose: true,
         }
     }
 }
@@ -227,6 +231,7 @@ mod tests {
             keystrokes: 2,
             scroll_pages: 1,
             in_code: false,
+            prose: true,
         });
         let steps: Vec<BenchStep> = (0..5).map(|_| bench.next_step()).collect();
         let checkpoints: Vec<Option<Checkpoint>> =

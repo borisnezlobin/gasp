@@ -153,6 +153,17 @@ palette! {
     drop_indicator = "color.drop-indicator",
     search_match = "color.search-match",
     active_search_match = "color.active-search-match",
+    /// Sentence-length tints, behind short, medium and long sentences.
+    sentence_short = "color.sentence.short",
+    sentence_medium = "color.sentence.medium",
+    sentence_long = "color.sentence.long",
+    /// The wavy underline under a misspelled word.
+    flag_spelling = "color.flag-spelling",
+    /// The wavy underline under a spacing or repeated-word problem.
+    flag_mechanical = "color.flag-mechanical",
+    /// Lines a restore brings back, and lines it removes.
+    diff_added = "color.diff-added",
+    diff_removed = "color.diff-removed",
     knob = "color.knob",
     card = "color.card",
     /// This device's version in a note's sync conflict.
@@ -243,6 +254,13 @@ pub struct Theme {
     pub composition_underline_thickness: Pixels,
     /// The line under a footnote problem.
     pub problem_underline_thickness: Pixels,
+    /// How far a sentence tint stops short of its row's top and bottom,
+    /// leaving a gap between the lines of a paragraph.
+    pub sentence_tint_inset: Pixels,
+    /// The grammar checker's wavy underline: its stroke, and how far its
+    /// top sits above the bottom of the text.
+    pub flag_underline_thickness: Pixels,
+    pub flag_underline_rise: Pixels,
     /// A web page drawn as a card.
     pub link_card_height: Pixels,
     pub link_card_max_width: Pixels,
@@ -292,6 +310,11 @@ pub struct Theme {
     pub shadow: Hsla,
     pub search_match: Hsla,
     pub active_search_match: Hsla,
+    /// Tints behind short, medium and long sentences, in that order.
+    pub sentence: [Hsla; 3],
+    /// Wavy underlines under a misspelling and a mechanical problem.
+    pub flag_spelling: Hsla,
+    pub flag_mechanical: Hsla,
     /// Opacity of a callout's tinted surface.
     pub callout_tint: f32,
     pub callout_colors: CalloutColors,
@@ -410,6 +433,9 @@ impl Theme {
             inline_code_padding: space("space.xs", 2.) * 1.5,
             composition_underline_thickness: px(1.),
             problem_underline_thickness: px(1.5),
+            sentence_tint_inset: space("space.xs", 2.) * 1.5,
+            flag_underline_thickness: px(1.),
+            flag_underline_rise: px(1.),
             link_card_height: px(112.),
             link_card_max_width: px(640.),
             link_card_ring: px(1.),
@@ -440,7 +466,7 @@ impl Theme {
         scaled
     }
 
-    fn sizes_mut(&mut self) -> [&mut Pixels; 33] {
+    fn sizes_mut(&mut self) -> [&mut Pixels; 36] {
         [
             &mut self.body_font_size,
             &mut self.title_font_size,
@@ -464,6 +490,9 @@ impl Theme {
             &mut self.inline_code_padding,
             &mut self.composition_underline_thickness,
             &mut self.problem_underline_thickness,
+            &mut self.sentence_tint_inset,
+            &mut self.flag_underline_thickness,
+            &mut self.flag_underline_rise,
             &mut self.link_card_height,
             &mut self.link_card_max_width,
             &mut self.link_card_icon_size,
@@ -624,6 +653,9 @@ fn read_colors(palette: &Palette) -> Theme {
         shadow: p.shadow,
         search_match: p.search_match,
         active_search_match: p.active_search_match,
+        sentence: [p.sentence_short, p.sentence_medium, p.sentence_long],
+        flag_spelling: p.flag_spelling,
+        flag_mechanical: p.flag_mechanical,
         callout_tint: p.callout_tint,
         callout_colors: p.callouts.clone(),
         conflict_sides: [p.this_device, p.other_device],
@@ -674,6 +706,9 @@ fn zero_sizes() -> Theme {
         inline_code_padding: zero,
         composition_underline_thickness: zero,
         problem_underline_thickness: zero,
+        sentence_tint_inset: zero,
+        flag_underline_thickness: zero,
+        flag_underline_rise: zero,
         link_card_height: zero,
         link_card_max_width: zero,
         link_card_ring: zero,
@@ -712,6 +747,9 @@ fn zero_sizes() -> Theme {
         shadow: black,
         search_match: black,
         active_search_match: black,
+        sentence: [black; 3],
+        flag_spelling: black,
+        flag_mechanical: black,
         callout_tint: 0.,
         callout_colors: CalloutColors(Vec::new()),
         conflict_sides: [black; 2],
@@ -1718,6 +1756,12 @@ pub struct UiTheme {
     pub hover_preview_zoom: f32,
     /// A hovered footnote's text, and short notices.
     pub hover_footnote_width: Pixels,
+    /// The card a grammar flag shows: the widest its message runs, and the
+    /// narrowest the card gets so its buttons fit.
+    pub flag_card_width: Pixels,
+    pub flag_card_min_width: Pixels,
+    /// One line of interface text, for measuring a wrapped message.
+    pub text_line_height: Pixels,
     /// How long the pointer rests on a link before its preview opens.
     pub hover_preview_delay: std::time::Duration,
     /// How long the preview stays after the pointer leaves, so it can
@@ -1918,6 +1962,9 @@ impl UiTheme {
             hover_preview_padding: px(16.),
             hover_preview_zoom: 0.875,
             hover_footnote_width: px(360.),
+            flag_card_width: px(320.),
+            flag_card_min_width: px(220.),
+            text_line_height: px(20.),
             hover_preview_delay: std::time::Duration::from_millis(350),
             hover_preview_grace: std::time::Duration::from_millis(250),
             scroll_thumb: p.divider_active,
@@ -2140,6 +2187,9 @@ pub struct SettingsTheme {
     pub row_gap: Pixels,
     /// The narrowest a row's text column gets before its controls wrap.
     pub text_min_width: Pixels,
+    /// A dialog with only a short message and a button, such as one
+    /// saying there's nothing to show yet.
+    pub empty_dialog_width: Pixels,
     /// The section list's share of the modal in narrow windows.
     pub nav_fraction: f32,
     pub text_gap: Pixels,
@@ -2230,6 +2280,7 @@ impl SettingsTheme {
             list_row_padding_y: space("space.md", 8.),
             row_gap: space("space.xxl", 24.),
             text_min_width: px(140.),
+            empty_dialog_width: px(440.),
             nav_fraction: 0.3,
             text_gap: space("space.xs", 2.),
             control_gap: space("space.md", 8.),

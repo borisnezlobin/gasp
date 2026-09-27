@@ -21,6 +21,7 @@ pub struct Settings {
     pub sync: SyncSettings,
     pub daily_notes: DailyNoteSettings,
     pub templates: TemplateSettings,
+    pub recovery: RecoverySettings,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -148,6 +149,40 @@ pub enum SyntaxKind {
 pub struct ProseSettings {
     /// Colouring sentences by length.
     pub sentence_length: SentenceLengthSettings,
+    /// Underlining misspellings and mechanical problems.
+    pub grammar: GrammarSettings,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct GrammarSettings {
+    /// Whether problems are underlined as you write.
+    pub enabled: bool,
+    /// Whether misspelled words are underlined too.
+    pub spelling: bool,
+    /// Which English spelling follows.
+    pub english: EnglishVariant,
+}
+
+impl Default for GrammarSettings {
+    fn default() -> Self {
+        GrammarSettings {
+            enabled: true,
+            spelling: true,
+            english: EnglishVariant::American,
+        }
+    }
+}
+
+/// A variety of English, for spelling.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum EnglishVariant {
+    #[default]
+    American,
+    British,
+    Canadian,
+    Australian,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -274,6 +309,26 @@ impl Default for TemplateSettings {
             folder: "Templates".to_string(),
             date_format: "YYYY-MM-DD".to_string(),
             time_format: "HH:mm".to_string(),
+        }
+    }
+}
+
+/// Local snapshots of notes, kept outside the vault, for recovering an
+/// earlier version.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct RecoverySettings {
+    /// Minutes between snapshots of a note while it's being edited.
+    pub interval_minutes: u32,
+    /// Days a snapshot is kept.
+    pub keep_days: u32,
+}
+
+impl Default for RecoverySettings {
+    fn default() -> Self {
+        RecoverySettings {
+            interval_minutes: 5,
+            keep_days: 7,
         }
     }
 }
