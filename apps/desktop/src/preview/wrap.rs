@@ -184,6 +184,10 @@ pub struct RowBuilder {
     x: Pixels,
     y: Pixels,
     strut: Extent,
+    /// The caret's reach above and below the baseline: the font's own
+    /// ascent and descent, not the line's leading, so a tall line height
+    /// doesn't stretch the caret past the letters.
+    caret: Extent,
     pending: Vec<(Piece, Extent)>,
     rows: Vec<VisualRow>,
 }
@@ -197,9 +201,20 @@ impl RowBuilder {
             x: left,
             y: top,
             strut,
+            caret: strut,
             pending: Vec::new(),
             rows: Vec::new(),
         }
+    }
+
+    /// Draws the caret `caret` tall about the baseline instead of the
+    /// strut's full height.
+    pub fn with_caret(mut self, caret: Extent) -> Self {
+        self.caret = Extent {
+            ascent: caret.ascent.min(self.strut.ascent),
+            descent: caret.descent.min(self.strut.descent),
+        };
+        self
     }
 
     pub fn x(&self) -> Pixels {
@@ -292,8 +307,8 @@ impl RowBuilder {
             height: extent.ascent + extent.descent,
             range: 0..0,
             soft_end: 0,
-            caret_top: extent.ascent - self.strut.ascent,
-            caret_height: self.strut.ascent + self.strut.descent,
+            caret_top: extent.ascent - self.caret.ascent,
+            caret_height: self.caret.ascent + self.caret.descent,
             left: self.hang,
             pieces,
         }
