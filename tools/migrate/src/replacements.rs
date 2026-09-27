@@ -156,6 +156,11 @@ fn fill_default(replacement: &mut Replacement, open: &str, close: &str) {
 
 fn prettifier_entries(settings: &Value, notes: &mut Vec<String>) -> Vec<Replacement> {
     let flexible_start = flag(settings, "flexibleWordsStart", false);
+    if flexible_start {
+        notes.push(
+            "The prettifier's flexible word start wasn't kept: triggers that begin with a letter, such as `pi` and `ppy`, fire only at the start of a word, so \"api\" and \"happy\" stay as typed.".to_string(),
+        );
+    }
     if let Some(count) = settings
         .get("exclusions")
         .and_then(Value::as_array)
@@ -174,6 +179,15 @@ fn prettifier_entries(settings: &Value, notes: &mut Vec<String>) -> Vec<Replacem
         .collect()
 }
 
+/// Whether a trigger must start a word: any trigger that begins with a
+/// letter or digit does. The plugin's flexible start would let those fire
+/// inside ordinary words (`pi` in "api", `ppy` in "happy", `w/` in
+/// "saw/"), so it's kept only as a note; triggers made of symbols, such as
+/// `->`, fire anywhere either way.
+fn word_start(from: &str, _flexible_start: bool) -> bool {
+    from.starts_with(char::is_alphanumeric)
+}
+
 fn prettifier_entry(
     key: &str,
     value: &Value,
@@ -189,7 +203,7 @@ fn prettifier_entry(
         .unwrap_or(false);
     let mut replacement = entry(from, to, group, !disabled);
     replacement.fire = ReplacementFire::AfterSpace;
-    replacement.word_start = !flexible_start && from.starts_with(char::is_alphanumeric);
+    replacement.word_start = word_start(from, flexible_start);
     if to.starts_with('\\') {
         replacement.contexts = Some(vec![InputContext::Math]);
         notes.push(format!(
@@ -222,6 +236,16 @@ fn shadow_note(shadowed: &Replacement, by: &Replacement) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn letter_triggers_wait_for_a_word_start_even_when_flexible() {
+        assert!(word_start("pi", true));
+        assert!(word_start("ppy", true));
+        assert!(word_start("w/", true));
+        assert!(!word_start("->", true));
+        assert!(!word_start("(c)", true));
+        assert!(word_start("pi", false));
+    }
+
     use super::*;
 
     #[test]
