@@ -53,7 +53,13 @@ fn typing_and_editing_keys(cx: &mut TestAppContext) {
 fn word_deletes_and_select_all_come_from_the_rules(cx: &mut TestAppContext) {
     let (input, cx, _) = input(cx);
     cx.simulate_input("daily notes");
-    cx.simulate_keystrokes("ctrl-backspace");
+    // Option+Delete on macOS, Ctrl+Backspace elsewhere.
+    let delete_word = if cfg!(target_os = "macos") {
+        "alt-backspace"
+    } else {
+        "ctrl-backspace"
+    };
+    cx.simulate_keystrokes(delete_word);
     assert_eq!(text(&input, cx), "daily ");
     input.update(cx, |input, cx| input.set_text("old name", cx));
     cx.simulate_keystrokes("secondary-a");
