@@ -18,7 +18,13 @@ use crate::ui::{keycap, ui_theme};
 pub const HELP_COMMANDS: [(&str, &[&str]); 5] = [
     (
         "find",
-        &["palette.open", "switcher.open", "search.open", "note.new"],
+        &[
+            "palette.open",
+            "switcher.open",
+            "search.open",
+            "note.new",
+            "daily.open",
+        ],
     ),
     (
         "tabs",
@@ -27,6 +33,7 @@ pub const HELP_COMMANDS: [(&str, &[&str]); 5] = [
             "tab.close",
             "tab.reopen",
             "sidebar.files.toggle",
+            "sidebar.right.toggle",
             "file-tree.focus",
         ],
     ),

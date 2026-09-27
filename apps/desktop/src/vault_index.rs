@@ -1,5 +1,7 @@
 //! What the editor's suggestions know about the vault: every note's path
-//! and every tag in use, with how often it's used.
+//! and every tag in use, with how often it's used. It also holds the
+//! vault's link graph ([`LinkIndex`]), which the right sidebar, link
+//! updates on rename and anything else that needs backlinks read.
 //!
 //! The workspace builds one per window on a background thread, then keeps
 //! it current from the file watcher, re-reading only the note that
@@ -11,7 +13,9 @@ use std::path::{Path, PathBuf};
 
 use editor_core::syntax::{self, NodeKind};
 
-use crate::note::markdown_files;
+use crate::knowledge::build::{LinkChange, build_index, read_changes};
+use crate::knowledge::index::LinkIndex;
+use crate::knowledge::parse::ParsedNote;
 use crate::picker::fuzzy::{Candidate, Matcher, Query};
 
 const NOTE_EXTENSION: &str = ".md";
@@ -85,6 +89,8 @@ pub struct VaultIndex {
     tags: BTreeMap<String, usize>,
     /// The tags each note uses, so a changed note can be taken out again.
     note_tags: HashMap<String, Vec<String>>,
+    /// Every note's links and backlinks.
+    links: LinkIndex,
     ready: bool,
 }
 
@@ -96,17 +102,71 @@ pub struct NoteScan {
 }
 
 impl VaultIndex {
-    /// Reads every note under `vault`. This walks the folder and parses
-    /// each note, so run it off the main thread.
+    /// Reads every note under `vault`. This walks the folder and reads
+    /// and parses each note once, on every core, so run it off the main
+    /// thread.
     pub fn scan(vault: &Path) -> VaultIndex {
+        let links = build_index(vault);
+        let mut paths: Vec<&str> = links.note_paths().collect();
+        paths.sort_unstable();
         let mut index = VaultIndex::new(vault);
-        for path in markdown_files(vault).unwrap_or_default() {
-            if let Some(scan) = scan_note(vault, &path) {
-                index.upsert(scan);
+        index.notes = paths
+            .iter()
+            .map(|path| IndexedNote::new(path.to_string()))
+            .collect();
+        for path in paths {
+            let tags = links
+                .note(path)
+                .map(|entry| distinct_tags(&entry.parsed))
+                .unwrap_or_default();
+            for tag in &tags {
+                *index.tags.entry(tag.clone()).or_default() += 1;
             }
+            index.note_tags.insert(path.to_string(), tags);
         }
+        index.links = links;
         index.ready = true;
         index
+    }
+
+    /// Every note's links, resolved, and the backlinks to every file.
+    pub fn links(&self) -> &LinkIndex {
+        &self.links
+    }
+
+    /// Takes `text` as the note at `path` (vault-relative) now, ahead of
+    /// the watcher, as after an edit the app made for the user.
+    pub fn note_text_changed(&mut self, path: &str, text: &str) {
+        let unchanged = self
+            .links
+            .note(path)
+            .is_some_and(|entry| &*entry.text == text);
+        if unchanged {
+            return;
+        }
+        self.links.set_note(path, text);
+        let tags = self
+            .links
+            .note(path)
+            .map(|entry| distinct_tags(&entry.parsed))
+            .unwrap_or_default();
+        self.upsert(NoteScan {
+            path: path.to_string(),
+            tags,
+        });
+    }
+
+    /// Follows a rename the app made, ahead of the watcher.
+    pub fn renamed(&mut self, from: &str, to: &str) {
+        let tags = self.note_tags.get(from).cloned();
+        self.remove_note_entries(from);
+        self.links.rename(from, to);
+        if let Some(tags) = tags {
+            self.upsert(NoteScan {
+                path: to.to_string(),
+                tags,
+            });
+        }
     }
 
     /// An empty index of the vault at `root`, before its scan.
@@ -158,6 +218,11 @@ impl VaultIndex {
     /// Forgets the note at `path`, or every note under it when it's a
     /// folder.
     pub fn remove(&mut self, path: &str) {
+        self.links.remove(path);
+        self.remove_note_entries(path);
+    }
+
+    fn remove_note_entries(&mut self, path: &str) {
         let folder = format!("{}/", path.trim_end_matches('/'));
         let gone: Vec<String> = self
             .notes
@@ -363,11 +428,21 @@ fn inline_tags(value: &str) -> impl Iterator<Item = String> + '_ {
         .map(str::to_owned)
 }
 
+/// A note's tags, each once, sorted.
+fn distinct_tags(parsed: &ParsedNote) -> Vec<String> {
+    let mut tags: Vec<String> = parsed.tags.iter().map(|tag| tag.name.clone()).collect();
+    tags.sort();
+    tags.dedup();
+    tags
+}
+
 /// Where a note's changes land in the index, for the watcher.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IndexChange {
     Upsert(NoteScan),
     Remove(String),
+    /// A note's text or a file, for the link graph.
+    Links(LinkChange),
 }
 
 /// What the index should do about a changed, removed or renamed path.
@@ -377,18 +452,17 @@ pub fn index_changes(vault: &Path, changed: &[PathBuf], removed: &[PathBuf]) -> 
         .iter()
         .filter_map(|path| vault_relative(vault, path))
         .map(IndexChange::Remove);
-    let updates = changed.iter().flat_map(|path| {
-        match (path.is_file(), scan_note(vault, path)) {
-            (_, Some(scan)) => vec![IndexChange::Upsert(scan)],
-            (true, None) => Vec::new(),
-            // A folder moved in: index what's inside it.
-            (false, None) => markdown_files(path)
-                .unwrap_or_default()
-                .iter()
-                .filter_map(|note| scan_note(vault, note))
-                .map(IndexChange::Upsert)
-                .collect(),
-        }
+    // Each note is read and parsed once, for its tags and its links; a
+    // folder that moved in is read whole.
+    let updates = read_changes(vault, changed).into_iter().flat_map(|change| {
+        let scan = match &change {
+            LinkChange::Note(path, _, parsed) => Some(IndexChange::Upsert(NoteScan {
+                path: path.clone(),
+                tags: distinct_tags(parsed),
+            })),
+            LinkChange::File(_) => None,
+        };
+        scan.into_iter().chain([IndexChange::Links(change)])
     });
     removals.chain(updates).collect()
 }
@@ -399,8 +473,36 @@ impl VaultIndex {
             match change {
                 IndexChange::Upsert(scan) => self.upsert(scan),
                 IndexChange::Remove(path) => self.remove(&path),
+                IndexChange::Links(change) => self.apply_link_change(change),
             }
         }
+    }
+}
+
+impl VaultIndex {
+    fn apply_link_change(&mut self, change: LinkChange) {
+        match change {
+            LinkChange::Note(path, text, parsed) => {
+                let unchanged = self
+                    .links
+                    .note(&path)
+                    .is_some_and(|entry| entry.text == text);
+                if !unchanged {
+                    self.links.set_parsed_note(&path, text, parsed);
+                }
+            }
+            LinkChange::File(path) => self.links.add_file(&path),
+        }
+    }
+
+    /// For tests: an index with these notes' links, ready.
+    pub fn with_notes(root: &Path, notes: &[(&str, &str)]) -> VaultIndex {
+        let mut index = VaultIndex::new(root);
+        for (path, text) in notes {
+            index.note_text_changed(path, text);
+        }
+        index.ready = true;
+        index
     }
 }
 

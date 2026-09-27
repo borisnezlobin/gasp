@@ -74,6 +74,36 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Where a note goes when you delete it.",
     ),
     (
+        "daily-notes.folder",
+        "Daily notes folder",
+        "Where new daily notes go. Leave it empty for the top of the vault.",
+    ),
+    (
+        "daily-notes.format",
+        "Daily note name",
+        "A date format: YYYY-MM-DD names today’s note 2026-09-27, and a slash makes folders, as in YYYY/MM/DD.",
+    ),
+    (
+        "daily-notes.template",
+        "Daily note template",
+        "The note each new daily note starts as a copy of, such as Templates/Daily. Leave it empty to start blank.",
+    ),
+    (
+        "templates.folder",
+        "Templates folder",
+        "Insert template offers the notes in this folder.",
+    ),
+    (
+        "templates.date-format",
+        "Date format",
+        "How {{date}} is written, such as dddd, D MMMM YYYY for Sunday, 27 September 2026.",
+    ),
+    (
+        "templates.time-format",
+        "Time format",
+        "How {{time}} is written, such as HH:mm for 14:05.",
+    ),
+    (
         "editor.show-inline-title",
         "Show the note's title",
         "Show the file name as an editable title above the text.",
@@ -185,6 +215,7 @@ pub enum Page {
     Shortcuts,
     Editor,
     Files,
+    DailyNotes,
     Prose,
 }
 
@@ -366,6 +397,25 @@ pub const PAGES: &[PageSpec] = &[
         ],
     },
     PageSpec {
+        page: Page::DailyNotes,
+        id: DAILY_NOTES_SECTION,
+        title: "Daily notes and templates",
+        icon: IconName::CalendarBlank,
+        group: "Writing",
+        cards: &[
+            &[
+                setting("daily-notes.folder"),
+                setting("daily-notes.format"),
+                setting("daily-notes.template"),
+            ],
+            &[
+                setting("templates.folder"),
+                setting("templates.date-format"),
+                setting("templates.time-format"),
+            ],
+        ],
+    },
+    PageSpec {
         page: Page::Prose,
         id: "prose",
         title: "Prose",
@@ -378,6 +428,9 @@ pub const PAGES: &[PageSpec] = &[
         ]],
     },
 ];
+
+/// The id of the Daily notes and templates page.
+pub const DAILY_NOTES_SECTION: &str = "daily-notes";
 
 /// The id of the Sync page.
 pub const SYNC_SECTION: &str = "sync";
@@ -402,6 +455,7 @@ fn fallback_page(key: &str) -> Page {
         "files" => Page::Files,
         "sidebar" => Page::Sidebar,
         "prose" => Page::Prose,
+        "daily-notes" | "templates" => Page::DailyNotes,
         "sync" => Page::Sync,
         _ => Page::General,
     }

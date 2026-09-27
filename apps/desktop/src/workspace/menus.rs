@@ -30,6 +30,7 @@ use Entry::{Command, Separator};
 
 const FILE: &[Entry] = &[
     Command("note.new"),
+    Command("daily.open"),
     Command("tab.new"),
     Separator,
     Command("vault.open"),
@@ -56,6 +57,8 @@ const EDIT: &[Entry] = &[
     Command("edit.paste-plain"),
     Command("select.all"),
     Separator,
+    Command("template.insert"),
+    Separator,
     Command("find.open"),
     Command("find.replace"),
     Command("search.open"),
@@ -64,6 +67,12 @@ const EDIT: &[Entry] = &[
 const VIEW: &[Entry] = &[
     Command("sidebar.files.toggle"),
     Command("file-tree.focus"),
+    Separator,
+    Command("sidebar.right.toggle"),
+    Command("sidebar.backlinks"),
+    Command("sidebar.outgoing-links"),
+    Command("sidebar.outline"),
+    Command("sidebar.tags"),
     Separator,
     Command("pane.split-right"),
     Command("pane.split-down"),

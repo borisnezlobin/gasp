@@ -149,6 +149,9 @@ pub struct Pane {
     /// Whether the tab bar starts with the sidebar button, because the
     /// sidebar that has its own is hidden.
     pub show_sidebar_toggle: bool,
+    /// Whether the tab bar ends with the right sidebar's button, because
+    /// this pane is at the top right and that sidebar is hidden.
+    pub show_right_sidebar_toggle: bool,
     /// Room at the tab bar's left for the window's own buttons, when this
     /// pane is at the window's top-left.
     pub corner_inset: Pixels,
@@ -205,6 +208,7 @@ impl Pane {
             marked_focused: false,
             in_split: false,
             show_sidebar_toggle: false,
+            show_right_sidebar_toggle: false,
             corner_inset: px(0.),
             reading_probe: None,
             menu: MenuSlot::default(),

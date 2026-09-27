@@ -235,6 +235,7 @@ fn page_id(page: Page) -> &'static str {
         Page::Shortcuts => "keyboard-shortcuts",
         Page::Editor => "editor",
         Page::Files => "files",
+        Page::DailyNotes => "daily-notes",
         Page::Prose => "prose",
     }
 }
@@ -280,7 +281,8 @@ fn every_section_is_listed_in_order(cx: &mut TestAppContext) {
             "Sidebar",
             "Keyboard shortcuts",
             "Editor",
-            "Files and links"
+            "Files and links",
+            "Daily notes and templates"
         ]
     );
     go_to_section(&view, "Keyboard shortcuts", cx);

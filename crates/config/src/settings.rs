@@ -19,6 +19,8 @@ pub struct Settings {
     pub editor: EditorSettings,
     pub appearance: AppearanceSettings,
     pub sync: SyncSettings,
+    pub daily_notes: DailyNoteSettings,
+    pub templates: TemplateSettings,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -222,6 +224,48 @@ impl Default for EditorSettings {
             smart_quotes: true,
             curl_pasted_quotes: true,
             auto_pair: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct DailyNoteSettings {
+    /// The folder daily notes go in, from the vault root. Empty is the root.
+    pub folder: String,
+    /// The note's name as a Moment.js date format, such as `YYYY-MM-DD`.
+    pub format: String,
+    /// A note whose text starts each new daily note. Empty starts it blank.
+    pub template: String,
+}
+
+impl Default for DailyNoteSettings {
+    fn default() -> Self {
+        DailyNoteSettings {
+            folder: String::new(),
+            format: "YYYY-MM-DD".to_string(),
+            template: String::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct TemplateSettings {
+    /// The folder templates are kept in, from the vault root.
+    pub folder: String,
+    /// How `{{date}}` is written, as a Moment.js format.
+    pub date_format: String,
+    /// How `{{time}}` is written, as a Moment.js format.
+    pub time_format: String,
+}
+
+impl Default for TemplateSettings {
+    fn default() -> Self {
+        TemplateSettings {
+            folder: "Templates".to_string(),
+            date_format: "YYYY-MM-DD".to_string(),
+            time_format: "HH:mm".to_string(),
         }
     }
 }

@@ -130,6 +130,18 @@ keys = "Mod+N"
 do   = "note.new"
 
 [[rule]]
+id   = "key.daily.open"
+on   = "key"
+keys = "Mod+Shift+Y"
+do   = "daily.open"
+
+[[rule]]
+id   = "key.template.insert"
+on   = "key"
+keys = "Mod+Shift+I"
+do   = "template.insert"
+
+[[rule]]
 id   = "key.outline.jump-to-heading"
 on   = "key"
 keys = "Mod+Shift+O"
@@ -246,6 +258,36 @@ keys = "Mod+\\"
 do   = "sidebar.files.toggle"
 
 [[rule]]
+id   = "key.sidebar.right.toggle"
+on   = "key"
+keys = "Mod+Shift+J"
+do   = "sidebar.right.toggle"
+
+[[rule]]
+id   = "key.sidebar.backlinks"
+on   = "key"
+keys = "Mod+Shift+B"
+do   = "sidebar.backlinks"
+
+[[rule]]
+id   = "key.sidebar.outgoing-links"
+on   = "key"
+keys = "Mod+Shift+K"
+do   = "sidebar.outgoing-links"
+
+[[rule]]
+id   = "key.sidebar.outline"
+on   = "key"
+keys = "Mod+Shift+L"
+do   = "sidebar.outline"
+
+[[rule]]
+id   = "key.sidebar.tags"
+on   = "key"
+keys = "Mod+Shift+U"
+do   = "sidebar.tags"
+
+[[rule]]
 id   = "key.file-tree.focus"
 on   = "key"
 keys = "Mod+Shift+E"
@@ -355,7 +397,7 @@ do   = "pane.split-right"
 [[rule]]
 id   = "key.pane.split-down"
 on   = "key"
-keys = "Mod+Alt+\\"
+keys = "Mod+Alt+B"
 do   = "pane.split-down"
 
 [[rule]]
