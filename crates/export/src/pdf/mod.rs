@@ -6,11 +6,12 @@
 //! their LaTeX source instead of failing the export.
 
 mod compile;
-mod convert;
-mod escape;
-mod images;
-mod preprocess;
-mod world;
+pub(crate) mod convert;
+pub(crate) mod escape;
+pub(crate) mod images;
+pub(crate) mod preprocess;
+mod system_fonts;
+pub(crate) mod world;
 
 use std::collections::BTreeSet;
 use std::ops::Range;
@@ -21,7 +22,8 @@ use typst_layout::PagedDocument;
 
 pub use compile::CompileDiagnostic;
 pub use convert::{ConvertOptions, MathSite, TypstBody, markdown_to_typst};
-pub use world::{load_fonts, warm_up};
+pub use system_fonts::system_fonts;
+pub use world::load_fonts;
 
 /// Page margins in millimetres.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -190,6 +192,38 @@ pub fn typst_source(
         preamble: typst_preamble(options),
         body: markdown_to_typst(markdown, &convert),
     }
+}
+
+/// The installed fonts `options` asks for. The first call for a family reads
+/// the system font folders; later calls are free.
+pub fn fonts_for(options: &PdfOptions) -> Vec<Font> {
+    let families: Vec<String> = options
+        .font_family
+        .iter()
+        .chain(&options.mono_font_family)
+        .cloned()
+        .collect();
+    system_fonts(&families)
+}
+
+/// A note that touches every part of the template the first real export
+/// would otherwise pay to set up.
+const WARM_UP_NOTE: &str = "# Title\n\nText with *emphasis*, `code` and $x^2$.[^1]\n\n\
+    - item\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```rust\nfn main() {}\n```\n\n\
+    [^1]: A footnote.\n";
+
+/// Gets the first export off to a fast start: parses the embedded fonts,
+/// finds the installed ones and lays out a small sample so Typst's lazily
+/// built tables (syntaxes, hyphenation, math) are ready. It takes a few
+/// hundred milliseconds, so call it on a background thread as soon as an
+/// export becomes likely, such as when the export dialog opens.
+pub fn warm_up(options: &PdfOptions) {
+    world::load_embedded();
+    let fonts = fonts_for(options);
+    let note = typst_source(WARM_UP_NOTE, None, None, options);
+    // A sample that fails to compile only means the real export pays the
+    // set-up cost itself.
+    let _ = compile_note(&note, &fonts);
 }
 
 /// Rounds of replacing failing equations before giving up.

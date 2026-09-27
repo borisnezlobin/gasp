@@ -3,12 +3,12 @@
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, Tag, TagEnd};
 
 use super::Converter;
-use super::callout::{default_title, parse_header};
+use super::callout::{default_title, header_line_end, is_blank_span, parse_header};
 use crate::pdf::escape;
 
 /// Splits a code fence info string into its language and an
 /// `title:"…"` title (the Embedded Code Title plugin's syntax).
-fn code_info(info: &str) -> (Option<String>, Option<String>) {
+pub(crate) fn code_info(info: &str) -> (Option<String>, Option<String>) {
     let info = info.trim();
     let (lang, rest) = match info.split_once(char::is_whitespace) {
         Some((lang, rest)) => (lang, rest.trim()),
@@ -45,13 +45,6 @@ fn alignment_name(alignment: Alignment) -> &'static str {
     }
 }
 
-fn is_line_end(event: &Event<'_>) -> bool {
-    matches!(
-        event,
-        Event::SoftBreak | Event::HardBreak | Event::End(TagEnd::Paragraph)
-    )
-}
-
 impl<'a> Converter<'a> {
     pub(super) fn block_quote(&mut self) {
         let header = match (self.peek(0), self.peek(1)) {
@@ -66,9 +59,9 @@ impl<'a> Converter<'a> {
         if let Event::Text(text) = &mut self.events[title_start] {
             *text = text[header.rest_offset..].to_owned().into();
         }
-        let title_end = self.header_line_end(title_start);
+        let title_end = header_line_end(&self.events, title_start);
         self.out.push_str("#callout(title: [");
-        if self.is_blank_span(title_start, title_end) {
+        if is_blank_span(&self.events, title_start, title_end) {
             self.out
                 .push_str(&escape::markup(&default_title(&header.kind)));
         } else {
@@ -90,27 +83,6 @@ impl<'a> Converter<'a> {
         if !paragraph_ended {
             self.paragraph();
         }
-    }
-
-    /// Index of the event ending the first line of the paragraph whose
-    /// inline content starts at `from`.
-    fn header_line_end(&self, from: usize) -> usize {
-        let mut depth = 0usize;
-        for (index, event) in self.events.iter().enumerate().skip(from) {
-            match event {
-                Event::Start(_) => depth += 1,
-                Event::End(_) if depth > 0 => depth -= 1,
-                event if depth == 0 && is_line_end(event) => return index,
-                _ => {}
-            }
-        }
-        self.events.len()
-    }
-
-    fn is_blank_span(&self, from: usize, to: usize) -> bool {
-        self.events[from..to.min(self.events.len())]
-            .iter()
-            .all(|event| matches!(event, Event::Text(text) if text.trim().is_empty()))
     }
 
     pub(super) fn code_block(&mut self, kind: &CodeBlockKind<'_>) {

@@ -1,7 +1,7 @@
 //! Phase 0 Typst PDF spike: exports one note and reports timings.
 //!
 //! `cargo run --release -p editor-export --example pdf_spike -- <note.md> <out.pdf>
-//!  [--vault DIR] [--fonts DIR] [--typ OUT.typ] [--png OUT.png] [--all-pages] [--runs N]`
+//!  [--vault DIR] [--fonts DIR] [--typ OUT.typ] [--png OUT.png] [--all-pages] [--runs N] [--cold]`
 //!
 //! Memoized layout is cleared before each run, so the times are for a note
 //! seen for the first time (fonts are parsed once, before the runs).
@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use editor_export::pdf::{
-    PdfOptions, compile_note, evict_memory, load_fonts, typst_source, warm_up, write_pdf,
+    PdfOptions, compile_note, evict_memory, fonts_for, load_fonts, typst_source, warm_up, write_pdf,
 };
 
 #[derive(Default)]
@@ -24,6 +24,7 @@ struct Args {
     png: Option<PathBuf>,
     runs: usize,
     all_pages: bool,
+    cold: bool,
 }
 
 /// Applies one `--flag value` option.
@@ -49,6 +50,8 @@ fn parse_args() -> Result<Args, String> {
     while let Some(arg) = iter.next() {
         if arg == "--all-pages" {
             args.all_pages = true;
+        } else if arg == "--cold" {
+            args.cold = true;
         } else if arg.starts_with("--") {
             let value = iter.next().ok_or(format!("{arg} needs a value"))?;
             apply_option(&mut args, &arg, value)?;
@@ -101,8 +104,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let options = PdfOptions::default();
 
     let started = Instant::now();
-    warm_up();
-    let fonts = load_fonts(&args.fonts);
+    if args.cold {
+        println!("cold start: no warm-up");
+    } else {
+        warm_up(&options);
+    }
+    let mut fonts = load_fonts(&args.fonts);
+    fonts.extend(fonts_for(&options));
     println!("setup (fonts, library): {}", millis(started.elapsed()));
 
     let mut convert_times = Vec::new();

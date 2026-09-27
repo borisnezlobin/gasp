@@ -9,8 +9,12 @@ publish = false
 [dependencies]
 editor-math = { path = "../math" }
 pulldown-cmark = { version = "0.13", default-features = false }
+base64 = "0.22"
+# The same features Typst enables, so the crate is built once.
+syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy"] }
 typst = "0.15.1"
 typst-pdf = "0.15.1"
+typst-html = "0.15.1"
 typst-layout = "0.15.1"
 typst-assets = { version = "0.15.1", features = ["fonts"] }
 

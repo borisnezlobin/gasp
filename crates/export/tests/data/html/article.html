@@ -1,0 +1,44 @@
+<article>
+<p>The opening paragraph links to <a href="#two-masses-springs">the next section</a> and to <a href="https://example.com/?a=1&amp;b=2">a site</a>.<sup class="footnote-ref"><a href="#fn-1" id="fnref-1">1</a></sup></p>
+<h2 id="two-masses-springs">Two Masses &amp; Springs</h2>
+<p>Frequencies are <math><msub><mi>𝜔</mi><mn>1</mn></msub><mo>=</mo><msqrt><mi>𝑘</mi><mi>/</mi><mi>𝑚</mi></msqrt></math> and <math><msub><mi>𝜔</mi><mn>2</mn></msub><mo>=</mo><msqrt><mn>3</mn><mi>𝑘</mi><mi>/</mi><mi>𝑚</mi></msqrt></math>; a broken one is <code class="math-error">\left( x</code>.</p>
+<h2 id="two-masses-springs-2">Two Masses &amp; Springs</h2>
+<p>A second heading with the same text gets its own id.</p>
+<ol start="3">
+<li>Starts at three</li>
+<li>Continues</li>
+</ol>
+<ul>
+<li><p>Loose item one</p>
+</li>
+<li><p>Loose item two with <code>a &lt; b</code></p>
+</li>
+<li class="task"><p><input type="checkbox" disabled checked> Loose task</p>
+</li>
+</ul>
+<aside class="callout" data-callout="question">
+<p class="callout-title">Folded question with <strong>bold</strong> title</p>
+<p>The body of a folded callout.<br>
+Second line.</p>
+</aside>
+<aside class="callout" data-callout="info">
+<p class="callout-title">Info</p>
+<p>Only a default title.</p>
+</aside>
+<pre><code>plain &lt;code&gt; without a language</code></pre>
+<pre><code class="language-rust"><span class="hl-keyword">fn</span> <span class="hl-function">main</span>() {
+    println!(<span class="hl-string">"</span><span class="hl-constant">{}</span><span class="hl-string">"</span>, <span class="hl-number">1</span> + <span class="hl-number">2</span>); <span class="hl-comment">// sum</span>
+}</code></pre>
+<p>Raw HTML is filtered: <b>bold</b>, bad link, <a href="https://example.com">good link</a>, plain span and <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR42mM4o6UGRAwQCgAhtgRxpmjNBQAAAABJRU5ErkJggg==" alt="" width="40">.</p>
+<figure><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR42mM4o6UGRAwQCgAhtgRxpmjNBQAAAABJRU5ErkJggg==" alt="A red square" width="120"></figure>
+<figure><img src="https://example.com/remote.png" alt="Remote"></figure>
+<p>A citation repeated<sup class="footnote-ref"><a href="#fn-1" id="fnref-1-2">1</a></sup>, and a missing one[^nope].</p>
+<section class="footnotes">
+<ol>
+<li id="fn-1">
+<p>Because the footnote says so, with <math><msup><mi>𝑥</mi><mn>2</mn></msup></math>.</p>
+<p>It has a second paragraph. <a href="#fnref-1" class="footnote-back" aria-label="Back to the text">↩︎</a> <a href="#fnref-1-2" class="footnote-back" aria-label="Back to the text">↩︎</a></p>
+</li>
+</ol>
+</section>
+</article>

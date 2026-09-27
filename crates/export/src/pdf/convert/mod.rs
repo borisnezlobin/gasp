@@ -6,9 +6,9 @@
 //! Constructs that need their whole content at once (code, HTML blocks,
 //! images) consume their events directly.
 
-mod blocks;
-mod callout;
-mod html;
+pub(crate) mod blocks;
+pub(crate) mod callout;
+pub(crate) mod html;
 mod inline;
 
 use std::collections::HashMap;
@@ -69,7 +69,8 @@ pub fn markdown_to_typst(markdown: &str, options: &ConvertOptions) -> TypstBody 
             .clone()
             .unwrap_or_else(|| fallback.clone())
     });
-    if let Some(title) = title.filter(|title| !title.trim().is_empty()) {
+    let title = title.filter(|title| !title.trim().is_empty());
+    if let Some(title) = title.filter(|title| !opens_with_heading(&converter.events, title)) {
         converter.write_title(&title);
     }
     converter.run();
@@ -81,7 +82,28 @@ pub fn markdown_to_typst(markdown: &str, options: &ConvertOptions) -> TypstBody 
     }
 }
 
-fn parse(source: &str) -> Vec<Event<'_>> {
+/// Whether the note already starts with a top-level heading that reads the
+/// same as `title`, so adding the title would print it twice.
+pub(crate) fn opens_with_heading(events: &[Event<'_>], title: &str) -> bool {
+    let Some(Event::Start(Tag::Heading {
+        level: pulldown_cmark::HeadingLevel::H1,
+        ..
+    })) = events.first()
+    else {
+        return false;
+    };
+    let mut text = String::new();
+    for event in &events[1..] {
+        match event {
+            Event::Text(part) | Event::Code(part) => text.push_str(part),
+            Event::End(TagEnd::Heading(_)) => break,
+            _ => {}
+        }
+    }
+    text.trim().eq_ignore_ascii_case(title.trim())
+}
+
+pub(crate) fn parse(source: &str) -> Vec<Event<'_>> {
     let options = Options::ENABLE_TABLES
         | Options::ENABLE_FOOTNOTES
         | Options::ENABLE_STRIKETHROUGH
@@ -317,7 +339,9 @@ impl<'a> Converter<'a> {
 
 /// Removes footnote definitions from the event stream, keyed by name.
 #[allow(clippy::type_complexity)]
-fn extract_footnotes(events: Vec<Event<'_>>) -> (Vec<Event<'_>>, HashMap<String, Vec<Event<'_>>>) {
+pub(crate) fn extract_footnotes(
+    events: Vec<Event<'_>>,
+) -> (Vec<Event<'_>>, HashMap<String, Vec<Event<'_>>>) {
     let mut body = Vec::with_capacity(events.len());
     let mut footnotes = HashMap::new();
     let mut current: Option<(String, Vec<Event<'_>>, usize)> = None;

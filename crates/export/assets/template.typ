@@ -19,13 +19,10 @@
   if settings.get().print-background { fill } else { none }
 }
 
-#let mark(body) = context {
-  if settings.get().print-background {
-    highlight(fill: rgb("#fff3a3"), body)
-  } else {
-    body
-  }
-}
+// A highlight is part of what the note says, not page decoration, so it
+// prints even when backgrounds are off. The yellow is pale enough to read
+// as a light grey on a monochrome printer.
+#let mark(body) = highlight(fill: rgb("#fff1a8"), extent: 0.05em, body)
 
 #let kbd(body) = box(
   stroke: 0.5pt + rule-grey,
@@ -123,9 +120,14 @@
   ))
 }
 
+// Tables up to this many body rows are kept on one page: a short table
+// split after its first row reads as two tables.
+#let table-keep-rows = 10
+
 #let md-table(aligns: (), header: (), ..cells) = context {
   let background = if settings.get().print-background { rgb("#eeeeee") } else { none }
-  table(
+  let rows = calc.div-euclid(cells.pos().len(), calc.max(aligns.len(), 1))
+  block(breakable: rows > table-keep-rows, table(
     columns: aligns.len(),
     align: aligns,
     stroke: 0.5pt + rule-grey,
@@ -133,7 +135,7 @@
     fill: (_, row) => if row == 0 and header.len() > 0 { background },
     table.header(..header.map(cell => strong(cell))),
     ..cells.pos(),
-  )
+  ))
 }
 
 // An image scaled like the plugin's print CSS: at most the text width and

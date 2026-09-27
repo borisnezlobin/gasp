@@ -6,13 +6,17 @@
 pub(crate) struct CleanNote {
     pub body: String,
     pub frontmatter_title: Option<String>,
+    /// The frontmatter's `description`, which the website shows under the
+    /// title.
+    pub frontmatter_description: Option<String>,
 }
 
 pub(crate) fn clean(source: &str) -> CleanNote {
     let (frontmatter, body) = split_frontmatter(source);
     CleanNote {
         body: strip_comments(body),
-        frontmatter_title: frontmatter.and_then(title_field),
+        frontmatter_title: frontmatter.and_then(|yaml| field(yaml, "title")),
+        frontmatter_description: frontmatter.and_then(|yaml| field(yaml, "description")),
     }
 }
 
@@ -35,9 +39,10 @@ fn split_frontmatter(source: &str) -> (Option<&str>, &str) {
     (None, source)
 }
 
-fn title_field(yaml: &str) -> Option<String> {
+/// A one-line string field of the frontmatter.
+fn field(yaml: &str, name: &str) -> Option<String> {
     yaml.lines().find_map(|line| {
-        let value = line.strip_prefix("title:")?.trim();
+        let value = line.strip_prefix(name)?.strip_prefix(':')?.trim();
         let value = value.trim_matches(|c| c == '"' || c == '\'').trim();
         (!value.is_empty()).then(|| value.to_owned())
     })
