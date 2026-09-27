@@ -428,7 +428,11 @@ impl SettingsView {
         let first = index == card.rows.start;
         let last = index + 1 == card.rows.end;
         let spaced = card_index > 0 && card.title.is_none();
-        let dense = self.current_section() == Some(Page::Shortcuts);
+        let dense = self.current_section() == Some(Page::Shortcuts)
+            || matches!(
+                layout.rows[index],
+                ControlRow::Snippet(_) | ControlRow::Replacement(_)
+            );
         let content = self.render_row(index, &layout.rows[index], window, cx);
         card_row(index, first, last, dense, content, &style)
             .when(first && spaced, |row| row.mt(style.card_gap))
@@ -449,6 +453,9 @@ impl SettingsView {
             return self.render_snippet_editor(window, cx);
         }
         let focused = self.rings(SettingsFocus::Control(index), window, cx);
+        if row.is_typing_row() {
+            return self.render_typing_row(index, row, focused, window, cx);
+        }
         let text = self.row_text(row);
         let control = self.row_control(index, row, focused, window, cx);
         let page = self
