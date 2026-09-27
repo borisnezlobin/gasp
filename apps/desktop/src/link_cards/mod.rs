@@ -249,7 +249,8 @@ impl EditorView {
             .px(theme.space_md)
             .rounded(theme.menu_row_radius)
             .bg(theme.menu_background)
-            .shadow(theme.menu_shadows())
+            // A chip in the text sits lower than a menu: a lift, not a float.
+            .shadow(theme.tab_shadows())
             .font_family(theme.font_family.clone())
             .text_size(theme.small_font_size)
             .text_color(if clickable {

@@ -1534,16 +1534,6 @@ pub const KEY_FONT_CANDIDATES: [&str; 6] = [
     "FreeSans",
 ];
 
-/// The colour emoji face, first installed one wins. Linux's text system
-/// falls back to whichever font has a glyph first, often a black and
-/// white one, so rows that show an emoji name the face outright.
-#[cfg(target_os = "macos")]
-pub const EMOJI_FONT_CANDIDATES: [&str; 1] = ["Apple Color Emoji"];
-#[cfg(target_os = "windows")]
-pub const EMOJI_FONT_CANDIDATES: [&str; 1] = ["Segoe UI Emoji"];
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-pub const EMOJI_FONT_CANDIDATES: [&str; 3] = ["Noto Color Emoji", "Twemoji", "JoyPixels"];
-
 /// The first of `candidates` among `installed`, or the first candidate.
 fn first_installed(candidates: &[&str], installed: &[String]) -> SharedString {
     candidates
@@ -1709,7 +1699,6 @@ pub struct UiTheme {
     /// The column an emoji or symbol sits in before its name.
     pub suggestion_glyph_width: Pixels,
     pub suggestion_glyph_size: Pixels,
-    pub emoji_font_family: SharedString,
     /// The chip beside a pasted address that offers to make a card.
     pub card_chip_height: Pixels,
     /// The popover a link shows its note in when hovered.
@@ -1910,7 +1899,6 @@ impl UiTheme {
             suggestion_gap: px(4.),
             suggestion_glyph_width: px(20.),
             suggestion_glyph_size: px(16.),
-            emoji_font_family: EMOJI_FONT_CANDIDATES[0].into(),
             card_chip_height: px(26.),
             hover_preview_width: px(480.),
             hover_preview_height: px(360.),
@@ -2040,7 +2028,6 @@ impl UiTheme {
     pub fn themed(palette: &Palette, installed: &[String]) -> UiTheme {
         UiTheme {
             font_family: first_installed(&UI_FONT_CANDIDATES, installed),
-            emoji_font_family: first_installed(&EMOJI_FONT_CANDIDATES, installed),
             keycap: KeycapTheme::with_installed_fonts(installed).on_text(palette.text),
             ..UiTheme::from_palette(palette)
         }
