@@ -3,6 +3,7 @@
 use std::cmp::Reverse;
 use std::fmt;
 use std::ops::Range;
+use std::sync::{Mutex, OnceLock};
 
 use fancy_regex::{Captures, Regex};
 
@@ -89,17 +90,99 @@ impl std::error::Error for CompileError {}
 struct Compiled {
     snippet: Snippet,
     regex: Regex,
+    /// What the text before the cursor must end with for the trigger to
+    /// match, checked before the regex runs.
+    ends_with: LastChar,
+    /// How many characters at the end of the text the regex needs to see:
+    /// the longest text the trigger matches, plus one for a lookbehind.
+    reach: usize,
     /// For pattern triggers, capture group i + 1 holds the pattern at `named_groups[i]`.
     named_groups: Vec<(crate::pattern::NamedPattern, usize)>,
 }
 
+/// The last character a trigger can match. Most keystrokes rule out all but
+/// a handful of snippets on this alone, which keeps typing cheap with
+/// hundreds of snippets loaded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LastChar {
+    Any,
+    Exactly(char),
+    Letter,
+    Digit,
+}
+
+impl LastChar {
+    fn of(snippet: &Snippet) -> LastChar {
+        if snippet.options.after_space {
+            return LastChar::Exactly(' ');
+        }
+        let Trigger::Pattern(parts) = &snippet.trigger else {
+            return LastChar::Any;
+        };
+        match parts.last() {
+            Some(TriggerPart::Text(text)) => text
+                .chars()
+                .next_back()
+                .map_or(LastChar::Any, LastChar::Exactly),
+            Some(TriggerPart::Named(crate::pattern::NamedPattern::Digit)) => LastChar::Digit,
+            Some(TriggerPart::Named(_)) => LastChar::Letter,
+            None => LastChar::Any,
+        }
+    }
+
+    fn admits(self, last: Option<char>) -> bool {
+        match (self, last) {
+            (LastChar::Any, _) => true,
+            (_, None) => false,
+            (LastChar::Exactly(wanted), Some(last)) => wanted == last,
+            (LastChar::Letter, Some(last)) => last.is_alphabetic(),
+            (LastChar::Digit, Some(last)) => last.is_ascii_digit(),
+        }
+    }
+}
+
+/// How many characters at the end of the text before the cursor a trigger
+/// with no length limit, such as a raw regex, is matched against. A long
+/// line shouldn't make every keystroke slower.
+const MATCH_WINDOW: usize = 128;
+
+/// The longest text a trigger matches, in characters, plus one for a
+/// lookbehind to see what comes before it.
+fn trigger_reach(snippet: &Snippet) -> usize {
+    let Trigger::Pattern(parts) = &snippet.trigger else {
+        return MATCH_WINDOW;
+    };
+    let longest = parts.iter().map(|part| match part {
+        TriggerPart::Text(text) => text.chars().count(),
+        TriggerPart::Named(pattern) => pattern.max_len().unwrap_or(MATCH_WINDOW),
+    });
+    let space = usize::from(snippet.options.after_space);
+    (longest.sum::<usize>() + space + 1).min(MATCH_WINDOW)
+}
+
+/// The last `chars` characters of `text` and where they start.
+fn tail(text: &str, chars: usize) -> (usize, &str) {
+    let start = text
+        .char_indices()
+        .rev()
+        .nth(chars.saturating_sub(1))
+        .map_or(0, |(at, _)| at);
+    (start, &text[start..])
+}
+
 /// A compiled set of snippets.
 pub struct SnippetEngine {
-    compiled: Vec<Compiled>,
+    /// Snippets still waiting to compile, for an engine made by
+    /// [`SnippetEngine::lazy`].
+    pending: Mutex<Option<Vec<Snippet>>>,
+    compiled: OnceLock<Vec<Compiled>>,
+    count: usize,
 }
 
 struct Candidate<'r> {
     index: usize,
+    /// Where the text the regex saw starts in `before`.
+    offset: usize,
     priority: i32,
     length: usize,
     captures: Captures<'r>,
@@ -114,15 +197,53 @@ impl SnippetEngine {
                 compile(snippet).map_err(|message| CompileError { index, message })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(SnippetEngine { compiled })
+        let count = compiled.len();
+        Ok(SnippetEngine {
+            pending: Mutex::new(None),
+            compiled: OnceLock::from(compiled),
+            count,
+        })
+    }
+
+    /// An engine that compiles its snippets the first time it's used, or
+    /// on [`SnippetEngine::warm`]: compiling a few hundred takes several
+    /// milliseconds. A snippet whose trigger doesn't compile is kept, so
+    /// indices still match the list, but never fires; the parser already
+    /// refuses raw regexes that don't compile.
+    pub fn lazy(snippets: Vec<Snippet>) -> SnippetEngine {
+        SnippetEngine {
+            count: snippets.len(),
+            pending: Mutex::new(Some(snippets)),
+            compiled: OnceLock::new(),
+        }
+    }
+
+    /// Compiles the snippets now, if they haven't been.
+    pub fn warm(&self) {
+        self.compiled();
+    }
+
+    fn compiled(&self) -> &[Compiled] {
+        self.compiled.get_or_init(|| {
+            let snippets = self
+                .pending
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .take()
+                .unwrap_or_default();
+            snippets
+                .into_iter()
+                .map(|snippet| compile(snippet.clone()).unwrap_or_else(|_| never_fires(snippet)))
+                .collect()
+        })
     }
 
     pub fn len(&self) -> usize {
-        self.compiled.len()
+        self.count
     }
 
     pub fn is_empty(&self) -> bool {
-        self.compiled.is_empty()
+        self.count == 0
     }
 
     /// Returns the expansion for this keystroke, if a snippet fires.
@@ -130,10 +251,12 @@ impl SnippetEngine {
         if !request.selection.is_empty() {
             return self.expand_selection(request);
         }
-        let best = self
-            .compiled
+        let last = request.before.chars().next_back();
+        let compiled = self.compiled();
+        let best = compiled
             .iter()
             .enumerate()
+            .filter(|(_, compiled)| compiled.ends_with.admits(last))
             .filter(|(_, compiled)| fires_for(&compiled.snippet.options, request))
             .filter_map(|(index, compiled)| candidate(index, compiled, request))
             .min_by_key(|candidate| {
@@ -143,21 +266,26 @@ impl SnippetEngine {
                     candidate.index,
                 )
             })?;
-        let compiled = &self.compiled[best.index];
+        let compiled = &compiled[best.index];
         let whole = best.captures.get(0)?;
         let text_parts = build(&compiled.snippet, &|capture| {
             capture_text(compiled, &best.captures, capture)
         });
-        Some(finish(whole.start()..whole.end(), text_parts, best.index))
+        Some(finish(
+            best.offset + whole.start()..best.offset + whole.end(),
+            text_parts,
+            best.index,
+        ))
     }
 
     fn expand_selection(&self, request: &Request) -> Option<SnippetEdit> {
         let TriggerKey::Char(typed) = request.key else {
             return None;
         };
-        let (index, compiled) = self.compiled.iter().enumerate().find(|(_, compiled)| {
+        let (index, compiled) = self.compiled().iter().enumerate().find(|(_, compiled)| {
             let options = &compiled.snippet.options;
             options.on_selection
+                && !options.off
                 && options.allows(request.context, request.block_math)
                 && compiled.snippet.trigger.literal() == Some(typed.encode_utf8(&mut [0; 4]))
         })?;
@@ -179,7 +307,10 @@ fn fires_for(options: &Options, request: &Request) -> bool {
         TriggerKey::Tab => options.fire == Fire::OnTab,
         TriggerKey::Char(_) => options.fire == Fire::Instant,
     };
-    key_matches && !options.on_selection && options.allows(request.context, request.block_math)
+    key_matches
+        && !options.on_selection
+        && !options.off
+        && options.allows(request.context, request.block_math)
 }
 
 fn candidate<'r>(
@@ -187,13 +318,15 @@ fn candidate<'r>(
     compiled: &Compiled,
     request: &Request<'r>,
 ) -> Option<Candidate<'r>> {
-    let captures = compiled.regex.captures(request.before).ok()??;
+    let (offset, before) = tail(request.before, compiled.reach);
+    let captures = compiled.regex.captures(before).ok()??;
     let whole = captures.get(0)?;
     if compiled.snippet.options.whole_word && next_is_letter(request.after) {
         return None;
     }
     Some(Candidate {
         index,
+        offset,
         priority: compiled.snippet.options.priority,
         length: whole.end() - whole.start(),
         captures,
@@ -221,10 +354,23 @@ fn compile(snippet: Snippet) -> Result<Compiled, String> {
     source.push('$');
     let regex = Regex::new(&source).map_err(|error| error.to_string())?;
     Ok(Compiled {
+        ends_with: LastChar::of(&snippet),
+        reach: trigger_reach(&snippet),
         snippet,
         regex,
         named_groups,
     })
+}
+
+fn never_fires(mut snippet: Snippet) -> Compiled {
+    snippet.options.off = true;
+    Compiled {
+        ends_with: LastChar::Any,
+        reach: 0,
+        snippet,
+        regex: Regex::new("[^\\s\\S]").expect("the empty class compiles"),
+        named_groups: Vec::new(),
+    }
 }
 
 fn lookbehinds(options: &Options) -> String {
