@@ -1,0 +1,4470 @@
+{
+  "attachment_bytes": 20784,
+  "attachment_count": 232,
+  "callout_types": {
+    "abstract": 12,
+    "attention": 1,
+    "bug": 1,
+    "caution": 1,
+    "check": 1,
+    "cite": 1,
+    "danger": 1,
+    "done": 1,
+    "error": 1,
+    "example": 6,
+    "fail": 1,
+    "failure": 1,
+    "faq": 1,
+    "help": 1,
+    "hint": 1,
+    "important": 6,
+    "info": 13,
+    "missing": 1,
+    "note": 6,
+    "question": 6,
+    "quote": 7,
+    "success": 1,
+    "summary": 1,
+    "tip": 9,
+    "tldr": 1,
+    "todo": 1,
+    "warning": 8
+  },
+  "code_languages": {
+    "": 5,
+    "bash": 15,
+    "c": 5,
+    "js": 2,
+    "json": 4,
+    "latex": 5,
+    "markdown": 5,
+    "python": 8,
+    "rust": 4
+  },
+  "footnote_problems": {
+    "duplicate": [
+      {
+        "label": "1",
+        "note": "Daily Notes/2024-02-16.md"
+      },
+      {
+        "label": "1",
+        "note": "Physics/Bayes' Theorem.md"
+      }
+    ],
+    "empty": [
+      {
+        "label": "2",
+        "note": "Personal/Variable Ideas.md"
+      },
+      {
+        "label": "caveat",
+        "note": "On Formal Model.md"
+      }
+    ],
+    "missing": [
+      {
+        "label": "3",
+        "note": "Personal/Midterm Ideas.md"
+      },
+      {
+        "label": "2",
+        "note": "On Stronger Chapter.md"
+      },
+      {
+        "label": "1",
+        "note": "Essays/Idea Ideas.md"
+      }
+    ],
+    "typo": [
+      {
+        "label": "2",
+        "note": "Inbox/On Trick.md"
+      },
+      {
+        "label": "2",
+        "note": "Reading/Sequence Limit.md"
+      }
+    ],
+    "unused": [
+      {
+        "label": "2",
+        "note": "Inbox/On Trick.md"
+      },
+      {
+        "label": "4",
+        "note": "Personal/Variable Ideas.md"
+      },
+      {
+        "label": "2",
+        "note": "Reading/Sequence Limit.md"
+      },
+      {
+        "label": "5",
+        "note": "Projects/Editor Ideas/Reading - Library Variable.md"
+      }
+    ]
+  },
+  "generator": "editor-corpus",
+  "html_tags": {
+    "br": 326,
+    "div": 10,
+    "hr": 312,
+    "img": 11,
+    "kbd": 3,
+    "span": 4,
+    "sup": 6,
+    "u": 11
+  },
+  "note_bytes": 514551,
+  "note_count": 204,
+  "notes": [
+    {
+      "bytes": 3148,
+      "counts": {
+        "abbreviations": 3,
+        "block_math_delimiters": 12,
+        "block_math_lines": 9,
+        "blockquote_lines": 5,
+        "bold": 1,
+        "decimals": 1,
+        "ellipses": 2,
+        "em_dashes": 1,
+        "embeds": 2,
+        "en_dashes": 1,
+        "equations": 31,
+        "escaped_dollars": 1,
+        "heading_h2": 2,
+        "heading_h4": 1,
+        "inline_math": 25,
+        "italic": 3,
+        "list_items": 12,
+        "markdown_links": 2,
+        "nested_list_items": 8,
+        "ordered_list_items": 1,
+        "strikethrough": 1,
+        "tags": 3,
+        "urls": 5
+      },
+      "path": "Physics/Eigenvalues.md"
+    },
+    {
+      "bytes": 1160,
+      "counts": {
+        "abbreviations": 6,
+        "bold": 1,
+        "checked_task_items": 6,
+        "initials": 1,
+        "italic": 2,
+        "list_items": 17,
+        "nested_list_items": 4,
+        "nested_task_items": 1,
+        "task_items": 12,
+        "times": 1,
+        "urls": 1
+      },
+      "path": "Reading/Observation Ideas.md"
+    },
+    {
+      "bytes": 1789,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 3,
+        "decimals": 1,
+        "ellipses": 3,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 1,
+        "italic": 3,
+        "list_items": 15,
+        "nested_list_items": 10,
+        "ordered_list_items": 1
+      },
+      "path": "Essays/On Chapter Assumption.md"
+    },
+    {
+      "bytes": 3143,
+      "counts": {
+        "abbreviations": 6,
+        "block_math_delimiters": 46,
+        "block_math_lines": 35,
+        "bold": 1,
+        "decimals": 1,
+        "equations": 23,
+        "heading_h1": 1,
+        "heading_h2": 3,
+        "heading_h3": 3,
+        "heading_h5": 1,
+        "inline_code": 1,
+        "italic": 1
+      },
+      "path": "Reading - Sharp Outline.md"
+    },
+    {
+      "bytes": 1866,
+      "counts": {
+        "abbreviations": 6,
+        "bold": 3,
+        "en_dashes": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "italic": 1,
+        "list_items": 7,
+        "nested_list_items": 4,
+        "ordered_list_items": 3,
+        "times": 2
+      },
+      "path": "Inbox/Margin Ideas.md"
+    },
+    {
+      "bytes": 8443,
+      "counts": {
+        "abbreviations": 8,
+        "blockquote_lines": 1,
+        "bold": 4,
+        "decimals": 3,
+        "ellipses": 1,
+        "em_dashes": 7,
+        "en_dashes": 2,
+        "equations": 145,
+        "escaped_dollars": 1,
+        "heading_h2": 8,
+        "heading_h3": 2,
+        "heading_h4": 2,
+        "initials": 1,
+        "inline_code": 1,
+        "inline_math": 145,
+        "italic": 6,
+        "list_items": 6,
+        "nested_list_items": 1,
+        "strikethrough": 3
+      },
+      "path": "Physics/Quantum Mechanics/Notes on Markov Chains.md"
+    },
+    {
+      "bytes": 11036,
+      "counts": {
+        "abbreviations": 9,
+        "blockquote_lines": 5,
+        "bold": 4,
+        "checked_task_items": 8,
+        "decimals": 5,
+        "em_dashes": 6,
+        "embeds": 7,
+        "embeds_with_size": 2,
+        "en_dashes": 1,
+        "equations": 192,
+        "escaped_pipes": 1,
+        "heading_h2": 4,
+        "heading_h3": 4,
+        "heading_h4": 2,
+        "heading_h6": 2,
+        "initials": 2,
+        "inline_code": 2,
+        "inline_math": 192,
+        "italic": 6,
+        "list_items": 17,
+        "nested_list_items": 4,
+        "nested_task_items": 4,
+        "table_alignment_rows": 2,
+        "table_rows": 16,
+        "table_separator_rows": 2,
+        "task_items": 17,
+        "times": 6,
+        "urls": 1
+      },
+      "path": "Course Notes/Classical Mechanics/Entropy.md"
+    },
+    {
+      "bytes": 1680,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 1,
+        "code_blocks": 2,
+        "code_fence_lines": 4,
+        "code_fence_titles": 1,
+        "code_lines": 6,
+        "ellipses": 3,
+        "en_dashes": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "heading_h2": 2,
+        "heading_h3": 1,
+        "heading_h4": 1,
+        "heading_h5": 1,
+        "heading_h6": 1,
+        "html_hr": 28,
+        "html_tags": 28,
+        "inline_code": 2,
+        "list_items": 11,
+        "nested_list_items": 5
+      },
+      "path": "Reading/Reading - Outline.md"
+    },
+    {
+      "bytes": 3674,
+      "counts": {
+        "abbreviations": 7,
+        "blockquote_lines": 9,
+        "bold": 6,
+        "callout_titles": 2,
+        "callouts": 2,
+        "decimals": 11,
+        "ellipses": 2,
+        "embeds": 3,
+        "embeds_with_size": 2,
+        "foldable_callouts": 1,
+        "footnote_defs": 3,
+        "footnote_refs": 3,
+        "footnote_typos": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_with_other_keys": 1,
+        "heading_h3": 1,
+        "heading_h4": 1,
+        "inline_code": 5,
+        "italic": 6,
+        "list_items": 18,
+        "markdown_links": 3,
+        "nested_callouts": 1,
+        "nested_list_items": 8,
+        "ordered_list_items": 5,
+        "strikethrough": 2,
+        "table_alignment_rows": 3,
+        "table_rows": 23,
+        "table_separator_rows": 4,
+        "times": 6,
+        "urls": 6
+      },
+      "path": "Inbox/On Trick.md"
+    },
+    {
+      "bytes": 2497,
+      "counts": {
+        "abbreviations": 5,
+        "block_math_delimiters": 10,
+        "block_math_lines": 7,
+        "blockquote_lines": 1,
+        "bold": 1,
+        "decimals": 1,
+        "em_dashes": 1,
+        "equations": 34,
+        "escaped_dollars": 1,
+        "heading_h2": 1,
+        "heading_h4": 1,
+        "inline_code": 2,
+        "inline_math": 29,
+        "italic": 2,
+        "list_items": 4,
+        "nested_list_items": 2,
+        "ordered_list_items": 2
+      },
+      "path": "Course Notes/Probability and Statistics/Linear Maps.md"
+    },
+    {
+      "bytes": 2523,
+      "counts": {
+        "abbreviations": 8,
+        "bold": 4,
+        "checked_task_items": 9,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "inline_code": 2,
+        "italic": 1,
+        "list_items": 33,
+        "nested_list_items": 15,
+        "nested_task_items": 7,
+        "ordered_list_items": 3,
+        "strikethrough": 2,
+        "task_items": 20,
+        "times": 5
+      },
+      "path": "Projects/Editor Ideas/Diagram Ideas.md"
+    },
+    {
+      "bytes": 2167,
+      "counts": {
+        "abbreviations": 4,
+        "bold": 2,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "footnote_defs": 4,
+        "footnote_refs": 4,
+        "highlights": 1,
+        "inline_code": 1,
+        "italic": 2,
+        "list_items": 11,
+        "markdown_links": 7,
+        "nested_list_items": 1,
+        "ordered_list_items": 10,
+        "strikethrough": 1,
+        "times": 2,
+        "urls": 6
+      },
+      "path": "Personal/Variable Ideas.md"
+    },
+    {
+      "bytes": 5195,
+      "counts": {
+        "abbreviations": 6,
+        "block_math_delimiters": 66,
+        "block_math_lines": 38,
+        "bold": 1,
+        "decimals": 2,
+        "ellipses": 2,
+        "em_dashes": 1,
+        "embeds": 4,
+        "equations": 75,
+        "escaped_dollars": 1,
+        "heading_h2": 4,
+        "heading_h3": 5,
+        "inline_math": 42,
+        "italic": 1,
+        "list_items": 4,
+        "nested_list_items": 3,
+        "ordered_list_items": 1,
+        "urls": 1
+      },
+      "path": "Physics/Rigid Bodies.md"
+    },
+    {
+      "bytes": 696,
+      "counts": {
+        "ellipses": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_with_other_keys": 1,
+        "italic": 1
+      },
+      "path": "Projects/Editor Ideas/Wave Ideas.md"
+    },
+    {
+      "bytes": 1785,
+      "counts": {
+        "abbreviations": 6,
+        "bold": 2,
+        "decimals": 1,
+        "em_dashes": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h4": 1,
+        "inline_code": 1,
+        "italic": 1,
+        "list_items": 14,
+        "nested_list_items": 4,
+        "ordered_list_items": 3
+      },
+      "path": "Daily Notes/2024-04-02.md"
+    },
+    {
+      "bytes": 1523,
+      "counts": {
+        "abbreviations": 2,
+        "blockquote_lines": 2,
+        "bold": 1,
+        "code_blocks": 4,
+        "code_fence_lines": 8,
+        "code_fence_titles": 2,
+        "code_lines": 15,
+        "ellipses": 1,
+        "inline_code": 1,
+        "italic": 1,
+        "list_items": 8,
+        "markdown_links": 3,
+        "tilde_fences": 1,
+        "urls": 2
+      },
+      "path": "Reading/Reading - Particle.md"
+    },
+    {
+      "bytes": 1976,
+      "counts": {
+        "abbreviations": 6,
+        "blockquote_lines": 8,
+        "bold": 3,
+        "callout_titles": 3,
+        "callouts": 3,
+        "decimals": 2,
+        "escaped_dollars": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h5": 1,
+        "inline_code": 2,
+        "italic": 4,
+        "list_items": 11,
+        "markdown_links": 2,
+        "nested_list_items": 5,
+        "ordered_list_items": 2,
+        "strikethrough": 1,
+        "urls": 2
+      },
+      "path": "Personal/Hypothesis Ideas.md"
+    },
+    {
+      "bytes": 1633,
+      "counts": {
+        "abbreviations": 5,
+        "bold": 1,
+        "embeds": 8,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "inline_code": 1,
+        "italic": 2,
+        "list_items": 8,
+        "nested_list_items": 1,
+        "strikethrough": 1,
+        "urls": 1
+      },
+      "path": "Model Derivation.md"
+    },
+    {
+      "bytes": 1490,
+      "counts": {
+        "abbreviations": 4,
+        "bold": 2,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "inline_code": 2,
+        "italic": 3,
+        "list_items": 9,
+        "nested_list_items": 2,
+        "ordered_list_items": 2,
+        "strikethrough": 1
+      },
+      "path": "Reading/Reading - Proof.md"
+    },
+    {
+      "bytes": 2157,
+      "counts": {
+        "abbreviations": 11,
+        "blockquote_lines": 4,
+        "bold": 1,
+        "code_blocks": 4,
+        "code_fence_lines": 8,
+        "code_lines": 12,
+        "ellipses": 1,
+        "em_dashes": 1,
+        "heading_h2": 3,
+        "initials": 1,
+        "italic": 1,
+        "list_items": 12,
+        "nested_list_items": 6,
+        "ordered_list_items": 3,
+        "strikethrough": 1,
+        "times": 3,
+        "urls": 1
+      },
+      "path": "Inbox/Matrix Ideas.md"
+    },
+    {
+      "bytes": 825,
+      "counts": {
+        "abbreviations": 1,
+        "bold": 1,
+        "decimals": 1,
+        "ellipses": 2,
+        "escaped_dollars": 1,
+        "footnote_defs": 2,
+        "footnote_refs": 4,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "urls": 1
+      },
+      "path": "Personal/Midterm Ideas.md"
+    },
+    {
+      "bytes": 1537,
+      "counts": {
+        "abbreviations": 6,
+        "blockquote_lines": 5,
+        "decimals": 1,
+        "em_dashes": 1,
+        "en_dashes": 2,
+        "escaped_dollars": 1,
+        "heading_h4": 1,
+        "initials": 1,
+        "italic": 2,
+        "list_items": 7,
+        "nested_list_items": 1,
+        "ordered_list_items": 4,
+        "strikethrough": 1,
+        "urls": 1
+      },
+      "path": "Reading/Definition Ideas.md"
+    },
+    {
+      "bytes": 5989,
+      "counts": {
+        "abbreviations": 9,
+        "bold": 7,
+        "decimals": 3,
+        "ellipses": 1,
+        "em_dashes": 1,
+        "embeds": 5,
+        "embeds_with_size": 3,
+        "equations": 85,
+        "escaped_dollars": 1,
+        "footnote_defs": 2,
+        "footnote_refs": 3,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 4,
+        "heading_h3": 5,
+        "highlights": 1,
+        "initials": 1,
+        "inline_code": 1,
+        "inline_math": 85,
+        "italic": 4,
+        "list_items": 9,
+        "nested_list_items": 3,
+        "strikethrough": 1,
+        "times": 1,
+        "urls": 2
+      },
+      "path": "Course Notes/Probability and Statistics/Lecture 19 - Normal Modes.md"
+    },
+    {
+      "bytes": 1487,
+      "counts": {
+        "abbreviations": 6,
+        "blockquote_lines": 3,
+        "bold": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "inline_code": 2,
+        "list_items": 9,
+        "nested_list_items": 3
+      },
+      "path": "Essays/Boundary Ideas.md"
+    },
+    {
+      "bytes": 1805,
+      "counts": {
+        "abbreviations": 1,
+        "bold": 4,
+        "comment_blocks": 1,
+        "comments": 3,
+        "decimals": 1,
+        "ellipses": 2,
+        "en_dashes": 1,
+        "footnote_defs": 1,
+        "footnote_refs": 1,
+        "heading_h1": 1,
+        "heading_h4": 1,
+        "inline_comments": 2,
+        "italic": 1,
+        "list_items": 8,
+        "nested_list_items": 1,
+        "ordered_list_items": 4,
+        "urls": 1
+      },
+      "path": "Reading/Bounded Method.md"
+    },
+    {
+      "bytes": 1896,
+      "counts": {
+        "abbreviations": 10,
+        "blockquote_lines": 3,
+        "bold": 2,
+        "callout_titles": 1,
+        "callouts": 3,
+        "decimals": 1,
+        "em_dashes": 2,
+        "en_dashes": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h3": 1,
+        "inline_code": 1,
+        "italic": 2,
+        "list_items": 12,
+        "nested_list_items": 3
+      },
+      "path": "Essays/Reading - Schedule.md"
+    },
+    {
+      "bytes": 7951,
+      "counts": {
+        "abbreviations": 9,
+        "block_math_delimiters": 56,
+        "block_math_lines": 47,
+        "bold": 6,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 4,
+        "equations": 88,
+        "heading_h2": 8,
+        "heading_h3": 6,
+        "heading_h4": 1,
+        "heading_h5": 1,
+        "html_br": 7,
+        "html_hr": 31,
+        "html_other": 1,
+        "html_tags": 39,
+        "inline_code": 2,
+        "inline_math": 60,
+        "italic": 3,
+        "list_items": 13,
+        "nested_list_items": 7
+      },
+      "path": "Physics/Notes on Harmonic Oscillator.md"
+    },
+    {
+      "bytes": 631,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 2,
+        "footnote_defs": 3,
+        "footnote_refs": 3,
+        "italic": 1,
+        "urls": 1
+      },
+      "path": "Daily Notes/2024-02-16.md"
+    },
+    {
+      "bytes": 1264,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 1,
+        "em_dashes": 2,
+        "en_dashes": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 1,
+        "italic": 2,
+        "list_items": 7,
+        "nested_list_items": 3,
+        "strikethrough": 1,
+        "urls": 1
+      },
+      "path": "Daily Notes/2024-10-24.md"
+    },
+    {
+      "bytes": 2436,
+      "counts": {
+        "abbreviations": 6,
+        "blockquote_lines": 4,
+        "bold": 3,
+        "decimals": 3,
+        "em_dashes": 3,
+        "en_dashes": 1,
+        "escaped_dollars": 2,
+        "heading_h2": 1,
+        "italic": 1,
+        "list_items": 10,
+        "markdown_links": 2,
+        "nested_list_items": 3,
+        "strikethrough": 1,
+        "urls": 2
+      },
+      "path": "On Sharp Particle.md"
+    },
+    {
+      "bytes": 666,
+      "counts": {
+        "abbreviations": 2,
+        "bold": 1,
+        "decimals": 1,
+        "italic": 1
+      },
+      "path": "Personal/Exercise Ideas.md"
+    },
+    {
+      "bytes": 1922,
+      "counts": {
+        "abbreviations": 7,
+        "blockquote_lines": 12,
+        "bold": 1,
+        "callout_titles": 1,
+        "callouts": 2,
+        "code_blocks": 1,
+        "code_fence_lines": 2,
+        "code_lines": 7,
+        "em_dashes": 3,
+        "embeds": 5,
+        "embeds_with_size": 1,
+        "heading_h2": 1,
+        "initials": 1,
+        "italic": 1,
+        "list_items": 4,
+        "nested_list_items": 3,
+        "ordered_list_items": 1,
+        "strikethrough": 1
+      },
+      "path": "Reading - Smooth Source.md"
+    },
+    {
+      "bytes": 2419,
+      "counts": {
+        "abbreviations": 4,
+        "blockquote_lines": 4,
+        "bold": 1,
+        "decimals": 1,
+        "em_dashes": 1,
+        "en_dashes": 1,
+        "heading_h2": 1,
+        "heading_h4": 1,
+        "html_br": 6,
+        "html_other": 5,
+        "html_tags": 11,
+        "italic": 5,
+        "list_items": 8,
+        "markdown_links": 4,
+        "nested_list_items": 5,
+        "ordered_list_items": 3,
+        "tags": 2,
+        "urls": 4
+      },
+      "path": "Reading - Assumption Model.md"
+    },
+    {
+      "bytes": 6564,
+      "counts": {
+        "abbreviations": 12,
+        "bold": 2,
+        "code_blocks": 2,
+        "code_fence_lines": 4,
+        "code_lines": 8,
+        "decimals": 1,
+        "ellipses": 4,
+        "em_dashes": 10,
+        "embeds": 10,
+        "embeds_with_size": 3,
+        "en_dashes": 1,
+        "equations": 59,
+        "escaped_dollars": 1,
+        "footnote_defs": 2,
+        "footnote_refs": 3,
+        "heading_h1": 1,
+        "heading_h2": 3,
+        "heading_h3": 3,
+        "heading_h5": 1,
+        "inline_code": 1,
+        "inline_math": 59,
+        "italic": 3,
+        "list_items": 15,
+        "markdown_links": 2,
+        "nested_list_items": 8,
+        "strikethrough": 1,
+        "times": 2,
+        "urls": 2
+      },
+      "path": "Course Notes/Classical Mechanics/Wave Packets.md"
+    },
+    {
+      "bytes": 742,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 3,
+        "heading_h2": 1,
+        "italic": 1,
+        "list_items": 5,
+        "nested_list_items": 2,
+        "ordered_list_items": 3,
+        "strikethrough": 2
+      },
+      "path": "Inbox/Problem Ideas.md"
+    },
+    {
+      "bytes": 3684,
+      "counts": {
+        "abbreviations": 11,
+        "blockquote_lines": 13,
+        "bold": 3,
+        "callout_titles": 3,
+        "callouts": 4,
+        "ellipses": 2,
+        "embeds": 4,
+        "embeds_with_size": 2,
+        "en_dashes": 2,
+        "equations": 40,
+        "foldable_callouts": 1,
+        "heading_h2": 1,
+        "heading_h3": 2,
+        "heading_h4": 1,
+        "initials": 1,
+        "inline_code": 1,
+        "inline_math": 40,
+        "italic": 3,
+        "list_items": 13,
+        "markdown_links": 3,
+        "nested_callouts": 1,
+        "nested_list_items": 10,
+        "ordered_list_items": 2,
+        "urls": 3
+      },
+      "path": "Maths/Real Analysis/Lecture 20 - Eigenvalues.md"
+    },
+    {
+      "bytes": 6235,
+      "counts": {
+        "abbreviations": 4,
+        "block_math_delimiters": 22,
+        "block_math_lines": 18,
+        "blockquote_lines": 3,
+        "bold": 1,
+        "callout_titles": 2,
+        "callouts": 3,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 3,
+        "en_dashes": 1,
+        "equations": 119,
+        "foldable_callouts": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 2,
+        "heading_h3": 3,
+        "heading_h4": 1,
+        "initials": 1,
+        "inline_math": 108,
+        "italic": 5,
+        "strikethrough": 2
+      },
+      "path": "Maths/Linear Algebra/Lecture 19 - Compactness.md"
+    },
+    {
+      "bytes": 755,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 2,
+        "ellipses": 1,
+        "en_dashes": 1,
+        "heading_h2": 1,
+        "italic": 1,
+        "list_items": 4
+      },
+      "path": "Inbox/On Obvious Summary.md"
+    },
+    {
+      "bytes": 2677,
+      "counts": {
+        "abbreviations": 8,
+        "blockquote_lines": 11,
+        "bold": 4,
+        "callouts": 2,
+        "decimals": 4,
+        "ellipses": 2,
+        "em_dashes": 2,
+        "foldable_callouts": 1,
+        "heading_h2": 1,
+        "inline_code": 1,
+        "italic": 2,
+        "list_items": 22,
+        "nested_list_items": 8,
+        "ordered_list_items": 7
+      },
+      "path": "Reading/Assumption Summary.md"
+    },
+    {
+      "bytes": 537,
+      "counts": {
+        "abbreviations": 3,
+        "em_dashes": 2,
+        "list_items": 7,
+        "nested_list_items": 6
+      },
+      "path": "Daily Notes/2024-08-25.md"
+    },
+    {
+      "bytes": 14909,
+      "counts": {
+        "abbreviations": 9,
+        "block_math_delimiters": 38,
+        "block_math_lines": 27,
+        "blockquote_lines": 3,
+        "bold": 2,
+        "code_blocks": 1,
+        "code_fence_lines": 2,
+        "code_lines": 7,
+        "decimals": 7,
+        "ellipses": 2,
+        "em_dashes": 5,
+        "en_dashes": 1,
+        "equations": 279,
+        "heading_h1": 1,
+        "heading_h2": 14,
+        "heading_h3": 6,
+        "heading_h4": 3,
+        "heading_h5": 1,
+        "initials": 1,
+        "inline_code": 4,
+        "inline_math": 260,
+        "italic": 5,
+        "markdown_links": 2,
+        "strikethrough": 1,
+        "table_rows": 11,
+        "table_separator_rows": 2,
+        "times": 3,
+        "urls": 2
+      },
+      "path": "Physics/Quantum Mechanics/Lecture 9 - Normal Modes.md"
+    },
+    {
+      "bytes": 1504,
+      "counts": {
+        "abbreviations": 2,
+        "bold": 2,
+        "code_blocks": 4,
+        "code_fence_lines": 8,
+        "code_fence_titles": 1,
+        "code_lines": 12,
+        "ellipses": 3,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "strikethrough": 1,
+        "urls": 1
+      },
+      "path": "Daily Notes/2024-07-03.md"
+    },
+    {
+      "bytes": 1649,
+      "counts": {
+        "abbreviations": 7,
+        "blockquote_lines": 3,
+        "bold": 3,
+        "decimals": 2,
+        "em_dashes": 3,
+        "en_dashes": 1,
+        "heading_h1": 1,
+        "highlights": 1,
+        "initials": 1,
+        "list_items": 11,
+        "nested_list_items": 8,
+        "ordered_list_items": 2
+      },
+      "path": "Projects/Editor Ideas/Definition Ideas 2.md"
+    },
+    {
+      "bytes": 9296,
+      "counts": {
+        "abbreviations": 11,
+        "blockquote_lines": 1,
+        "bold": 7,
+        "ellipses": 4,
+        "em_dashes": 6,
+        "equations": 175,
+        "footnote_defs": 2,
+        "footnote_refs": 1,
+        "heading_h2": 4,
+        "heading_h3": 4,
+        "heading_h4": 2,
+        "inline_math": 175,
+        "italic": 2,
+        "list_items": 5,
+        "nested_list_items": 3,
+        "strikethrough": 1,
+        "urls": 1
+      },
+      "path": "Physics/Bayes' Theorem.md"
+    },
+    {
+      "bytes": 1563,
+      "counts": {
+        "abbreviations": 4,
+        "bold": 3,
+        "code_blocks": 2,
+        "code_fence_lines": 4,
+        "code_fence_titles": 1,
+        "code_lines": 9,
+        "ellipses": 1,
+        "heading_h1": 1,
+        "initials": 1,
+        "inline_code": 1,
+        "italic": 4,
+        "list_items": 7,
+        "markdown_links": 4,
+        "nested_list_items": 3,
+        "urls": 3
+      },
+      "path": "Personal/Reading - Odd Schedule.md"
+    },
+    {
+      "bytes": 2076,
+      "counts": {
+        "abbreviations": 2,
+        "blockquote_lines": 1,
+        "bold": 7,
+        "decimals": 1,
+        "em_dashes": 4,
+        "embeds": 3,
+        "embeds_with_size": 1,
+        "heading_h3": 1,
+        "inline_code": 1,
+        "italic": 4,
+        "markdown_links": 2,
+        "urls": 2
+      },
+      "path": "Essays/Smooth Wave.md"
+    },
+    {
+      "bytes": 5704,
+      "counts": {
+        "abbreviations": 4,
+        "block_math_delimiters": 32,
+        "block_math_lines": 27,
+        "blockquote_lines": 1,
+        "bold": 4,
+        "comments": 1,
+        "decimals": 1,
+        "em_dashes": 4,
+        "equations": 92,
+        "heading_h1": 1,
+        "heading_h2": 5,
+        "heading_h3": 5,
+        "html_br": 6,
+        "html_hr": 32,
+        "html_tags": 38,
+        "inline_code": 1,
+        "inline_comments": 1,
+        "inline_math": 76,
+        "italic": 3,
+        "list_items": 4,
+        "nested_list_items": 2
+      },
+      "path": "Maths/Real Analysis/Wave Packets 2.md"
+    },
+    {
+      "bytes": 1435,
+      "counts": {
+        "abbreviations": 4,
+        "bold": 1,
+        "ellipses": 3,
+        "en_dashes": 1,
+        "heading_h3": 1,
+        "inline_code": 3,
+        "italic": 2,
+        "list_items": 11,
+        "nested_list_items": 6,
+        "ordered_list_items": 2,
+        "strikethrough": 1
+      },
+      "path": "Reading/Reading - Elegant Pattern.md"
+    },
+    {
+      "bytes": 3560,
+      "counts": {
+        "abbreviations": 9,
+        "block_math_delimiters": 14,
+        "block_math_lines": 9,
+        "bold": 1,
+        "decimals": 1,
+        "em_dashes": 2,
+        "equations": 7,
+        "escaped_dollars": 1,
+        "heading_h2": 2,
+        "heading_h3": 1,
+        "inline_code": 1,
+        "italic": 2,
+        "list_items": 16,
+        "nested_list_items": 9,
+        "strikethrough": 1,
+        "tags": 1,
+        "times": 1,
+        "urls": 1
+      },
+      "path": "Projects/Editor Ideas/Reading - Quote Summary.md"
+    },
+    {
+      "bytes": 2358,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 4,
+        "decimals": 4,
+        "ellipses": 2,
+        "en_dashes": 3,
+        "escaped_pipes": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "inline_code": 3,
+        "italic": 3,
+        "list_items": 11,
+        "markdown_links": 4,
+        "nested_list_items": 4,
+        "strikethrough": 1,
+        "table_alignment_rows": 1,
+        "table_rows": 10,
+        "table_separator_rows": 2,
+        "times": 2,
+        "urls": 3
+      },
+      "path": "Inbox/On Function.md"
+    },
+    {
+      "bytes": 2489,
+      "counts": {
+        "abbreviations": 9,
+        "blockquote_lines": 1,
+        "bold": 3,
+        "code_blocks": 2,
+        "code_fence_lines": 4,
+        "code_fence_titles": 1,
+        "code_lines": 6,
+        "decimals": 1,
+        "ellipses": 1,
+        "escaped_dollars": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "html_br": 13,
+        "html_tags": 13,
+        "initials": 1,
+        "inline_code": 1,
+        "italic": 7,
+        "list_items": 10,
+        "nested_list_items": 1,
+        "urls": 1
+      },
+      "path": "Daily Notes/2024-11-28.md"
+    },
+    {
+      "bytes": 2956,
+      "counts": {
+        "abbreviations": 6,
+        "bold": 1,
+        "checked_task_items": 6,
+        "decimals": 3,
+        "embeds": 2,
+        "equations": 28,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "inline_math": 28,
+        "list_items": 30,
+        "markdown_links": 2,
+        "nested_list_items": 7,
+        "nested_task_items": 2,
+        "ordered_list_items": 8,
+        "task_items": 17,
+        "times": 3,
+        "urls": 2
+      },
+      "path": "Course Notes/Classical Mechanics/Notes on Eigenvalues.md"
+    },
+    {
+      "bytes": 1561,
+      "counts": {
+        "abbreviations": 7,
+        "bold": 5,
+        "checked_task_items": 3,
+        "decimals": 2,
+        "inline_code": 2,
+        "italic": 1,
+        "list_items": 9,
+        "nested_list_items": 2,
+        "nested_task_items": 2,
+        "task_items": 9,
+        "times": 1
+      },
+      "path": "Personal/On Limit.md"
+    },
+    {
+      "bytes": 7786,
+      "counts": {
+        "abbreviations": 7,
+        "blockquote_lines": 3,
+        "bold": 2,
+        "callout_titles": 3,
+        "callouts": 3,
+        "code_blocks": 3,
+        "code_fence_lines": 6,
+        "code_fence_titles": 1,
+        "code_lines": 8,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 3,
+        "equations": 167,
+        "escaped_dollars": 1,
+        "foldable_callouts": 3,
+        "heading_h2": 2,
+        "heading_h3": 1,
+        "heading_h4": 1,
+        "heading_h5": 1,
+        "heading_h6": 1,
+        "inline_code": 1,
+        "inline_math": 167,
+        "italic": 5,
+        "tags": 1,
+        "tilde_fences": 1,
+        "urls": 1
+      },
+      "path": "Maths/Linear Algebra/Lecture 9 - Taylor Expansion.md"
+    },
+    {
+      "bytes": 4650,
+      "counts": {
+        "abbreviations": 8,
+        "block_math_delimiters": 50,
+        "block_math_lines": 39,
+        "blockquote_lines": 3,
+        "callout_titles": 2,
+        "callouts": 2,
+        "checked_task_items": 11,
+        "ellipses": 1,
+        "em_dashes": 1,
+        "equations": 50,
+        "foldable_callouts": 1,
+        "heading_h1": 1,
+        "heading_h2": 5,
+        "heading_h3": 1,
+        "inline_math": 25,
+        "list_items": 28,
+        "nested_list_items": 6,
+        "nested_task_items": 6,
+        "task_items": 28,
+        "times": 5
+      },
+      "path": "Physics/Central Limit Theorem Problem Set 7.md"
+    },
+    {
+      "bytes": 2078,
+      "counts": {
+        "abbreviations": 3,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 1,
+        "equations": 35,
+        "heading_h2": 3,
+        "inline_math": 35,
+        "italic": 3,
+        "list_items": 4,
+        "nested_list_items": 1
+      },
+      "path": "Course Notes/Classical Mechanics/Uniform Convergence.md"
+    },
+    {
+      "bytes": 1555,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 1,
+        "decimals": 5,
+        "em_dashes": 2,
+        "escaped_pipes": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "inline_code": 3,
+        "italic": 1,
+        "list_items": 8,
+        "nested_list_items": 5,
+        "strikethrough": 1,
+        "table_alignment_rows": 1,
+        "table_rows": 10,
+        "table_separator_rows": 2,
+        "times": 1
+      },
+      "path": "Reading/On Global Routine.md"
+    },
+    {
+      "bytes": 2110,
+      "counts": {
+        "abbreviations": 7,
+        "bold": 2,
+        "code_blocks": 3,
+        "code_fence_lines": 6,
+        "code_lines": 9,
+        "decimals": 1,
+        "escaped_dollars": 1,
+        "heading_h2": 2,
+        "heading_h4": 1,
+        "inline_code": 2,
+        "italic": 2,
+        "list_items": 5,
+        "markdown_links": 5,
+        "nested_list_items": 2,
+        "ordered_list_items": 3,
+        "times": 1,
+        "urls": 4
+      },
+      "path": "Inbox/On Question.md"
+    },
+    {
+      "bytes": 2670,
+      "counts": {
+        "abbreviations": 3,
+        "blockquote_lines": 7,
+        "bold": 1,
+        "callout_titles": 1,
+        "callouts": 3,
+        "code_blocks": 4,
+        "code_fence_lines": 8,
+        "code_lines": 15,
+        "ellipses": 1,
+        "em_dashes": 4,
+        "equations": 25,
+        "foldable_callouts": 2,
+        "footnote_defs": 2,
+        "footnote_refs": 3,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "inline_math": 25,
+        "italic": 1,
+        "list_items": 4,
+        "nested_list_items": 2,
+        "times": 1
+      },
+      "path": "Maths/Real Analysis/Notes on Perturbation Theory.md"
+    },
+    {
+      "bytes": 1387,
+      "counts": {
+        "abbreviations": 4,
+        "blockquote_lines": 1,
+        "bold": 1,
+        "ellipses": 1,
+        "embeds": 8,
+        "heading_h3": 1,
+        "italic": 3,
+        "list_items": 9
+      },
+      "path": "Daily Notes/2024-03-22.md"
+    },
+    {
+      "bytes": 1141,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 2,
+        "em_dashes": 2,
+        "en_dashes": 1,
+        "heading_h1": 1,
+        "heading_h2": 2,
+        "html_br": 9,
+        "html_other": 4,
+        "html_tags": 13,
+        "markdown_links": 6,
+        "strikethrough": 1,
+        "urls": 5
+      },
+      "path": "Projects/Editor Ideas/Classic Boundary.md"
+    },
+    {
+      "bytes": 1093,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 2,
+        "decimals": 1,
+        "ellipses": 2,
+        "heading_h3": 1,
+        "italic": 2,
+        "list_items": 3,
+        "nested_list_items": 2,
+        "ordered_list_items": 1,
+        "strikethrough": 1
+      },
+      "path": "Inbox/Variable Ideas 2.md"
+    },
+    {
+      "bytes": 2128,
+      "counts": {
+        "abbreviations": 6,
+        "blockquote_lines": 3,
+        "bold": 1,
+        "checked_task_items": 8,
+        "ellipses": 2,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "italic": 1,
+        "list_items": 30,
+        "nested_list_items": 10,
+        "nested_task_items": 8,
+        "ordered_list_items": 2,
+        "task_items": 26,
+        "times": 11
+      },
+      "path": "Reading/Reading - Schedule Essay.md"
+    },
+    {
+      "bytes": 747,
+      "counts": {
+        "abbreviations": 1,
+        "blockquote_lines": 5,
+        "ellipses": 1,
+        "em_dashes": 1,
+        "heading_h2": 1,
+        "italic": 1,
+        "strikethrough": 1
+      },
+      "path": "Personal/Reading - Modern Margin.md"
+    },
+    {
+      "bytes": 4842,
+      "counts": {
+        "abbreviations": 7,
+        "bold": 3,
+        "checked_task_items": 5,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "equations": 65,
+        "heading_h2": 5,
+        "heading_h3": 1,
+        "heading_h4": 2,
+        "html_hr": 15,
+        "html_other": 2,
+        "html_tags": 17,
+        "inline_math": 65,
+        "italic": 2,
+        "list_items": 18,
+        "nested_list_items": 7,
+        "nested_task_items": 7,
+        "ordered_list_items": 3,
+        "strikethrough": 1,
+        "task_items": 15,
+        "times": 5
+      },
+      "path": "Course Notes/Probability and Statistics/Rigid Bodies Problem Set 2.md"
+    },
+    {
+      "bytes": 2700,
+      "counts": {
+        "abbreviations": 11,
+        "bold": 2,
+        "checked_task_items": 9,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "en_dashes": 1,
+        "heading_h2": 2,
+        "heading_h3": 1,
+        "html_br": 17,
+        "html_hr": 8,
+        "html_tags": 25,
+        "initials": 2,
+        "inline_code": 1,
+        "list_items": 20,
+        "markdown_links": 4,
+        "nested_list_items": 6,
+        "nested_task_items": 6,
+        "task_items": 20,
+        "times": 4,
+        "urls": 2
+      },
+      "path": "Personal/Reading - General Office Hour.md"
+    },
+    {
+      "bytes": 3530,
+      "counts": {
+        "abbreviations": 2,
+        "block_math_delimiters": 46,
+        "block_math_lines": 45,
+        "blockquote_lines": 3,
+        "bold": 2,
+        "embeds": 6,
+        "embeds_with_size": 2,
+        "equations": 50,
+        "heading_h2": 2,
+        "heading_h3": 2,
+        "heading_h4": 1,
+        "inline_math": 27
+      },
+      "path": "Physics/Taylor Expansion Problem Set 4.md"
+    },
+    {
+      "bytes": 2239,
+      "counts": {
+        "abbreviations": 5,
+        "bold": 5,
+        "decimals": 1,
+        "ellipses": 2,
+        "em_dashes": 4,
+        "heading_h1": 1,
+        "heading_h2": 2,
+        "inline_code": 1,
+        "italic": 4,
+        "list_items": 12,
+        "nested_list_items": 4,
+        "ordered_list_items": 8
+      },
+      "path": "Essays/Reading - Sharp Section.md"
+    },
+    {
+      "bytes": 1762,
+      "counts": {
+        "abbreviations": 7,
+        "bold": 3,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "embeds": 4,
+        "italic": 2,
+        "list_items": 14,
+        "nested_list_items": 7
+      },
+      "path": "Daily Notes/2024-03-12.md"
+    },
+    {
+      "bytes": 1324,
+      "counts": {
+        "abbreviations": 3,
+        "comments": 2,
+        "decimals": 1,
+        "ellipses": 1,
+        "heading_h2": 4,
+        "heading_h3": 3,
+        "heading_h4": 1,
+        "html_hr": 42,
+        "html_tags": 42,
+        "inline_comments": 2,
+        "list_items": 7,
+        "nested_list_items": 5,
+        "ordered_list_items": 2,
+        "strikethrough": 1
+      },
+      "path": "Projects/Editor Ideas/Reading - Sequence.md"
+    },
+    {
+      "bytes": 1563,
+      "counts": {
+        "abbreviations": 3,
+        "blockquote_lines": 3,
+        "bold": 1,
+        "ellipses": 1,
+        "em_dashes": 1,
+        "embeds": 6,
+        "embeds_with_size": 2,
+        "heading_h1": 1,
+        "html_br": 6,
+        "html_other": 5,
+        "html_tags": 11,
+        "italic": 3,
+        "list_items": 7,
+        "nested_list_items": 4,
+        "urls": 1
+      },
+      "path": "Essays/Reading - Lemma.md"
+    },
+    {
+      "bytes": 1143,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 1,
+        "heading_h2": 1,
+        "heading_h3": 2,
+        "heading_h4": 1,
+        "html_br": 21,
+        "html_hr": 12,
+        "html_other": 6,
+        "html_tags": 39,
+        "italic": 3
+      },
+      "path": "Reading - Habit.md"
+    },
+    {
+      "bytes": 1327,
+      "counts": {
+        "abbreviations": 2,
+        "blockquote_lines": 5,
+        "ellipses": 1,
+        "em_dashes": 1,
+        "equations": 25,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 1,
+        "inline_math": 25,
+        "italic": 1
+      },
+      "path": "Maths/Real Analysis/Inner Products Problem Set 9.md"
+    },
+    {
+      "bytes": 1523,
+      "counts": {
+        "abbreviations": 4,
+        "bold": 1,
+        "heading_h2": 1,
+        "inline_code": 1,
+        "italic": 3,
+        "list_items": 13,
+        "nested_list_items": 6,
+        "strikethrough": 2
+      },
+      "path": "Essays/Essay Ideas.md"
+    },
+    {
+      "bytes": 1424,
+      "counts": {
+        "abbreviations": 2,
+        "block_math_delimiters": 8,
+        "block_math_lines": 11,
+        "equations": 29,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "inline_math": 25,
+        "markdown_links": 2,
+        "urls": 2
+      },
+      "path": "Maths/Linear Algebra/Notes on Entropy.md"
+    },
+    {
+      "bytes": 932,
+      "counts": {
+        "abbreviations": 3,
+        "blockquote_lines": 5,
+        "em_dashes": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "highlights": 1
+      },
+      "path": "Projects/Editor Ideas/Reading - Field.md"
+    },
+    {
+      "bytes": 1871,
+      "counts": {
+        "abbreviations": 1,
+        "bold": 7,
+        "decimals": 10,
+        "em_dashes": 2,
+        "heading_h1": 1,
+        "inline_code": 5,
+        "italic": 5,
+        "strikethrough": 8,
+        "table_rows": 17,
+        "table_separator_rows": 2,
+        "times": 1
+      },
+      "path": "Reading/Reading - Wave Proof.md"
+    },
+    {
+      "bytes": 4320,
+      "counts": {
+        "abbreviations": 3,
+        "blockquote_lines": 3,
+        "decimals": 1,
+        "ellipses": 2,
+        "equations": 71,
+        "escaped_dollars": 1,
+        "heading_h1": 1,
+        "heading_h2": 2,
+        "heading_h3": 2,
+        "initials": 1,
+        "inline_code": 1,
+        "inline_math": 71,
+        "italic": 4,
+        "list_items": 7,
+        "markdown_links": 2,
+        "nested_list_items": 1,
+        "strikethrough": 2,
+        "urls": 1
+      },
+      "path": "Physics/Perturbation Theory.md"
+    },
+    {
+      "bytes": 808,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 1,
+        "checked_task_items": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "inline_code": 1,
+        "italic": 1,
+        "list_items": 6,
+        "nested_list_items": 2,
+        "nested_task_items": 2,
+        "task_items": 6,
+        "times": 1
+      },
+      "path": "Section Ideas.md"
+    },
+    {
+      "bytes": 886,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 1,
+        "heading_h1": 1,
+        "list_items": 6,
+        "nested_list_items": 2,
+        "strikethrough": 1
+      },
+      "path": "Personal/On Workflow Method.md"
+    },
+    {
+      "bytes": 2905,
+      "counts": {
+        "abbreviations": 8,
+        "blockquote_lines": 16,
+        "bold": 2,
+        "callout_titles": 5,
+        "callouts": 6,
+        "ellipses": 3,
+        "foldable_callouts": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_with_other_keys": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "initials": 1,
+        "italic": 2,
+        "list_items": 19,
+        "nested_callouts": 1,
+        "nested_list_items": 8,
+        "ordered_list_items": 3
+      },
+      "path": "Essays/On Diagram.md"
+    },
+    {
+      "bytes": 2892,
+      "counts": {
+        "abbreviations": 10,
+        "blockquote_lines": 14,
+        "bold": 5,
+        "callout_titles": 3,
+        "callouts": 5,
+        "ellipses": 1,
+        "foldable_callouts": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "inline_code": 1,
+        "italic": 2,
+        "list_items": 14,
+        "nested_list_items": 7,
+        "ordered_list_items": 5
+      },
+      "path": "Daily Notes/2024-05-16.md"
+    },
+    {
+      "bytes": 1758,
+      "counts": {
+        "abbreviations": 3,
+        "blockquote_lines": 12,
+        "bold": 1,
+        "callout_titles": 2,
+        "callouts": 2,
+        "ellipses": 1,
+        "en_dashes": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "italic": 3,
+        "list_items": 11,
+        "nested_callouts": 1,
+        "nested_list_items": 7,
+        "ordered_list_items": 3,
+        "strikethrough": 2
+      },
+      "path": "Reading/Hypothesis Ideas 2.md"
+    },
+    {
+      "bytes": 3069,
+      "counts": {
+        "abbreviations": 6,
+        "blockquote_lines": 5,
+        "bold": 2,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 4,
+        "en_dashes": 1,
+        "equations": 45,
+        "escaped_dollars": 1,
+        "heading_h1": 1,
+        "heading_h3": 1,
+        "heading_h4": 2,
+        "inline_code": 1,
+        "inline_math": 45,
+        "list_items": 8,
+        "nested_list_items": 1
+      },
+      "path": "Physics/Quantum Mechanics/Eigenvalues 2.md"
+    },
+    {
+      "bytes": 2025,
+      "counts": {
+        "abbreviations": 7,
+        "bold": 2,
+        "ellipses": 1,
+        "heading_h2": 1,
+        "inline_code": 1,
+        "italic": 2,
+        "list_items": 13,
+        "nested_list_items": 4
+      },
+      "path": "Lemma.md"
+    },
+    {
+      "bytes": 1653,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 4,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "escaped_dollars": 1,
+        "heading_h2": 2,
+        "initials": 1,
+        "inline_code": 2,
+        "italic": 3,
+        "list_items": 6,
+        "nested_list_items": 5,
+        "strikethrough": 2,
+        "urls": 1
+      },
+      "path": "On General Section.md"
+    },
+    {
+      "bytes": 6328,
+      "counts": {
+        "abbreviations": 6,
+        "bold": 6,
+        "decimals": 3,
+        "ellipses": 2,
+        "em_dashes": 2,
+        "equations": 92,
+        "heading_h1": 1,
+        "heading_h2": 3,
+        "heading_h3": 1,
+        "inline_code": 2,
+        "inline_math": 92,
+        "italic": 6,
+        "list_items": 11,
+        "nested_list_items": 1,
+        "ordered_list_items": 10,
+        "strikethrough": 3,
+        "table_alignment_rows": 1,
+        "table_rows": 11,
+        "table_separator_rows": 2,
+        "times": 3
+      },
+      "path": "Course Notes/Probability and Statistics/Bayes' Theorem 2.md"
+    },
+    {
+      "bytes": 4757,
+      "counts": {
+        "abbreviations": 5,
+        "block_math_delimiters": 24,
+        "block_math_lines": 25,
+        "bold": 1,
+        "ellipses": 2,
+        "em_dashes": 2,
+        "equations": 63,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 4,
+        "heading_h3": 1,
+        "heading_h4": 1,
+        "inline_math": 51,
+        "list_items": 11,
+        "nested_list_items": 3,
+        "strikethrough": 2,
+        "times": 1,
+        "urls": 1
+      },
+      "path": "Course Notes/Probability and Statistics/Markov Chains Problem Set 4.md"
+    },
+    {
+      "bytes": 1274,
+      "counts": {
+        "abbreviations": 4,
+        "blockquote_lines": 18,
+        "bold": 2,
+        "callout_titles": 2,
+        "callouts": 3,
+        "em_dashes": 1,
+        "foldable_callouts": 1,
+        "heading_h1": 1,
+        "italic": 2,
+        "list_items": 8,
+        "nested_callouts": 1,
+        "nested_list_items": 2,
+        "times": 1
+      },
+      "path": "Essays/Bounded Schedule.md"
+    },
+    {
+      "bytes": 4871,
+      "counts": {
+        "abbreviations": 5,
+        "block_math_delimiters": 8,
+        "block_math_lines": 9,
+        "blockquote_lines": 5,
+        "bold": 5,
+        "decimals": 1,
+        "em_dashes": 4,
+        "equations": 78,
+        "escaped_dollars": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "heading_h2": 3,
+        "heading_h3": 1,
+        "inline_code": 1,
+        "inline_math": 74,
+        "italic": 3,
+        "list_items": 5,
+        "markdown_links": 2,
+        "nested_list_items": 2,
+        "table_alignment_rows": 1,
+        "table_rows": 5,
+        "table_separator_rows": 1,
+        "times": 1,
+        "urls": 3
+      },
+      "path": "Physics/Notes on Spin Systems.md"
+    },
+    {
+      "bytes": 480,
+      "counts": {
+        "abbreviations": 1,
+        "ellipses": 1,
+        "embeds": 4,
+        "embeds_with_size": 3,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "italic": 1
+      },
+      "path": "Reading/Sketch Ideas.md"
+    },
+    {
+      "bytes": 874,
+      "counts": {
+        "code_blocks": 4,
+        "code_fence_lines": 8,
+        "code_fence_titles": 1,
+        "code_lines": 14,
+        "inline_code": 1,
+        "tilde_fences": 3
+      },
+      "path": "Projects/Editor Ideas/Exercise Ideas 2.md"
+    },
+    {
+      "bytes": 1567,
+      "counts": {
+        "abbreviations": 5,
+        "bold": 2,
+        "decimals": 1,
+        "ellipses": 1,
+        "en_dashes": 1,
+        "heading_h2": 1,
+        "inline_code": 1,
+        "italic": 1,
+        "list_items": 6,
+        "nested_list_items": 1,
+        "ordered_list_items": 5
+      },
+      "path": "Reading/Second Routine.md"
+    },
+    {
+      "bytes": 8858,
+      "counts": {
+        "abbreviations": 5,
+        "block_math_delimiters": 20,
+        "block_math_lines": 16,
+        "bold": 7,
+        "decimals": 3,
+        "ellipses": 4,
+        "em_dashes": 4,
+        "en_dashes": 2,
+        "equations": 153,
+        "escaped_dollars": 1,
+        "heading_h2": 2,
+        "heading_h3": 5,
+        "inline_code": 4,
+        "inline_math": 143,
+        "italic": 5,
+        "list_items": 15,
+        "nested_list_items": 2,
+        "times": 2,
+        "urls": 1
+      },
+      "path": "Maths/Real Analysis/Notes on Compactness.md"
+    },
+    {
+      "bytes": 1176,
+      "counts": {
+        "bold": 1,
+        "embeds": 10,
+        "embeds_with_size": 7,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h3": 1,
+        "italic": 1
+      },
+      "path": "Reading/Approach Ideas.md"
+    },
+    {
+      "bytes": 1510,
+      "counts": {
+        "abbreviations": 5,
+        "bold": 5,
+        "ellipses": 2,
+        "inline_code": 2,
+        "italic": 3,
+        "list_items": 8,
+        "nested_list_items": 4
+      },
+      "path": "Essays/Bounded Lecture.md"
+    },
+    {
+      "bytes": 1430,
+      "counts": {
+        "abbreviations": 6,
+        "bold": 4,
+        "decimals": 1,
+        "ellipses": 2,
+        "em_dashes": 2,
+        "escaped_dollars": 1,
+        "footnote_defs": 1,
+        "footnote_refs": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "inline_code": 1,
+        "list_items": 10,
+        "nested_list_items": 1,
+        "ordered_list_items": 6
+      },
+      "path": "Inbox/Shortcut Ideas.md"
+    },
+    {
+      "bytes": 3577,
+      "counts": {
+        "abbreviations": 3,
+        "block_math_delimiters": 18,
+        "block_math_lines": 9,
+        "blockquote_lines": 3,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "equations": 45,
+        "heading_h2": 2,
+        "heading_h3": 2,
+        "heading_h4": 1,
+        "html_br": 36,
+        "html_tags": 36,
+        "initials": 1,
+        "inline_math": 36,
+        "italic": 4,
+        "strikethrough": 1,
+        "times": 1
+      },
+      "path": "Maths/Linear Algebra/Central Limit Theorem.md"
+    },
+    {
+      "bytes": 1881,
+      "counts": {
+        "abbreviations": 6,
+        "blockquote_lines": 3,
+        "bold": 3,
+        "embeds": 3,
+        "embeds_with_size": 1,
+        "en_dashes": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_with_other_keys": 1,
+        "heading_h2": 1,
+        "italic": 1,
+        "list_items": 6,
+        "nested_list_items": 1
+      },
+      "path": "Daily Notes/2024-08-07.md"
+    },
+    {
+      "bytes": 2323,
+      "counts": {
+        "abbreviations": 8,
+        "blockquote_lines": 10,
+        "bold": 2,
+        "callout_titles": 4,
+        "callouts": 4,
+        "ellipses": 1,
+        "foldable_callouts": 2,
+        "heading_h2": 1,
+        "initials": 1,
+        "inline_code": 1,
+        "italic": 3,
+        "list_items": 16,
+        "markdown_links": 2,
+        "nested_callouts": 1,
+        "nested_list_items": 5,
+        "urls": 3
+      },
+      "path": "Personal/On Project Result.md"
+    },
+    {
+      "bytes": 971,
+      "counts": {
+        "abbreviations": 6,
+        "ellipses": 2,
+        "italic": 1,
+        "list_items": 11,
+        "nested_list_items": 1,
+        "ordered_list_items": 8,
+        "urls": 1
+      },
+      "path": "On Rough Lecture.md"
+    },
+    {
+      "bytes": 1218,
+      "counts": {
+        "abbreviations": 1,
+        "bold": 1,
+        "en_dashes": 1,
+        "heading_h1": 1,
+        "heading_h3": 1,
+        "list_items": 9,
+        "nested_list_items": 4
+      },
+      "path": "Essays/Margin.md"
+    },
+    {
+      "bytes": 2573,
+      "counts": {
+        "abbreviations": 5,
+        "bold": 6,
+        "decimals": 7,
+        "em_dashes": 1,
+        "equations": 41,
+        "heading_h3": 2,
+        "inline_code": 2,
+        "inline_math": 41,
+        "italic": 2,
+        "list_items": 8,
+        "nested_list_items": 5,
+        "ordered_list_items": 3,
+        "strikethrough": 3,
+        "table_rows": 9,
+        "table_separator_rows": 1,
+        "times": 1
+      },
+      "path": "Maths/Linear Algebra/Lagrangian Mechanics Problem Set 3.md"
+    },
+    {
+      "bytes": 2760,
+      "counts": {
+        "abbreviations": 4,
+        "bold": 8,
+        "comment_blocks": 1,
+        "comments": 3,
+        "decimals": 9,
+        "en_dashes": 2,
+        "escaped_pipes": 2,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "inline_code": 4,
+        "inline_comments": 2,
+        "italic": 3,
+        "list_items": 4,
+        "markdown_links": 6,
+        "strikethrough": 3,
+        "table_alignment_rows": 1,
+        "table_rows": 12,
+        "table_separator_rows": 2,
+        "times": 4,
+        "urls": 5
+      },
+      "path": "Inbox/Detail Idea.md"
+    },
+    {
+      "bytes": 1801,
+      "counts": {
+        "abbreviations": 3,
+        "blockquote_lines": 2,
+        "bold": 3,
+        "em_dashes": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h3": 1,
+        "initials": 1,
+        "list_items": 10,
+        "markdown_links": 2,
+        "nested_list_items": 3,
+        "urls": 2
+      },
+      "path": "Essays/Source Ideas.md"
+    },
+    {
+      "bytes": 2169,
+      "counts": {
+        "abbreviations": 9,
+        "blockquote_lines": 6,
+        "bold": 2,
+        "callout_titles": 3,
+        "callouts": 3,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 1,
+        "embeds": 2,
+        "embeds_with_size": 1,
+        "inline_code": 2,
+        "italic": 4,
+        "list_items": 8,
+        "nested_list_items": 4,
+        "ordered_list_items": 1
+      },
+      "path": "Reading/Obvious Draft.md"
+    },
+    {
+      "bytes": 1068,
+      "counts": {
+        "abbreviations": 5,
+        "blockquote_lines": 1,
+        "bold": 1,
+        "ellipses": 1,
+        "en_dashes": 1,
+        "heading_h2": 1,
+        "initials": 1,
+        "markdown_links": 2,
+        "urls": 2
+      },
+      "path": "Daily Notes/2024-06-20.md"
+    },
+    {
+      "bytes": 630,
+      "counts": {
+        "abbreviations": 1,
+        "heading_h1": 1,
+        "initials": 1,
+        "italic": 1
+      },
+      "path": "Reading/Reading - Global Routine.md"
+    },
+    {
+      "bytes": 1556,
+      "counts": {
+        "abbreviations": 2,
+        "decimals": 3,
+        "escaped_dollars": 1,
+        "footnote_defs": 2,
+        "footnote_refs": 2,
+        "footnote_typos": 1,
+        "heading_h1": 1,
+        "initials": 1
+      },
+      "path": "Reading/Sequence Limit.md"
+    },
+    {
+      "bytes": 1698,
+      "counts": {
+        "abbreviations": 5,
+        "blockquote_lines": 3,
+        "bold": 1,
+        "em_dashes": 3,
+        "heading_h2": 1,
+        "inline_code": 1,
+        "italic": 2,
+        "list_items": 8,
+        "nested_list_items": 7,
+        "times": 1,
+        "urls": 1
+      },
+      "path": "Wave.md"
+    },
+    {
+      "bytes": 1683,
+      "counts": {
+        "abbreviations": 2,
+        "bold": 1,
+        "ellipses": 2,
+        "em_dashes": 2,
+        "en_dashes": 1,
+        "heading_h2": 1,
+        "inline_code": 2,
+        "italic": 1,
+        "list_items": 11,
+        "nested_list_items": 5,
+        "tags": 3
+      },
+      "path": "Inbox/Reading - Tutorial.md"
+    },
+    {
+      "bytes": 2091,
+      "counts": {
+        "abbreviations": 7,
+        "bold": 2,
+        "decimals": 2,
+        "escaped_dollars": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "initials": 1,
+        "italic": 4,
+        "list_items": 4,
+        "nested_list_items": 2,
+        "times": 2
+      },
+      "path": "Personal/Matrix.md"
+    },
+    {
+      "bytes": 1700,
+      "counts": {
+        "abbreviations": 8,
+        "bold": 1,
+        "decimals": 1,
+        "ellipses": 3,
+        "em_dashes": 4,
+        "heading_h2": 1,
+        "initials": 1,
+        "inline_code": 1,
+        "italic": 5,
+        "list_items": 9,
+        "nested_list_items": 7,
+        "ordered_list_items": 2
+      },
+      "path": "Essays/Recipe Ideas.md"
+    },
+    {
+      "bytes": 5649,
+      "counts": {
+        "abbreviations": 3,
+        "block_math_delimiters": 40,
+        "block_math_lines": 21,
+        "bold": 1,
+        "decimals": 1,
+        "em_dashes": 5,
+        "embeds": 3,
+        "embeds_with_size": 1,
+        "equations": 102,
+        "escaped_dollars": 1,
+        "heading_h2": 3,
+        "heading_h3": 1,
+        "heading_h5": 1,
+        "heading_h6": 1,
+        "inline_math": 82,
+        "italic": 5,
+        "list_items": 6,
+        "nested_list_items": 1
+      },
+      "path": "Maths/Real Analysis/Notes on Harmonic Oscillator 2.md"
+    },
+    {
+      "bytes": 2248,
+      "counts": {
+        "abbreviations": 4,
+        "blockquote_lines": 12,
+        "bold": 1,
+        "callout_titles": 3,
+        "callouts": 4,
+        "embeds": 2,
+        "embeds_with_size": 1,
+        "equations": 25,
+        "foldable_callouts": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_with_other_keys": 1,
+        "heading_h2": 1,
+        "inline_code": 1,
+        "inline_math": 25,
+        "italic": 4,
+        "list_items": 10,
+        "nested_list_items": 5,
+        "ordered_list_items": 5,
+        "strikethrough": 1
+      },
+      "path": "Maths/Real Analysis/Lecture 12 - Fourier Series.md"
+    },
+    {
+      "bytes": 2169,
+      "counts": {
+        "abbreviations": 8,
+        "bold": 1,
+        "comment_blocks": 1,
+        "comments": 3,
+        "ellipses": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "html_br": 7,
+        "html_other": 2,
+        "html_tags": 9,
+        "inline_code": 1,
+        "inline_comments": 2,
+        "italic": 3,
+        "list_items": 16,
+        "nested_list_items": 7,
+        "strikethrough": 1
+      },
+      "path": "Personal/Reading - Plugin Schedule.md"
+    },
+    {
+      "bytes": 3974,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 5,
+        "em_dashes": 2,
+        "equations": 80,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 1,
+        "heading_h3": 2,
+        "inline_math": 80,
+        "italic": 1,
+        "list_items": 5,
+        "nested_list_items": 4
+      },
+      "path": "Physics/Quantum Mechanics/Notes on Lagrangian Mechanics.md"
+    },
+    {
+      "bytes": 1401,
+      "counts": {
+        "abbreviations": 2,
+        "bold": 1,
+        "comment_blocks": 2,
+        "comments": 3,
+        "decimals": 1,
+        "escaped_dollars": 1,
+        "heading_h2": 1,
+        "initials": 2,
+        "inline_comments": 1,
+        "italic": 2,
+        "list_items": 6,
+        "markdown_links": 5,
+        "nested_list_items": 4,
+        "urls": 5
+      },
+      "path": "Reading/Boundary Measurement.md"
+    },
+    {
+      "bytes": 2458,
+      "counts": {
+        "abbreviations": 5,
+        "bold": 4,
+        "decimals": 4,
+        "ellipses": 1,
+        "escaped_dollars": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 2,
+        "inline_code": 1,
+        "italic": 3,
+        "list_items": 11,
+        "nested_list_items": 5,
+        "times": 1
+      },
+      "path": "Essays/On Project Limit.md"
+    },
+    {
+      "bytes": 1682,
+      "counts": {
+        "abbreviations": 4,
+        "decimals": 1,
+        "em_dashes": 1,
+        "equations": 34,
+        "heading_h2": 1,
+        "inline_math": 34,
+        "markdown_links": 6,
+        "urls": 4
+      },
+      "path": "Course Notes/Classical Mechanics/Notes on Linear Maps.md"
+    },
+    {
+      "bytes": 2682,
+      "counts": {
+        "abbreviations": 8,
+        "blockquote_lines": 3,
+        "bold": 3,
+        "decimals": 4,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "embeds": 3,
+        "embeds_with_size": 1,
+        "escaped_pipes": 1,
+        "initials": 2,
+        "inline_code": 1,
+        "italic": 4,
+        "list_items": 8,
+        "markdown_links": 5,
+        "nested_list_items": 1,
+        "strikethrough": 3,
+        "table_rows": 7,
+        "table_separator_rows": 1,
+        "urls": 4
+      },
+      "path": "Personal/Library Ideas.md"
+    },
+    {
+      "bytes": 3442,
+      "counts": {
+        "abbreviations": 7,
+        "block_math_delimiters": 18,
+        "block_math_lines": 9,
+        "bold": 2,
+        "checked_task_items": 7,
+        "equations": 9,
+        "footnote_defs": 5,
+        "footnote_refs": 4,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h3": 2,
+        "initials": 1,
+        "inline_code": 3,
+        "italic": 1,
+        "list_items": 22,
+        "markdown_links": 2,
+        "nested_list_items": 4,
+        "nested_task_items": 4,
+        "task_items": 19,
+        "times": 6,
+        "urls": 1
+      },
+      "path": "Projects/Editor Ideas/Reading - Library Variable.md"
+    },
+    {
+      "bytes": 1644,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 1,
+        "decimals": 2,
+        "embeds": 8,
+        "embeds_with_size": 1,
+        "en_dashes": 1,
+        "escaped_dollars": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "italic": 1,
+        "list_items": 10,
+        "nested_list_items": 4,
+        "times": 2,
+        "urls": 1
+      },
+      "path": "Daily Notes/2024-04-06.md"
+    },
+    {
+      "bytes": 1228,
+      "counts": {
+        "abbreviations": 5,
+        "bold": 1,
+        "en_dashes": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "italic": 1
+      },
+      "path": "Personal/Sketch Pattern.md"
+    },
+    {
+      "bytes": 880,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 1,
+        "italic": 1,
+        "list_items": 8,
+        "nested_list_items": 1,
+        "ordered_list_items": 5
+      },
+      "path": "Daily Notes/2024-05-23.md"
+    },
+    {
+      "bytes": 1660,
+      "counts": {
+        "abbreviations": 5,
+        "blockquote_lines": 4,
+        "bold": 2,
+        "em_dashes": 1,
+        "en_dashes": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 1,
+        "heading_h4": 1,
+        "inline_code": 1,
+        "italic": 4,
+        "list_items": 7,
+        "nested_list_items": 1,
+        "ordered_list_items": 3,
+        "strikethrough": 1,
+        "times": 2
+      },
+      "path": "Inbox/On Messy Problem Set.md"
+    },
+    {
+      "bytes": 8898,
+      "counts": {
+        "abbreviations": 9,
+        "block_math_delimiters": 18,
+        "block_math_lines": 7,
+        "bold": 4,
+        "decimals": 2,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "equations": 178,
+        "heading_h2": 5,
+        "heading_h3": 2,
+        "initials": 1,
+        "inline_code": 3,
+        "inline_math": 169,
+        "italic": 3,
+        "list_items": 5,
+        "nested_list_items": 2,
+        "strikethrough": 1,
+        "times": 1,
+        "urls": 1
+      },
+      "path": "Course Notes/Probability and Statistics/Taylor Expansion Problem Set 5.md"
+    },
+    {
+      "bytes": 2777,
+      "counts": {
+        "abbreviations": 6,
+        "blockquote_lines": 8,
+        "bold": 3,
+        "callout_titles": 1,
+        "callouts": 2,
+        "ellipses": 1,
+        "embeds": 4,
+        "embeds_with_size": 3,
+        "en_dashes": 1,
+        "heading_h2": 2,
+        "highlights": 1,
+        "inline_code": 2,
+        "italic": 3,
+        "list_items": 12,
+        "nested_list_items": 2,
+        "urls": 1
+      },
+      "path": "Personal/Reading - Experiment Routine.md"
+    },
+    {
+      "bytes": 2840,
+      "counts": {
+        "abbreviations": 9,
+        "blockquote_lines": 11,
+        "bold": 6,
+        "callout_titles": 3,
+        "callouts": 3,
+        "checked_task_items": 6,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "en_dashes": 1,
+        "foldable_callouts": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "heading_h2": 2,
+        "initials": 1,
+        "italic": 2,
+        "list_items": 28,
+        "nested_callouts": 1,
+        "nested_list_items": 8,
+        "nested_task_items": 2,
+        "strikethrough": 1,
+        "task_items": 16,
+        "times": 5
+      },
+      "path": "Daily Notes/2024-08-23.md"
+    },
+    {
+      "bytes": 1663,
+      "counts": {
+        "abbreviations": 3,
+        "decimals": 1,
+        "ellipses": 4,
+        "embeds": 8,
+        "heading_h1": 1,
+        "heading_h3": 1,
+        "italic": 3,
+        "list_items": 10,
+        "nested_list_items": 1,
+        "ordered_list_items": 9,
+        "strikethrough": 2
+      },
+      "path": "Essays/Draft Ideas.md"
+    },
+    {
+      "bytes": 1128,
+      "counts": {
+        "abbreviations": 1,
+        "blockquote_lines": 3,
+        "bold": 2,
+        "callout_titles": 2,
+        "callouts": 2,
+        "decimals": 1,
+        "embeds": 4,
+        "embeds_with_size": 1,
+        "foldable_callouts": 1,
+        "heading_h2": 1,
+        "italic": 2,
+        "markdown_links": 6,
+        "nested_callouts": 1,
+        "urls": 5
+      },
+      "path": "Daily Notes/2024-12-09.md"
+    },
+    {
+      "bytes": 2864,
+      "counts": {
+        "abbreviations": 3,
+        "blockquote_lines": 9,
+        "bold": 2,
+        "callout_titles": 2,
+        "callouts": 2,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 1,
+        "equations": 42,
+        "foldable_callouts": 1,
+        "heading_h3": 1,
+        "heading_h4": 1,
+        "inline_code": 1,
+        "inline_math": 42,
+        "italic": 2,
+        "list_items": 3,
+        "nested_list_items": 2,
+        "ordered_list_items": 1,
+        "times": 1
+      },
+      "path": "Physics/Quantum Mechanics/Lagrangian Mechanics.md"
+    },
+    {
+      "bytes": 846,
+      "counts": {
+        "abbreviations": 3,
+        "blockquote_lines": 3,
+        "bold": 1,
+        "ellipses": 4,
+        "em_dashes": 1,
+        "heading_h2": 1,
+        "inline_code": 1,
+        "list_items": 5,
+        "strikethrough": 1
+      },
+      "path": "Daily Notes/2024-01-13.md"
+    },
+    {
+      "bytes": 1726,
+      "counts": {
+        "abbreviations": 2,
+        "bold": 3,
+        "code_blocks": 4,
+        "code_fence_lines": 8,
+        "code_fence_titles": 1,
+        "code_lines": 19,
+        "decimals": 1,
+        "embeds": 9,
+        "embeds_with_size": 2,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "italic": 2,
+        "markdown_links": 2,
+        "tilde_fences": 1
+      },
+      "path": "Essays/On Source.md"
+    },
+    {
+      "bytes": 1069,
+      "counts": {
+        "abbreviations": 3,
+        "blockquote_lines": 4,
+        "ellipses": 1,
+        "em_dashes": 1,
+        "en_dashes": 1,
+        "markdown_links": 4,
+        "urls": 4
+      },
+      "path": "Reading/Boundary Ideas 2.md"
+    },
+    {
+      "bytes": 4078,
+      "counts": {
+        "abbreviations": 4,
+        "block_math_delimiters": 8,
+        "block_math_lines": 4,
+        "blockquote_lines": 2,
+        "bold": 3,
+        "decimals": 3,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "embeds": 2,
+        "equations": 43,
+        "escaped_dollars": 2,
+        "heading_h3": 1,
+        "heading_h4": 1,
+        "heading_h5": 1,
+        "initials": 1,
+        "inline_code": 2,
+        "inline_math": 39,
+        "italic": 2,
+        "list_items": 5,
+        "markdown_links": 6,
+        "nested_list_items": 2,
+        "urls": 6
+      },
+      "path": "Physics/Quantum Mechanics/Lecture 28 - Normal Modes.md"
+    },
+    {
+      "bytes": 1644,
+      "counts": {
+        "abbreviations": 7,
+        "blockquote_lines": 8,
+        "bold": 2,
+        "callout_titles": 3,
+        "callouts": 5,
+        "foldable_callouts": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "heading_h6": 1,
+        "inline_code": 3,
+        "italic": 2,
+        "strikethrough": 1,
+        "urls": 1
+      },
+      "path": "Personal/Reading - Problem Set.md"
+    },
+    {
+      "bytes": 6455,
+      "counts": {
+        "abbreviations": 8,
+        "block_math_delimiters": 32,
+        "block_math_lines": 27,
+        "bold": 5,
+        "ellipses": 2,
+        "em_dashes": 4,
+        "en_dashes": 2,
+        "equations": 92,
+        "heading_h2": 3,
+        "heading_h3": 4,
+        "initials": 2,
+        "inline_math": 76,
+        "italic": 3,
+        "list_items": 8,
+        "nested_list_items": 3,
+        "ordered_list_items": 4
+      },
+      "path": "Maths/Linear Algebra/Uniform Convergence 2.md"
+    },
+    {
+      "bytes": 2474,
+      "counts": {
+        "abbreviations": 9,
+        "bold": 1,
+        "code_blocks": 2,
+        "code_fence_lines": 4,
+        "code_fence_titles": 1,
+        "code_lines": 9,
+        "decimals": 3,
+        "embeds": 7,
+        "embeds_with_size": 3,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 1,
+        "list_items": 11,
+        "nested_list_items": 2,
+        "ordered_list_items": 9,
+        "tilde_fences": 1
+      },
+      "path": "Inbox/On Late Project.md"
+    },
+    {
+      "bytes": 1823,
+      "counts": {
+        "abbreviations": 5,
+        "bold": 4,
+        "ellipses": 1,
+        "en_dashes": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_with_other_keys": 1,
+        "heading_h5": 1,
+        "inline_code": 2,
+        "italic": 1,
+        "list_items": 7,
+        "markdown_links": 4,
+        "nested_list_items": 6,
+        "urls": 4
+      },
+      "path": "Inbox/Section.md"
+    },
+    {
+      "bytes": 1345,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 2,
+        "decimals": 1,
+        "ellipses": 1,
+        "heading_h3": 1,
+        "markdown_links": 4,
+        "strikethrough": 1,
+        "urls": 2
+      },
+      "path": "Projects/Editor Ideas/On Plugin Example.md"
+    },
+    {
+      "bytes": 1879,
+      "counts": {
+        "abbreviations": 5,
+        "blockquote_lines": 8,
+        "bold": 1,
+        "callout_titles": 2,
+        "callouts": 2,
+        "ellipses": 1,
+        "heading_h2": 1,
+        "initials": 1,
+        "italic": 2,
+        "list_items": 12,
+        "markdown_links": 4,
+        "nested_list_items": 4,
+        "urls": 4
+      },
+      "path": "Inbox/Reading - Dense Schedule.md"
+    },
+    {
+      "bytes": 969,
+      "counts": {
+        "abbreviations": 1,
+        "bold": 1,
+        "ellipses": 1,
+        "embeds": 2,
+        "embeds_with_size": 1,
+        "footnote_defs": 2,
+        "footnote_refs": 4,
+        "heading_h2": 1,
+        "inline_code": 1,
+        "italic": 1
+      },
+      "path": "On Stronger Chapter.md"
+    },
+    {
+      "bytes": 1486,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 2,
+        "decimals": 1,
+        "ellipses": 2,
+        "heading_h2": 1,
+        "inline_code": 1,
+        "list_items": 9,
+        "markdown_links": 4,
+        "nested_list_items": 1,
+        "urls": 3
+      },
+      "path": "Daily Notes/2024-12-09 2.md"
+    },
+    {
+      "bytes": 981,
+      "counts": {
+        "abbreviations": 4,
+        "bold": 1,
+        "decimals": 2,
+        "embeds": 2,
+        "embeds_with_size": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "italic": 2
+      },
+      "path": "Reading/Reading - Subtle Essay.md"
+    },
+    {
+      "bytes": 1460,
+      "counts": {
+        "abbreviations": 3,
+        "blockquote_lines": 2,
+        "bold": 2,
+        "callout_titles": 2,
+        "callouts": 2,
+        "decimals": 1,
+        "ellipses": 1,
+        "escaped_dollars": 1,
+        "foldable_callouts": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "heading_h4": 1,
+        "heading_h5": 1,
+        "html_hr": 11,
+        "html_tags": 11,
+        "inline_code": 1,
+        "list_items": 11,
+        "markdown_links": 2,
+        "nested_list_items": 4,
+        "ordered_list_items": 2,
+        "times": 1,
+        "urls": 1
+      },
+      "path": "Essays/Long Outline.md"
+    },
+    {
+      "bytes": 6672,
+      "counts": {
+        "abbreviations": 6,
+        "bold": 1,
+        "decimals": 3,
+        "em_dashes": 1,
+        "equations": 121,
+        "escaped_dollars": 1,
+        "heading_h2": 5,
+        "heading_h3": 1,
+        "inline_code": 4,
+        "inline_math": 121,
+        "italic": 2,
+        "list_items": 11,
+        "nested_list_items": 3,
+        "ordered_list_items": 3
+      },
+      "path": "Maths/Linear Algebra/Linear Maps Problem Set 7.md"
+    },
+    {
+      "bytes": 4775,
+      "counts": {
+        "abbreviations": 10,
+        "blockquote_lines": 2,
+        "bold": 1,
+        "decimals": 1,
+        "ellipses": 2,
+        "em_dashes": 2,
+        "embeds": 9,
+        "embeds_with_size": 5,
+        "equations": 59,
+        "heading_h2": 6,
+        "initials": 1,
+        "inline_code": 3,
+        "inline_math": 59,
+        "italic": 6,
+        "list_items": 8,
+        "nested_list_items": 4
+      },
+      "path": "Course Notes/Probability and Statistics/Lecture 21 - Bayes' Theorem.md"
+    },
+    {
+      "bytes": 3046,
+      "counts": {
+        "abbreviations": 5,
+        "block_math_delimiters": 18,
+        "block_math_lines": 12,
+        "bold": 1,
+        "decimals": 1,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "en_dashes": 1,
+        "equations": 36,
+        "escaped_dollars": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "inline_math": 27
+      },
+      "path": "Maths/Linear Algebra/Lecture 11 - Harmonic Oscillator.md"
+    },
+    {
+      "bytes": 1528,
+      "counts": {
+        "abbreviations": 6,
+        "bold": 3,
+        "ellipses": 1,
+        "en_dashes": 1,
+        "heading_h2": 1,
+        "italic": 5,
+        "list_items": 8,
+        "ordered_list_items": 8,
+        "strikethrough": 1,
+        "times": 3
+      },
+      "path": "Projects/Editor Ideas/Reading - Careful Assumption.md"
+    },
+    {
+      "bytes": 12501,
+      "counts": {
+        "abbreviations": 9,
+        "block_math_delimiters": 10,
+        "block_math_lines": 13,
+        "blockquote_lines": 1,
+        "bold": 4,
+        "decimals": 3,
+        "ellipses": 2,
+        "em_dashes": 12,
+        "embeds": 6,
+        "embeds_with_size": 1,
+        "equations": 232,
+        "escaped_dollars": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 6,
+        "heading_h3": 3,
+        "heading_h4": 1,
+        "html_br": 26,
+        "html_other": 5,
+        "html_tags": 31,
+        "initials": 1,
+        "inline_code": 5,
+        "inline_math": 227,
+        "italic": 5,
+        "list_items": 5,
+        "markdown_links": 5,
+        "nested_list_items": 2,
+        "ordered_list_items": 3,
+        "strikethrough": 1,
+        "urls": 5
+      },
+      "path": "Course Notes/Classical Mechanics/Harmonic Oscillator.md"
+    },
+    {
+      "bytes": 1549,
+      "counts": {
+        "abbreviations": 4,
+        "blockquote_lines": 3,
+        "bold": 2,
+        "embeds": 5,
+        "embeds_with_size": 4,
+        "heading_h4": 1,
+        "inline_code": 1,
+        "italic": 2,
+        "list_items": 5,
+        "nested_list_items": 3
+      },
+      "path": "Essays/On Limit 2.md"
+    },
+    {
+      "bytes": 2303,
+      "counts": {
+        "abbreviations": 4,
+        "decimals": 1,
+        "equations": 31,
+        "escaped_dollars": 1,
+        "heading_h2": 1,
+        "html_br": 22,
+        "html_tags": 22,
+        "inline_code": 1,
+        "inline_math": 31,
+        "italic": 2,
+        "list_items": 6,
+        "nested_list_items": 2,
+        "ordered_list_items": 1
+      },
+      "path": "Physics/Markov Chains.md"
+    },
+    {
+      "bytes": 1314,
+      "counts": {
+        "abbreviations": 2,
+        "blockquote_lines": 4,
+        "bold": 2,
+        "decimals": 2,
+        "em_dashes": 1,
+        "escaped_dollars": 1,
+        "heading_h1": 1,
+        "list_items": 4,
+        "nested_list_items": 2
+      },
+      "path": "Inbox/Vector Observation.md"
+    },
+    {
+      "bytes": 2849,
+      "counts": {
+        "abbreviations": 1,
+        "block_math_delimiters": 32,
+        "block_math_lines": 28,
+        "blockquote_lines": 3,
+        "em_dashes": 1,
+        "equations": 41,
+        "heading_h1": 1,
+        "heading_h2": 4,
+        "heading_h4": 1,
+        "inline_math": 25
+      },
+      "path": "Maths/Linear Algebra/Notes on Compactness 2.md"
+    },
+    {
+      "bytes": 2307,
+      "counts": {
+        "abbreviations": 5,
+        "block_math_delimiters": 12,
+        "block_math_lines": 17,
+        "blockquote_lines": 3,
+        "ellipses": 2,
+        "embeds": 2,
+        "equations": 32,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h3": 2,
+        "inline_math": 26
+      },
+      "path": "Physics/Quantum Mechanics/Lecture 10 - Entropy.md"
+    },
+    {
+      "bytes": 1423,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 1,
+        "ellipses": 2,
+        "em_dashes": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 1,
+        "italic": 2,
+        "list_items": 5,
+        "markdown_links": 5,
+        "nested_list_items": 2,
+        "urls": 5
+      },
+      "path": "Personal/Experiment Ideas.md"
+    },
+    {
+      "bytes": 1950,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 4,
+        "decimals": 1,
+        "ellipses": 3,
+        "em_dashes": 2,
+        "embeds": 2,
+        "embeds_with_size": 2,
+        "en_dashes": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "highlights": 1,
+        "html_br": 7,
+        "html_hr": 6,
+        "html_tags": 13,
+        "italic": 3,
+        "list_items": 11,
+        "markdown_links": 2,
+        "nested_list_items": 1,
+        "ordered_list_items": 5,
+        "urls": 1
+      },
+      "path": "Daily Notes/2024-02-27.md"
+    },
+    {
+      "bytes": 470,
+      "counts": {
+        "abbreviations": 1,
+        "initials": 1,
+        "italic": 1
+      },
+      "path": "Reading/Trick.md"
+    },
+    {
+      "bytes": 8017,
+      "counts": {
+        "abbreviations": 7,
+        "block_math_delimiters": 56,
+        "block_math_lines": 48,
+        "blockquote_lines": 1,
+        "bold": 1,
+        "decimals": 1,
+        "ellipses": 2,
+        "em_dashes": 2,
+        "equations": 118,
+        "footnote_defs": 1,
+        "footnote_refs": 1,
+        "heading_h2": 8,
+        "heading_h3": 5,
+        "heading_h4": 2,
+        "inline_code": 2,
+        "inline_math": 90,
+        "italic": 4,
+        "list_items": 8,
+        "markdown_links": 5,
+        "nested_list_items": 4,
+        "ordered_list_items": 4,
+        "strikethrough": 1,
+        "urls": 4
+      },
+      "path": "Course Notes/Probability and Statistics/Rigid Bodies Problem Set 7.md"
+    },
+    {
+      "bytes": 1845,
+      "counts": {
+        "abbreviations": 4,
+        "blockquote_lines": 4,
+        "bold": 1,
+        "decimals": 1,
+        "em_dashes": 1,
+        "embeds": 11,
+        "embeds_with_size": 3,
+        "escaped_dollars": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h3": 3,
+        "html_br": 9,
+        "html_hr": 6,
+        "html_other": 2,
+        "html_tags": 17,
+        "italic": 1,
+        "list_items": 7,
+        "nested_list_items": 6,
+        "strikethrough": 1,
+        "times": 1
+      },
+      "path": "Projects/Editor Ideas/Reading - Global Chapter.md"
+    },
+    {
+      "bytes": 629,
+      "counts": {
+        "abbreviations": 1,
+        "ellipses": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "times": 1
+      },
+      "path": "Reading/Project Ideas.md"
+    },
+    {
+      "bytes": 2314,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 2,
+        "code_blocks": 3,
+        "code_fence_lines": 6,
+        "code_lines": 11,
+        "decimals": 7,
+        "en_dashes": 1,
+        "heading_h3": 1,
+        "inline_code": 1,
+        "italic": 8,
+        "markdown_links": 5,
+        "strikethrough": 1,
+        "table_alignment_rows": 1,
+        "table_rows": 15,
+        "table_separator_rows": 2,
+        "tilde_fences": 2,
+        "times": 3,
+        "urls": 3
+      },
+      "path": "Problem Set Ideas.md"
+    },
+    {
+      "bytes": 3099,
+      "counts": {
+        "abbreviations": 8,
+        "blockquote_lines": 17,
+        "bold": 6,
+        "callout_titles": 3,
+        "callouts": 4,
+        "em_dashes": 2,
+        "en_dashes": 2,
+        "foldable_callouts": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 7,
+        "heading_h3": 1,
+        "html_br": 6,
+        "html_hr": 36,
+        "html_tags": 42,
+        "inline_code": 2,
+        "italic": 4,
+        "list_items": 18,
+        "nested_list_items": 5,
+        "ordered_list_items": 3
+      },
+      "path": "Inbox/Sketch Ideas 2.md"
+    },
+    {
+      "bytes": 700,
+      "counts": {
+        "abbreviations": 5,
+        "embeds": 2,
+        "heading_h1": 1,
+        "italic": 1
+      },
+      "path": "Derivation Ideas.md"
+    },
+    {
+      "bytes": 2635,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 4,
+        "decimals": 14,
+        "ellipses": 2,
+        "embeds": 4,
+        "embeds_with_size": 1,
+        "escaped_pipes": 1,
+        "heading_h1": 1,
+        "heading_h3": 3,
+        "inline_code": 5,
+        "italic": 8,
+        "list_items": 8,
+        "markdown_links": 5,
+        "nested_list_items": 2,
+        "strikethrough": 3,
+        "table_alignment_rows": 3,
+        "table_rows": 17,
+        "table_separator_rows": 3,
+        "times": 1,
+        "urls": 5
+      },
+      "path": "Summary.md"
+    },
+    {
+      "bytes": 3507,
+      "counts": {
+        "abbreviations": 2,
+        "bold": 7,
+        "decimals": 6,
+        "em_dashes": 3,
+        "embeds": 2,
+        "embeds_with_size": 2,
+        "equations": 68,
+        "heading_h2": 2,
+        "heading_h3": 1,
+        "heading_h4": 1,
+        "inline_code": 1,
+        "inline_math": 68,
+        "italic": 4,
+        "list_items": 3,
+        "nested_list_items": 1,
+        "ordered_list_items": 2,
+        "strikethrough": 3,
+        "table_alignment_rows": 1,
+        "table_rows": 8,
+        "table_separator_rows": 1,
+        "times": 1,
+        "urls": 1
+      },
+      "path": "Maths/Linear Algebra/Linear Maps 2.md"
+    },
+    {
+      "bytes": 1726,
+      "counts": {
+        "abbreviations": 7,
+        "bold": 1,
+        "decimals": 1,
+        "em_dashes": 2,
+        "embeds": 8,
+        "embeds_with_size": 3,
+        "en_dashes": 1,
+        "heading_h1": 1,
+        "heading_h3": 1,
+        "inline_code": 1,
+        "italic": 1,
+        "list_items": 8,
+        "nested_list_items": 4
+      },
+      "path": "Reading/Reading - Idea.md"
+    },
+    {
+      "bytes": 1631,
+      "counts": {
+        "abbreviations": 7,
+        "comments": 2,
+        "embeds": 9,
+        "embeds_with_size": 2,
+        "en_dashes": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "heading_h4": 1,
+        "inline_comments": 2,
+        "italic": 1,
+        "list_items": 6,
+        "markdown_links": 2,
+        "nested_list_items": 3,
+        "ordered_list_items": 1,
+        "times": 1,
+        "urls": 3
+      },
+      "path": "Essays/Draft.md"
+    },
+    {
+      "bytes": 2064,
+      "counts": {
+        "abbreviations": 2,
+        "bold": 2,
+        "decimals": 2,
+        "ellipses": 4,
+        "em_dashes": 2,
+        "en_dashes": 1,
+        "escaped_dollars": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 1,
+        "italic": 1,
+        "list_items": 16,
+        "nested_list_items": 8,
+        "ordered_list_items": 8,
+        "strikethrough": 1
+      },
+      "path": "Projects/Editor Ideas/Paragraph Ideas.md"
+    },
+    {
+      "bytes": 738,
+      "counts": {
+        "abbreviations": 2,
+        "bold": 1,
+        "heading_h2": 1,
+        "italic": 1
+      },
+      "path": "Daily Notes/2024-09-14.md"
+    },
+    {
+      "bytes": 753,
+      "counts": {
+        "abbreviations": 4,
+        "bold": 2,
+        "footnote_defs": 1,
+        "footnote_refs": 3,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "heading_h3": 1
+      },
+      "path": "Essays/Idea Ideas.md"
+    },
+    {
+      "bytes": 2222,
+      "counts": {
+        "abbreviations": 2,
+        "bold": 1,
+        "decimals": 1,
+        "ellipses": 3,
+        "em_dashes": 4,
+        "en_dashes": 1,
+        "escaped_dollars": 1,
+        "footnote_defs": 3,
+        "footnote_refs": 4,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h3": 3,
+        "heading_h5": 1,
+        "html_br": 6,
+        "html_hr": 18,
+        "html_other": 2,
+        "html_tags": 26,
+        "inline_code": 1,
+        "italic": 1,
+        "list_items": 12,
+        "nested_list_items": 4,
+        "ordered_list_items": 4,
+        "times": 1
+      },
+      "path": "Daily Notes/2024-04-15.md"
+    },
+    {
+      "bytes": 1911,
+      "counts": {
+        "abbreviations": 6,
+        "bold": 4,
+        "decimals": 2,
+        "escaped_dollars": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 1,
+        "highlights": 1,
+        "initials": 1,
+        "inline_code": 1,
+        "list_items": 14,
+        "nested_list_items": 9,
+        "times": 1
+      },
+      "path": "Reading/Particle.md"
+    },
+    {
+      "bytes": 2554,
+      "counts": {
+        "abbreviations": 6,
+        "blockquote_lines": 3,
+        "bold": 2,
+        "ellipses": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "heading_h2": 2,
+        "heading_h3": 1,
+        "html_br": 7,
+        "html_hr": 6,
+        "html_tags": 13,
+        "initials": 1,
+        "inline_code": 4,
+        "italic": 1,
+        "list_items": 15,
+        "markdown_links": 6,
+        "nested_list_items": 8,
+        "ordered_list_items": 4,
+        "times": 1,
+        "urls": 5
+      },
+      "path": "Essays/On Problem.md"
+    },
+    {
+      "bytes": 1532,
+      "counts": {
+        "abbreviations": 3,
+        "bold": 1,
+        "decimals": 2,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "escaped_dollars": 2,
+        "footnote_defs": 4,
+        "footnote_refs": 4,
+        "heading_h1": 1,
+        "inline_code": 1,
+        "italic": 2,
+        "list_items": 6,
+        "nested_list_items": 5,
+        "urls": 1
+      },
+      "path": "Essays/Reading - Proof Approach.md"
+    },
+    {
+      "bytes": 1347,
+      "counts": {
+        "abbreviations": 6,
+        "code_blocks": 2,
+        "code_fence_lines": 4,
+        "code_fence_titles": 1,
+        "code_lines": 5,
+        "markdown_links": 2,
+        "urls": 2
+      },
+      "path": "Daily Notes/2024-07-07.md"
+    },
+    {
+      "bytes": 3513,
+      "counts": {
+        "abbreviations": 6,
+        "blockquote_lines": 4,
+        "bold": 3,
+        "code_blocks": 2,
+        "code_fence_lines": 4,
+        "code_lines": 5,
+        "em_dashes": 2,
+        "equations": 26,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "heading_h2": 2,
+        "heading_h3": 3,
+        "html_br": 35,
+        "html_hr": 14,
+        "html_other": 6,
+        "html_tags": 55,
+        "initials": 2,
+        "inline_math": 26,
+        "times": 1
+      },
+      "path": "Course Notes/Classical Mechanics/Notes on Green's Functions.md"
+    },
+    {
+      "bytes": 3821,
+      "counts": {
+        "abbreviations": 13,
+        "bold": 2,
+        "decimals": 2,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "embeds": 10,
+        "en_dashes": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 8,
+        "heading_h5": 1,
+        "html_br": 40,
+        "html_hr": 14,
+        "html_tags": 54,
+        "initials": 2,
+        "italic": 4,
+        "list_items": 6,
+        "nested_list_items": 3,
+        "ordered_list_items": 3,
+        "times": 1
+      },
+      "path": "Daily Notes/2024-07-16.md"
+    },
+    {
+      "bytes": 1831,
+      "counts": {
+        "abbreviations": 5,
+        "blockquote_lines": 7,
+        "bold": 2,
+        "callout_titles": 3,
+        "callouts": 3,
+        "ellipses": 1,
+        "foldable_callouts": 1,
+        "heading_h1": 1,
+        "heading_h4": 2,
+        "italic": 1,
+        "list_items": 8,
+        "markdown_links": 6,
+        "nested_callouts": 1,
+        "nested_list_items": 4,
+        "ordered_list_items": 4,
+        "strikethrough": 1,
+        "times": 1,
+        "urls": 5
+      },
+      "path": "Projects/Editor Ideas/Narrow Vector.md"
+    },
+    {
+      "bytes": 989,
+      "counts": {
+        "bold": 2,
+        "ellipses": 2,
+        "heading_h2": 1,
+        "inline_code": 1,
+        "italic": 2,
+        "list_items": 11,
+        "nested_list_items": 1,
+        "ordered_list_items": 4
+      },
+      "path": "Reading/Reading - Unexpected Habit.md"
+    },
+    {
+      "bytes": 3349,
+      "counts": {
+        "abbreviations": 6,
+        "block_math_delimiters": 26,
+        "block_math_lines": 23,
+        "bold": 3,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "equations": 13,
+        "heading_h2": 3,
+        "heading_h4": 1,
+        "inline_code": 2,
+        "italic": 1,
+        "list_items": 11,
+        "nested_list_items": 5,
+        "ordered_list_items": 3,
+        "strikethrough": 1,
+        "times": 2
+      },
+      "path": "Essays/On Pattern.md"
+    },
+    {
+      "bytes": 671,
+      "counts": {
+        "abbreviations": 1,
+        "heading_h3": 1,
+        "list_items": 3,
+        "urls": 1
+      },
+      "path": "Limit Ideas.md"
+    },
+    {
+      "bytes": 1457,
+      "counts": {
+        "abbreviations": 4,
+        "blockquote_lines": 1,
+        "bold": 2,
+        "embeds": 8,
+        "embeds_with_size": 2,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "strikethrough": 1,
+        "times": 1
+      },
+      "path": "Habit Ideas.md"
+    },
+    {
+      "bytes": 364,
+      "counts": {
+        "abbreviations": 3,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "heading_h3": 1,
+        "inline_code": 1
+      },
+      "path": "Projects/Editor Ideas/Bounded Pattern.md"
+    },
+    {
+      "bytes": 2394,
+      "counts": {
+        "abbreviations": 5,
+        "blockquote_lines": 9,
+        "bold": 4,
+        "callout_titles": 1,
+        "callouts": 2,
+        "code_blocks": 4,
+        "code_fence_lines": 8,
+        "code_fence_titles": 2,
+        "code_lines": 12,
+        "decimals": 1,
+        "ellipses": 1,
+        "foldable_callouts": 1,
+        "heading_h1": 1,
+        "heading_h3": 1,
+        "heading_h5": 1,
+        "inline_code": 1,
+        "italic": 3,
+        "list_items": 17,
+        "nested_list_items": 7,
+        "times": 3,
+        "urls": 1
+      },
+      "path": "Daily Notes/2024-11-13.md"
+    },
+    {
+      "bytes": 1999,
+      "counts": {
+        "abbreviations": 6,
+        "bold": 2,
+        "decimals": 1,
+        "ellipses": 1,
+        "heading_h1": 1,
+        "heading_h2": 5,
+        "heading_h3": 3,
+        "html_br": 40,
+        "html_hr": 24,
+        "html_other": 3,
+        "html_tags": 67,
+        "italic": 2
+      },
+      "path": "Projects/Editor Ideas/Reading - Loose Matrix.md"
+    },
+    {
+      "bytes": 611,
+      "counts": {
+        "abbreviations": 4,
+        "decimals": 1,
+        "escaped_dollars": 1,
+        "heading_h1": 1,
+        "heading_h4": 1,
+        "italic": 3
+      },
+      "path": "Inbox/Method Ideas.md"
+    },
+    {
+      "bytes": 1301,
+      "counts": {
+        "abbreviations": 2,
+        "blockquote_lines": 3,
+        "decimals": 2,
+        "ellipses": 1,
+        "em_dashes": 3,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "inline_code": 1,
+        "italic": 2,
+        "strikethrough": 1,
+        "times": 1,
+        "urls": 1
+      },
+      "path": "Question Ideas.md"
+    },
+    {
+      "bytes": 4152,
+      "counts": {
+        "abbreviations": 9,
+        "bold": 1,
+        "checked_task_items": 8,
+        "em_dashes": 5,
+        "equations": 72,
+        "heading_h2": 1,
+        "heading_h3": 2,
+        "inline_math": 72,
+        "list_items": 14,
+        "markdown_links": 2,
+        "task_items": 14,
+        "times": 4,
+        "urls": 2
+      },
+      "path": "Course Notes/Probability and Statistics/Green's Functions.md"
+    },
+    {
+      "bytes": 1366,
+      "counts": {
+        "abbreviations": 4,
+        "bold": 1,
+        "ellipses": 1,
+        "embeds": 2,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "italic": 3,
+        "markdown_links": 2,
+        "urls": 2
+      },
+      "path": "Personal/Derivation Ideas 2.md"
+    },
+    {
+      "bytes": 1405,
+      "counts": {
+        "abbreviations": 6,
+        "bold": 3,
+        "italic": 1,
+        "list_items": 3,
+        "markdown_links": 2,
+        "nested_list_items": 1,
+        "ordered_list_items": 2,
+        "strikethrough": 1,
+        "times": 2,
+        "urls": 2
+      },
+      "path": "Reading - Problem Exercise.md"
+    },
+    {
+      "bytes": 1839,
+      "counts": {
+        "abbreviations": 6,
+        "bold": 1,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "heading_h1": 1,
+        "italic": 1,
+        "list_items": 16,
+        "markdown_links": 3,
+        "nested_list_items": 6,
+        "times": 1,
+        "urls": 2
+      },
+      "path": "Inbox/On Corollary Result.md"
+    },
+    {
+      "bytes": 4447,
+      "counts": {
+        "abbreviations": 15,
+        "blockquote_lines": 20,
+        "bold": 11,
+        "callout_titles": 6,
+        "callouts": 8,
+        "decimals": 3,
+        "ellipses": 1,
+        "em_dashes": 1,
+        "en_dashes": 1,
+        "foldable_callouts": 2,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "initials": 1,
+        "inline_code": 4,
+        "italic": 5,
+        "list_items": 22,
+        "nested_callouts": 2,
+        "nested_list_items": 7,
+        "ordered_list_items": 7,
+        "strikethrough": 2,
+        "table_alignment_rows": 1,
+        "table_rows": 13,
+        "table_separator_rows": 2,
+        "times": 3,
+        "wikilinks": 1
+      },
+      "path": "Inbox/On Theorem Sequence.md"
+    },
+    {
+      "bytes": 1309,
+      "counts": {
+        "abbreviations": 4,
+        "blockquote_lines": 2,
+        "bold": 1,
+        "callout_titles": 1,
+        "callouts": 2,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "italic": 3,
+        "urls": 1
+      },
+      "path": "Inbox/Estimate.md"
+    },
+    {
+      "bytes": 1746,
+      "counts": {
+        "abbreviations": 2,
+        "bold": 1,
+        "ellipses": 1,
+        "embeds": 2,
+        "embeds_with_size": 1,
+        "en_dashes": 1,
+        "footnote_defs": 2,
+        "footnote_refs": 3,
+        "heading_h5": 1,
+        "italic": 1,
+        "markdown_links": 6,
+        "urls": 6
+      },
+      "path": "On Formal Model.md"
+    },
+    {
+      "bytes": 1902,
+      "counts": {
+        "abbreviations": 6,
+        "decimals": 1,
+        "ellipses": 1,
+        "escaped_dollars": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h3": 1,
+        "italic": 1,
+        "list_items": 12,
+        "nested_list_items": 8,
+        "ordered_list_items": 4,
+        "urls": 1
+      },
+      "path": "Reading/System Ideas.md"
+    },
+    {
+      "bytes": 1444,
+      "counts": {
+        "abbreviations": 3,
+        "decimals": 1,
+        "ellipses": 1,
+        "escaped_dollars": 1,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h1": 1,
+        "inline_code": 1,
+        "italic": 2,
+        "list_items": 11,
+        "nested_list_items": 4
+      },
+      "path": "Personal/Global Vector.md"
+    },
+    {
+      "bytes": 1826,
+      "counts": {
+        "abbreviations": 6,
+        "bold": 4,
+        "ellipses": 1,
+        "heading_h1": 1,
+        "heading_h2": 1,
+        "heading_h3": 1,
+        "initials": 1,
+        "inline_code": 1,
+        "italic": 3,
+        "list_items": 6,
+        "nested_list_items": 1,
+        "ordered_list_items": 5,
+        "times": 1
+      },
+      "path": "Inbox/On Variable Midterm.md"
+    },
+    {
+      "bytes": 4676,
+      "counts": {
+        "abbreviations": 8,
+        "block_math_delimiters": 8,
+        "block_math_lines": 6,
+        "bold": 5,
+        "checked_task_items": 6,
+        "decimals": 7,
+        "ellipses": 1,
+        "em_dashes": 2,
+        "embeds": 6,
+        "embeds_with_size": 3,
+        "equations": 74,
+        "heading_h1": 1,
+        "heading_h2": 2,
+        "heading_h3": 3,
+        "inline_math": 70,
+        "italic": 4,
+        "list_items": 24,
+        "nested_list_items": 8,
+        "nested_task_items": 8,
+        "strikethrough": 1,
+        "table_rows": 9,
+        "table_separator_rows": 1,
+        "task_items": 24,
+        "times": 10,
+        "urls": 1
+      },
+      "path": "Maths/Linear Algebra/Uniform Convergence Problem Set 4.md"
+    },
+    {
+      "bytes": 2359,
+      "counts": {
+        "abbreviations": 5,
+        "bold": 6,
+        "decimals": 6,
+        "ellipses": 2,
+        "heading_h2": 2,
+        "html_hr": 9,
+        "html_other": 2,
+        "html_tags": 11,
+        "inline_code": 3,
+        "italic": 4,
+        "list_items": 4,
+        "nested_list_items": 2,
+        "strikethrough": 2,
+        "table_alignment_rows": 1,
+        "table_rows": 10,
+        "table_separator_rows": 2,
+        "times": 2
+      },
+      "path": "Projects/Editor Ideas/On Narrow Section.md"
+    },
+    {
+      "bytes": 399,
+      "counts": {
+        "abbreviations": 2,
+        "heading_h1": 1,
+        "heading_h3": 1,
+        "initials": 1,
+        "italic": 2,
+        "list_items": 4,
+        "ordered_list_items": 4
+      },
+      "path": "Essays/Argument Ideas.md"
+    },
+    {
+      "bytes": 1293,
+      "counts": {
+        "abbreviations": 2,
+        "footnote_defs": 2,
+        "footnote_refs": 2,
+        "italic": 1,
+        "list_items": 5,
+        "nested_list_items": 1
+      },
+      "path": "Projects/Editor Ideas/On Deadline.md"
+    },
+    {
+      "bytes": 1327,
+      "counts": {
+        "abbreviations": 2,
+        "bold": 4,
+        "frontmatter": 1,
+        "frontmatter_chronotyper": 1,
+        "frontmatter_chronotyper_only": 1,
+        "heading_h2": 1,
+        "italic": 3,
+        "list_items": 5,
+        "nested_list_items": 4,
+        "strikethrough": 1
+      },
+      "path": "On Tutorial.md"
+    }
+  ],
+  "notes_with": {
+    "abbreviations": 200,
+    "block_math_delimiters": 28,
+    "block_math_lines": 28,
+    "blockquote_lines": 77,
+    "bold": 168,
+    "callout_titles": 28,
+    "callouts": 29,
+    "checked_task_items": 14,
+    "code_blocks": 19,
+    "code_fence_lines": 19,
+    "code_fence_titles": 11,
+    "code_lines": 19,
+    "comment_blocks": 4,
+    "comments": 7,
+    "decimals": 102,
+    "ellipses": 112,
+    "em_dashes": 94,
+    "embeds": 47,
+    "embeds_with_size": 35,
+    "en_dashes": 50,
+    "equations": 54,
+    "escaped_dollars": 41,
+    "escaped_pipes": 6,
+    "foldable_callouts": 21,
+    "footnote_defs": 19,
+    "footnote_refs": 19,
+    "footnote_typos": 2,
+    "frontmatter": 55,
+    "frontmatter_chronotyper": 55,
+    "frontmatter_chronotyper_only": 49,
+    "frontmatter_with_other_keys": 6,
+    "heading_h1": 76,
+    "heading_h2": 128,
+    "heading_h3": 84,
+    "heading_h4": 37,
+    "heading_h5": 15,
+    "heading_h6": 5,
+    "highlights": 7,
+    "html_br": 20,
+    "html_hr": 17,
+    "html_other": 13,
+    "html_tags": 25,
+    "initials": 43,
+    "inline_code": 96,
+    "inline_comments": 7,
+    "inline_math": 50,
+    "italic": 161,
+    "list_items": 151,
+    "markdown_links": 52,
+    "nested_callouts": 10,
+    "nested_list_items": 142,
+    "nested_task_items": 13,
+    "ordered_list_items": 67,
+    "strikethrough": 67,
+    "table_alignment_rows": 12,
+    "table_rows": 17,
+    "table_separator_rows": 17,
+    "tags": 5,
+    "task_items": 14,
+    "tilde_fences": 6,
+    "times": 65,
+    "urls": 85,
+    "wikilinks": 1
+  },
+  "seed": 20260927,
+  "targets": {
+    "block_math_delimiters": {
+      "notes": 28,
+      "uses": 748
+    },
+    "callouts": {
+      "notes": 29,
+      "uses": 91
+    },
+    "code_fence_lines": {
+      "notes": 19,
+      "uses": 107
+    },
+    "comments": {
+      "notes": 7,
+      "uses": 17
+    },
+    "embeds": {
+      "notes": 47,
+      "uses": 238
+    },
+    "footnote_defs": {
+      "notes": 19,
+      "uses": 44
+    },
+    "footnote_refs": {
+      "notes": 19,
+      "uses": 54
+    },
+    "frontmatter": {
+      "notes": 55,
+      "uses": 55
+    },
+    "highlights": {
+      "notes": 7,
+      "uses": 7
+    },
+    "html_tags": {
+      "notes": 25,
+      "uses": 683
+    },
+    "inline_math": {
+      "notes": 50,
+      "uses": 3660
+    },
+    "markdown_links": {
+      "notes": 52,
+      "uses": 187
+    },
+    "table_rows": {
+      "notes": 17,
+      "uses": 203
+    },
+    "tags": {
+      "notes": 5,
+      "uses": 10
+    },
+    "task_items": {
+      "notes": 14,
+      "uses": 243
+    },
+    "wikilinks": {
+      "notes": 1,
+      "uses": 1
+    }
+  },
+  "totals": {
+    "abbreviations": 983,
+    "block_math_delimiters": 748,
+    "block_math_lines": 586,
+    "blockquote_lines": 406,
+    "bold": 431,
+    "callout_titles": 69,
+    "callouts": 91,
+    "checked_task_items": 94,
+    "code_blocks": 53,
+    "code_fence_lines": 106,
+    "code_fence_titles": 13,
+    "code_lines": 189,
+    "comment_blocks": 5,
+    "comments": 17,
+    "decimals": 234,
+    "ellipses": 175,
+    "em_dashes": 232,
+    "embeds": 238,
+    "embeds_with_size": 74,
+    "en_dashes": 60,
+    "equations": 4034,
+    "escaped_dollars": 46,
+    "escaped_pipes": 8,
+    "foldable_callouts": 27,
+    "footnote_defs": 44,
+    "footnote_refs": 54,
+    "footnote_typos": 2,
+    "frontmatter": 55,
+    "frontmatter_chronotyper": 55,
+    "frontmatter_chronotyper_only": 49,
+    "frontmatter_with_other_keys": 6,
+    "heading_h1": 76,
+    "heading_h2": 270,
+    "heading_h3": 157,
+    "heading_h4": 46,
+    "heading_h5": 15,
+    "heading_h6": 6,
+    "highlights": 7,
+    "html_br": 326,
+    "html_hr": 312,
+    "html_other": 45,
+    "html_tags": 683,
+    "initials": 50,
+    "inline_code": 168,
+    "inline_comments": 12,
+    "inline_math": 3660,
+    "italic": 408,
+    "list_items": 1535,
+    "markdown_links": 187,
+    "nested_callouts": 11,
+    "nested_list_items": 572,
+    "nested_task_items": 59,
+    "ordered_list_items": 257,
+    "strikethrough": 100,
+    "table_alignment_rows": 17,
+    "table_rows": 203,
+    "table_separator_rows": 32,
+    "tags": 10,
+    "task_items": 243,
+    "tilde_fences": 9,
+    "times": 151,
+    "urls": 203,
+    "wikilinks": 1
+  }
+}
