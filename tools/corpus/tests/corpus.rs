@@ -44,7 +44,10 @@ fn generation_is_deterministic() {
 
 #[test]
 fn writing_twice_gives_identical_bytes() {
-    let base = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("corpus-determinism");
+    // A fresh folder each run: CI restores target/ from a cache, so a shared
+    // folder there can hold a half-written corpus from an earlier run.
+    let temp = tempfile::tempdir().unwrap();
+    let base = temp.path();
     let options = Options { notes: 40 };
     let first = base.join("a");
     let second = base.join("b");
@@ -56,8 +59,8 @@ fn writing_twice_gives_identical_bytes() {
 
 #[test]
 fn refuses_to_replace_a_folder_without_manifest() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("corpus-refuse");
-    let _ = fs::remove_dir_all(&dir);
+    let temp = tempfile::tempdir().unwrap();
+    let dir = temp.path().join("corpus-refuse");
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join("keep.txt"), "mine").unwrap();
     assert!(generate(1, &Options { notes: 3 }).write_to(&dir).is_err());
