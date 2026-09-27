@@ -105,8 +105,11 @@ impl EditorView {
         true
     }
 
+    /// Selects everything without scrolling: the view stays where the
+    /// reader is.
     fn select_all(&mut self, cx: &mut Context<Self>) {
         self.select(0, self.doc().len(), cx);
+        self.autoscroll = false;
     }
 
     fn footnote(&mut self, cx: &mut Context<Self>) {

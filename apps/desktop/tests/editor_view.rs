@@ -379,3 +379,15 @@ fn double_click_selects_a_word_and_triple_click_a_line(cx: &mut TestAppContext) 
     click(cx, inside_there, 3);
     assert_eq!(selection(&view, cx), 0..18);
 }
+
+#[gpui::test]
+fn select_all_keeps_the_scroll_position(cx: &mut TestAppContext) {
+    let long: String = (0..400).map(|line| format!("line {line}\n")).collect();
+    let (view, cx) = open(cx, &long);
+    place_cursor(&view, cx, 0);
+    let before = view.read_with(cx, |view, _| view.scroll_offset());
+    press(cx, "select.all");
+    cx.run_until_parked();
+    assert_eq!(selection(&view, cx), 0..long.len());
+    assert_eq!(view.read_with(cx, |view, _| view.scroll_offset()), before);
+}
