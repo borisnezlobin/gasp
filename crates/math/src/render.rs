@@ -108,9 +108,14 @@ fn first_group_baseline(frame: &Frame) -> Option<Abs> {
 
 /// Inline equations are flattened into the paragraph line, but the tag that
 /// marks where the equation starts sits on the line's baseline.
+///
+/// Typst sometimes wraps the line in a group (for example when the
+/// equation starts with an attachment or an operator such as `\det`), so
+/// the search goes into groups too, adding their offsets.
 fn equation_tag_baseline(frame: &Frame) -> Option<Abs> {
     frame.items().find_map(|(position, item)| match item {
         FrameItem::Tag(Tag::Start(content, _)) if content.is::<EquationElem>() => Some(position.y),
+        FrameItem::Group(group) => equation_tag_baseline(&group.frame).map(|y| position.y + y),
         _ => None,
     })
 }
@@ -140,6 +145,19 @@ mod tests {
     fn descender_puts_baseline_above_bottom() {
         let rendered = render_latex("y", false, 16.0).unwrap();
         assert!(rendered.baseline < rendered.height - 1.0);
+    }
+
+    #[test]
+    fn equations_starting_with_an_operator_or_attachment_find_their_baseline() {
+        for source in ["\\det(P) \\neq 0", "U^T U = I", "\\prod_{j=1}^6 (1+r_j)"] {
+            let rendered = render_latex(source, false, 16.0).unwrap();
+            assert!(
+                rendered.baseline < rendered.height - 0.2,
+                "{source}: baseline {} of {}",
+                rendered.baseline,
+                rendered.height
+            );
+        }
     }
 
     #[test]
