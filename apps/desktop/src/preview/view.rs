@@ -103,6 +103,7 @@ impl EditorView {
     /// Loads the code grammars in the background when a code block
     /// needed them, then redraws with colours.
     pub(crate) fn start_code_loads(&mut self, cx: &mut Context<Self>) {
+        self.start_code_jobs(cx);
         if !self.code.take_load_request() {
             return;
         }
@@ -114,6 +115,23 @@ impl EditorView {
             this.update(cx, |_, cx| cx.notify()).ok();
         })
         .detach();
+    }
+
+    /// Highlights the blocks layout left for the background, redrawing as
+    /// each finishes.
+    fn start_code_jobs(&mut self, cx: &mut Context<Self>) {
+        for job in self.code.take_jobs() {
+            let run = cx.background_spawn(async move { job.run() });
+            cx.spawn(async move |this, cx| {
+                let done = run.await;
+                this.update(cx, |view, cx| {
+                    view.code.finish_job(done);
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach();
+        }
     }
 
     /// Whether every equation asked for has been rendered.

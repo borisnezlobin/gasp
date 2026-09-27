@@ -9,9 +9,9 @@
 //! An edit re-highlights from the changed line down to the last one on
 //! screen, so typing in a long block costs one or two lines.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::ops::Range;
+use std::ops::{Range, RangeInclusive};
 use std::sync::{Arc, OnceLock};
 
 use editor_core::render::{LinePlan, LineStyle};
@@ -121,7 +121,8 @@ fn kind_of(stack: &[Scope]) -> Option<CodeKind> {
 }
 
 /// One highlighted line and the parser state after it.
-struct HighlightedLine {
+#[derive(Clone)]
+pub struct HighlightedLine {
     hash: u64,
     state: ParseState,
     stack: ScopeStack,
@@ -130,31 +131,118 @@ struct HighlightedLine {
 
 /// A block's highlighted lines, from its first line down.
 struct BlockHighlight {
+    language: String,
     lines: Vec<HighlightedLine>,
     used: bool,
+    /// How many leading lines were checked against the text in
+    /// `generation`, so a frame checks each line once.
+    checked: usize,
+    generation: u64,
 }
 
 /// Blocks kept between frames before unused ones are dropped.
 const MAX_BLOCKS: usize = 64;
 
+/// Lines of a block highlighted during layout at most; a longer stretch,
+/// or a language whose grammar hasn't run yet (its patterns compile on
+/// first use), is highlighted in the background instead.
+const SYNC_LINES: usize = 24;
+
+/// Bytes in the longest line highlighted during layout. Parsing costs
+/// grow with the line, and code lines are rarely this long.
+const SYNC_LINE_LENGTH: usize = 160;
+
+/// A block to highlight in the background.
+pub struct HighlightJob {
+    id: u64,
+    language: String,
+    lines: Vec<String>,
+}
+
+/// The finished job: every line of the block.
+pub struct HighlightedBlock {
+    id: u64,
+    language: String,
+    lines: Vec<HighlightedLine>,
+}
+
+impl HighlightJob {
+    /// Highlights the whole block. Slow the first time a language runs,
+    /// so call it off the main thread.
+    pub fn run(self) -> HighlightedBlock {
+        let syntaxes = load_syntaxes();
+        let mut lines: Vec<HighlightedLine> = Vec::with_capacity(self.lines.len());
+        if let Some(syntax) = syntaxes.find_syntax_by_token(&self.language) {
+            for text in &self.lines {
+                let line = highlight_after(lines.last(), syntax, syntaxes, text, hash_of(text));
+                lines.push(line);
+            }
+        }
+        HighlightedBlock {
+            id: self.id,
+            language: self.language,
+            lines,
+        }
+    }
+}
+
 /// The highlighted lines of the code blocks an editor has drawn.
 #[derive(Default)]
 pub struct CodeHighlighter {
-    blocks: HashMap<u64, BlockHighlight>,
+    /// Blocks by where their code starts, kept current through edits.
+    blocks: HashMap<usize, BlockHighlight>,
+    /// Bumped every frame and every edit; see [`BlockHighlight::checked`].
+    generation: u64,
+    /// Languages whose grammar has run once, so its patterns are compiled.
+    warmed: HashSet<String>,
+    jobs: Vec<HighlightJob>,
+    /// Jobs running, by id, with where their block's code starts now.
+    pending: HashMap<u64, usize>,
+    next_job: u64,
     /// A code block was drawn before the grammars loaded.
     wants_syntaxes: bool,
     loading: bool,
 }
 
+/// What [`CodeHighlighter::line`] needs to know about a block.
+pub struct BlockLines<'a, F: Fn(usize) -> &'a str> {
+    pub language: &'a str,
+    /// Where the block's code starts in the note.
+    pub start: usize,
+    /// Line `at` of the block's code.
+    pub line: F,
+    pub count: usize,
+}
+
 impl CodeHighlighter {
     /// Forgets blocks no longer on screen once too many are kept.
     pub fn begin_frame(&mut self) {
+        self.generation += 1;
         if self.blocks.len() > MAX_BLOCKS {
             self.blocks.retain(|_, block| block.used);
         }
         for block in self.blocks.values_mut() {
             block.used = false;
         }
+    }
+
+    /// The note's bytes `old` became `new_len` bytes: lines must be
+    /// checked against the text again, and blocks below move.
+    pub fn text_changed(&mut self, old: Range<usize>, new_len: usize) {
+        self.generation += 1;
+        let blocks = std::mem::take(&mut self.blocks);
+        self.blocks = blocks
+            .into_iter()
+            .filter_map(|(start, block)| Some((moved_start(start, &old, new_len)?, block)))
+            .collect();
+        self.pending
+            .retain(|_, start| match moved_start(*start, &old, new_len) {
+                Some(moved) => {
+                    *start = moved;
+                    true
+                }
+                None => false,
+            });
     }
 
     /// Whether the grammars should be loaded, which the caller does in
@@ -165,41 +253,160 @@ impl CodeHighlighter {
         wanted
     }
 
-    /// The spans of line `index` of a code block in `language`, whose
-    /// lines `line(0..=index)` gives. `None` for a language without a
-    /// grammar, or while the grammars load.
-    pub fn line<'a>(
+    /// Blocks to highlight in the background before redrawing.
+    pub fn take_jobs(&mut self) -> Vec<HighlightJob> {
+        std::mem::take(&mut self.jobs)
+    }
+
+    /// Keeps a block highlighted in the background.
+    pub fn finish_job(&mut self, done: HighlightedBlock) {
+        self.warmed.insert(done.language.clone());
+        let Some(start) = self.pending.remove(&done.id) else {
+            return;
+        };
+        self.blocks.insert(
+            start,
+            BlockHighlight {
+                language: done.language,
+                lines: done.lines,
+                used: true,
+                checked: 0,
+                generation: 0,
+            },
+        );
+    }
+
+    /// The spans of line `index` of a code block. `None` for a language
+    /// without a grammar, and while the grammars load or the block is
+    /// highlighted in the background.
+    pub fn line<'a, F: Fn(usize) -> &'a str>(
         &mut self,
-        language: &str,
-        line: impl Fn(usize) -> &'a str,
+        block: &BlockLines<'a, F>,
         index: usize,
     ) -> Option<LineSpans> {
         let Some(syntaxes) = SYNTAXES.get() else {
             self.wants_syntaxes = true;
             return None;
         };
-        let syntax = syntaxes.find_syntax_by_token(language)?;
-        let key = hash_of(&(language, line(0)));
-        let block = self.blocks.entry(key).or_insert_with(|| BlockHighlight {
+        let syntax = syntaxes.find_syntax_by_token(block.language)?;
+        let key = block.start;
+        let cached = self
+            .blocks
+            .get(&key)
+            .filter(|cached| cached.language == block.language)
+            .map_or(0, |cached| cached.lines.len());
+        let too_long = index + 1 > cached + SYNC_LINES;
+        if too_long || !self.warmed.contains(block.language) {
+            self.queue(key, block);
+            return None;
+        }
+        let generation = self.generation;
+        let cache = self.blocks.entry(key).or_insert_with(|| BlockHighlight {
+            language: block.language.to_owned(),
             lines: Vec::new(),
             used: true,
+            checked: 0,
+            generation,
         });
-        block.used = true;
-        for at in 0..=index {
-            let text = line(at);
-            let hash = hash_of(&text);
-            if block
-                .lines
-                .get(at)
-                .is_some_and(|cached| cached.hash == hash)
-            {
-                continue;
-            }
-            block.lines.truncate(at);
-            let highlighted = highlight_after(block.lines.last(), syntax, syntaxes, text, hash);
-            block.lines.push(highlighted);
+        cache.used = true;
+        if cache.language != block.language {
+            cache.language = block.language.to_owned();
+            cache.lines.clear();
         }
-        Some(block.lines[index].spans.clone())
+        if cache.generation != generation {
+            cache.generation = generation;
+            cache.checked = 0;
+        }
+        let checked = cache.checked;
+        match refresh_lines(cache, block, checked..=index, syntax, syntaxes) {
+            Refreshed::Current => {
+                cache.checked = cache.checked.max(index + 1);
+                Some(cache.lines[index].spans.clone())
+            }
+            Refreshed::LongLine => {
+                // Keep what the line looked like until the background
+                // catches up.
+                let stale = cache.lines.get(index).map(|line| line.spans.clone());
+                self.queue(key, block);
+                stale
+            }
+        }
+    }
+
+    fn queue<'a, F: Fn(usize) -> &'a str>(&mut self, key: usize, block: &BlockLines<'a, F>) {
+        if self.pending.values().any(|start| *start == key) {
+            return;
+        }
+        let id = self.next_job;
+        self.next_job += 1;
+        self.pending.insert(id, key);
+        self.jobs.push(HighlightJob {
+            id,
+            language: block.language.to_owned(),
+            lines: (0..block.count)
+                .map(|at| (block.line)(at).to_owned())
+                .collect(),
+        });
+    }
+}
+
+/// Where a block's code that started at `start` starts after bytes `old`
+/// became `new_len` bytes, or `None` when the edit swallowed its start.
+fn moved_start(start: usize, old: &Range<usize>, new_len: usize) -> Option<usize> {
+    if old.start >= start {
+        Some(start)
+    } else if old.end <= start {
+        Some(start - old.len() + new_len)
+    } else {
+        None
+    }
+}
+
+/// Whether [`refresh_lines`] brought every line up to date.
+enum Refreshed {
+    Current,
+    /// A changed line is too long to highlight during layout.
+    LongLine,
+}
+
+/// Checks `lines` of the block against the cache, highlighting changed
+/// ones, and stops at a changed line longer than [`SYNC_LINE_LENGTH`].
+fn refresh_lines<'a, F: Fn(usize) -> &'a str>(
+    cache: &mut BlockHighlight,
+    block: &BlockLines<'a, F>,
+    lines: RangeInclusive<usize>,
+    syntax: &SyntaxReference,
+    syntaxes: &SyntaxSet,
+) -> Refreshed {
+    for at in lines {
+        let text = (block.line)(at);
+        let hash = hash_of(&text);
+        if cache.lines.get(at).is_some_and(|line| line.hash == hash) {
+            continue;
+        }
+        if text.len() > SYNC_LINE_LENGTH {
+            return Refreshed::LongLine;
+        }
+        let previous = at.checked_sub(1).map(|p| &cache.lines[p]);
+        let fresh = highlight_after(previous, syntax, syntaxes, text, hash);
+        replace_line(&mut cache.lines, at, fresh);
+    }
+    Refreshed::Current
+}
+
+/// Puts a freshly highlighted line at `at`. When it leaves the parser
+/// where the old line did, the lines after it still hold; otherwise they
+/// go, to be highlighted again.
+fn replace_line(lines: &mut Vec<HighlightedLine>, at: usize, fresh: HighlightedLine) {
+    let converged = lines
+        .get(at)
+        .is_some_and(|old| old.state == fresh.state && old.stack == fresh.stack);
+    if !converged {
+        lines.truncate(at);
+    }
+    match lines.get_mut(at) {
+        Some(slot) => *slot = fresh,
+        None => lines.push(fresh),
     }
 }
 
@@ -289,8 +496,15 @@ pub fn spans_for_line(
         return None;
     }
     let first = source.line_of(content.start);
+    let last = source.line_of(content.end.saturating_sub(1).max(content.start));
     let index = plan.line.checked_sub(first)?;
-    code.line(&language, |at| source.line_text(first + at), index)
+    let block = BlockLines {
+        language: &language,
+        start: content.start,
+        line: |at| source.line_text(first + at),
+        count: last + 1 - first,
+    };
+    code.line(&block, index)
 }
 
 /// The language and code range of the fenced block around `offset`.
@@ -316,15 +530,49 @@ fn fenced_block_at(source: &Source, offset: usize) -> Option<(String, Range<usiz
 mod tests {
     use super::*;
 
-    fn kinds(language: &str, lines: &[&str]) -> Vec<Vec<(String, CodeKind)>> {
+    #[test]
+    fn blocks_move_with_edits_above_them() {
+        assert_eq!(moved_start(100, &(10..12), 5), Some(103));
+        assert_eq!(
+            moved_start(100, &(100..100), 5),
+            Some(100),
+            "typing at its start"
+        );
+        assert_eq!(moved_start(100, &(120..130), 0), Some(100));
+        assert_eq!(moved_start(100, &(90..110), 0), None);
+    }
+
+    /// Highlights `lines` as one block, running background jobs in place.
+    fn highlight(code: &mut CodeHighlighter, language: &str, lines: &[&str]) -> Vec<LineSpans> {
         load_syntaxes();
-        let mut code = CodeHighlighter::default();
+        let block = BlockLines {
+            language,
+            start: 0,
+            line: |at: usize| lines[at],
+            count: lines.len(),
+        };
         (0..lines.len())
             .map(|index| {
-                let spans = code.line(language, |at| lines[at], index).unwrap();
+                code.line(&block, index).unwrap_or_else(|| {
+                    for job in code.take_jobs() {
+                        code.finish_job(job.run());
+                    }
+                    code.line(&block, index)
+                        .expect("highlighted in the background")
+                })
+            })
+            .collect()
+    }
+
+    fn kinds(language: &str, lines: &[&str]) -> Vec<Vec<(String, CodeKind)>> {
+        let spans = highlight(&mut CodeHighlighter::default(), language, lines);
+        spans
+            .iter()
+            .zip(lines)
+            .map(|(spans, line)| {
                 spans
                     .iter()
-                    .map(|(range, kind)| (lines[index][range.clone()].to_owned(), *kind))
+                    .map(|(range, kind)| (line[range.clone()].to_owned(), *kind))
                     .collect()
             })
             .collect()
@@ -364,25 +612,104 @@ mod tests {
     fn unknown_languages_stay_plain() {
         load_syntaxes();
         let mut code = CodeHighlighter::default();
-        assert!(code.line("no-such-language", |_| "x", 0).is_none());
+        let block = BlockLines {
+            language: "no-such-language",
+            start: 0,
+            line: |_| "x",
+            count: 1,
+        };
+        assert!(code.line(&block, 0).is_none());
+        assert!(code.take_jobs().is_empty());
     }
 
     #[test]
-    fn an_edit_rehighlights_from_the_changed_line() {
+    fn an_edit_rehighlights_the_changed_line_and_what_it_affects() {
+        let mut code = CodeHighlighter::default();
+        highlight(&mut code, "python", &["a = 1", "b = 2", "c = 3"]);
+        code.text_changed(0..0, 0);
+        let edited = highlight(&mut code, "python", &["a = 1", "b = \"2\"", "c = 3"]);
+        assert!(edited[1].iter().any(|(_, kind)| *kind == CodeKind::String));
+        assert!(
+            code.take_jobs().is_empty(),
+            "a warm language edits in place"
+        );
+        code.text_changed(0..0, 0);
+        let opened = highlight(&mut code, "python", &["a = 1", "b = \"\"\"2", "c = 3"]);
+        assert_eq!(opened[2].len(), 1, "an open string reaches the next line");
+        assert_eq!(opened[2][0].1, CodeKind::String);
+    }
+
+    #[test]
+    fn a_cold_language_or_a_long_stretch_goes_to_the_background() {
         load_syntaxes();
         let mut code = CodeHighlighter::default();
-        let before = ["a = 1", "b = 2"];
-        code.line("python", |at| before[at], 1).unwrap();
-        let after = ["a = 1", "b = \"2\""];
-        let spans = code.line("python", |at| after[at], 1).unwrap();
-        assert!(spans.iter().any(|(_, kind)| *kind == CodeKind::String));
+        let lines: Vec<String> = (0..100).map(|n| format!("let x{n} = {n};")).collect();
+        let block = BlockLines {
+            language: "js",
+            start: 0,
+            line: |at: usize| lines[at].as_str(),
+            count: lines.len(),
+        };
+        assert!(code.line(&block, 0).is_none(), "js hasn't run yet");
+        let jobs = code.take_jobs();
+        assert_eq!(jobs.len(), 1);
+        code.finish_job(jobs.into_iter().next().unwrap().run());
+        assert!(code.line(&block, 99).is_some(), "the whole block came back");
+        let other = BlockLines {
+            language: "js",
+            start: 5000,
+            line: |at: usize| {
+                if at == 0 {
+                    "// other"
+                } else {
+                    lines[at].as_str()
+                }
+            },
+            count: lines.len(),
+        };
+        assert!(
+            code.line(&other, 90).is_none(),
+            "90 lines is too many to do now"
+        );
+        assert!(code.line(&other, 3).is_some(), "a few lines are fine");
+    }
+
+    #[test]
+    fn a_long_changed_line_keeps_its_old_colours_until_the_background_is_done() {
+        let mut code = CodeHighlighter::default();
+        let short = ["x = 1  # note"];
+        let before = highlight(&mut code, "python", &short);
+        let long = format!("x = 1  # note{}", " and more".repeat(20));
+        code.text_changed(0..0, 0);
+        let block = BlockLines {
+            language: "python",
+            start: 0,
+            line: |_: usize| long.as_str(),
+            count: 1,
+        };
+        assert_eq!(code.line(&block, 0), Some(before[0].clone()));
+        let jobs = code.take_jobs();
+        assert_eq!(jobs.len(), 1);
+        code.finish_job(jobs.into_iter().next().unwrap().run());
+        let after = code.line(&block, 0).unwrap();
+        assert_eq!(
+            after.last().unwrap().0.end,
+            long.len(),
+            "the comment reaches the end"
+        );
     }
 
     #[test]
     fn nothing_before_the_grammars_load_but_a_request() {
         let mut code = CodeHighlighter::default();
         if SYNTAXES.get().is_none() {
-            assert!(code.line("rust", |_| "fn x() {}", 0).is_none());
+            let block = BlockLines {
+                language: "rust",
+                start: 0,
+                line: |_| "fn x() {}",
+                count: 1,
+            };
+            assert!(code.line(&block, 0).is_none());
             assert!(code.take_load_request());
             assert!(!code.take_load_request(), "asked once");
         }
