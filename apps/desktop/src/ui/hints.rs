@@ -49,6 +49,17 @@ pub fn shortcut(id: &str, cx: &App) -> Option<Shortcut> {
     shortcut_in(rules, platform, id)
 }
 
+/// A chord written as in the rules, such as `Mod+Enter`, as shown on
+/// this platform: for keys a view handles itself rather than through
+/// commands.
+pub fn chord(text: &str, cx: &App) -> Option<Shortcut> {
+    let platform = cx
+        .try_global::<Hints>()
+        .map_or_else(Platform::current, |hints| hints.platform);
+    let chord = editor_config::keys::KeyChord::parse(text).ok()?;
+    Some(Shortcut::new(chord, platform))
+}
+
 fn shortcut_in(rules: &RuleSet, platform: Platform, id: &str) -> Option<Shortcut> {
     let chord = rules.keys_for(id, platform).into_iter().next()?;
     Some(Shortcut::new(chord, platform))

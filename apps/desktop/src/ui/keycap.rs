@@ -105,7 +105,13 @@ fn key_glyph(key: Key) -> Glyph {
 /// A shortcut as one chip. Callers add hover, a ring or a trailing
 /// button to the returned element.
 pub fn keycap(shortcut: Shortcut, theme: &KeycapTheme) -> Div {
-    let glyphs = glyphs(shortcut).into_iter().map(|glyph| match glyph {
+    keycap_glyphs(glyphs(shortcut), theme)
+}
+
+/// A chip of any glyphs, such as a family of shortcuts that share their
+/// modifiers and differ by arrow.
+pub fn keycap_glyphs(glyphs: Vec<Glyph>, theme: &KeycapTheme) -> Div {
+    let glyphs = glyphs.into_iter().map(|glyph| match glyph {
         Glyph::Icon(name) => icon(name)
             .flex_none()
             .size(theme.icon_size)

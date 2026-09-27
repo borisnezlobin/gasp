@@ -63,6 +63,8 @@ impl ModalLayer {
         });
         let focus = view.focus_handle(cx);
         window.focus(&focus);
+        // A screen opens without a ring until the keyboard moves in it.
+        crate::ui::focus_visible::set_keyboard_driving(false, cx);
         self.active = Some(ActiveModal {
             view: view.into(),
             type_id: TypeId::of::<V>(),

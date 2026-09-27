@@ -405,7 +405,9 @@ impl Render for TextInput {
                     .px(theme.padding_x)
                     .rounded(theme.radius)
                     .bg(background)
-                    .when(focused, |field| field.shadow(vec![theme.focus_ring()]))
+                    .when(crate::ui::focus_visible::ring(focused, cx), |field| {
+                        field.shadow(vec![theme.focus_ring()])
+                    })
             })
             .child(TextLine::new(cx.entity()))
     }

@@ -17,11 +17,14 @@ impl Render for KnowledgeSidebar {
         let ui = ui_theme(cx);
         let rows = list(
             self.list.clone(),
-            cx.processor(|sidebar, index, _, cx| sidebar.render_row(index, cx)),
+            cx.processor(|sidebar, index, window, cx| sidebar.render_row(index, window, cx)),
         )
         .size_full();
         div()
             .id("knowledge-sidebar")
+            .key_context("KnowledgeSidebar")
+            .track_focus(&self.focus_handle)
+            .on_key_down(cx.listener(Self::on_key_down))
             .flex()
             .flex_col()
             .size_full()
@@ -72,31 +75,40 @@ impl KnowledgeSidebar {
             .child(hide)
     }
 
-    fn render_row(&mut self, index: usize, cx: &mut Context<Self>) -> AnyElement {
+    fn render_row(
+        &mut self,
+        index: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let ui = ui_theme(cx);
+        let current = self.selected == Some(index) && self.focus_handle.is_focused(window);
+        let ringed = crate::ui::focus_visible::ring(current, cx);
         let Some(row) = self.rows().get(index).cloned() else {
             return div().into_any_element();
         };
         let content = match row {
             Row::Summary(text) => summary(text, &ui),
             Row::Message(text) => message(text, &ui),
-            Row::Source {
-                path,
-                title,
-                folder,
-            } => source(title, folder, &ui).on_click(cx.listener(move |_, _, _, cx| {
-                cx.emit(SidebarEvent::Open {
-                    path: path.clone(),
-                    offset: None,
-                })
-            })),
+            Row::Source { title, folder, .. } => source(title, folder, &ui)
+                .on_click(cx.listener(move |sidebar, _, _, cx| sidebar.activate(index, cx))),
             Row::Context { .. } => self.context_row(index, row, &ui, cx),
             Row::UnlinkedToggle { open, count } => unlinked_toggle(open, count, &ui)
                 .on_click(cx.listener(|sidebar, _, _, cx| sidebar.toggle_unlinked(cx))),
-            Row::Outgoing { .. } => outgoing(row, &ui, cx),
-            Row::Heading { .. } => heading(row, &ui, cx),
-            Row::Tag { .. } => tag(row, &ui, cx),
+            Row::Outgoing { .. } => outgoing(index, row, &ui, cx),
+            Row::Heading { .. } => heading(index, row, &ui, cx),
+            Row::Tag { .. } => tag(index, row, &ui, cx),
         };
+        // The row the keys act on: a fill whichever way the sidebar got
+        // the keyboard, and the ring while the keyboard is driving.
+        let content = content
+            .when(current, |row| {
+                row.bg(crate::theme::over(
+                    ui.tree_active_background,
+                    ui.app_background,
+                ))
+            })
+            .when(ringed, |row| row.shadow(vec![ui.focus()]));
         // Room around the row so the list's clipping doesn't cut it.
         div()
             .id(("knowledge-row", index))
@@ -116,10 +128,7 @@ impl KnowledgeSidebar {
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<Div> {
         let Row::Context {
-            path,
-            offset,
-            excerpt,
-            mention,
+            excerpt, mention, ..
         } = row
         else {
             return div().id("empty");
@@ -139,18 +148,10 @@ impl KnowledgeSidebar {
         };
         let text = StyledText::new(SharedString::from(excerpt.text.clone()))
             .with_highlights([(excerpt.highlight.clone(), highlight)]);
-        let open_path = path.clone();
-        let link = mention.map(|(range, expected, link)| {
+        let link = mention.map(|_| {
             Button::new(("knowledge-link", index), "Link")
                 .quiet()
-                .on_click(cx.listener(move |_, _, _, cx| {
-                    cx.emit(SidebarEvent::LinkMention {
-                        source: path.clone(),
-                        range: range.clone(),
-                        expected: expected.clone(),
-                        link: link.clone(),
-                    })
-                }))
+                .on_click(cx.listener(move |sidebar, _, _, cx| sidebar.link_mention(index, cx)))
         });
         // The button floats over the row's right end, with room kept for
         // it: text beside a flex sibling wraps at the wrong width.
@@ -168,12 +169,7 @@ impl KnowledgeSidebar {
             .text_color(ui.text_muted)
             .cursor_pointer()
             .hover(|style| style.bg(ui.tree_hover_background))
-            .on_click(cx.listener(move |_, _, _, cx| {
-                cx.emit(SidebarEvent::Open {
-                    path: open_path.clone(),
-                    offset: Some(offset),
-                })
-            }))
+            .on_click(cx.listener(move |sidebar, _, _, cx| sidebar.activate(index, cx)))
             .child(div().w_full().child(text))
             .children(link.map(|link| {
                 div()
@@ -288,7 +284,12 @@ fn unlinked_toggle(open: bool, count: Option<usize>, ui: &UiTheme) -> gpui::Stat
         }))
 }
 
-fn outgoing(row: Row, ui: &UiTheme, cx: &mut Context<KnowledgeSidebar>) -> gpui::Stateful<Div> {
+fn outgoing(
+    index: usize,
+    row: Row,
+    ui: &UiTheme,
+    cx: &mut Context<KnowledgeSidebar>,
+) -> gpui::Stateful<Div> {
     let Row::Outgoing {
         label,
         target,
@@ -315,7 +316,7 @@ fn outgoing(row: Row, ui: &UiTheme, cx: &mut Context<KnowledgeSidebar>) -> gpui:
     // A missing image or file can't be made from here.
     let row = if exists || is_note {
         row_shell(id, 0, ui)
-            .on_click(cx.listener(move |_, _, _, cx| cx.emit(SidebarEvent::Follow(target.clone()))))
+            .on_click(cx.listener(move |sidebar, _, _, cx| sidebar.activate(index, cx)))
     } else {
         still_row(id, 0, ui)
     };
@@ -347,7 +348,12 @@ fn is_image(target: &str) -> bool {
 
 const IMAGE_EXTENSIONS: [&str; 7] = [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp"];
 
-fn heading(row: Row, ui: &UiTheme, cx: &mut Context<KnowledgeSidebar>) -> gpui::Stateful<Div> {
+fn heading(
+    index: usize,
+    row: Row,
+    ui: &UiTheme,
+    cx: &mut Context<KnowledgeSidebar>,
+) -> gpui::Stateful<Div> {
     let Row::Heading {
         title,
         offset,
@@ -360,11 +366,16 @@ fn heading(row: Row, ui: &UiTheme, cx: &mut Context<KnowledgeSidebar>) -> gpui::
     row_shell(("knowledge-heading", offset), depth, ui)
         .when(current, |row| row.bg(ui.tree_active_background))
         .text_color(if depth == 0 { ui.text } else { ui.text_muted })
-        .on_click(cx.listener(move |_, _, _, cx| cx.emit(SidebarEvent::Jump(offset))))
+        .on_click(cx.listener(move |sidebar, _, _, cx| sidebar.activate(index, cx)))
         .child(truncated(title).grow())
 }
 
-fn tag(row: Row, ui: &UiTheme, cx: &mut Context<KnowledgeSidebar>) -> gpui::Stateful<Div> {
+fn tag(
+    index: usize,
+    row: Row,
+    ui: &UiTheme,
+    cx: &mut Context<KnowledgeSidebar>,
+) -> gpui::Stateful<Div> {
     let Row::Tag {
         name,
         label,
@@ -412,7 +423,7 @@ fn tag(row: Row, ui: &UiTheme, cx: &mut Context<KnowledgeSidebar>) -> gpui::Stat
         ui,
     )
     .tooltip(Tooltip::new(format!("Search for {search}"), None).builder())
-    .on_click(cx.listener(move |_, _, _, cx| cx.emit(SidebarEvent::SearchTag(search.clone()))))
+    .on_click(cx.listener(move |sidebar, _, _, cx| sidebar.activate(index, cx)))
     .child(toggle)
     .child(
         div()
