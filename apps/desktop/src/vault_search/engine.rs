@@ -42,19 +42,36 @@ pub struct Note {
     pub path: PathBuf,
     pub text: Arc<str>,
     folded: Arc<str>,
+    /// Whether folding kept every character's byte length, so offsets in
+    /// the folded text are offsets in the text.
+    same_offsets: bool,
     fields: Arc<NoteFields>,
 }
 
 impl Note {
     pub fn new(path: PathBuf, text: String) -> Self {
-        let folded = fold(&text).text.into();
+        let folded = fold(&text);
         let fields = Arc::new(note_fields(&path, &text));
         Self {
             path,
             text: text.into(),
-            folded,
+            same_offsets: folded.same_offsets,
+            folded: folded.text.into(),
             fields,
         }
+    }
+
+    /// Every match of the folded `query` in the note, as ranges in its
+    /// text. Most notes fold without changing any character's length, and
+    /// those need no second pass over the text.
+    fn find_all(&self, query: &str) -> Vec<Range<usize>> {
+        if !self.same_offsets {
+            return fold(&self.text).find_all(query);
+        }
+        self.folded
+            .match_indices(query)
+            .map(|(start, found)| start..start + found.len())
+            .collect()
     }
 }
 
@@ -65,6 +82,8 @@ pub struct Folded {
     pub text: String,
     /// For each folded byte, the original character's byte range.
     origin: Vec<(usize, usize)>,
+    /// Whether every character folded to the same number of bytes.
+    pub same_offsets: bool,
 }
 
 impl Folded {
@@ -89,9 +108,16 @@ pub fn fold(text: &str) -> Folded {
     let mut folded = Folded {
         text: String::with_capacity(text.len()),
         origin: Vec::with_capacity(text.len()),
+        same_offsets: true,
     };
     for (start, ch) in text.char_indices() {
         let span = (start, start + ch.len_utf8());
+        if ch.is_ascii() {
+            folded.text.push(ch.to_ascii_lowercase());
+            folded.origin.push(span);
+            continue;
+        }
+        let before = folded.text.len();
         let lowered = ch
             .to_lowercase()
             .nfd()
@@ -102,6 +128,7 @@ pub fn fold(text: &str) -> Folded {
                 .origin
                 .extend(std::iter::repeat_n(span, out.len_utf8()));
         }
+        folded.same_offsets &= folded.text.len() - before == ch.len_utf8();
     }
     folded
 }
@@ -352,7 +379,7 @@ fn search_note(note: &Note, query: &str) -> Option<NoteResult> {
         return None;
     }
     let matches = if in_body {
-        fold(&note.text).find_all(query)
+        note.find_all(query)
     } else {
         Vec::new()
     };
@@ -609,8 +636,20 @@ mod tests {
     #[test]
     fn folding_ignores_case_and_diacritics() {
         assert_eq!(fold("Émile Ångström").text, "emile angstrom");
+        assert!(!fold("Émile").same_offsets);
+        assert!(fold("Plain — ASCII and a dash").same_offsets);
         let folded = fold("Café CAFE");
         assert_eq!(folded.find_all("cafe"), vec![0..5, 6..10]);
+    }
+
+    #[test]
+    fn notes_find_the_same_matches_either_way() {
+        for text in ["Plain CAT — cat, Cat", "Café CAFE café", "İstanbul cat"] {
+            let note = Note::new(PathBuf::from("n.md"), text.to_owned());
+            for query in ["cat", "cafe", "istanbul"] {
+                assert_eq!(note.find_all(query), fold(text).find_all(query), "{text}");
+            }
+        }
     }
 
     #[test]

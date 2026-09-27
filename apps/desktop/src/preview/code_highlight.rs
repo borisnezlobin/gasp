@@ -152,37 +152,72 @@ const SYNC_LINES: usize = 24;
 /// grow with the line, and code lines are rarely this long.
 const SYNC_LINE_LENGTH: usize = 120;
 
-/// A block to highlight in the background.
+/// A block to highlight in the background, from line `from` down.
 pub struct HighlightJob {
     id: u64,
     language: String,
+    from: usize,
+    /// The highlighted line before `from`, whose parser state the job
+    /// continues from.
+    seed: Option<HighlightedLine>,
+    /// The block's lines as last highlighted, from `from` down. Once the
+    /// parser state after a line matches what it was and the lines below
+    /// are unchanged, the rest is kept as it was.
+    known: Vec<HighlightedLine>,
+    /// The text of the block's lines from `from` down.
     lines: Vec<String>,
 }
 
-/// The finished job: every line of the block.
+/// The finished job: the block's lines from `from` down.
 pub struct HighlightedBlock {
     id: u64,
     language: String,
+    from: usize,
+    seed: Option<HighlightedLine>,
     lines: Vec<HighlightedLine>,
 }
 
 impl HighlightJob {
-    /// Highlights the whole block. Slow the first time a language runs,
-    /// so call it off the main thread.
+    /// Highlights the block from its first changed line down, stopping
+    /// where the rest is known to be unchanged. Slow the first time a
+    /// language runs, so call it off the main thread.
     pub fn run(self) -> HighlightedBlock {
         let syntaxes = load_syntaxes();
         let mut lines: Vec<HighlightedLine> = Vec::with_capacity(self.lines.len());
         if let Some(syntax) = syntaxes.find_syntax_by_token(&self.language) {
-            for text in &self.lines {
-                let line = highlight_after(lines.last(), syntax, syntaxes, text, hash_of(text));
+            for (at, text) in self.lines.iter().enumerate() {
+                let previous = lines.last().or(self.seed.as_ref());
+                let line = highlight_after(previous, syntax, syntaxes, text, hash_of(text));
+                let converged = self.converges_after(at, &line);
                 lines.push(line);
+                if converged {
+                    lines.extend_from_slice(&self.known[at + 1..]);
+                    break;
+                }
             }
         }
         HighlightedBlock {
             id: self.id,
             language: self.language,
+            from: self.from,
+            seed: self.seed,
             lines,
         }
+    }
+
+    /// Whether the lines after `at` stay as last highlighted: the parser
+    /// leaves `at` as it did, and none of the lines below changed.
+    fn converges_after(&self, at: usize, line: &HighlightedLine) -> bool {
+        let Some(old) = self.known.get(at) else {
+            return false;
+        };
+        let same_state = old.state == line.state && old.stack == line.stack;
+        same_state
+            && self.known.len() == self.lines.len()
+            && self.known[at + 1..]
+                .iter()
+                .zip(&self.lines[at + 1..])
+                .all(|(known, text)| known.hash == hash_of(text))
     }
 }
 
@@ -264,6 +299,10 @@ impl CodeHighlighter {
         let Some(start) = self.pending.remove(&done.id) else {
             return;
         };
+        if done.from > 0 {
+            self.splice(start, done);
+            return;
+        }
         self.blocks.insert(
             start,
             BlockHighlight {
@@ -297,7 +336,7 @@ impl CodeHighlighter {
             .map_or(0, |cached| cached.lines.len());
         let too_long = index + 1 > cached + SYNC_LINES;
         if too_long || !self.warmed.contains(block.language) {
-            self.queue(key, block);
+            self.queue(key, block, 0);
             return None;
         }
         let generation = self.generation;
@@ -323,27 +362,62 @@ impl CodeHighlighter {
                 cache.checked = cache.checked.max(index + 1);
                 Some(cache.lines[index].spans.clone())
             }
-            Refreshed::LongLine => {
+            Refreshed::LongLine(at) => {
                 // Keep what the line looked like until the background
                 // catches up.
                 let stale = cache.lines.get(index).map(|line| line.spans.clone());
-                self.queue(key, block);
+                self.queue(key, block, at);
                 stale
             }
         }
     }
 
-    fn queue<'a, F: Fn(usize) -> &'a str>(&mut self, key: usize, block: &BlockLines<'a, F>) {
+    /// Puts lines highlighted from `done.from` down in place of the
+    /// block's, when the line above them is still what the job started
+    /// from; otherwise the next frame asks again.
+    fn splice(&mut self, start: usize, done: HighlightedBlock) {
+        let Some(block) = self.blocks.get_mut(&start) else {
+            return;
+        };
+        let above = block.lines.get(done.from - 1);
+        let seed_holds = above.zip(done.seed.as_ref()).is_some_and(|(above, seed)| {
+            above.hash == seed.hash && above.state == seed.state && above.stack == seed.stack
+        });
+        if block.language != done.language || !seed_holds {
+            return;
+        }
+        block.lines.truncate(done.from);
+        block.lines.extend(done.lines);
+        block.used = true;
+        block.generation = 0;
+    }
+
+    /// Queues the block for the background from line `from` down, which
+    /// must follow lines current in the cache.
+    fn queue<'a, F: Fn(usize) -> &'a str>(
+        &mut self,
+        key: usize,
+        block: &BlockLines<'a, F>,
+        from: usize,
+    ) {
         if self.pending.values().any(|start| *start == key) {
             return;
         }
+        let cached = self
+            .blocks
+            .get(&key)
+            .map_or(&[][..], |cached| &cached.lines);
+        let from = if from > cached.len() { 0 } else { from };
         let id = self.next_job;
         self.next_job += 1;
         self.pending.insert(id, key);
         self.jobs.push(HighlightJob {
             id,
             language: block.language.to_owned(),
-            lines: (0..block.count)
+            from,
+            seed: from.checked_sub(1).map(|above| cached[above].clone()),
+            known: cached[from..].to_vec(),
+            lines: (from..block.count)
                 .map(|at| (block.line)(at).to_owned())
                 .collect(),
         });
@@ -365,8 +439,9 @@ fn moved_start(start: usize, old: &Range<usize>, new_len: usize) -> Option<usize
 /// Whether [`refresh_lines`] brought every line up to date.
 enum Refreshed {
     Current,
-    /// A changed line is too long to highlight during layout.
-    LongLine,
+    /// A changed line, the one at this index, is too long to highlight
+    /// during layout.
+    LongLine(usize),
 }
 
 /// Checks `lines` of the block against the cache, highlighting changed
@@ -385,7 +460,7 @@ fn refresh_lines<'a, F: Fn(usize) -> &'a str>(
             continue;
         }
         if text.len() > SYNC_LINE_LENGTH {
-            return Refreshed::LongLine;
+            return Refreshed::LongLine(at);
         }
         let previous = at.checked_sub(1).map(|p| &cache.lines[p]);
         let fresh = highlight_after(previous, syntax, syntaxes, text, hash);
@@ -697,6 +772,37 @@ mod tests {
             long.len(),
             "the comment reaches the end"
         );
+    }
+
+    #[test]
+    fn a_long_line_is_highlighted_from_where_it_changed() {
+        let mut code = CodeHighlighter::default();
+        let mut lines: Vec<String> = (0..30).map(|n| format!("x{n} = {n}  # line {n}")).collect();
+        let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
+        highlight(&mut code, "python", &refs);
+        lines[10] = format!("y = 'a string'  # {}", "and more ".repeat(20));
+        code.text_changed(0..0, 0);
+        let block = BlockLines {
+            language: "python",
+            start: 0,
+            line: |at: usize| lines[at].as_str(),
+            count: lines.len(),
+        };
+        for at in 0..lines.len() {
+            code.line(&block, at);
+        }
+        let jobs = code.take_jobs();
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].from, 10, "the lines above stay as they are");
+        let done = jobs.into_iter().next().unwrap().run();
+        assert_eq!(done.lines.len(), 20);
+        code.finish_job(done);
+        let spliced: Vec<Option<LineSpans>> =
+            (0..lines.len()).map(|at| code.line(&block, at)).collect();
+        let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
+        let fresh = highlight(&mut CodeHighlighter::default(), "python", &refs);
+        let fresh: Vec<Option<LineSpans>> = fresh.into_iter().map(Some).collect();
+        assert_eq!(spliced, fresh);
     }
 
     #[test]
