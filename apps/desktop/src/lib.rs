@@ -18,8 +18,12 @@ pub mod line_layout;
 pub mod metrics;
 pub mod navigation;
 pub mod note;
+pub mod outline;
+pub mod palette;
+pub mod picker;
 pub mod stats;
 pub mod styling;
+pub mod switcher;
 pub mod text_offsets;
 pub mod theme;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
