@@ -12,6 +12,7 @@ mod commands;
 pub mod files;
 pub mod history;
 pub mod launcher;
+pub mod links;
 pub mod menus;
 pub mod modal;
 pub mod note_doc;

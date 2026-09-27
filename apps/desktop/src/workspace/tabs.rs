@@ -135,6 +135,8 @@ impl Workspace {
     ) -> io::Result<Tab> {
         let doc = self.doc(path, cx)?;
         let editor = doc.update(cx, |doc, cx| doc.new_editor(cx));
+        let config = self.config.clone();
+        editor.update(cx, |editor, cx| editor.apply_config(&config, cx));
         let title_text = note_title(path);
         let title = cx.new(|cx| TitleInput::new(&title_text, window, cx));
         self.cursors
