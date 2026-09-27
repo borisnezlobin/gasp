@@ -8,10 +8,13 @@ pub const USAGE: &str = "\
 usage: editor [PATH]
        editor --bench-layout PATH [--keystrokes N] [--scroll-pages N]
 
-PATH is a note, or a folder whose notes are joined into one long note.
---bench-layout opens a window, types into the middle of the note and
-scrolls through it, then prints frame timings and quits. On Linux without
-a display, run it under xvfb-run.";
+PATH is a folder of notes (a vault) or a note, which opens its vault
+with that note showing. With no PATH, the last vault opens again.
+
+--bench-layout opens a lone editor on PATH (a note, or a folder whose
+notes are joined into one long note), types into the middle and scrolls
+through it, then prints frame timings and quits. On Linux without a
+display, run it under xvfb-run.";
 
 /// What the binary was asked to do.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -64,7 +67,7 @@ mod tests {
     }
 
     #[test]
-    fn no_arguments_opens_the_demo() {
+    fn no_arguments_reopens_the_last_vault() {
         assert_eq!(parse(&[]), Ok(Command::Open(None)));
     }
 

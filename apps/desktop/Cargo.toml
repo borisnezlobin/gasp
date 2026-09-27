@@ -27,6 +27,12 @@ gpui = "=0.2.2"
 image = "0.25"
 unicode-normalization = "0.1.25"
 unicode-segmentation = "1.13"
+notify = "6"
+futures = "0.3"
+dirs = "5"
+trash = "5"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 x11rb = "0.13"

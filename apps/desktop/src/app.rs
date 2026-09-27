@@ -1,4 +1,5 @@
-//! Starting the GPUI application and opening the editor window.
+//! Starting the GPUI application: a vault window, or the lone editor the
+//! layout benchmark drives.
 
 use std::time::Duration;
 
@@ -9,9 +10,12 @@ use crate::bench::BenchConfig;
 use crate::editor::EditorView;
 use crate::icons::Assets;
 use crate::note::LoadedNote;
+use crate::workspace::menus::{built_in_available, set_app_menus};
+use crate::workspace::prompt::use_in_window_prompts;
+use crate::workspace::window::{LaunchTarget, open_target};
 
-const WINDOW_SIZE: (f32, f32) = (900., 700.);
-const WINDOW_TITLE: &str = "Editor";
+const BENCH_WINDOW_SIZE: (f32, f32) = (900., 700.);
+const BENCH_WINDOW_TITLE: &str = "Editor";
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 const WAKE_DELAY: Duration = Duration::from_millis(500);
 const BENCH_TIMEOUT: Duration = Duration::from_secs(600);
@@ -26,16 +30,37 @@ pub fn has_display() -> bool {
         .any(|name| std::env::var_os(name).is_some_and(|value| !value.is_empty()))
 }
 
-/// Opens the editor on `note` and runs until the window closes. With a
-/// bench config, runs the benchmark and quits.
-pub fn launch(note: LoadedNote, bench: Option<BenchConfig>) {
-    if bench.is_some() {
-        start_watchdog();
-        start_x11_wake();
-    }
+/// Opens `target` (a vault, or the empty state) and runs until the last
+/// window closes or the app quits.
+pub fn launch(target: LaunchTarget) {
     Application::new().with_assets(Assets).run(move |cx| {
         bind_keys(cx);
-        let bounds = Bounds::centered(None, size(px(WINDOW_SIZE.0), px(WINDOW_SIZE.1)), cx);
+        set_app_menus(cx, &built_in_available(&[]));
+        use_in_window_prompts(cx);
+        if let Err(error) = open_target(target, cx) {
+            eprintln!("could not open a window: {error}");
+            std::process::exit(1);
+        }
+        cx.on_window_closed(|cx| {
+            if cx.windows().is_empty() {
+                cx.quit();
+            }
+        })
+        .detach();
+    });
+}
+
+/// Opens a lone editor on `note`, runs the layout benchmark and quits.
+pub fn launch_bench(note: LoadedNote, bench: BenchConfig) {
+    start_watchdog();
+    start_x11_wake();
+    Application::new().with_assets(Assets).run(move |cx| {
+        bind_keys(cx);
+        let bounds = Bounds::centered(
+            None,
+            size(px(BENCH_WINDOW_SIZE.0), px(BENCH_WINDOW_SIZE.1)),
+            cx,
+        );
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             ..Default::default()
@@ -51,12 +76,10 @@ pub fn launch(note: LoadedNote, bench: Option<BenchConfig>) {
             }
         };
         let started = window.update(cx, |view, window, cx| {
-            window.set_window_title(WINDOW_TITLE);
+            window.set_window_title(BENCH_WINDOW_TITLE);
             window.focus(&view.focus_handle);
-            view.set_log_timings(bench.is_none());
-            if let Some(config) = bench {
-                view.start_bench(config, window, cx);
-            }
+            view.set_log_timings(false);
+            view.start_bench(bench, window, cx);
             cx.activate(true);
         });
         if let Err(error) = started {
