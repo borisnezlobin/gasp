@@ -50,6 +50,10 @@ pub enum PlatformFilter {
     Windows,
     Linux,
     Ios,
+    /// macOS and iOS, which share Apple's text-editing keys.
+    Apple,
+    /// Windows and Linux, which share the PC text-editing keys.
+    Pc,
 }
 
 const FILTER_TABLE: &[(PlatformFilter, &[Platform])] = &[
@@ -62,6 +66,8 @@ const FILTER_TABLE: &[(PlatformFilter, &[Platform])] = &[
     (PlatformFilter::Windows, &[Platform::Windows]),
     (PlatformFilter::Linux, &[Platform::Linux]),
     (PlatformFilter::Ios, &[Platform::Ios]),
+    (PlatformFilter::Apple, &[Platform::Macos, Platform::Ios]),
+    (PlatformFilter::Pc, &[Platform::Windows, Platform::Linux]),
 ];
 
 impl PlatformFilter {
@@ -110,6 +116,15 @@ mod tests {
     fn mobile_filter_is_only_ios() {
         assert!(PlatformFilter::Mobile.matches(Platform::Ios));
         assert!(!PlatformFilter::Mobile.matches(Platform::Linux));
+    }
+
+    #[test]
+    fn apple_and_pc_split_the_platforms() {
+        for platform in Platform::ALL {
+            let apple = PlatformFilter::Apple.matches(platform);
+            assert_eq!(apple, platform.is_apple());
+            assert_eq!(PlatformFilter::Pc.matches(platform), !apple);
+        }
     }
 
     #[test]

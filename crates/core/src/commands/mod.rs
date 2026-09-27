@@ -1,4 +1,5 @@
-//! Editing commands the keymap binds: formatting toggles and footnotes.
+//! Editing commands the keymap binds: formatting toggles, links, indenting
+//! and footnotes.
 //!
 //! Each command reads the document and selection and returns a
 //! [`Transaction`] tagged with the command's id, so it becomes its own undo
@@ -6,9 +7,13 @@
 
 mod footnote;
 mod format;
+mod indent;
+mod link;
 
 pub use footnote::{FootnoteCommand, insert_or_jump_footnote};
 pub use format::{Format, toggle_format};
+pub use indent::{indent, outdent};
+pub use link::insert_link;
 
 use crate::document::{Document, Selection};
 use crate::pipeline::{InputContext, RangePlan, StepContext, plan_transaction};

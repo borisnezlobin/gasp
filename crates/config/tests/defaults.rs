@@ -128,14 +128,67 @@ fn every_keymap_row_is_a_default_rule() {
     }
 }
 
+/// Text-editing keys (cursor movement, selection, deletion, clipboard) are
+/// defaults too, but they follow each platform's conventions rather than the
+/// plan's keymap table.
+fn is_text_editing(command: &str) -> bool {
+    ["cursor.", "select.", "edit."]
+        .iter()
+        .any(|prefix| command.starts_with(prefix))
+}
+
 #[test]
-fn default_key_rules_are_exactly_the_keymap() {
+fn default_key_rules_outside_text_editing_are_exactly_the_keymap() {
     let key_rules = RuleSet::defaults()
         .rules()
         .iter()
-        .filter(|rule| rule.is_key())
+        .filter(|rule| rule.is_key() && !is_text_editing(&rule.command))
         .count();
     assert_eq!(key_rules, KEYMAP.len());
+}
+
+#[test]
+fn word_and_line_keys_follow_each_platform() {
+    let rules = RuleSet::defaults();
+    let cases = [
+        (
+            Platform::Macos,
+            "Alt+Backspace",
+            "edit.delete-word-backward",
+        ),
+        (
+            Platform::Macos,
+            "Cmd+Backspace",
+            "edit.delete-to-line-start",
+        ),
+        (Platform::Macos, "Alt+Left", "cursor.word-left"),
+        (Platform::Macos, "Cmd+Shift+Right", "select.line-end"),
+        (Platform::Macos, "Ctrl+K", "edit.delete-to-line-end"),
+        (
+            Platform::Windows,
+            "Ctrl+Backspace",
+            "edit.delete-word-backward",
+        ),
+        (Platform::Linux, "Ctrl+Shift+Left", "select.word-left"),
+        (Platform::Linux, "Ctrl+End", "cursor.doc-end"),
+        (Platform::Windows, "Ctrl+Y", "edit.redo"),
+        (Platform::Linux, "Ctrl+C", "edit.copy"),
+        (Platform::Macos, "Cmd+V", "edit.paste"),
+    ];
+    for (platform, keys, command) in cases {
+        let chord = KeyChord::parse_for(keys, platform).unwrap();
+        let bound = rules.keys_for(command, platform);
+        assert!(
+            bound.contains(&chord),
+            "{keys} should run {command} on {platform:?}, got {bound:?}"
+        );
+    }
+    let apple_only = KeyChord::parse_for("Ctrl+K", Platform::Linux).unwrap();
+    assert!(
+        !rules
+            .keys_for("edit.delete-to-line-end", Platform::Linux)
+            .contains(&apple_only)
+    );
 }
 
 #[test]
