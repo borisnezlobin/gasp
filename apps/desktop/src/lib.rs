@@ -9,6 +9,8 @@ pub mod commands;
 pub mod demo;
 pub mod editor;
 pub mod element;
+pub mod export_ui;
+pub mod find;
 pub mod frame;
 pub mod icons;
 pub mod images;
@@ -18,10 +20,12 @@ pub mod line_layout;
 pub mod metrics;
 pub mod navigation;
 pub mod note;
+pub mod paste;
 pub mod stats;
 pub mod styling;
 pub mod text_offsets;
 pub mod theme;
+pub mod vault_search;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 mod x11_wake;
 
