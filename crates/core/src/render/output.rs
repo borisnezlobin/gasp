@@ -227,6 +227,9 @@ pub enum WidgetKind {
         items: Vec<String>,
         tags: bool,
     },
+    /// Where an empty snippet tab stop waits: a small block the text
+    /// makes room for. The app adds it; the planner never does.
+    EmptyTabStop,
 }
 
 /// The plan for one source line.

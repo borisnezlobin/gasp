@@ -97,6 +97,9 @@ pub enum PieceContent {
     Checkbox {
         checked: bool,
     },
+    /// The block an empty snippet tab stop waits in. The caret at its
+    /// offset stands in its middle.
+    TabStop,
 }
 
 /// What clicking a piece does besides placing the cursor.
@@ -229,6 +232,11 @@ impl VisualRow {
     /// to the next visible piece; offsets inside a widget snap to its left
     /// edge.
     pub fn x_for(&self, offset: usize) -> Pixels {
+        if let Some(slot) = self.pieces.iter().find(|piece| {
+            matches!(piece.content, PieceContent::TabStop) && piece.range.start == offset
+        }) {
+            return slot.x + slot.width / 2.;
+        }
         let mut x = self.left;
         let mut previous_end = None;
         for piece in &self.pieces {

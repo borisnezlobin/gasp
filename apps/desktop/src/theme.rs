@@ -256,6 +256,8 @@ pub struct Theme {
     pub newline_selection_width: Pixels,
     /// How wide the mark on an empty tab stop is.
     pub tab_stop_width: Pixels,
+    /// Room on each side of an empty tab stop's block.
+    pub tab_stop_gap: Pixels,
     /// Room at each end of inline code, inside its fill.
     pub inline_code_padding: Pixels,
     /// Room at each end of a list property's item, inside its fill.
@@ -446,6 +448,7 @@ impl Theme {
             cursor_width: px(2.),
             newline_selection_width: space("space.sm", 4.) * 1.5,
             tab_stop_width: space("space.sm", 4.) * 1.5,
+            tab_stop_gap: space("space.xs", 2.),
             inline_code_padding: space("space.xs", 2.) * 1.5,
             property_chip_padding: space("space.sm", 4.) * 1.5,
             property_chip_gap: space("space.sm", 4.),
@@ -484,7 +487,7 @@ impl Theme {
         scaled
     }
 
-    fn sizes_mut(&mut self) -> [&mut Pixels; 39] {
+    fn sizes_mut(&mut self) -> [&mut Pixels; 40] {
         [
             &mut self.body_font_size,
             &mut self.title_font_size,
@@ -506,6 +509,7 @@ impl Theme {
             &mut self.cursor_width,
             &mut self.newline_selection_width,
             &mut self.tab_stop_width,
+            &mut self.tab_stop_gap,
             &mut self.inline_code_padding,
             &mut self.property_chip_padding,
             &mut self.property_chip_gap,
@@ -727,6 +731,7 @@ fn zero_sizes() -> Theme {
         cursor_width: zero,
         newline_selection_width: zero,
         tab_stop_width: zero,
+        tab_stop_gap: zero,
         inline_code_padding: zero,
         property_chip_padding: zero,
         property_chip_gap: zero,

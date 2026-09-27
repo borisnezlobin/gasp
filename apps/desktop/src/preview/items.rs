@@ -28,6 +28,11 @@ pub enum Item {
 }
 
 impl Item {
+    /// Whether the item is a widget with no source of its own.
+    fn is_slot(&self) -> bool {
+        matches!(self, Item::Inline { range, .. } if range.is_empty())
+    }
+
     pub fn start(&self) -> usize {
         match self {
             Item::Text { range, .. }
@@ -87,8 +92,41 @@ pub fn line_items(plan: &LinePlan) -> LineItems {
             }
         }
     }
-    result.items.sort_by_key(Item::start);
+    split_text_at_slots(&mut result.items);
+    // Something with no source of its own, such as an empty tab stop's
+    // room, goes before the text that starts where it sits.
     result
+        .items
+        .sort_by_key(|item| (item.start(), !item.is_slot()));
+    result
+}
+
+/// Splits text around the offsets of widgets with no source, so they can
+/// sit between the two halves.
+fn split_text_at_slots(items: &mut Vec<Item>) {
+    let slots: Vec<usize> = items
+        .iter()
+        .filter(|item| item.is_slot())
+        .map(Item::start)
+        .collect();
+    for at in slots {
+        let Some(index) = items.iter().position(
+            |item| matches!(item, Item::Text { range, .. } if range.start < at && at < range.end),
+        ) else {
+            continue;
+        };
+        let Item::Text { range, styles } = items[index].clone() else {
+            continue;
+        };
+        items[index] = Item::Text {
+            range: range.start..at,
+            styles: styles.clone(),
+        };
+        items.push(Item::Text {
+            range: at..range.end,
+            styles,
+        });
+    }
 }
 
 fn replacement_item(range: Range<usize>, kind: WidgetKind) -> Item {
@@ -102,6 +140,7 @@ fn replacement_item(range: Range<usize>, kind: WidgetKind) -> Item {
         | WidgetKind::ConflictLabel { .. }
         | WidgetKind::SubpathSeparator
         | WidgetKind::PropertyList { .. }
+        | WidgetKind::EmptyTabStop
         | WidgetKind::CalloutHeader { .. } => Item::Inline { range, kind },
         _ => Item::Block { range, kind },
     }

@@ -254,21 +254,13 @@ impl EditorView {
         rects
     }
 
-    /// The mark on a tab stop: its text's background, or a small block
-    /// where an empty stop waits.
+    /// The mark on a tab stop: its text's background. An empty stop is
+    /// a block the line lays out with room of its own.
     fn tab_stop_rects(&self, frame: &FrameLayout, range: &Range<usize>) -> Vec<Bounds<Pixels>> {
-        if !range.is_empty() {
-            return frame.range_rects(range, &self.theme);
+        if range.is_empty() {
+            return Vec::new();
         }
-        let width = self.theme.tab_stop_width;
-        frame
-            .caret_bounds(range.start, &self.theme)
-            .map(|caret| Bounds {
-                origin: point(caret.left() - width / 2., caret.top()),
-                size: size(width, caret.size.height),
-            })
-            .into_iter()
-            .collect()
+        frame.range_rects(range, &self.theme)
     }
 }
 
@@ -684,6 +676,10 @@ fn paint_piece(
         PieceContent::Quad { .. } => {}
         PieceContent::Checkbox { checked } => {
             paint_checkbox(piece, bounds, *checked, context, window, cx);
+        }
+        PieceContent::TabStop => {
+            let theme = context.theme;
+            window.paint_quad(fill(bounds, theme.tab_stop).corner_radii(theme.radius_sm / 2.));
         }
     }
 }
