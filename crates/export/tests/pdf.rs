@@ -396,25 +396,24 @@ fn footnote_text_uses_footnote_size() {
 }
 
 #[test]
-fn drop_cap_is_rendered() {
+fn drop_cap_is_off_by_default_and_renders_when_asked_for() {
     let markdown = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod \
                     tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, \
                     quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo.\n\nNext.";
-    let document = compile_markdown(markdown, &PdfOptions::default());
-    let pages = texts_by_page(&document);
+    let pages = texts_by_page(&compile_markdown(markdown, &PdfOptions::default()));
+    assert!(pages[0].iter().all(|placed| placed.size < 30.0));
+
+    let with_drop_cap = PdfOptions {
+        drop_cap_lines: 3,
+        ..PdfOptions::default()
+    };
+    let pages = texts_by_page(&compile_markdown(markdown, &with_drop_cap));
     let letter = pages[0]
         .iter()
         .find(|placed| placed.text == "L")
         .expect("drop cap letter");
     assert!(letter.size > 36.0, "drop cap is only {} pt", letter.size);
     assert!(find(&pages, "orem").is_some());
-
-    let plain = PdfOptions {
-        drop_cap_lines: 0,
-        ..PdfOptions::default()
-    };
-    let pages = texts_by_page(&compile_markdown(markdown, &plain));
-    assert!(pages[0].iter().all(|placed| placed.size < 30.0));
 }
 
 #[test]

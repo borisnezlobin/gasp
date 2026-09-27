@@ -38,7 +38,13 @@ impl Author {
 #[derive(Debug, Clone)]
 pub struct VaultConfig {
     pub remote: String,
+    /// The branch the app commits to and pushes.
     pub branch: String,
+    /// A branch older sync tools still push to. While it is set, every
+    /// merge also pulls it into `branch`, one way, so nothing they push is
+    /// lost; the app never pushes to it. A clone of a remote that has only
+    /// this branch starts `branch` from its tip.
+    pub legacy_branch: Option<String>,
     pub device_only: DeviceOnlyFiles,
 }
 
@@ -46,7 +52,8 @@ impl Default for VaultConfig {
     fn default() -> Self {
         Self {
             remote: "origin".to_owned(),
-            branch: "main".to_owned(),
+            branch: "master".to_owned(),
+            legacy_branch: Some("main".to_owned()),
             device_only: DeviceOnlyFiles::default(),
         }
     }
@@ -58,7 +65,18 @@ impl VaultConfig {
     }
 
     fn tracking_ref(&self) -> String {
-        format!("refs/remotes/{}/{}", self.remote, self.branch)
+        self.tracking_ref_for(&self.branch)
+    }
+
+    fn tracking_ref_for(&self, branch: &str) -> String {
+        format!("refs/remotes/{}/{branch}", self.remote)
+    }
+
+    /// The legacy branch, unless it is the branch the app syncs.
+    fn active_legacy(&self) -> Option<&str> {
+        self.legacy_branch
+            .as_deref()
+            .filter(|legacy| *legacy != self.branch)
     }
 }
 
@@ -101,6 +119,50 @@ struct ConflictVersions {
     other_device: Option<Vec<u8>>,
 }
 
+/// Clones only `branch`, without checking anything out yet.
+fn clone_branch(
+    url: &str,
+    path: &Path,
+    branch: &str,
+    token: Option<&Token>,
+) -> SyncResult<Repository> {
+    let mut fetch_options = FetchOptions::new();
+    fetch_options.remote_callbacks(remote_callbacks(token));
+    // Check out only after the line-ending settings are pinned, so the
+    // first checkout already writes files byte for byte.
+    let mut no_checkout = CheckoutBuilder::new();
+    no_checkout.dry_run();
+    RepoBuilder::new()
+        .branch(branch)
+        .fetch_options(fetch_options)
+        .with_checkout(no_checkout)
+        .clone(url, path)
+        .map_err(SyncError::from_transport)
+}
+
+/// Creates `branch` at the current commit and switches HEAD to it.
+fn start_branch_at_head(repo: &Repository, branch: &str) -> SyncResult<()> {
+    let head = repo.head()?.peel_to_commit()?;
+    repo.branch(branch, &head, false)?;
+    repo.set_head(&format!("refs/heads/{branch}"))?;
+    Ok(())
+}
+
+/// The result of merging the synced branch and then the legacy one: a
+/// conflict wins, then whichever merge actually changed something.
+fn combine_outcomes(own: MergeOutcome, legacy: MergeOutcome) -> MergeOutcome {
+    let changed = |outcome: &MergeOutcome| {
+        !matches!(
+            outcome,
+            MergeOutcome::UpToDate | MergeOutcome::NothingToMerge
+        )
+    };
+    if matches!(legacy, MergeOutcome::Conflicts(_)) || !changed(&own) && changed(&legacy) {
+        return legacy;
+    }
+    own
+}
+
 /// Notes must sync byte for byte on every device. Without this, a machine
 /// whose global git config sets `core.autocrlf` (the default on Windows)
 /// would rewrite line endings on checkout and merge.
@@ -134,18 +196,18 @@ impl Vault {
         config: VaultConfig,
         token: Option<Token>,
     ) -> SyncResult<Self> {
-        let mut fetch_options = FetchOptions::new();
-        fetch_options.remote_callbacks(remote_callbacks(token.as_ref()));
-        // Check out only after the line-ending settings are pinned, so the
-        // first checkout already writes files byte for byte.
-        let mut no_checkout = CheckoutBuilder::new();
-        no_checkout.dry_run();
-        let repo = RepoBuilder::new()
-            .branch(&config.branch)
-            .fetch_options(fetch_options)
-            .with_checkout(no_checkout)
-            .clone(url, path.as_ref())
-            .map_err(SyncError::from_transport)?;
+        let path = path.as_ref();
+        let repo = match clone_branch(url, path, &config.branch, token.as_ref()) {
+            Ok(repo) => repo,
+            Err(error) => {
+                let Some(legacy) = config.active_legacy() else {
+                    return Err(error);
+                };
+                let repo = clone_branch(url, path, legacy, token.as_ref())?;
+                start_branch_at_head(&repo, &config.branch)?;
+                repo
+            }
+        };
         keep_bytes_as_committed(&repo)?;
         repo.checkout_head(Some(CheckoutBuilder::new().force()))?;
         Self::from_repo(repo, config, token)
@@ -266,13 +328,18 @@ impl Vault {
         let mut remote = self.repo.find_remote(&self.config.remote)?;
         let mut options = FetchOptions::new();
         options.remote_callbacks(remote_callbacks(self.token.as_ref()));
-        let refspec = format!(
-            "+{}:{}",
-            self.config.local_ref(),
-            self.config.tracking_ref()
-        );
+        let branches =
+            std::iter::once(self.config.branch.as_str()).chain(self.config.active_legacy());
+        let refspecs: Vec<String> = branches
+            .map(|branch| {
+                format!(
+                    "+refs/heads/{branch}:{}",
+                    self.config.tracking_ref_for(branch)
+                )
+            })
+            .collect();
         remote
-            .fetch(&[&refspec], Some(&mut options), None)
+            .fetch(&refspecs, Some(&mut options), None)
             .map_err(SyncError::from_transport)
     }
 
@@ -307,11 +374,24 @@ impl Vault {
     }
 
     /// Merges the fetched remote branch into the local one using the vault merge policy.
+    /// Then merges the legacy branch the same way, if one is configured.
     pub fn merge(&self, author: &Author) -> SyncResult<MergeOutcome> {
         if self.is_merging() {
             return Ok(MergeOutcome::Conflicts(self.conflicts()?));
         }
-        let Ok(tracking) = self.repo.find_reference(&self.config.tracking_ref()) else {
+        let own = self.merge_tracking(&self.config.tracking_ref(), author)?;
+        let Some(legacy) = self.config.active_legacy() else {
+            return Ok(own);
+        };
+        if matches!(own, MergeOutcome::Conflicts(_)) {
+            return Ok(own);
+        }
+        let legacy = self.merge_tracking(&self.config.tracking_ref_for(legacy), author)?;
+        Ok(combine_outcomes(own, legacy))
+    }
+
+    fn merge_tracking(&self, tracking_ref: &str, author: &Author) -> SyncResult<MergeOutcome> {
+        let Ok(tracking) = self.repo.find_reference(tracking_ref) else {
             return Ok(MergeOutcome::NothingToMerge);
         };
         let theirs = self.repo.reference_to_annotated_commit(&tracking)?;
