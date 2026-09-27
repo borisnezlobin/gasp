@@ -13,6 +13,7 @@ use editor_sync::{
 };
 
 use super::state::SetupProblem;
+use crate::edit_time::device_name;
 
 /// The remote sync pushes to.
 pub const REMOTE: &str = "origin";
@@ -109,17 +110,6 @@ pub fn open(root: &Path, settings: &SyncSettings, store: &dyn CredentialStore) -
         engine: Arc::new(engine),
         signed_in,
     }
-}
-
-/// This computer's name, for commit messages.
-fn device_name() -> String {
-    ["COMPUTERNAME", "HOSTNAME"]
-        .iter()
-        .find_map(|name| std::env::var(name).ok())
-        .or_else(|| std::fs::read_to_string("/etc/hostname").ok())
-        .map(|name| name.trim().to_owned())
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "this device".to_owned())
 }
 
 impl Engine {
