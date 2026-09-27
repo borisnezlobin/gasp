@@ -162,6 +162,8 @@ pub struct EditorView {
     /// Lines laid out in earlier frames, reused while they're unchanged.
     pub(crate) line_cache: LineCache,
     clock: Instant,
+    /// Waits for the installed fonts, while they're still being listed.
+    _fonts: Option<gpui::Subscription>,
 }
 
 impl EventEmitter<EditorEvent> for EditorView {}
@@ -202,7 +204,7 @@ impl EditorView {
     ) -> Self {
         let span = crate::trace::span("editor-theme");
         let mut base_theme = Theme::from_config(config, crate::ui::is_dark(cx));
-        base_theme.resolve_fonts(&crate::ui::installed_fonts(cx));
+        base_theme.resolve_fonts(&crate::ui::installed_fonts(cx).unwrap_or_default());
         drop(span);
         let span = crate::trace::span("editor-measure");
         let column_width = px(INITIAL_COLUMN_WIDTH);
@@ -265,17 +267,35 @@ impl EditorView {
             prose: crate::prose::ProseState::from_settings(&config.settings.prose),
             line_cache: LineCache::default(),
             clock: Instant::now(),
+            _fonts: None,
         };
+        view._fonts = crate::ui::installed_fonts(cx)
+            .is_none()
+            .then(|| crate::ui::observe_installed_fonts(cx, Self::fonts_arrived));
         view.apply_typing_settings(config);
         view.check_footnotes_soon(cx);
         view
+    }
+
+    /// Swaps a fallback in for any theme font the installed fonts lack,
+    /// once they've been listed. The fonts the theme names are drawn by
+    /// name until then, so nothing changes when they're all installed.
+    fn fonts_arrived(&mut self, cx: &mut Context<Self>) {
+        let Some(names) = crate::ui::installed_fonts(cx) else {
+            return;
+        };
+        let before = self.base_theme.font_families();
+        self.base_theme.resolve_fonts(&names);
+        if self.base_theme.font_families() != before {
+            self.set_zoom(self.zoom, cx);
+        }
     }
 
     /// Takes the theme and Markdown symbol settings from a loaded config,
     /// as when the config folder changes.
     pub fn apply_config(&mut self, config: &Config, cx: &mut Context<Self>) {
         let mut theme = Theme::from_config(config, crate::ui::is_dark(cx));
-        theme.resolve_fonts(&crate::ui::installed_fonts(cx));
+        theme.resolve_fonts(&crate::ui::installed_fonts(cx).unwrap_or_default());
         self.base_theme = theme;
         self.symbols = config.settings.markdown.symbols.clone();
         self.reveal = reveal_settings(&self.symbols);

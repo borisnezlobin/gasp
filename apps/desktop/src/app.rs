@@ -59,6 +59,9 @@ pub fn launch(target: LaunchTarget) {
             eprintln!("could not open a window: {error}");
             std::process::exit(1);
         }
+        // Only the font menus and font fallbacks need the full list;
+        // it's made off the main thread once the window is up.
+        crate::ui::load_installed_fonts(cx);
         cx.on_window_closed(|cx| {
             if cx.windows().is_empty() {
                 cx.quit();

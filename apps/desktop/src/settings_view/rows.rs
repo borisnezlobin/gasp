@@ -1,8 +1,11 @@
 //! What each kind of row shows: its text column and its control.
 
+use std::ops::Range;
+
 use editor_config::schema::SettingKind;
 use gpui::{
-    AnyElement, ClickEvent, Context, Focusable, MouseButton, SharedString, Window, div, prelude::*,
+    AnyElement, ClickEvent, Context, Div, Focusable, MouseButton, SharedString, Stateful, Window,
+    div, prelude::*, uniform_list,
 };
 use serde_json::Value;
 
@@ -303,56 +306,97 @@ impl SettingsView {
         )
     }
 
-    fn render_menu(&self, cx: &mut Context<Self>) -> AnyElement {
-        let Some(menu) = self.menu.as_ref() else {
-            return div().into_any_element();
-        };
+    /// The open menu's panel: the filter for a font menu, then the
+    /// options, of which only those in view are built.
+    fn render_menu(&self, cx: &mut Context<Self>) -> Stateful<Div> {
         let style = &self.style;
-        let current = self.menu_value(&menu.target);
-        let options = menu.shown.iter().enumerate().map(|(position, option)| {
-            let label = div().child(menu.label(option));
-            let label = match menu.target {
-                MenuTarget::Font(_) => label.font_family(SharedString::from(option.clone())),
-                MenuTarget::Choice(_) | MenuTarget::MapAdd(_) => label,
-            };
-            let value = option.clone();
-            let selector = format!("menu-option-{option}");
-            menu_option(
-                ("settings-menu-option", position),
-                label,
-                *option == current,
-                position == menu.highlighted,
-                style,
-            )
-            .debug_selector(|| selector)
-            .on_click(
-                cx.listener(move |view, _: &ClickEvent, window, cx| view.pick(&value, window, cx)),
-            )
-        });
-        let empty = menu.shown.is_empty().then(|| {
+        let panel = menu_panel(style)
+            .debug_selector(|| "settings-menu".to_string())
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .text_size(style.small_text_size);
+        let Some(menu) = self.menu.as_ref() else {
+            return panel;
+        };
+        menu.built.set(0);
+        let options = uniform_list(
+            "settings-menu-options",
+            menu.shown.len(),
+            cx.processor(|view, range: Range<usize>, _, cx| view.menu_rows(range, cx)),
+        )
+        .track_scroll(menu.scroll.clone())
+        // As tall as its options, up to the cap, and shorter still when
+        // the window leaves the panel less room.
+        .h((style.control_height * menu.shown.len() as f32).min(style.menu_max_height))
+        .min_h_0()
+        .flex_shrink();
+        let status = match (self.menu_loading(), menu.shown.is_empty()) {
+            (true, _) => Some("Loading fonts…"),
+            (false, true) => Some("No fonts match."),
+            (false, false) => None,
+        };
+        let status = status.map(|text| {
             div()
+                .debug_selector(|| "settings-menu-status".to_string())
+                .flex_none()
                 .p(style.control_gap)
                 .text_color(style.text_muted)
-                .child("No fonts match.")
+                .child(text)
         });
-        menu_panel(style)
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .text_size(style.small_text_size)
+        panel
             .children(menu.filter.clone().map(|filter| {
                 field_box(filter, Some(IconName::MagnifyingGlass), false, style).w_full()
             }))
-            .child(
-                div()
-                    .id("settings-menu-options")
-                    .max_h(style.menu_max_height)
-                    .overflow_y_scroll()
-                    .track_scroll(&menu.scroll)
-                    .flex()
-                    .flex_col()
-                    .children(options)
-                    .children(empty),
-            )
-            .into_any_element()
+            .child(options)
+            .children(status)
+    }
+
+    /// The open menu's options at `range`, as the list scrolls them into
+    /// view.
+    fn menu_rows(&mut self, range: Range<usize>, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let Some(menu) = self.menu.as_ref() else {
+            return Vec::new();
+        };
+        let current = self.menu_value(&menu.target);
+        let rows: Vec<AnyElement> = range
+            .filter_map(|position| {
+                let option = menu.shown.get(position)?;
+                Some(self.menu_row(position, option, *option == current, cx))
+            })
+            .collect();
+        menu.built.set(menu.built.get() + rows.len());
+        rows
+    }
+
+    /// One option of the open menu, a font set in its own family.
+    fn menu_row(
+        &self,
+        position: usize,
+        option: &str,
+        chosen: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let Some(menu) = self.menu.as_ref() else {
+            return div().into_any_element();
+        };
+        let label = div().child(menu.label(option));
+        let label = match menu.target {
+            MenuTarget::Font(_) => label.font_family(SharedString::from(option.to_string())),
+            MenuTarget::Choice(_) | MenuTarget::MapAdd(_) => label,
+        };
+        let value = option.to_string();
+        let selector = format!("menu-option-{option}");
+        menu_option(
+            ("settings-menu-option", position),
+            label,
+            chosen,
+            position == menu.highlighted,
+            &self.style,
+        )
+        .debug_selector(|| selector)
+        .on_click(
+            cx.listener(move |view, _: &ClickEvent, window, cx| view.pick(&value, window, cx)),
+        )
+        .into_any_element()
     }
 
     fn number_control(
