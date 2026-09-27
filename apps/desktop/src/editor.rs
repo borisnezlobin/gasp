@@ -215,6 +215,11 @@ impl EditorView {
         self.marked.clone()
     }
 
+    /// How far the view is scrolled down, in pixels.
+    pub fn scroll_offset(&self) -> Pixels {
+        self.scroll_y
+    }
+
     pub fn timings(&self) -> &Timings {
         &self.timings
     }
@@ -568,6 +573,7 @@ impl EditorView {
         }
         let padding = self.theme.text_padding;
         let viewport = (bounds.size.height - padding * 2.).max(px(0.));
+        self.math.begin_frame();
         self.apply_autoscroll(viewport, window);
         let max_scroll = (self.metrics.total_height() - viewport).max(px(0.));
         self.scroll_y = self.scroll_y.clamp(px(0.), max_scroll);

@@ -214,10 +214,7 @@ fn cell_piece(
         top,
         width: shaped.width,
         height: line_height,
-        content: PieceContent::Text(Box::new(TextPiece {
-            shaped,
-            line_height,
-        })),
+        content: PieceContent::Text(Box::new(TextPiece::whole(shaped, line_height))),
         hit: Hit::Widget,
     }
 }

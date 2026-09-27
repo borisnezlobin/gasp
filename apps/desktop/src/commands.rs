@@ -114,6 +114,7 @@ impl EditorView {
 
     fn select_all(&mut self, cx: &mut Context<Self>) {
         self.select(0, self.doc().len(), cx);
+        self.autoscroll = false;
     }
 
     fn selected_text(&self) -> Option<String> {

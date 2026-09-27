@@ -320,8 +320,8 @@ const SERIF_FALLBACKS: &[&str] = &[
     "Charis SIL",
     "Bitstream Charter",
     "Noto Serif",
-    "DejaVu Serif",
     "Liberation Serif",
+    "DejaVu Serif",
     "Noto Sans",
     "DejaVu Sans",
 ];
@@ -477,7 +477,7 @@ fn hex_color(value: u32) -> Hsla {
     } else {
         (value << 8) | 0xff
     };
-    Rgba::from(gpui::rgba(rgba)).into()
+    gpui::rgba(rgba).into()
 }
 
 /// Parses `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb(r, g, b)` and
@@ -521,7 +521,7 @@ fn parse_hex(hex: &str) -> Option<Hsla> {
     };
     let value = u32::from_str_radix(&expanded, 16).ok()?;
     Some(if expanded.len() == 8 {
-        Rgba::from(gpui::rgba(value)).into()
+        gpui::rgba(value).into()
     } else {
         hex_color(value)
     })
@@ -602,6 +602,11 @@ mod tests {
     fn missing_fonts_fall_back() {
         let mut theme = Theme::default();
         theme.resolve_fonts(&["DejaVu Serif".into(), "DejaVu Sans Mono".into()]);
+        let mut with_italics = Theme::default();
+        with_italics.resolve_fonts(&["DejaVu Serif".into(), "Liberation Serif".into()]);
+        if cfg!(target_os = "linux") {
+            assert_eq!(with_italics.body_font_family.as_ref(), "Liberation Serif");
+        }
         if cfg!(target_os = "linux") {
             assert_eq!(theme.body_font_family.as_ref(), "DejaVu Serif");
             assert_eq!(theme.code_font_family.as_ref(), "DejaVu Sans Mono");

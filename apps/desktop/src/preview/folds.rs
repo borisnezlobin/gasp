@@ -115,14 +115,15 @@ mod tests {
     fn planned(folds: &Folds, cursor: usize) -> Vec<LinePlan> {
         let tree = parse(NOTE);
         let settings = RevealSettings::default();
-        let selections = [cursor..cursor];
+        let caret = cursor..cursor;
+        let selections = std::slice::from_ref(&caret);
         let mut plan = plan(&RenderInput {
             text: NOTE,
             tree: &tree,
-            selections: &selections,
+            selections,
             settings: &settings,
         });
-        folds.apply(&mut plan.lines, &tree, &selections);
+        folds.apply(&mut plan.lines, &tree, selections);
         plan.lines
     }
 

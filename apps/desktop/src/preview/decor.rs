@@ -179,7 +179,7 @@ mod tests {
         let plan = plan(&RenderInput {
             text,
             tree: source.tree(),
-            selections: &[cursor..cursor],
+            selections: std::slice::from_ref(&(cursor..cursor)),
             settings: &settings,
         });
         let theme = Theme::default();
