@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 ropey = "1.6"
+editor-snippets = { path = "../snippets" }
 pulldown-cmark = { version = "0.13.4", default-features = false }
 
 [lints]
