@@ -124,6 +124,9 @@ pub struct Timings {
     pub paint: Samples,
     /// From an edit to the end of the next frame's paint.
     pub input_to_paint: Samples,
+    /// Running a keystroke through the input pipeline: snippets,
+    /// replacements and the other typing steps.
+    pub pipeline: Samples,
     pub(crate) input_started: Option<std::time::Instant>,
 }
 
@@ -133,6 +136,7 @@ impl Timings {
         self.prose.clear();
         self.paint.clear();
         self.input_to_paint.clear();
+        self.pipeline.clear();
     }
 
     pub fn report(&self) -> String {
@@ -141,6 +145,7 @@ impl Timings {
             ("  of which prose", &self.prose),
             ("paint", &self.paint),
             ("input-to-paint", &self.input_to_paint),
+            ("input pipeline", &self.pipeline),
         ]
         .iter()
         .filter_map(|(name, samples)| Some(format!("{name}: {}", samples.summary()?)))

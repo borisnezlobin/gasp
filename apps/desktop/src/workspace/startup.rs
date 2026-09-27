@@ -30,6 +30,9 @@ impl VaultStart {
         for diagnostic in loader.load_all() {
             eprintln!("{diagnostic:?}");
         }
+        // Compiling the snippets takes a few milliseconds; do it here,
+        // off the main thread, rather than on the first keystroke.
+        loader.config().typing.snippets.engine.warm();
         let reopens_tabs = loader
             .config()
             .device

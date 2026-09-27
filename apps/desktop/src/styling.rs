@@ -131,6 +131,9 @@ fn run_color(styles: &[StyleKey], tone: &LineTone, theme: &Theme) -> Hsla {
     if let Some(color) = keyed {
         return color;
     }
+    if let Some(depth) = bracket_depth(styles) {
+        return theme.math_brackets[usize::from(depth % 3)];
+    }
     match tone.callout {
         Some(kind) if styles.contains(&StyleKey::CalloutTitle) => theme.callout_color(kind),
         _ if tone.muted => theme.text_muted,
@@ -138,6 +141,13 @@ fn run_color(styles: &[StyleKey], tone: &LineTone, theme: &Theme) -> Hsla {
         _ if is_code(styles) || tone.code => theme.code_text,
         _ => theme.text,
     }
+}
+
+fn bracket_depth(styles: &[StyleKey]) -> Option<u8> {
+    styles.iter().find_map(|style| match style {
+        StyleKey::MathBracket(depth) => Some(*depth),
+        _ => None,
+    })
 }
 
 fn style_color(key: StyleKey, theme: &Theme) -> Hsla {

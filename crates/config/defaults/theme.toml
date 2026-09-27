@@ -87,6 +87,8 @@ diff-removed = "rgba(209, 22, 45, 0.1)"
 knob        = "{color.background}"
 # Grouped rows on the settings screen and the conflict resolver.
 card        = "{color.sidebar}"
+# The tab stops a snippet left for Tab to visit next.
+tab-stop    = "rgba(0, 0, 0, 0.13)"
 # The two versions of a note in a sync conflict: their labels, and their
 # surfaces at opacity.callout.
 this-device  = "#0868d3"
@@ -104,6 +106,14 @@ function = "#2f5f93"
 type     = "#26707a"
 
 # Tints behind sentences by length, for sentence-length highlighting.
+# Brackets in math source, by how deeply they nest, so a pair's halves
+# share a colour. They borrow the code colours, which already read well on
+# the page.
+[color.math]
+bracket-1 = "{color.code.function}"
+bracket-2 = "{color.code.number}"
+bracket-3 = "{color.code.keyword}"
+
 [color.sentence]
 short  = "#e3f2fd"
 medium = "#fff3e0"
@@ -170,6 +180,7 @@ icon-disabled = "#4d4a45"
 fill-faint  = "rgba(255, 255, 255, 0.035)"
 fill        = "rgba(255, 255, 255, 0.055)"
 fill-strong = "rgba(255, 255, 255, 0.08)"
+tab-stop    = "rgba(255, 255, 255, 0.2)"
 fill-pressed = "rgba(255, 255, 255, 0.12)"
 field       = "rgba(255, 255, 255, 0.06)"
 field-error = "#40211e"
@@ -202,6 +213,11 @@ constant = "#e2ab77"
 keyword  = "#c9a3e2"
 function = "#92b6e4"
 type     = "#80c6ca"
+
+[dark.color.math]
+bracket-1 = "{color.code.function}"
+bracket-2 = "{color.code.number}"
+bracket-3 = "{color.code.keyword}"
 
 [dark.color.sentence]
 short  = "#1d2a36"

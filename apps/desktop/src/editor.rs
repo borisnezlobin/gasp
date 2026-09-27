@@ -8,9 +8,10 @@ use std::time::Instant;
 
 use editor_config::Config;
 use editor_config::settings::SymbolSettings;
+use editor_config::typing::TypingTables;
 use editor_core::document::{Document, Selection, SelectionRange};
 use editor_core::history::EditorState;
-use editor_core::pipeline::{EditRequest, Pipeline};
+use editor_core::pipeline::{EditRequest, Pipeline, TabStops};
 use editor_core::render::{LinePlan, RenderInput, RevealSettings, plan_lines};
 use editor_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{App, Bounds, Context, EventEmitter, FocusHandle, Focusable, Pixels, Point, Window, px};
@@ -62,6 +63,9 @@ pub enum HighlightKind {
     ActiveSearchMatch,
     /// Missing, duplicate, unused or empty footnotes, drawn underlined.
     FootnoteProblem,
+    /// A snippet's tab stop that Tab still goes to. The editor keeps these
+    /// itself; an empty stop is drawn as a small block.
+    TabStop,
 }
 
 /// A live-preview Markdown editor view.
@@ -114,6 +118,11 @@ pub struct EditorView {
     pub(crate) highlights: BTreeMap<HighlightKind, Vec<Range<usize>>>,
     pub(crate) suggest: SuggestState,
     pub(crate) pipeline: Pipeline,
+    /// The snippets and replacements in the pipeline, and whether the
+    /// snippet step enlarges brackets, to notice when they change.
+    pub(crate) typing: Option<(TypingTables, bool)>,
+    /// The tab stops of the snippet being filled in.
+    pub(crate) tab_stops: Option<TabStops>,
     /// Whether pasted text gets curly quotes, from the settings.
     pub(crate) curl_pasted_quotes: bool,
     /// A view that only shows its note, such as a hover preview: edits,
@@ -222,6 +231,8 @@ impl EditorView {
             highlights: Default::default(),
             suggest: SuggestState::default(),
             pipeline: Pipeline::builtin(),
+            typing: None,
+            tab_stops: None,
             curl_pasted_quotes: config.settings.editor.curl_pasted_quotes,
             read_only: false,
             footnotes: FootnoteChecks::default(),
@@ -234,6 +245,7 @@ impl EditorView {
             prose: crate::prose::ProseState::from_settings(&config.settings.prose),
             clock: Instant::now(),
         };
+        view.apply_typing_settings(config);
         view.check_footnotes_soon(cx);
         view
     }
@@ -246,7 +258,7 @@ impl EditorView {
         self.base_theme = theme;
         self.symbols = config.settings.markdown.symbols.clone();
         self.reveal = reveal_settings(&self.symbols);
-        self.apply_typing_settings(&config.settings.editor);
+        self.apply_typing_settings(config);
         self.clear_preview_cache();
         self.code_line_numbers = config.settings.editor.code_line_numbers;
         self.apply_prose_settings(&config.settings.prose, cx);
@@ -388,6 +400,7 @@ impl EditorView {
         self.state
             .apply(transaction)
             .expect("a selection-only transaction always applies");
+        self.drop_stale_tab_stops();
         self.autoscroll = true;
         self.refresh_suggestions(cx);
         self.keep_card_offer(cx);
@@ -413,12 +426,12 @@ impl EditorView {
         let range = doc.floor_char_boundary(range.start)
             ..doc.floor_char_boundary(range.end.max(range.start));
         let inserted = range.start..range.start + text.len();
-        let transaction = Transaction::new(
-            ChangeSet::replace(range.clone(), text),
-            Origin::Input,
-            self.now_ms(),
-        )
-        .with_selection(Selection::cursor(inserted.end));
+        let changes = ChangeSet::replace(range.clone(), text);
+        if let Some(stops) = self.tab_stops.as_mut() {
+            stops.map(&changes);
+        }
+        let transaction = Transaction::new(changes, Origin::Input, self.now_ms())
+            .with_selection(Selection::cursor(inserted.end));
         self.state
             .apply(transaction)
             .expect("ranges are clamped to character boundaries");
@@ -506,19 +519,6 @@ impl EditorView {
         self.run_pipeline(EditRequest::Newline, cx);
     }
 
-    /// Runs a request through the input pipeline and applies what it
-    /// makes of it.
-    pub(crate) fn run_pipeline(&mut self, request: EditRequest, cx: &mut Context<Self>) {
-        let transactions = self.pipeline.run_steps(
-            request,
-            self.state.doc(),
-            self.state.selection(),
-            self.source.tree(),
-            self.now_ms(),
-        );
-        self.apply_transactions(transactions, cx);
-    }
-
     pub fn undo(&mut self, cx: &mut Context<Self>) {
         if self.state.undo(self.now_ms()) {
             self.after_history_step(cx);
@@ -532,6 +532,8 @@ impl EditorView {
     }
 
     fn after_history_step(&mut self, cx: &mut Context<Self>) {
+        // Undo can take a snippet's text away from under its stops.
+        self.tab_stops = None;
         if let Some(change) = self.source.sync(self.state.doc()) {
             self.source_changed(change);
         }
