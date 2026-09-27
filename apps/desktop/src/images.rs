@@ -1,9 +1,11 @@
 //! Images for inline widgets: decoded from the note's folder when found,
-//! otherwise a generated placeholder. Images on the web, such as a link
+//! else from wherever the vault index finds the file name (Obsidian
+//! resolves `![[name.png]]` anywhere in the vault), otherwise a generated
+//! placeholder. Images on the web, such as a link
 //! card's preview, are downloaded in the background and show once they
 //! arrive.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -17,6 +19,11 @@ const MAX_ASPECT_RATIO: f32 = 4.;
 pub struct ImageStore {
     search_dirs: Vec<PathBuf>,
     by_target: HashMap<String, Arc<RenderImage>>,
+    /// Targets not found next to the note, drawn as the placeholder until
+    /// the vault index finds them.
+    missing: HashSet<String>,
+    /// Missing targets still to look up in the vault index.
+    vault_lookups: Vec<String>,
     placeholder: Arc<RenderImage>,
     /// Web images by URL: `None` while downloading or after failing.
     remote: HashMap<String, Option<Arc<RenderImage>>>,
@@ -37,6 +44,8 @@ impl ImageStore {
         Self {
             search_dirs,
             by_target: HashMap::new(),
+            missing: HashSet::new(),
+            vault_lookups: Vec::new(),
             placeholder: Arc::new(render_image(placeholder_pixels())),
             remote: HashMap::new(),
             remote_requests: Vec::new(),
@@ -70,12 +79,50 @@ impl ImageStore {
         if let Some(image) = self.by_target.get(target) {
             return image.clone();
         }
-        let image = self
-            .find(target)
-            .and_then(|path| decode(&path))
-            .map_or_else(|| self.placeholder.clone(), Arc::new);
+        let image = match self.find(target) {
+            Some(path) => decode(&path).map(Arc::new),
+            None => {
+                self.missing.insert(target.to_owned());
+                self.vault_lookups.push(target.to_owned());
+                None
+            }
+        };
+        let image = image.unwrap_or_else(|| self.placeholder.clone());
         self.by_target.insert(target.to_owned(), image.clone());
         image
+    }
+
+    /// The images layout couldn't find near the note, for the vault index
+    /// to look for.
+    pub fn take_vault_lookups(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.vault_lookups)
+    }
+
+    /// The note's folder, which a vault lookup prefers.
+    pub fn note_dir(&self) -> Option<&Path> {
+        self.search_dirs.first().map(PathBuf::as_path)
+    }
+
+    /// Shows the file the vault index found for `target`. False when it
+    /// can't be decoded, which leaves the placeholder.
+    pub fn found_in_vault(&mut self, target: &str, path: &Path) -> bool {
+        let Some(image) = decode(path) else {
+            return false;
+        };
+        self.missing.remove(target);
+        self.by_target.insert(target.to_owned(), Arc::new(image));
+        true
+    }
+
+    /// Forgets which images were missing so the next layout looks for them
+    /// again, as after the vault changed. False when none were.
+    pub fn retry_missing(&mut self) -> bool {
+        self.vault_lookups.clear();
+        let any = !self.missing.is_empty();
+        for target in self.missing.drain() {
+            self.by_target.remove(&target);
+        }
+        any
     }
 
     fn find(&self, target: &str) -> Option<PathBuf> {
@@ -140,6 +187,37 @@ mod tests {
         let image = store.image("missing.png");
         assert_eq!(image.size(0).width.0, PLACEHOLDER_SIZE.0 as i32);
         assert!(Arc::ptr_eq(&image, &store.image("missing.png")));
+    }
+
+    #[test]
+    fn missing_images_wait_for_the_vault_index() {
+        let dir = std::env::temp_dir().join(format!("editor-images-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("elsewhere")).unwrap();
+        let found = dir.join("elsewhere/pic.png");
+        RgbaImage::new(3, 2).save(&found).unwrap();
+        let mut store = ImageStore::new(vec![dir.join("notes")]);
+        assert_eq!(store.note_dir(), Some(dir.join("notes").as_path()));
+
+        assert!(Arc::ptr_eq(&store.image("pic.png"), &store.placeholder));
+        assert_eq!(store.take_vault_lookups(), ["pic.png"]);
+        store.image("pic.png");
+        assert!(store.take_vault_lookups().is_empty(), "asked once");
+
+        assert!(!store.found_in_vault("pic.png", &dir.join("nothing.png")));
+        assert!(store.found_in_vault("pic.png", &found));
+        assert_eq!(store.image("pic.png").size(0).width.0, 3);
+        assert!(!store.retry_missing(), "nothing is missing now");
+
+        store.image("gone.png");
+        assert!(store.retry_missing());
+        assert!(store.take_vault_lookups().is_empty());
+        store.image("gone.png");
+        assert_eq!(
+            store.take_vault_lookups(),
+            ["gone.png"],
+            "a retry looks it up again"
+        );
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

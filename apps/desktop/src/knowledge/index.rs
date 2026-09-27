@@ -340,6 +340,13 @@ impl LinkIndex {
         self.files.resolve(source, link)
     }
 
+    /// The file an embed such as `![[name.png]]` names, written in a note
+    /// in the folder `dir`: the same lookup as a wikilink's, so a bare
+    /// file name finds the file anywhere in the vault.
+    pub fn resolve_embed(&self, dir: &str, target: &str) -> Option<String> {
+        self.files.resolve_linkpath(dir, target)
+    }
+
     // ---- Queries ----
 
     /// The notes linking to `target`, by path, each with its links there.

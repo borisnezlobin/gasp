@@ -3,6 +3,7 @@
 //! folding callouts, and running math renders in the background.
 
 use std::ops::Range;
+use std::path::{Path, PathBuf};
 
 use editor_config::settings::SymbolMode;
 use editor_core::transaction::{ChangeSet, Origin, Transaction};
@@ -151,6 +152,44 @@ impl EditorView {
                 .ok();
             })
             .detach();
+        }
+    }
+
+    /// Looks up the images the last layout couldn't find near the note in
+    /// the vault index, which finds a bare `![[name.png]]` anywhere in the
+    /// vault, and redraws with the ones it found. Before the index is
+    /// ready they stay missing; its change retries them.
+    pub(crate) fn find_vault_images(&mut self, cx: &mut Context<Self>) {
+        let lookups = self.images.take_vault_lookups();
+        let Some(index) = self.suggest.index.clone() else {
+            return;
+        };
+        let note_dir = self.images.note_dir().map(Path::to_path_buf);
+        let paths: Vec<(String, PathBuf)> = {
+            let index = index.read(cx);
+            let note_dir = note_dir.as_deref().unwrap_or(index.root());
+            lookups
+                .into_iter()
+                .filter_map(|target| {
+                    let path = index.find_file(note_dir, &target)?;
+                    Some((target, path))
+                })
+                .collect()
+        };
+        let mut found = false;
+        for (target, path) in paths {
+            found |= self.images.found_in_vault(&target, &path);
+        }
+        if found {
+            cx.notify();
+        }
+    }
+
+    /// Looks again for the images that were missing, after the vault
+    /// changed.
+    pub(crate) fn retry_missing_images(&mut self, cx: &mut Context<Self>) {
+        if self.images.retry_missing() {
+            cx.notify();
         }
     }
 

@@ -1,5 +1,6 @@
 //! Resolving embedded images to files on disk and virtual Typst paths.
 
+use std::cell::OnceCell;
 use std::path::{Path, PathBuf};
 
 const IMAGE_EXTENSIONS: [&str; 7] = ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp"];
@@ -26,11 +27,16 @@ pub(crate) enum Located {
 }
 
 /// Finds images relative to the note, its `images/` attachment folder and the
-/// vault root, and assigns each one a virtual path.
+/// vault root, then anywhere in the vault by file name, as Obsidian does,
+/// and assigns each one a virtual path.
 #[derive(Debug, Default)]
 pub(crate) struct ImageResolver {
     note_dir: Option<PathBuf>,
     vault_root: Option<PathBuf>,
+    /// Every visible file in the vault, vault-relative with `/`
+    /// separators. Read on the first image the direct lookups miss, so an
+    /// export whose images sit next to the note never walks the vault.
+    vault_files: OnceCell<Vec<String>>,
     assets: Vec<(String, PathBuf)>,
 }
 
@@ -39,6 +45,7 @@ impl ImageResolver {
         Self {
             note_dir,
             vault_root,
+            vault_files: OnceCell::new(),
             assets: Vec::new(),
         }
     }
@@ -88,8 +95,74 @@ impl ImageResolver {
         if let Some(root) = &self.vault_root {
             candidates.push(root.join(relative));
         }
-        candidates.into_iter().find(|candidate| candidate.is_file())
+        candidates
+            .into_iter()
+            .find(|candidate| candidate.is_file())
+            .or_else(|| self.find_in_vault(target.trim_start_matches('/')))
     }
+
+    /// The vault file whose path ends with `target`, as Obsidian resolves
+    /// a bare `![[name.png]]`: see [`closest_match`].
+    fn find_in_vault(&self, target: &str) -> Option<PathBuf> {
+        let root = self.vault_root.as_ref()?;
+        let note_dir = self
+            .note_dir
+            .as_ref()
+            .and_then(|dir| dir.strip_prefix(root).ok())
+            .map(slash_path)
+            .unwrap_or_default();
+        let files = self.vault_files.get_or_init(|| visible_files(root));
+        let found = closest_match(files, &note_dir, target)?;
+        Some(root.join(found))
+    }
+}
+
+/// The file in `files` whose path is `target` or ends with `/target`,
+/// ignoring case: one in `note_dir` first, then the fewest folders deep,
+/// then the first by path.
+fn closest_match<'a>(files: &'a [String], note_dir: &str, target: &str) -> Option<&'a str> {
+    let target = target.to_lowercase();
+    let ending = format!("/{target}");
+    files
+        .iter()
+        .filter(|file| {
+            let file = file.to_lowercase();
+            file == target || file.ends_with(&ending)
+        })
+        .min_by_key(|file| {
+            let parent = file.rsplit_once('/').map_or("", |(parent, _)| parent);
+            (parent != note_dir, file.matches('/').count(), file.as_str())
+        })
+        .map(String::as_str)
+}
+
+/// Every file under `root` outside hidden folders (`.git`, `.obsidian`,
+/// the editor's own `.editor`), vault-relative.
+fn visible_files(root: &Path) -> Vec<String> {
+    let mut files = Vec::new();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(dir) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if entry.file_name().to_string_lossy().starts_with('.') {
+                continue;
+            }
+            let path = entry.path();
+            match entry.file_type() {
+                Ok(kind) if kind.is_dir() => pending.push(path),
+                Ok(_) => files.extend(path.strip_prefix(root).ok().map(slash_path)),
+                Err(_) => {}
+            }
+        }
+    }
+    files
+}
+
+/// A relative path with `/` separators on every platform.
+fn slash_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 fn is_remote(target: &str) -> bool {
@@ -178,6 +251,54 @@ mod tests {
         );
         assert_eq!(resolver.into_assets().len(), 1);
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn finds_bare_names_anywhere_in_the_vault() {
+        let root = std::env::temp_dir().join(format!("editor-export-vault-{}", std::process::id()));
+        for dir in ["notes", "assets/deep", "zz", ".hidden"] {
+            std::fs::create_dir_all(root.join(dir)).unwrap();
+        }
+        for file in [
+            "assets/deep/pic.png",
+            "zz/pic.png",
+            ".hidden/only.png",
+            "assets/deep/Other.PNG",
+        ] {
+            std::fs::write(root.join(file), b"png").unwrap();
+        }
+        let resolver = ImageResolver::new(Some(root.join("notes")), Some(root.clone()));
+        assert_eq!(
+            resolver.locate("pic.png"),
+            Located::File(root.join("zz/pic.png")),
+            "the shallowest match wins"
+        );
+        assert_eq!(
+            resolver.locate("deep/pic.png"),
+            Located::File(root.join("assets/deep/pic.png")),
+            "a partial path matches the end of one"
+        );
+        assert_eq!(
+            resolver.locate("other.png"),
+            Located::File(root.join("assets/deep/Other.PNG")),
+            "names match without regard to case"
+        );
+        assert_eq!(resolver.locate("only.png"), Located::Missing, "hidden");
+        assert_eq!(resolver.locate("eep/pic.png"), Located::Missing);
+        let unrooted = ImageResolver::new(Some(root.join("notes")), None);
+        assert_eq!(unrooted.locate("pic.png"), Located::Missing);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn prefers_a_match_in_the_notes_own_folder() {
+        let files = ["a/pic.png".to_owned(), "notes/sub/pic.png".to_owned()];
+        assert_eq!(
+            closest_match(&files, "notes/sub", "pic.png"),
+            Some("notes/sub/pic.png")
+        );
+        assert_eq!(closest_match(&files, "", "pic.png"), Some("a/pic.png"));
+        assert_eq!(closest_match(&files, "", "PIC.png"), Some("a/pic.png"));
     }
 
     #[test]
