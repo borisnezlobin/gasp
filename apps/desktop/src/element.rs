@@ -4,13 +4,15 @@
 use std::time::Instant;
 
 use gpui::{
-    App, Bounds, ContentMask, Element, ElementId, ElementInputHandler, Entity, GlobalElementId,
-    InspectorElementId, IntoElement, LayoutId, Pixels, Style, Window, fill, point, relative, size,
+    App, BorderStyle, Bounds, BoxShadow, ContentMask, Corners, Element, ElementId,
+    ElementInputHandler, Entity, GlobalElementId, InspectorElementId, IntoElement, LayoutId,
+    Pixels, Style, TransformationMatrix, Window, fill, point, px, quad, relative, size,
+    transparent_black,
 };
 
-use crate::editor::EditorView;
+use crate::editor::{EditorView, HighlightKind};
 use crate::frame::{FrameLayout, PlacedLine};
-use crate::line_layout::PieceContent;
+use crate::line_layout::{Piece, PieceContent, Surface};
 use crate::theme::Theme;
 
 /// Draws an [`EditorView`].
@@ -75,10 +77,16 @@ impl Element for EditorElement {
         cx: &mut App,
     ) -> Self::PrepaintState {
         let started = Instant::now();
-        self.view.update(cx, |view, _| {
-            let frame = view.layout_frame(bounds, window);
-            let selection = frame.selection_rects(&view.selected_range(), &view.theme);
+        self.view.update(cx, |view, cx| {
+            let mut frame = view.layout_frame(bounds, window);
+            frame.highlights = view.highlight_rects(&frame);
+            let selection = view
+                .selected_ranges()
+                .iter()
+                .flat_map(|range| frame.range_rects(range, &view.theme))
+                .collect();
             let caret = frame.caret_bounds(view.cursor(), &view.theme);
+            view.start_math_renders(cx);
             view.timings.layout.push(started.elapsed());
             Prepainted {
                 frame,
@@ -117,51 +125,229 @@ impl Element for EditorElement {
     }
 }
 
+impl EditorView {
+    /// Background rectangles for every highlight kind, weaker kinds first
+    /// so the active match paints on top.
+    pub(crate) fn highlight_rects(
+        &self,
+        frame: &FrameLayout,
+    ) -> Vec<(HighlightKind, Bounds<Pixels>)> {
+        let (Some(first), Some(last)) = (frame.lines.first(), frame.lines.last()) else {
+            return Vec::new();
+        };
+        let visible = first.visual.start..last.visual.end();
+        self.highlights
+            .iter()
+            .flat_map(|(kind, ranges)| {
+                ranges
+                    .iter()
+                    .filter(|range| range.start <= visible.end && range.end >= visible.start)
+                    .flat_map(|range| frame.range_rects(range, &self.theme))
+                    .map(move |rect| (*kind, rect))
+            })
+            .collect()
+    }
+}
+
 fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, cx: &mut App) {
     let theme = &prepainted.theme;
+    let frame = &prepainted.frame;
+    paint_surfaces(frame, theme, window);
+    for (kind, rect) in &frame.highlights {
+        let color = match kind {
+            HighlightKind::SearchMatch => theme.search_match,
+            HighlightKind::ActiveSearchMatch => theme.active_search_match,
+        };
+        window.paint_quad(fill(*rect, color).corner_radii(theme.radius_sm / 2.));
+    }
     for rect in &prepainted.selection {
         window.paint_quad(fill(*rect, theme.selection));
     }
-    for placed in &prepainted.frame.lines {
-        paint_line(placed, prepainted.frame.text_left, theme, window, cx);
+    for placed in &frame.lines {
+        paint_line(placed, frame.text_left, window, cx);
     }
     if let Some(caret) = prepainted.caret.filter(|_| focused) {
         window.paint_quad(fill(caret, theme.cursor));
     }
+    for placed in &frame.lines {
+        paint_overlays(placed, frame.text_left, theme, window);
+    }
 }
 
-fn paint_line(
-    placed: &PlacedLine,
+/// A surface being drawn across consecutive lines.
+struct OpenSurface {
+    surface: Surface,
+    top: Pixels,
+    bottom: Pixels,
+}
+
+/// Paints line fills, merging consecutive lines of one block into one
+/// rounded shape, then quote bars.
+fn paint_surfaces(frame: &FrameLayout, theme: &Theme, window: &mut Window) {
+    let mut open: Vec<OpenSurface> = Vec::new();
+    for placed in frame
+        .lines
+        .iter()
+        .filter(|placed| !placed.visual.is_collapsed())
+    {
+        let surfaces = &placed.visual.decor.surfaces;
+        let (kept, ended): (Vec<_>, Vec<_>) = open.into_iter().partition(|run| {
+            surfaces
+                .iter()
+                .any(|surface| same_block(surface, &run.surface))
+        });
+        for run in ended {
+            paint_surface(&run, frame.text_left, theme, window);
+        }
+        open = kept;
+        for surface in surfaces {
+            match open
+                .iter_mut()
+                .find(|run| same_block(surface, &run.surface))
+            {
+                Some(run) => run.bottom = placed.bottom(),
+                None => open.push(OpenSurface {
+                    surface: surface.clone(),
+                    top: placed.top,
+                    bottom: placed.bottom(),
+                }),
+            }
+        }
+        for bar in &placed.visual.decor.bars {
+            let bounds = Bounds::new(
+                point(frame.text_left + bar.x, placed.top),
+                size(bar.width, placed.visual.height),
+            );
+            window.paint_quad(fill(bounds, bar.color));
+        }
+    }
+    for run in &open {
+        paint_surface(run, frame.text_left, theme, window);
+    }
+}
+
+fn same_block(a: &Surface, b: &Surface) -> bool {
+    a.group == b.group && a.left == b.left
+}
+
+fn paint_surface(run: &OpenSurface, text_left: Pixels, theme: &Theme, window: &mut Window) {
+    let bounds = Bounds::from_corners(
+        point(text_left + run.surface.left, run.top),
+        point(text_left + run.surface.left + run.surface.width, run.bottom),
+    );
+    window.paint_quad(fill(bounds, run.surface.color).corner_radii(theme.radius_md));
+}
+
+fn paint_line(placed: &PlacedLine, text_left: Pixels, window: &mut Window, cx: &mut App) {
+    for row in &placed.visual.rows {
+        let row_top = placed.top + row.top;
+        for piece in &row.pieces {
+            paint_piece(piece, text_left, row_top, window, cx);
+        }
+    }
+    for piece in &placed.visual.decor.gutter {
+        paint_piece(piece, text_left, placed.top, window, cx);
+    }
+}
+
+fn paint_piece(
+    piece: &Piece,
     text_left: Pixels,
-    theme: &Theme,
+    row_top: Pixels,
     window: &mut Window,
     cx: &mut App,
 ) {
-    let visual = &placed.visual;
-    for piece in &visual.pieces {
-        let left = text_left + piece.x;
-        match &piece.content {
-            PieceContent::Text(shaped) => {
-                let origin = point(left, placed.text_top());
-                report(shaped.paint_background(origin, visual.text_height, window, cx));
-                report(shaped.paint(origin, visual.text_height, window, cx));
-            }
-            PieceContent::Image(image) => {
-                let top = placed.top + (visual.height - piece.height) / 2.;
-                let image_bounds = Bounds::new(
-                    point(left, top),
-                    size(piece.width - theme.image_gap, piece.height),
-                );
-                report(window.paint_image(
-                    image_bounds,
-                    theme.image_corner_radius.into(),
-                    image.clone(),
-                    0,
-                    false,
-                ));
-            }
+    let origin = point(text_left + piece.x, row_top + piece.top);
+    let bounds = Bounds::new(origin, size(piece.width, piece.height));
+    match &piece.content {
+        PieceContent::Text(text) if text.is_whole() => {
+            report(
+                text.shaped
+                    .paint_background(origin, text.line_height, window, cx),
+            );
+            report(text.shaped.paint(origin, text.line_height, window, cx));
         }
+        PieceContent::Text(text) => {
+            // A wrapped row paints the whole shaped chunk shifted so its
+            // slice lands here; GPUI skips glyphs outside the mask.
+            let shifted = point(origin.x - text.slice_x, origin.y);
+            let mask = Bounds::new(
+                point(origin.x, origin.y - text.line_height),
+                size(piece.width, text.line_height * 3.),
+            );
+            window.with_content_mask(Some(ContentMask { bounds: mask }), |window| {
+                report(
+                    text.shaped
+                        .paint_background(shifted, text.line_height, window, cx),
+                );
+                report(text.shaped.paint(shifted, text.line_height, window, cx));
+            });
+        }
+        PieceContent::Image { image, radius } => {
+            report(window.paint_image(bounds, (*radius).into(), image.clone(), 0, false));
+        }
+        PieceContent::Icon { path, color } => {
+            let icon = Bounds::new(origin, size(piece.height, piece.height));
+            report(window.paint_svg(icon, path.clone(), TransformationMatrix::unit(), *color, cx));
+        }
+        PieceContent::Quad { color, radius } if color.a > 0. => {
+            window.paint_quad(fill(bounds, *color).corner_radii(*radius));
+        }
+        PieceContent::Quad { .. } => {}
     }
+}
+
+/// Math previews float above the row they point at, over earlier lines.
+fn paint_overlays(placed: &PlacedLine, text_left: Pixels, theme: &Theme, window: &mut Window) {
+    let visual = &placed.visual;
+    for overlay in &visual.overlays {
+        let Some(row) = visual
+            .row_for_offset(overlay.anchor)
+            .map(|index| &visual.rows[index])
+        else {
+            continue;
+        };
+        let padding = theme.space_md;
+        let width = overlay.width + padding * 2.;
+        let height = overlay.height + padding * 2.;
+        let x = text_left + row.x_for(overlay.anchor) - padding;
+        let y = placed.top + row.top - height - theme.space_xs;
+        let card = Bounds::new(point(x, y), size(width, height));
+        paint_card(card, theme, window);
+        let image_bounds = Bounds::new(
+            point(x + padding, y + padding),
+            size(overlay.width, overlay.height),
+        );
+        report(window.paint_image(
+            image_bounds,
+            Corners::default(),
+            overlay.image.clone(),
+            0,
+            false,
+        ));
+    }
+}
+
+fn paint_card(bounds: Bounds<Pixels>, theme: &Theme, window: &mut Window) {
+    let radius = theme.radius_md;
+    window.paint_shadows(
+        bounds,
+        Corners::all(radius),
+        &[BoxShadow {
+            color: theme.shadow,
+            offset: point(px(0.), theme.space_xs * 2.),
+            blur_radius: theme.space_xl,
+            spread_radius: px(0.),
+        }],
+    );
+    window.paint_quad(quad(
+        bounds,
+        radius,
+        theme.background,
+        px(0.),
+        transparent_black(),
+        BorderStyle::default(),
+    ));
 }
 
 fn report(result: anyhow::Result<()>) {

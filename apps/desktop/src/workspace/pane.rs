@@ -415,7 +415,7 @@ impl Render for Pane {
             .size_full()
             .min_w_0()
             .min_h_0()
-            .font_family(self.theme.body_font_family)
+            .font_family(self.theme.body_font_family.clone())
             .text_size(self.theme.workspace.ui_font_size)
             .child(self.render_tab_bar(cx))
             .when_some(self.toolbar.clone(), |pane, toolbar| {

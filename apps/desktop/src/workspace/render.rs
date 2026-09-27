@@ -225,7 +225,7 @@ impl Render for Workspace {
             .size_full()
             .bg(theme.background)
             .text_color(theme.workspace.text)
-            .font_family(theme.body_font_family)
+            .font_family(theme.body_font_family.clone())
             .text_size(theme.workspace.ui_font_size)
             .child(
                 div()
@@ -242,7 +242,7 @@ impl Render for Workspace {
             .child(render_status_bar(
                 self.status.as_ref(),
                 &theme.workspace,
-                theme.body_font_family,
+                theme.body_font_family.clone(),
                 cx,
             ))
             .children(self.modal.render(&theme.workspace, cx))

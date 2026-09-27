@@ -111,9 +111,7 @@ impl EntityInputHandler for EditorView {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<usize> {
-        let frame = self.frame.as_ref()?;
-        let placed = frame.line_at_y(point.y)?;
-        let offset = placed.visual.start + placed.visual.offset_for_x(point.x - frame.text_left);
+        let offset = self.frame.as_ref()?.offset_at(point)?;
         Some(offset_to_utf16(self.doc(), offset))
     }
 }

@@ -74,7 +74,7 @@ impl Render for Welcome {
             .justify_center()
             .gap(theme.space_xl)
             .bg(self.theme.background)
-            .font_family(self.theme.body_font_family)
+            .font_family(self.theme.body_font_family.clone())
             .text_size(theme.ui_font_size)
             .text_color(theme.text_muted)
             .child("Pick a folder of notes to start.")

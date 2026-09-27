@@ -1,69 +1,266 @@
-//! Lays out one source line as text pieces and inline image widgets, and
-//! maps between byte offsets and x positions within it.
+//! A laid-out source line: soft-wrapped rows of text pieces and widgets,
+//! block rows, and the decorations behind them, plus the geometry that
+//! maps between byte offsets and positions within it.
+//!
+//! Offsets here are relative to the line's start, and x is measured from
+//! the left edge of the text column. [`crate::preview::layout`] builds
+//! these from the render planner's line plans.
 
 use std::ops::Range;
 use std::sync::Arc;
 
-use gpui::{
-    Font, Hsla, Pixels, RenderImage, ShapedLine, SharedString, TextRun, UnderlineStyle,
-    WindowTextSystem, px,
-};
+use gpui::{Hsla, Pixels, RenderImage, ShapedLine, SharedString, px};
 
-use crate::images::{ImageStore, display_size};
-use crate::styling::{LineStyle, SpanKind, style_line};
-use crate::theme::Theme;
+pub use crate::preview::layout::{LayoutContext, LayoutResources, layout_line};
 
-/// A stretch of a line before shaping. Ranges are bytes within the line.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Segment {
-    Text(Range<usize>),
-    /// An image drawn over `range`, which is hidden. The range is empty
-    /// when the source is revealed and the image follows it.
+/// Shaped text and the line height it is centred in. A chunk of text is
+/// shaped once; each soft-wrapped row shows a slice of it, so an edit
+/// reshapes a long paragraph once rather than once per row.
+#[derive(Clone, Debug)]
+pub struct TextPiece {
+    pub shaped: ShapedLine,
+    pub line_height: Pixels,
+    /// The bytes of `shaped` this piece shows.
+    pub slice: Range<usize>,
+    /// Where the slice starts in `shaped`.
+    pub slice_x: Pixels,
+}
+
+impl TextPiece {
+    /// A piece showing all of `shaped`.
+    pub fn whole(shaped: ShapedLine, line_height: Pixels) -> Self {
+        Self {
+            slice: 0..shaped.len(),
+            shaped,
+            line_height,
+            slice_x: px(0.),
+        }
+    }
+
+    pub fn is_whole(&self) -> bool {
+        self.slice.start == 0 && self.slice.end == self.shaped.len()
+    }
+
+    /// The x of a byte within the slice, from the slice's left edge.
+    pub fn x_for_index(&self, index: usize) -> Pixels {
+        self.shaped.x_for_index(self.slice.start + index) - self.slice_x
+    }
+
+    /// The byte within the slice closest to `x`.
+    pub fn closest_index_for_x(&self, x: Pixels) -> usize {
+        let index = self.shaped.closest_index_for_x(x + self.slice_x);
+        index.clamp(self.slice.start, self.slice.end) - self.slice.start
+    }
+}
+
+/// What a piece draws.
+#[derive(Clone, Debug)]
+pub enum PieceContent {
+    Text(Box<TextPiece>),
     Image {
-        range: Range<usize>,
-        target: String,
+        image: Arc<RenderImage>,
+        radius: Pixels,
+    },
+    Icon {
+        path: SharedString,
+        color: Hsla,
+    },
+    Quad {
+        color: Hsla,
+        radius: Pixels,
     },
 }
 
-/// What a laid-out piece draws.
-#[derive(Clone, Debug)]
-pub enum PieceContent {
-    Text(Box<ShapedLine>),
-    Image(Arc<RenderImage>),
+/// What clicking a piece does besides placing the cursor.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Hit {
+    Text,
+    /// A widget drawn instead of its source; the cursor snaps to its edges.
+    Widget,
+    /// Toggles the task whose `[ ]` marker is at these document offsets.
+    Checkbox {
+        marker: Range<usize>,
+    },
+    /// Folds or unfolds the callout whose header token starts here.
+    Fold {
+        header: usize,
+        folded: bool,
+    },
 }
 
-/// A laid-out piece of a line at `x` from the line's left edge.
+/// A laid-out piece of a row.
 #[derive(Clone, Debug)]
 pub struct Piece {
+    /// Source bytes the piece stands for, relative to the line.
     pub range: Range<usize>,
     pub x: Pixels,
+    /// Top edge, relative to the row's top.
+    pub top: Pixels,
     pub width: Pixels,
     pub height: Pixels,
     pub content: PieceContent,
+    pub hit: Hit,
 }
 
 impl Piece {
-    fn offset_at(&self, dx: Pixels) -> usize {
-        match &self.content {
-            PieceContent::Text(shaped) => self.range.start + shaped.closest_index_for_x(dx),
-            PieceContent::Image(_) if dx < self.width / 2. => self.range.start,
-            PieceContent::Image(_) => self.range.end,
-        }
+    pub fn is_text(&self) -> bool {
+        matches!(self.content, PieceContent::Text(_))
     }
 
-    fn x_for(&self, offset: usize) -> Option<Pixels> {
+    pub fn right(&self) -> Pixels {
+        self.x + self.width
+    }
+
+    fn text(&self) -> Option<&TextPiece> {
         match &self.content {
-            PieceContent::Text(shaped)
-                if self.range.contains(&offset) || self.range.end == offset =>
-            {
-                Some(self.x + shaped.x_for_index(offset - self.range.start))
-            }
-            PieceContent::Image(_) if self.range.start < offset && offset < self.range.end => {
-                Some(self.x)
-            }
+            PieceContent::Text(text) => Some(text),
             _ => None,
         }
     }
+
+    /// The offset closest to `x` within this piece.
+    fn offset_at(&self, x: Pixels) -> usize {
+        match self.text() {
+            Some(text) => self.range.start + text.closest_index_for_x(x - self.x),
+            None if x < self.x + self.width / 2. => self.range.start,
+            None => self.range.end,
+        }
+    }
+}
+
+/// Where a row sits in its line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RowKind {
+    /// Text and inline widgets; soft wrapping makes several of these.
+    Text,
+    /// A widget that takes the whole row, such as a rendered math block.
+    Block,
+    /// A widget drawn below the source, such as an image being edited.
+    Below,
+}
+
+/// One visual row of a line.
+#[derive(Clone, Debug)]
+pub struct VisualRow {
+    pub kind: RowKind,
+    /// Top edge, relative to the line's top.
+    pub top: Pixels,
+    pub height: Pixels,
+    /// The offsets the row covers. Text and block rows split the line
+    /// between them without gaps.
+    pub range: Range<usize>,
+    /// Where a click past the row's end puts the cursor: before the
+    /// space a soft wrap broke at, so the cursor stays on this row.
+    pub soft_end: usize,
+    /// The caret's box, relative to the row's top.
+    pub caret_top: Pixels,
+    pub caret_height: Pixels,
+    /// Where an empty row's caret goes.
+    pub left: Pixels,
+    pub pieces: Vec<Piece>,
+}
+
+impl VisualRow {
+    pub fn bottom(&self) -> Pixels {
+        self.top + self.height
+    }
+
+    pub fn right(&self) -> Pixels {
+        self.pieces
+            .iter()
+            .map(Piece::right)
+            .fold(self.left, Pixels::max)
+    }
+
+    pub fn is_caret_row(&self) -> bool {
+        self.kind != RowKind::Below
+    }
+
+    /// The x of an offset in this row. Offsets hidden between pieces snap
+    /// to the next visible piece; offsets inside a widget snap to its left
+    /// edge.
+    pub fn x_for(&self, offset: usize) -> Pixels {
+        let mut x = self.left;
+        let mut previous_end = None;
+        for piece in &self.pieces {
+            if offset < piece.range.start {
+                return if previous_end == Some(offset) {
+                    x
+                } else {
+                    piece.x
+                };
+            }
+            if let Some(text) = piece.text()
+                && offset <= piece.range.end
+            {
+                return piece.x + text.x_for_index(offset - piece.range.start);
+            }
+            if offset < piece.range.end {
+                return piece.x;
+            }
+            x = piece.right();
+            previous_end = Some(piece.range.end);
+        }
+        x
+    }
+
+    /// The offset closest to `x` in this row.
+    pub fn offset_for_x(&self, x: Pixels) -> usize {
+        if self.pieces.first().is_none_or(|first| x < first.x) {
+            return self.pieces.first().map_or(self.range.start, |first| {
+                first.range.start.max(self.range.start)
+            });
+        }
+        self.pieces
+            .iter()
+            .find(|piece| x < piece.right())
+            .map_or(self.soft_end, |piece| piece.offset_at(x))
+    }
+
+    /// The piece under `x`, if any.
+    pub fn piece_at(&self, x: Pixels) -> Option<&Piece> {
+        self.pieces
+            .iter()
+            .find(|piece| piece.x <= x && x < piece.right())
+    }
+}
+
+/// A rendered equation shown above its source while the cursor is in it.
+#[derive(Clone, Debug)]
+pub struct Overlay {
+    /// The offset the overlay points at, relative to the line.
+    pub anchor: usize,
+    pub image: Arc<RenderImage>,
+    pub width: Pixels,
+    pub height: Pixels,
+}
+
+/// A fill behind a line, such as a callout's tint. Consecutive lines with
+/// the same `group` are painted as one rounded shape.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Surface {
+    pub group: usize,
+    pub left: Pixels,
+    pub width: Pixels,
+    pub color: Hsla,
+}
+
+/// A vertical bar beside a quote line.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Bar {
+    pub x: Pixels,
+    pub width: Pixels,
+    pub color: Hsla,
+}
+
+/// What is drawn behind and beside a line's rows.
+#[derive(Clone, Debug, Default)]
+pub struct LineDecor {
+    pub surfaces: Vec<Surface>,
+    pub bars: Vec<Bar>,
+    /// Pieces in the line's margin, such as code line numbers. Their tops
+    /// are relative to the line's top.
+    pub gutter: Vec<Piece>,
 }
 
 /// One source line, laid out.
@@ -73,236 +270,94 @@ pub struct VisualLine {
     /// Document offset of the line's first byte.
     pub start: usize,
     pub len: usize,
-    /// Height of the whole row, images included.
+    /// The whole line's height; zero when the line is collapsed.
     pub height: Pixels,
-    /// Height of a line of this row's text.
-    pub text_height: Pixels,
-    pub pieces: Vec<Piece>,
+    pub rows: Vec<VisualRow>,
+    pub decor: LineDecor,
+    pub overlays: Vec<Overlay>,
 }
 
 impl VisualLine {
-    pub fn width(&self) -> Pixels {
-        self.pieces
-            .last()
-            .map_or(px(0.), |piece| piece.x + piece.width)
-    }
-
-    /// X of a line-relative offset. Offsets hidden under an image snap to
-    /// its left edge.
-    pub fn x_for_offset(&self, offset: usize) -> Pixels {
-        self.pieces
-            .iter()
-            .find_map(|piece| piece.x_for(offset))
-            .unwrap_or_else(|| self.width())
-    }
-
-    /// The line-relative offset closest to `x`.
-    pub fn offset_for_x(&self, x: Pixels) -> usize {
-        self.pieces
-            .iter()
-            .find(|piece| x < piece.x + piece.width)
-            .map_or(self.len, |piece| piece.offset_at(x - piece.x))
-    }
-
     pub fn end(&self) -> usize {
         self.start + self.len
     }
-}
 
-/// What to lay out.
-#[derive(Clone, Debug)]
-pub struct LineInput<'a> {
-    pub text: &'a str,
-    pub line: usize,
-    pub start: usize,
-    pub row_height: Pixels,
-    /// The cursor, relative to the line, when it is on this line.
-    pub cursor: Option<usize>,
-    /// The IME composition, relative to the line, clipped to it.
-    pub marked: Option<Range<usize>>,
-}
-
-/// Splits a line into text and image segments. An image's source is
-/// hidden unless the cursor touches it.
-pub fn segments(style: &LineStyle, len: usize, cursor: Option<usize>) -> Vec<Segment> {
-    let mut segments = Vec::new();
-    let mut text_start = 0;
-    for span in style.spans.iter().filter(|span| span.is_image()) {
-        let SpanKind::Image { target } = &span.kind else {
-            continue;
-        };
-        let revealed = cursor.is_some_and(|at| span.range.start <= at && at <= span.range.end);
-        let hidden = if revealed {
-            span.range.end..span.range.end
-        } else {
-            span.range.clone()
-        };
-        push_text(&mut segments, text_start..hidden.start);
-        segments.push(Segment::Image {
-            range: hidden.clone(),
-            target: target.clone(),
-        });
-        text_start = hidden.end;
+    pub fn is_collapsed(&self) -> bool {
+        self.rows.is_empty()
     }
-    push_text(&mut segments, text_start..len);
-    segments
-}
 
-fn push_text(segments: &mut Vec<Segment>, range: Range<usize>) {
-    if !range.is_empty() {
-        segments.push(Segment::Text(range));
+    /// The right edge of the widest row.
+    pub fn width(&self) -> Pixels {
+        self.rows
+            .iter()
+            .map(VisualRow::right)
+            .fold(px(0.), Pixels::max)
     }
-}
 
-/// Shapes a line with GPUI's text system.
-pub fn layout_line(
-    input: &LineInput<'_>,
-    theme: &Theme,
-    images: &mut ImageStore,
-    text_system: &WindowTextSystem,
-) -> VisualLine {
-    let style = style_line(input.text);
-    let font_size = theme.font_size(style.heading_level);
-    let mut pieces = Vec::new();
-    let mut x = px(0.);
-    for segment in segments(&style, input.text.len(), input.cursor) {
-        let piece = match segment {
-            Segment::Text(range) => {
-                let runs = text_runs(input.text, &range, &style, input.marked.as_ref(), theme);
-                let text = SharedString::from(input.text[range.clone()].to_owned());
-                let shaped = text_system.shape_line(text, font_size, &runs, None);
-                text_piece(range, x, shaped, theme.line_height(font_size))
+    /// Every piece, row by row.
+    pub fn pieces(&self) -> impl Iterator<Item = &Piece> {
+        self.rows.iter().flat_map(|row| row.pieces.iter())
+    }
+
+    /// Rows the caret can be in, in order.
+    pub fn caret_rows(&self) -> impl Iterator<Item = (usize, &VisualRow)> {
+        self.rows
+            .iter()
+            .enumerate()
+            .filter(|(_, row)| row.is_caret_row())
+    }
+
+    /// The row an offset's caret is drawn in. At a soft wrap the caret
+    /// goes to the start of the next row.
+    pub fn row_for_offset(&self, offset: usize) -> Option<usize> {
+        let mut last = None;
+        for (index, row) in self.caret_rows() {
+            if row.range.start <= offset && offset < row.range.end {
+                return Some(index);
             }
-            Segment::Image { range, target } => image_piece(range, x, images.image(&target), theme),
+            last = Some(index);
+        }
+        last
+    }
+
+    /// The x of a line-relative offset.
+    pub fn x_for_offset(&self, offset: usize) -> Pixels {
+        self.row_for_offset(offset)
+            .map_or(px(0.), |row| self.rows[row].x_for(offset))
+    }
+
+    /// The row at `y` (relative to the line's top), clamped to the first
+    /// and last rows.
+    pub fn row_at_y(&self, y: Pixels) -> Option<usize> {
+        if self.rows.is_empty() {
+            return None;
+        }
+        let index = self
+            .rows
+            .iter()
+            .position(|row| y < row.bottom())
+            .unwrap_or(self.rows.len() - 1);
+        Some(index)
+    }
+
+    /// The offset under a point relative to the line's top-left. Points on
+    /// a row below the source map to the end of the row above it.
+    pub fn offset_for_point(&self, x: Pixels, y: Pixels) -> usize {
+        let Some(index) = self.row_at_y(y) else {
+            return 0;
         };
-        x = piece.x + piece.width;
-        pieces.push(piece);
+        let row = &self.rows[index];
+        match row.kind {
+            RowKind::Below => row.range.start,
+            _ => row.offset_for_x(x),
+        }
     }
-    VisualLine {
-        line: input.line,
-        start: input.start,
-        len: input.text.len(),
-        height: input.row_height,
-        text_height: theme.line_height(font_size),
-        pieces,
-    }
-}
 
-fn text_piece(range: Range<usize>, x: Pixels, shaped: ShapedLine, height: Pixels) -> Piece {
-    Piece {
-        range,
-        x,
-        width: shaped.width,
-        height,
-        content: PieceContent::Text(Box::new(shaped)),
-    }
-}
-
-fn image_piece(range: Range<usize>, x: Pixels, image: Arc<RenderImage>, theme: &Theme) -> Piece {
-    let shown = display_size(&image, theme);
-    Piece {
-        range,
-        x: x + theme.image_gap,
-        width: shown.width + theme.image_gap,
-        height: shown.height,
-        content: PieceContent::Image(image),
-    }
-}
-
-/// Text runs for `range` of a line, split wherever the style or the
-/// composition underline changes.
-pub fn text_runs(
-    text: &str,
-    range: &Range<usize>,
-    style: &LineStyle,
-    marked: Option<&Range<usize>>,
-    theme: &Theme,
-) -> Vec<TextRun> {
-    let cuts = cut_points(text, range, style, marked);
-    cuts.windows(2)
-        .map(|pair| run_for(pair[0]..pair[1], style, marked, theme))
-        .collect()
-}
-
-fn cut_points(
-    text: &str,
-    range: &Range<usize>,
-    style: &LineStyle,
-    marked: Option<&Range<usize>>,
-) -> Vec<usize> {
-    let span_edges = style.spans.iter().flat_map(|span| {
-        [
-            span.range.start,
-            span.content.start,
-            span.content.end,
-            span.range.end,
-        ]
-    });
-    let marker_edges = style.heading_marker.iter().map(|marker| marker.end);
-    let marked_edges = marked
-        .into_iter()
-        .flat_map(|marked| [marked.start, marked.end]);
-    let mut cuts: Vec<usize> = [range.start, range.end]
-        .into_iter()
-        .chain(span_edges)
-        .chain(marker_edges)
-        .chain(marked_edges)
-        .filter(|cut| range.start <= *cut && *cut <= range.end && text.is_char_boundary(*cut))
-        .map(|cut| cut - range.start)
-        .collect();
-    cuts.sort_unstable();
-    cuts.dedup();
-    cuts.into_iter().map(|cut| cut + range.start).collect()
-}
-
-fn run_for(
-    segment: Range<usize>,
-    style: &LineStyle,
-    marked: Option<&Range<usize>>,
-    theme: &Theme,
-) -> TextRun {
-    let span_kind = style.span_at(segment.start).map(|span| &span.kind);
-    let is_code = matches!(span_kind, Some(SpanKind::Code));
-    let in_code_content = is_code && !style.is_marker(segment.start);
-    let is_marked =
-        marked.is_some_and(|marked| marked.start <= segment.start && segment.end <= marked.end);
-    TextRun {
-        len: segment.len(),
-        font: font_for(span_kind, style.heading_level, theme),
-        color: color_for(style, segment.start, span_kind, theme),
-        background_color: in_code_content.then_some(theme.code_background),
-        underline: is_marked.then_some(UnderlineStyle {
-            thickness: theme.composition_underline_thickness,
-            color: Some(theme.composition_underline),
-            wavy: false,
-        }),
-        strikethrough: None,
-    }
-}
-
-fn font_for(span_kind: Option<&SpanKind>, heading_level: u8, theme: &Theme) -> Font {
-    match span_kind {
-        Some(SpanKind::Strong) => theme.strong_font(),
-        Some(SpanKind::Emphasis) => theme.emphasis_font(),
-        Some(SpanKind::Code) => theme.code_font(),
-        _ if heading_level > 0 => theme.heading_font(),
-        _ => theme.body_font(),
-    }
-}
-
-fn color_for(
-    style: &LineStyle,
-    offset: usize,
-    span_kind: Option<&SpanKind>,
-    theme: &Theme,
-) -> Hsla {
-    if style.is_marker(offset) {
-        return theme.markup_dimmed;
-    }
-    match span_kind {
-        Some(SpanKind::Code) => theme.code_text,
-        _ if style.heading_level > 0 => theme.heading_text,
-        _ => theme.text,
+    /// The piece under a point relative to the line's top-left.
+    pub fn piece_at_point(&self, x: Pixels, y: Pixels) -> Option<&Piece> {
+        let row = &self.rows[self.row_at_y(y)?];
+        let inside = y >= row.top && y < row.bottom();
+        inside.then(|| row.piece_at(x)).flatten()
     }
 }
 
@@ -310,81 +365,80 @@ fn color_for(
 mod tests {
     use super::*;
 
-    fn image(range: Range<usize>, target: &str) -> Segment {
-        Segment::Image {
+    fn widget(range: Range<usize>, x: f32, width: f32) -> Piece {
+        Piece {
             range,
-            target: target.to_owned(),
+            x: px(x),
+            top: px(0.),
+            width: px(width),
+            height: px(10.),
+            content: PieceContent::Quad {
+                color: gpui::black(),
+                radius: px(0.),
+            },
+            hit: Hit::Widget,
+        }
+    }
+
+    fn row(kind: RowKind, top: f32, range: Range<usize>, pieces: Vec<Piece>) -> VisualRow {
+        VisualRow {
+            kind,
+            top: px(top),
+            height: px(10.),
+            soft_end: range.end,
+            range,
+            caret_top: px(0.),
+            caret_height: px(10.),
+            left: px(0.),
+            pieces,
+        }
+    }
+
+    fn line(rows: Vec<VisualRow>) -> VisualLine {
+        VisualLine {
+            line: 0,
+            start: 100,
+            len: 20,
+            height: px(30.),
+            rows,
+            decor: LineDecor::default(),
+            overlays: Vec::new(),
         }
     }
 
     #[test]
-    fn hidden_images_replace_their_source() {
-        let text = "a ![[p.png]] b";
-        let style = style_line(text);
-        assert_eq!(
-            segments(&style, text.len(), None),
-            vec![
-                Segment::Text(0..2),
-                image(2..12, "p.png"),
-                Segment::Text(12..14)
-            ]
+    fn wrapped_offsets_go_to_the_next_row() {
+        let line = line(vec![
+            row(RowKind::Text, 0., 0..10, vec![widget(0..10, 0., 50.)]),
+            row(RowKind::Text, 10., 10..20, vec![widget(10..20, 0., 50.)]),
+            row(RowKind::Below, 20., 20..20, vec![widget(20..20, 0., 50.)]),
+        ]);
+        assert_eq!(line.row_for_offset(9), Some(0));
+        assert_eq!(line.row_for_offset(10), Some(1));
+        assert_eq!(line.row_for_offset(20), Some(1));
+        assert_eq!(line.row_at_y(px(15.)), Some(1));
+        assert_eq!(line.row_at_y(px(99.)), Some(2));
+        assert_eq!(line.offset_for_point(px(5.), px(25.)), 20);
+    }
+
+    #[test]
+    fn widgets_snap_offsets_to_their_edges() {
+        let row = row(
+            RowKind::Text,
+            0.,
+            0..12,
+            vec![widget(2..6, 10., 20.), widget(8..12, 40., 10.)],
         );
-    }
-
-    #[test]
-    fn the_cursor_reveals_image_source() {
-        let text = "a ![[p.png]] b";
-        let style = style_line(text);
-        assert_eq!(
-            segments(&style, text.len(), Some(5)),
-            vec![
-                Segment::Text(0..12),
-                image(12..12, "p.png"),
-                Segment::Text(12..14)
-            ]
-        );
-    }
-
-    #[test]
-    fn an_empty_line_has_no_segments() {
-        assert!(segments(&LineStyle::default(), 0, Some(0)).is_empty());
-    }
-
-    #[test]
-    fn runs_split_at_styles_and_composition() {
-        let theme = Theme::default();
-        let text = "ab **cd** `ef`";
-        let style = style_line(text);
-        let runs = text_runs(text, &(0..text.len()), &style, Some(&(1..2)), &theme);
-        let lengths: Vec<usize> = runs.iter().map(|run| run.len).collect();
-        assert_eq!(lengths, vec![1, 1, 1, 2, 2, 2, 1, 1, 2, 1]);
-        assert_eq!(lengths.iter().sum::<usize>(), text.len());
-        assert!(runs[1].underline.is_some());
-        assert!(runs[0].underline.is_none());
-        assert_eq!(runs[4].font.weight, theme.strong_font().weight);
-        assert_eq!(runs[3].color, theme.markup_dimmed);
-        assert_eq!(runs[8].font.family, theme.code_font().family);
-        assert_eq!(runs[8].background_color, Some(theme.code_background));
-    }
-
-    #[test]
-    fn heading_runs_use_the_heading_font() {
-        let theme = Theme::default();
-        let text = "# Title";
-        let style = style_line(text);
-        let runs = text_runs(text, &(0..text.len()), &style, None, &theme);
-        assert_eq!(runs.len(), 2);
-        assert_eq!(runs[0].color, theme.markup_dimmed);
-        assert_eq!(runs[1].color, theme.heading_text);
-        assert_eq!(runs[1].font.weight, theme.heading_font().weight);
-    }
-
-    #[test]
-    fn runs_cover_only_the_requested_range() {
-        let theme = Theme::default();
-        let text = "x **bold** y";
-        let style = style_line(text);
-        let runs = text_runs(text, &(5..12), &style, None, &theme);
-        assert_eq!(runs.iter().map(|run| run.len).sum::<usize>(), 7);
+        assert_eq!(row.x_for(0), px(10.));
+        assert_eq!(row.x_for(4), px(10.));
+        assert_eq!(row.x_for(6), px(30.));
+        assert_eq!(row.x_for(7), px(40.));
+        assert_eq!(row.x_for(12), px(50.));
+        assert_eq!(row.offset_for_x(px(12.)), 2);
+        assert_eq!(row.offset_for_x(px(28.)), 6);
+        assert_eq!(row.offset_for_x(px(99.)), 12);
+        assert_eq!(row.offset_for_x(px(1.)), 2);
+        assert!(row.piece_at(px(35.)).is_none());
+        assert_eq!(row.piece_at(px(45.)).unwrap().range, 8..12);
     }
 }

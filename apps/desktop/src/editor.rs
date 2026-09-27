@@ -1,14 +1,17 @@
 //! The editor view: an `editor-core` state plus everything needed to draw
 //! it and take input.
 
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::path::PathBuf;
 use std::time::Instant;
 
+use editor_config::Config;
+use editor_config::settings::SymbolSettings;
 use editor_core::document::{Document, Selection, SelectionRange};
 use editor_core::history::EditorState;
 use editor_core::pipeline::{EditRequest, Pipeline};
-use editor_core::syntax;
+use editor_core::render::{LinePlan, RenderInput, RevealSettings, plan_lines};
 use editor_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{App, Bounds, Context, EventEmitter, FocusHandle, Focusable, Pixels, Point, Window, px};
 
@@ -16,13 +19,23 @@ use crate::actions::ClickUnit;
 use crate::bench::Bench;
 use crate::frame::{FrameLayout, PlacedLine};
 use crate::images::ImageStore;
-use crate::line_layout::{LineInput, VisualLine, layout_line};
-use crate::metrics::LineMetrics;
+use crate::line_layout::{LayoutContext, LayoutResources, VisualLine, layout_line};
+use crate::metrics::{Estimator, LineMetrics};
+use crate::preview::folds::Folds;
+use crate::preview::math::{MathStore, RenderFn};
+use crate::preview::reveal::reveal_settings;
+use crate::preview::source::{Source, SourceChange};
 use crate::stats::Timings;
 use crate::theme::Theme;
 
 /// Edits between timing reports when logging is on.
 const TIMING_LOG_INTERVAL: usize = 100;
+
+/// Lines planned together while laying out a frame.
+const PLAN_CHUNK: usize = 48;
+
+/// The column width assumed before the first frame.
+const INITIAL_COLUMN_WIDTH: f32 = 700.;
 
 /// What the editor tells its container.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,6 +44,9 @@ pub enum EditorEvent {
     Edited,
     /// The selection moved without the text changing.
     SelectionChanged,
+    /// Mod-click on a link, or `link.follow` with the cursor in one. The
+    /// target is a URL, a path, or `note#heading` for a wikilink.
+    OpenLink(String),
 }
 
 /// Ranges drawn with a background, such as find matches. Each kind is
@@ -47,8 +63,20 @@ pub struct EditorView {
     pub(crate) state: EditorState,
     pub(crate) marked: Option<Range<usize>>,
     pub(crate) metrics: LineMetrics,
+    /// The theme at zoom 1.
+    pub(crate) base_theme: Theme,
+    /// The theme at the current zoom; everything draws from this.
     pub(crate) theme: Theme,
+    pub(crate) zoom: f32,
+    pub(crate) readable_width: bool,
+    pub(crate) symbols: SymbolSettings,
+    pub(crate) reveal: RevealSettings,
+    pub(crate) source: Source,
+    pub(crate) math: MathStore,
+    pub(crate) folds: Folds,
     pub(crate) images: ImageStore,
+    /// Width of the text column in the last frame.
+    pub(crate) column_width: Pixels,
     pub(crate) scroll_y: Pixels,
     pub(crate) goal_x: Option<Pixels>,
     pub(crate) is_selecting: bool,
@@ -59,7 +87,7 @@ pub struct EditorView {
     pub(crate) timings: Timings,
     pub(crate) bench: Option<Bench>,
     pub(crate) log_timings: bool,
-    pub(crate) highlights: std::collections::BTreeMap<HighlightKind, Vec<Range<usize>>>,
+    pub(crate) highlights: BTreeMap<HighlightKind, Vec<Range<usize>>>,
     pipeline: Pipeline,
     clock: Instant,
 }
@@ -73,17 +101,35 @@ impl Focusable for EditorView {
 }
 
 impl EditorView {
-    /// A view of `text`. Images are looked up in `image_dirs`.
+    /// A view of `text` with the built-in settings and theme. Images are
+    /// looked up in `image_dirs`.
     pub fn new(text: &str, image_dirs: Vec<PathBuf>, cx: &mut Context<Self>) -> Self {
-        let theme = Theme::default();
-        let doc = Document::from(text);
+        let config = Config::defaults();
+        let mut base_theme = Theme::from_config(&config);
+        base_theme.resolve_fonts(&cx.text_system().all_font_names());
+        let source = Source::new(text);
+        let column_width = px(INITIAL_COLUMN_WIDTH);
+        let estimator = Estimator {
+            theme: &base_theme,
+            column_width,
+        };
+        let symbols = config.settings.markdown.symbols.clone();
         Self {
             focus_handle: cx.focus_handle(),
-            metrics: LineMetrics::build(&doc, &theme),
-            state: EditorState::new(doc),
+            metrics: LineMetrics::build(&source, &estimator),
+            state: EditorState::new(Document::from(text)),
             marked: None,
-            theme,
+            theme: base_theme.clone(),
+            base_theme,
+            zoom: 1.,
+            readable_width: true,
+            reveal: reveal_settings(&symbols),
+            symbols,
+            source,
+            math: MathStore::default(),
+            folds: Folds::default(),
             images: ImageStore::new(image_dirs),
+            column_width,
             scroll_y: px(0.),
             goal_x: None,
             is_selecting: false,
@@ -100,6 +146,23 @@ impl EditorView {
         }
     }
 
+    /// Takes the theme and Markdown symbol settings from a loaded config,
+    /// as when the config folder changes.
+    pub fn apply_config(&mut self, config: &Config, cx: &mut Context<Self>) {
+        let mut theme = Theme::from_config(config);
+        theme.resolve_fonts(&cx.text_system().all_font_names());
+        self.base_theme = theme;
+        self.symbols = config.settings.markdown.symbols.clone();
+        self.reveal = reveal_settings(&self.symbols);
+        self.set_zoom(self.zoom, cx);
+    }
+
+    /// Renders math with `render` instead of Typst, for tests.
+    pub fn set_math_renderer(&mut self, render: RenderFn, cx: &mut Context<Self>) {
+        self.math = MathStore::with_renderer(render);
+        cx.notify();
+    }
+
     pub fn text(&self) -> String {
         self.state.doc().to_string()
     }
@@ -108,9 +171,35 @@ impl EditorView {
         self.state.doc()
     }
 
+    pub fn theme(&self) -> &Theme {
+        &self.theme
+    }
+
+    pub fn zoom(&self) -> f32 {
+        self.zoom
+    }
+
+    pub fn is_readable_width(&self) -> bool {
+        self.readable_width
+    }
+
+    pub fn reveal_settings(&self) -> &RevealSettings {
+        &self.reveal
+    }
+
     /// The primary selection as an ordered byte range.
     pub fn selected_range(&self) -> Range<usize> {
         self.state.selection().primary().range()
+    }
+
+    /// Every selected range, in order, for the render planner.
+    pub fn selected_ranges(&self) -> Vec<Range<usize>> {
+        self.state
+            .selection()
+            .ranges()
+            .iter()
+            .map(SelectionRange::range)
+            .collect()
     }
 
     pub fn cursor(&self) -> usize {
@@ -181,10 +270,9 @@ impl EditorView {
         let doc = self.state.doc();
         let range = doc.floor_char_boundary(range.start)
             ..doc.floor_char_boundary(range.end.max(range.start));
-        let old_lines = doc.line_of_offset(range.start)..doc.line_of_offset(range.end) + 1;
         let inserted = range.start..range.start + text.len();
         let transaction = Transaction::new(
-            ChangeSet::replace(range, text),
+            ChangeSet::replace(range.clone(), text),
             Origin::Input,
             self.now_ms(),
         )
@@ -192,9 +280,8 @@ impl EditorView {
         self.state
             .apply(transaction)
             .expect("ranges are clamped to character boundaries");
-        let doc = self.state.doc();
-        let new_lines = doc.line_of_offset(inserted.start)..doc.line_of_offset(inserted.end) + 1;
-        self.metrics.splice(old_lines, new_lines, doc, &self.theme);
+        let change = self.source.replace(range, text);
+        self.source_changed(change);
         self.marked = None;
         self.goal_x = None;
         self.autoscroll = true;
@@ -249,12 +336,11 @@ impl EditorView {
 
     /// Enter runs through the input pipeline so lists continue.
     pub fn newline(&mut self, cx: &mut Context<Self>) {
-        let tree = syntax::parse(&self.state.doc().to_string());
         let transaction = self.pipeline.run(
             EditRequest::Newline,
             self.state.doc(),
             self.state.selection(),
-            &tree,
+            self.source.tree(),
             self.now_ms(),
         );
         match transaction {
@@ -276,11 +362,24 @@ impl EditorView {
     }
 
     fn after_history_step(&mut self, cx: &mut Context<Self>) {
-        self.metrics = LineMetrics::build(self.state.doc(), &self.theme);
+        if let Some(change) = self.source.sync(self.state.doc()) {
+            self.source_changed(change);
+        }
         self.marked = None;
         self.autoscroll = true;
         cx.emit(EditorEvent::Edited);
         cx.notify();
+    }
+
+    /// Re-estimates the changed lines and moves fold overrides.
+    fn source_changed(&mut self, change: SourceChange) {
+        let estimator = Estimator {
+            theme: &self.theme,
+            column_width: self.column_width,
+        };
+        self.metrics
+            .splice(change.old_lines, change.new_lines, &self.source, &estimator);
+        self.folds.map(&change.edit);
     }
 
     /// Replaces the whole text, as when the file changed on disk. The
@@ -344,71 +443,86 @@ impl EditorView {
         }
     }
 
+    fn viewport_height(&self) -> Pixels {
+        self.frame.as_ref().map_or(px(0.), |frame| {
+            (frame.bounds.size.height - self.theme.text_padding * 2.).max(px(0.))
+        })
+    }
+
     /// Scrolls by `delta` and clamps to the document.
     pub fn scroll_by(&mut self, delta: Pixels, cx: &mut Context<Self>) {
-        let viewport = self
-            .frame
-            .as_ref()
-            .map_or(px(0.), |frame| frame.bounds.size.height);
-        let max_scroll = (self.metrics.total_height() - viewport).max(px(0.));
+        let max_scroll = (self.metrics.total_height() - self.viewport_height()).max(px(0.));
         self.scroll_y = (self.scroll_y + delta).clamp(px(0.), max_scroll);
         cx.notify();
     }
 
-    /// Scrolls just enough to show the cursor's row.
-    pub(crate) fn apply_autoscroll(&mut self, viewport_height: Pixels) {
-        if !std::mem::take(&mut self.autoscroll) {
-            return;
-        }
-        let line = self.state.doc().line_of_offset(self.cursor());
-        let top = self.metrics.top_of(line);
-        let bottom = top + self.metrics.height(line);
-        if top < self.scroll_y {
-            self.scroll_y = top;
-        } else if bottom > self.scroll_y + viewport_height {
-            self.scroll_y = bottom - viewport_height;
-        }
-    }
-
-    /// Lays out the lines visible in `bounds`.
-    pub(crate) fn layout_frame(&mut self, bounds: Bounds<Pixels>, window: &Window) -> FrameLayout {
-        let padding = self.theme.text_padding;
-        let viewport_height = (bounds.size.height - padding * 2.).max(px(0.));
-        self.apply_autoscroll(viewport_height);
-        let visible = self.metrics.visible(self.scroll_y, viewport_height);
-        let mut top = bounds.top() + padding + visible.first_top;
-        let mut lines = Vec::with_capacity(visible.end - visible.first);
-        for line in visible.first..visible.end {
-            let visual = self.layout_doc_line(line, window);
-            let height = visual.height;
-            lines.push(PlacedLine { top, visual });
-            top += height;
-        }
-        FrameLayout {
-            bounds,
-            text_left: bounds.left() + padding,
-            lines,
-        }
-    }
-
-    /// Shapes one document line.
-    pub(crate) fn layout_doc_line(&mut self, line: usize, window: &Window) -> VisualLine {
-        let doc = self.state.doc();
-        let range = doc.line_range(line);
-        let text = doc.slice(range.clone());
-        let cursor = self.cursor();
-        let input = LineInput {
-            text: &text,
-            line,
-            start: range.start,
-            row_height: self.metrics.height(line),
-            cursor: (range.start <= cursor && cursor <= range.end).then(|| cursor - range.start),
-            marked: clip_to_line(self.marked.as_ref(), &range),
+    /// Re-estimates every line, as after a zoom or a new column width.
+    pub(crate) fn remeasure(&mut self) {
+        let estimator = Estimator {
+            theme: &self.theme,
+            column_width: self.column_width,
         };
-        layout_line(&input, &self.theme, &mut self.images, window.text_system())
+        self.metrics = LineMetrics::build(&self.source, &estimator);
+        self.autoscroll = true;
     }
 
-    /// A line laid out in the last frame, or freshly shaped when it was
+    /// Where the text column goes in `bounds`: centred at the readable
+    /// width when that is on, else the full width less padding.
+    pub(crate) fn column_for(&self, bounds: Bounds<Pixels>) -> (Pixels, Pixels) {
+        let available = (bounds.size.width - self.theme.text_padding * 2.).max(px(1.));
+        let width = if self.readable_width {
+            available.min(self.theme.editor_max_width)
+        } else {
+            available
+        };
+        (bounds.left() + (bounds.size.width - width) / 2., width)
+    }
+
+    /// Plans `lines` for the current selection and settings.
+    pub(crate) fn plan(&self, lines: Range<usize>) -> Vec<LinePlan> {
+        let selections = self.selected_ranges();
+        let input = RenderInput {
+            text: self.source.text(),
+            tree: self.source.tree(),
+            selections: &selections,
+            settings: &self.reveal,
+        };
+        let mut plans = plan_lines(&input, lines).lines;
+        self.folds
+            .apply(&mut plans, self.source.tree(), &selections);
+        plans
+    }
+
+    /// Lays out a planned line against the current column.
+    pub(crate) fn layout_plan(&mut self, plan: &LinePlan, window: &Window) -> VisualLine {
+        let context = LayoutContext {
+            source: &self.source,
+            theme: &self.theme,
+            column_width: self.column_width,
+            zoom: self.zoom,
+            scale_factor: window.scale_factor(),
+            marked: self.marked.clone(),
+        };
+        let mut resources = LayoutResources {
+            text_system: window.text_system(),
+            images: &mut self.images,
+            math: &mut self.math,
+        };
+        layout_line(plan, &context, &mut resources)
+    }
+
+    /// Lays out one document line and records its height.
+    pub(crate) fn layout_doc_line(&mut self, line: usize, window: &Window) -> VisualLine {
+        let plan = self
+            .plan(line..line + 1)
+            .pop()
+            .expect("every line in the document has a plan");
+        let visual = self.layout_plan(&plan, window);
+        self.metrics.set(line, visual.height);
+        visual
+    }
+
+    /// A line laid out in the last frame, or freshly laid out when it was
     /// off screen.
     pub(crate) fn visual_line(&mut self, line: usize, window: &Window) -> VisualLine {
         let cached = self.frame.as_ref().and_then(|frame| frame.line(line));
@@ -418,37 +532,101 @@ impl EditorView {
         }
     }
 
-    /// The document offset under a window position.
+    /// Scrolls just enough to show the cursor's row. When jumping down,
+    /// the lines above the cursor are measured first so the row lands
+    /// exactly at the bottom.
+    pub(crate) fn apply_autoscroll(&mut self, viewport: Pixels, window: &Window) {
+        if !std::mem::take(&mut self.autoscroll) {
+            return;
+        }
+        let line = self.source.line_of(self.cursor());
+        let visual = self.layout_doc_line(line, window);
+        let relative = self.cursor() - visual.start;
+        let (row_top, row_bottom) = visual
+            .row_for_offset(relative)
+            .map_or((px(0.), visual.height), |row| {
+                (visual.rows[row].top, visual.rows[row].bottom())
+            });
+        let line_top = self.metrics.top_of(line);
+        if line_top + row_top < self.scroll_y {
+            self.scroll_y = line_top + row_top;
+        } else if line_top + row_bottom > self.scroll_y + viewport {
+            self.measure_above(line, viewport - row_bottom, window);
+            self.scroll_y = self.metrics.top_of(line) + row_bottom - viewport;
+        }
+    }
+
+    fn measure_above(&mut self, line: usize, mut room: Pixels, window: &Window) {
+        let mut above = line;
+        while room > px(0.) && above > 0 {
+            above -= 1;
+            room -= self.layout_doc_line(above, window).height;
+        }
+    }
+
+    /// Lays out the lines visible in `bounds`.
+    pub(crate) fn layout_frame(&mut self, bounds: Bounds<Pixels>, window: &Window) -> FrameLayout {
+        let (text_left, column_width) = self.column_for(bounds);
+        if column_width != self.column_width {
+            self.column_width = column_width;
+            self.remeasure();
+        }
+        let padding = self.theme.text_padding;
+        let viewport = (bounds.size.height - padding * 2.).max(px(0.));
+        self.math.begin_frame();
+        self.apply_autoscroll(viewport, window);
+        let max_scroll = (self.metrics.total_height() - viewport).max(px(0.));
+        self.scroll_y = self.scroll_y.clamp(px(0.), max_scroll);
+        let (first, first_top) = self.metrics.line_at_y(self.scroll_y);
+        let mut top = bounds.top() + padding + first_top - self.scroll_y;
+        let mut lines = Vec::new();
+        let mut plans = Vec::new().into_iter();
+        let mut line = first;
+        while line < self.source.line_count() && top < bounds.bottom() {
+            let plan = match plans.next() {
+                Some(plan) => plan,
+                None => {
+                    plans = self.plan(line..line + PLAN_CHUNK).into_iter();
+                    plans.next().expect("the line exists")
+                }
+            };
+            let visual = self.layout_plan(&plan, window);
+            self.metrics.set(line, visual.height);
+            let height = visual.height;
+            lines.push(PlacedLine { top, visual });
+            top += height;
+            line += 1;
+        }
+        FrameLayout {
+            bounds,
+            text_left,
+            column_width,
+            lines,
+            highlights: Vec::new(),
+        }
+    }
+
+    /// The document offset under a window position. Positions above or
+    /// below the frame map to lines off screen, so drags keep selecting.
     pub(crate) fn offset_for_point(&mut self, position: Point<Pixels>, window: &Window) -> usize {
         let Some(frame) = self.frame.as_ref() else {
             return 0;
         };
         let content_top = frame.bounds.top() + self.theme.text_padding;
-        let line = self
+        let inside = frame
+            .lines
+            .first()
+            .zip(frame.lines.last())
+            .is_some_and(|(first, last)| first.top <= position.y && position.y < last.bottom());
+        if inside {
+            return frame.offset_at(position).unwrap_or(0);
+        }
+        let x = position.x - frame.text_left;
+        let (line, line_top) = self
             .metrics
             .line_at_y(position.y - content_top + self.scroll_y);
-        let x = position.x - frame.text_left;
+        let y = position.y - content_top + self.scroll_y - line_top;
         let visual = self.visual_line(line, window);
-        visual.start + visual.offset_for_x(x)
-    }
-}
-
-fn clip_to_line(marked: Option<&Range<usize>>, line: &Range<usize>) -> Option<Range<usize>> {
-    let marked = marked?;
-    let start = marked.start.max(line.start);
-    let end = marked.end.min(line.end);
-    (start < end).then(|| start - line.start..end - line.start)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn composition_is_clipped_to_each_line() {
-        assert_eq!(clip_to_line(Some(&(3..8)), &(0..5)), Some(3..5));
-        assert_eq!(clip_to_line(Some(&(3..8)), &(6..10)), Some(0..2));
-        assert_eq!(clip_to_line(Some(&(3..8)), &(9..10)), None);
-        assert_eq!(clip_to_line(None, &(0..10)), None);
+        visual.start + visual.offset_for_point(x, y)
     }
 }

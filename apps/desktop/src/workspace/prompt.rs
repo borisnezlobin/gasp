@@ -162,7 +162,7 @@ impl Render for PromptView {
             .items_center()
             .pt(theme.modal_top_offset)
             .bg(theme.backdrop)
-            .font_family(self.theme.body_font_family)
+            .font_family(self.theme.body_font_family.clone())
             .text_size(theme.ui_font_size)
             .child(dialog)
     }
