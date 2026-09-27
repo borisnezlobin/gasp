@@ -14,7 +14,8 @@ use super::menu::ContextMenu;
 use super::model::Row;
 use super::view::{DisplayRow, EditTarget, FileTree};
 use crate::icons::{IconName, icon};
-use crate::theme::PanelTheme;
+use crate::theme::{PanelTheme, UiTheme};
+use crate::ui::ui_theme;
 
 /// What's being dragged: an entry's path relative to the vault.
 #[derive(Clone, Debug)]
@@ -49,7 +50,7 @@ fn kind_icon(entry: &Entry, expanded: bool) -> IconName {
     match (entry.kind, expanded) {
         (EntryKind::Folder, true) => IconName::FolderOpen,
         (EntryKind::Folder, false) => IconName::Folder,
-        (EntryKind::Note, _) => IconName::FileText,
+        (EntryKind::Note, _) => IconName::File,
         (EntryKind::Image, _) => IconName::Image,
         (EntryKind::Pdf, _) => IconName::FilePdf,
     }
@@ -66,7 +67,7 @@ struct RowState {
 
 impl Render for FileTree {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = self.theme.clone();
+        let ui = ui_theme(cx);
         let root_menu = self
             .menu
             .as_ref()
@@ -80,10 +81,9 @@ impl Render for FileTree {
             .size_full()
             .flex()
             .flex_col()
-            .bg(theme.background)
-            .font_family(theme.font_family)
-            .text_size(theme.font_size)
-            .text_color(theme.text)
+            .font_family(ui.font_family)
+            .text_size(ui.font_size)
+            .text_color(ui.text)
             .child(self.render_list(window, cx))
             .children(self.render_trash_prompt(cx))
             .children(root_menu)
@@ -141,15 +141,24 @@ impl FileTree {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let row = match self.display_row(index) {
-            DisplayRow::Entry(row) => self.render_entry_row(row, window, cx),
-            DisplayRow::NewEntry { depth, kind } => self.render_new_entry_row(depth, kind),
+        let ui = ui_theme(cx);
+        let (row, depth) = match self.display_row(index) {
+            DisplayRow::Entry(row) => {
+                let depth = self.model.row(row).map_or(0, |row| row.depth);
+                (self.render_entry_row(row, &ui, window, cx), depth)
+            }
+            DisplayRow::NewEntry { depth, kind } => {
+                (self.render_new_entry_row(depth, kind, &ui), depth)
+            }
         };
         // Room around the row so the list's clipping doesn't cut its focus ring.
+        let inset = self.theme.ring_width * 2.;
         div()
+            .relative()
             .w_full()
-            .px(self.theme.ring_width * 2.)
+            .px(inset)
             .py(self.theme.ring_width)
+            .children(indent_guides(depth, inset, &ui))
             .child(row)
             .into_any_element()
     }
@@ -163,30 +172,30 @@ impl FileTree {
         }
     }
 
-    fn row_shell(&self, depth: usize, state: RowState) -> gpui::Div {
+    fn row_shell(&self, depth: usize, state: RowState, ui: &UiTheme) -> gpui::Div {
         let theme = &self.theme;
-        let background = match (state.selected, state.focused) {
-            (true, true) => Some(theme.selected_focused),
-            (true, false) => Some(theme.selected),
+        let background = match (state.selected && state.focused, state.active) {
+            (true, _) => Some(theme.selected_focused),
+            (false, true) => Some(ui.tree_active_background),
             _ => None,
         };
-        let hover = theme.hover;
+        let hover = ui.tree_hover_background;
         let mut shell = div()
             .relative()
-            .h(theme.row_height)
+            .h(ui.tree_row_height)
             .w_full()
             .flex()
             .items_center()
-            .gap(theme.gap)
-            .pl(theme.padding_x + theme.indent * depth as f32)
-            .pr(theme.padding_x)
-            .rounded(theme.radius)
+            .gap(ui.tree_row_gap)
+            .pl(ui.space_md + ui.tree_indent * depth as f32)
+            .pr(ui.space_md)
+            .rounded(ui.tree_row_radius)
             .when_some(background, |row, color| row.bg(color))
             .when(background.is_none(), |row| {
                 row.hover(move |style| style.bg(hover))
             })
             .when(state.selected && state.focused, |row| {
-                row.shadow(vec![theme.focus_ring()])
+                row.shadow(vec![ui.ring(ui.tree_focus_ring)])
             });
         if state.cut {
             shell = shell.opacity(theme.cut_opacity);
@@ -197,13 +206,14 @@ impl FileTree {
     fn render_entry_row(
         &mut self,
         index: usize,
+        ui: &UiTheme,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let row = self.model.rows()[index].clone();
         let state = self.row_state(&row.entry.path, window);
         let theme = self.theme.clone();
-        let content = self.row_content(&row, state);
+        let content = self.row_content(&row, state, ui);
         let menu = self
             .menu
             .as_ref()
@@ -219,7 +229,7 @@ impl FileTree {
             label: row.entry.label().to_string().into(),
         };
         let selector = format!("tree-row-{}", row.entry.label());
-        self.row_shell(row.depth, state)
+        self.row_shell(row.depth, state, ui)
             .id(("file-tree-row", index))
             .debug_selector(|| selector)
             .children(content)
@@ -255,36 +265,21 @@ impl FileTree {
             .into_any_element()
     }
 
-    /// Caret, icon and name (or the rename field), plus the open-note marker.
-    fn row_content(&self, row: &Row, state: RowState) -> Vec<AnyElement> {
-        let theme = &self.theme;
-        let caret = match (row.entry.is_folder(), row.expanded) {
-            (true, true) => Some(IconName::CaretDown),
-            (true, false) => Some(IconName::CaretRight),
-            _ => None,
-        };
-        let caret = div()
-            .flex_none()
-            .size(theme.caret_size)
-            .children(caret.map(|name| icon(name).size(theme.caret_size).text_color(theme.icon)));
-        let kind_color = if state.active {
-            theme.active_text
+    /// Icon and name, or the rename field.
+    fn row_content(&self, row: &Row, state: RowState, ui: &UiTheme) -> Vec<AnyElement> {
+        let color = if state.active {
+            ui.icon_active
         } else {
-            theme.icon
+            ui.icon
         };
         let kind = icon(kind_icon(&row.entry, row.expanded))
             .flex_none()
-            .size(theme.icon_size)
-            .text_color(kind_color);
-        let mut content = vec![caret.into_any_element(), kind.into_any_element()];
-        content.push(self.row_label(row, state));
-        if state.active {
-            content.push(self.active_marker().into_any_element());
-        }
-        content
+            .size(ui.icon_size)
+            .text_color(color);
+        vec![kind.into_any_element(), self.row_label(row)]
     }
 
-    fn row_label(&self, row: &Row, state: RowState) -> AnyElement {
+    fn row_label(&self, row: &Row) -> AnyElement {
         let renaming = self
             .edit
             .as_ref()
@@ -292,32 +287,14 @@ impl FileTree {
         if let Some(edit) = renaming {
             return self.name_field(&edit.field, edit.error.clone());
         }
-        let theme = &self.theme;
         div()
             .flex_1()
             .min_w_0()
             .overflow_hidden()
             .whitespace_nowrap()
             .text_ellipsis()
-            .when(state.active, |label| {
-                label
-                    .font_weight(theme.strong_weight)
-                    .text_color(theme.active_text)
-            })
             .child(row.entry.label().to_string())
             .into_any_element()
-    }
-
-    fn active_marker(&self) -> impl IntoElement {
-        let theme = &self.theme;
-        div()
-            .absolute()
-            .left_0()
-            .top(theme.padding_y)
-            .bottom(theme.padding_y)
-            .w(theme.active_marker_width)
-            .rounded(theme.active_marker_width)
-            .bg(theme.active_marker)
     }
 
     fn name_field(
@@ -348,23 +325,21 @@ impl FileTree {
             .into_any_element()
     }
 
-    fn render_new_entry_row(&mut self, depth: usize, kind: EntryKind) -> AnyElement {
+    fn render_new_entry_row(&mut self, depth: usize, kind: EntryKind, ui: &UiTheme) -> AnyElement {
         let Some(edit) = self.edit.as_ref() else {
             return div().into_any_element();
         };
-        let theme = &self.theme;
         let entry = Entry::new("", kind);
         let icon = icon(kind_icon(&entry, false))
             .flex_none()
-            .size(theme.icon_size)
-            .text_color(theme.icon);
+            .size(ui.icon_size)
+            .text_color(ui.icon);
         let state = RowState {
             selected: true,
             focused: true,
             ..RowState::default()
         };
-        self.row_shell(depth, state)
-            .child(div().flex_none().size(theme.caret_size))
+        self.row_shell(depth, state, ui)
             .child(icon)
             .child(self.name_field(&edit.field, edit.error.clone()))
             .into_any_element()
@@ -477,4 +452,21 @@ impl FileTree {
             );
         Some(prompt.into_any_element())
     }
+}
+
+/// A hairline under each ancestor folder's icon, for a row `depth` deep.
+fn indent_guides(depth: usize, inset: gpui::Pixels, ui: &UiTheme) -> Vec<AnyElement> {
+    (0..depth)
+        .map(|level| {
+            let left = inset + ui.space_md + ui.tree_indent * level as f32 + ui.icon_size / 2.;
+            div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .left(left)
+                .w(ui.indent_guide_width)
+                .bg(ui.indent_guide)
+                .into_any_element()
+        })
+        .collect()
 }

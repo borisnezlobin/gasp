@@ -5,7 +5,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::entries::{Entry, EntryKind, is_hidden, tree_order};
+use super::entries::{Entry, EntryKind, SortOrder, is_hidden, sort_entries};
 
 /// One visible line of the tree.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -22,6 +22,7 @@ pub struct TreeModel {
     expanded: BTreeSet<PathBuf>,
     listings: HashMap<PathBuf, Vec<Entry>>,
     rows: Vec<Row>,
+    sort: SortOrder,
 }
 
 impl TreeModel {
@@ -32,6 +33,7 @@ impl TreeModel {
             expanded: BTreeSet::new(),
             listings: HashMap::new(),
             rows: Vec::new(),
+            sort: SortOrder::default(),
         };
         model.refresh();
         model
@@ -43,6 +45,19 @@ impl TreeModel {
 
     pub fn rows(&self) -> &[Row] {
         &self.rows
+    }
+
+    pub fn sort_order(&self) -> SortOrder {
+        self.sort
+    }
+
+    /// Re-sorts every folder.
+    pub fn set_sort_order(&mut self, order: SortOrder) {
+        if self.sort != order {
+            self.sort = order;
+            self.listings.clear();
+            self.rebuild();
+        }
     }
 
     pub fn row(&self, index: usize) -> Option<&Row> {
@@ -164,16 +179,16 @@ impl TreeModel {
     }
 
     fn listing(&mut self, folder: &Path) -> Vec<Entry> {
-        let root = &self.root;
+        let (root, sort) = (&self.root, self.sort);
         self.listings
             .entry(folder.to_path_buf())
-            .or_insert_with(|| read_listing(root, folder))
+            .or_insert_with(|| read_sorted_listing(root, folder, sort))
             .clone()
     }
 }
 
-/// The visible entries of one folder, sorted.
-pub fn read_listing(root: &Path, folder: &Path) -> Vec<Entry> {
+/// The visible entries of one folder in `order`.
+pub fn read_sorted_listing(root: &Path, folder: &Path, order: SortOrder) -> Vec<Entry> {
     let Ok(read) = fs::read_dir(root.join(folder)) else {
         return Vec::new();
     };
@@ -185,7 +200,11 @@ pub fn read_listing(root: &Path, folder: &Path) -> Vec<Entry> {
             Some(Entry::new(folder.join(name), kind))
         })
         .collect();
-    entries.sort_by(tree_order);
+    sort_entries(&mut entries, order, |entry| {
+        fs::metadata(root.join(&entry.path))
+            .and_then(|meta| meta.modified())
+            .ok()
+    });
     entries
 }
 

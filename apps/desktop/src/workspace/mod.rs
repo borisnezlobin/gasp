@@ -4,28 +4,38 @@
 //! The workspace sets the `"Workspace"` key context and runs every command
 //! that isn't the editor's (tabs, panes, notes, history, the sidebar).
 //! Other pieces plug in through [`Workspace::set_left_panel`],
+//! [`Workspace::set_file_tree`], [`Workspace::set_reading_probe`],
 //! [`Workspace::toggle_modal`], [`Workspace::on_command`],
 //! [`Workspace::open_path`], [`Workspace::active_editor`] and
 //! [`Pane::set_toolbar`].
+//!
+//! Everything it runs can be reached with the mouse too: the sidebar's
+//! buttons and footer, each pane's tab bar and note header, their menus
+//! and the note's right-click menu, all built from `crate::ui`.
 
 mod commands;
 pub mod files;
+pub mod help;
 pub mod history;
 pub mod launcher;
 pub mod links;
 pub mod menus;
 pub mod modal;
 pub mod note_doc;
+pub mod note_header;
 mod notes;
 pub mod pane;
+mod pane_menus;
 pub mod pane_tree;
 mod panel;
 mod panes;
 pub mod prompt;
 mod render;
 pub mod sidebar;
+mod sidebar_chrome;
 pub mod state;
 pub mod status;
+pub mod tab_bar;
 mod tabs;
 pub mod watcher;
 pub mod welcome;
@@ -44,12 +54,14 @@ use gpui::{
 pub use self::commands::handles;
 use self::modal::{ModalHost, ModalLayer};
 use self::note_doc::NoteDoc;
-pub use self::pane::Pane;
+pub use self::pane::{Pane, ReadingProbe};
 use self::pane_tree::{PaneTree, SplitId};
 use self::sidebar::LeftPanel;
 use self::status::StatusInfo;
 use crate::editor::EditorView;
+use crate::file_tree::FileTree;
 use crate::theme::Theme;
+use crate::ui::{HasMenuSlot, MenuSlot};
 
 /// Where [`Workspace::open_path`] puts a note.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,6 +104,11 @@ pub struct Workspace {
     closed_tabs: Vec<PathBuf>,
     recent: Vec<PathBuf>,
     left_panel: LeftPanel,
+    file_tree: Option<Entity<FileTree>>,
+    /// The note the file tree marks as open.
+    tree_active: Option<PathBuf>,
+    menu: MenuSlot,
+    reading_probe: Option<ReadingProbe>,
     modal: ModalLayer,
     status: Option<StatusInfo>,
     drag: Option<Drag>,
@@ -120,6 +137,12 @@ impl ModalHost for Workspace {
     }
 }
 
+impl HasMenuSlot for Workspace {
+    fn menu_slot(&mut self) -> &mut MenuSlot {
+        &mut self.menu
+    }
+}
+
 impl Workspace {
     /// A workspace on `vault` with one empty tab. Reads the vault's config
     /// from `.editor/`. Call [`Workspace::watch_vault`] to follow changes
@@ -133,7 +156,8 @@ impl Workspace {
         let config = loader.config().clone();
         let theme = Theme::default();
         let show_title = config.settings.editor.show_inline_title;
-        let pane = cx.new(|cx| Pane::new(show_title, cx));
+        crate::ui::hints::set_rules(config.rules.clone(), cx);
+        let pane = cx.new(|cx| Pane::new(&vault, show_title, cx));
         let left_panel = LeftPanel::new(
             &config.settings,
             &config.rules,
@@ -149,6 +173,10 @@ impl Workspace {
             closed_tabs: Vec::new(),
             recent: Vec::new(),
             left_panel,
+            file_tree: None,
+            tree_active: None,
+            menu: MenuSlot::default(),
+            reading_probe: None,
             modal: ModalLayer::default(),
             status: None,
             drag: None,
@@ -231,6 +259,40 @@ impl Workspace {
 
     pub fn left_panel(&self) -> &LeftPanel {
         &self.left_panel
+    }
+
+    /// Hosts the file tree in the left panel, with the sidebar's buttons
+    /// for it: new folder, sort order and collapse all.
+    pub fn set_file_tree(&mut self, tree: Entity<FileTree>, cx: &mut Context<Self>) {
+        let focus = tree.read(cx).focus_handle(cx);
+        self.set_left_panel(tree.clone().into(), Some(focus), cx);
+        self.file_tree = Some(tree);
+    }
+
+    pub fn file_tree(&self) -> Option<&Entity<FileTree>> {
+        self.file_tree.as_ref()
+    }
+
+    /// How the reading-view button learns whether a note shows as a
+    /// finished page. Without one the button always offers reading view.
+    pub fn set_reading_probe(&mut self, probe: ReadingProbe, cx: &mut Context<Self>) {
+        for pane in self.panes.panes() {
+            pane.update(cx, |pane, cx| {
+                pane.reading_probe = Some(probe.clone());
+                cx.notify();
+            });
+        }
+        self.reading_probe = Some(probe);
+    }
+
+    /// The open sidebar or pane menu, if any.
+    pub fn open_menu(&self, cx: &App) -> Option<Entity<crate::ui::DropdownMenu>> {
+        self.menu.menu().or_else(|| {
+            self.panes
+                .panes()
+                .iter()
+                .find_map(|pane| pane.read(cx).open_menu())
+        })
     }
 
     /// Opens a `V` in the modal slot, or closes it if one is open. The

@@ -13,7 +13,7 @@ use gpui::{
 };
 
 use super::FileTreeEvent;
-use super::entries::{Entry, EntryKind};
+use super::entries::{Entry, EntryKind, SortOrder};
 use super::keys::TypeAhead;
 use super::menu::{ContextMenu, MenuItem};
 use super::model::{Row, TreeModel};
@@ -208,6 +208,16 @@ impl FileTree {
     /// Re-reads the folders from disk.
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
         self.model.refresh();
+        cx.notify();
+    }
+
+    pub fn sort_order(&self) -> SortOrder {
+        self.model.sort_order()
+    }
+
+    /// Orders every folder by name or by change time.
+    pub fn set_sort_order(&mut self, order: SortOrder, cx: &mut Context<Self>) {
+        self.model.set_sort_order(order);
         cx.notify();
     }
 

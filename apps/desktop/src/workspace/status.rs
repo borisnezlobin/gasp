@@ -1,11 +1,11 @@
 //! The status bar: word and character counts, reading time, cursor
 //! position and the sync indicator's slot.
 
-use gpui::{App, IntoElement, ParentElement, SharedString, Styled, div, prelude::*};
+use gpui::{IntoElement, ParentElement, SharedString, Styled, div, prelude::*};
 
 use crate::editor::EditorView;
 use crate::icons::{IconName, icon};
-use crate::theme::WorkspaceTheme;
+use crate::theme::UiTheme;
 
 /// Average adult silent-reading speed.
 pub const WORDS_PER_MINUTE: usize = 238;
@@ -114,18 +114,10 @@ pub fn group_thousands(number: usize) -> String {
     out
 }
 
-/// Draws the status bar. `info` is `None` when no note is open.
-pub fn render_status_bar(
-    info: Option<&StatusInfo>,
-    theme: &WorkspaceTheme,
-    font_family: gpui::SharedString,
-    _cx: &App,
-) -> impl IntoElement {
-    let item = |text: String| -> gpui::Div {
-        div()
-            .text_color(theme.text_muted)
-            .child(SharedString::from(text))
-    };
+/// Draws the status bar: small muted counts at the bottom right. `info`
+/// is `None` when no note is open.
+pub fn render_status_bar(info: Option<&StatusInfo>, theme: &UiTheme) -> impl IntoElement {
+    let item = |text: String| -> gpui::Div { div().child(SharedString::from(text)) };
     let mut bar = div()
         .id("status-bar")
         .flex()
@@ -133,14 +125,11 @@ pub fn render_status_bar(
         .flex_none()
         .items_center()
         .justify_end()
-        .gap(theme.space_xl)
+        .gap(theme.status_gap)
         .h(theme.status_height)
         .px(theme.space_lg)
-        .bg(theme.chrome_background)
-        .border_t(theme.divider_width)
-        .border_color(theme.divider)
-        .font_family(font_family)
-        .text_size(theme.ui_small_font_size);
+        .text_size(theme.small_font_size)
+        .text_color(theme.text_faint);
     if let Some(info) = info {
         bar = bar
             .child(item(info.words_label()))

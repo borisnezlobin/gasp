@@ -65,7 +65,20 @@ impl Workspace {
         self.status = self
             .active_editor(cx)
             .map(|editor| StatusInfo::of_editor(editor.read(cx)));
+        self.sync_tree_active(cx);
         cx.notify();
+    }
+
+    /// Marks the active note's row in the file tree when it changes.
+    fn sync_tree_active(&mut self, cx: &mut Context<Self>) {
+        let active = self.active_path(cx);
+        if active == self.tree_active {
+            return;
+        }
+        if let Some(tree) = self.file_tree.clone() {
+            tree.update(cx, |tree, cx| tree.set_active_path(active.as_deref(), cx));
+        }
+        self.tree_active = active;
     }
 
     pub(crate) fn on_title_event(
