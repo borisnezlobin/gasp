@@ -78,6 +78,9 @@ pub struct FindBar {
     compiled: Option<FindQuery>,
     matches: Vec<Range<usize>>,
     active: Option<usize>,
+    /// The match the bar last selected in the editor, so a query that no
+    /// longer matches can let go of it.
+    revealed: Option<Range<usize>>,
     replace_visible: bool,
     theme: UiTheme,
     _subscriptions: Vec<Subscription>,
@@ -136,6 +139,7 @@ impl FindBar {
             compiled: None,
             matches: Vec::new(),
             active: None,
+            revealed: None,
             replace_visible: false,
             theme,
             _subscriptions: subscriptions,
@@ -228,6 +232,23 @@ impl FindBar {
         let from = self.editor.read(cx).selected_range().start;
         self.recompute(from, cx);
         self.reveal_active(cx);
+        self.let_go_of_stale_match(cx);
+    }
+
+    /// With no match left, the text an earlier query matched stays
+    /// selected and reads as a result; the cursor goes back to its start.
+    fn let_go_of_stale_match(&mut self, cx: &mut Context<Self>) {
+        if self.active.is_some() {
+            return;
+        }
+        let Some(stale) = self.revealed.take() else {
+            return;
+        };
+        self.editor.update(cx, |editor, cx| {
+            if editor.selected_range() == stale {
+                editor.select(stale.start, stale.start, cx);
+            }
+        });
     }
 
     /// The note changed: find again, keeping the active match near where
@@ -277,6 +298,7 @@ impl FindBar {
         if let Some(range) = self.active_range() {
             self.editor
                 .update(cx, |editor, cx| editor.select(range.start, range.end, cx));
+            self.revealed = Some(range);
         }
     }
 
