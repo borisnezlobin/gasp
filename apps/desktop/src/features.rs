@@ -21,6 +21,7 @@ use crate::keymap::{
 use crate::note::markdown_files;
 use crate::outline::{OutlineEvent, OutlinePicker};
 use crate::palette::{CommandPalette, PaletteEvent};
+use crate::print::PrintDialog;
 use crate::settings_view::{SettingsEvent, SettingsRequest, SettingsView};
 use crate::switcher::{QuickSwitcher, SwitcherEvent};
 use crate::sync::{ConflictResolver, SyncIndicator, SyncIndicatorEvent, SyncPhase, SyncService};
@@ -66,6 +67,7 @@ pub fn bind_view_keys(cx: &mut App) {
     crate::find::bind_keys(cx);
     crate::vault_search::bind_keys(cx);
     export_ui::bind_keys(cx);
+    crate::print::bind_keys(cx);
 }
 
 /// Replaces every key binding with those from `rules` plus the views' own
@@ -701,16 +703,12 @@ fn open_export(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     });
 }
 
-fn print_note(workspace: &mut Workspace, _: &mut Window, cx: &mut gpui::Context<Workspace>) {
+fn print_note(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Context<Workspace>) {
     let Some((text, path)) = active_note(workspace, cx) else {
         return;
     };
     let vault = Some(workspace.vault().to_path_buf());
-    let printing = export_ui::print(text, path, vault, cx);
-    cx.spawn(async move |_, _| {
-        if let Err(error) = printing.await {
-            eprintln!("could not print: {error}");
-        }
-    })
-    .detach();
+    workspace.toggle_modal(window, cx, |window, cx| {
+        PrintDialog::new(text, path, vault, window, cx)
+    });
 }
