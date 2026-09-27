@@ -13,11 +13,14 @@ use typst_layout::PagedDocument;
 
 /// Path of the module that exports `mitex-scope` for evaluating converter
 /// output.
-pub(crate) const SCOPE_MODULE_PATH: &str = "/mitex/compat.typ";
+pub const SCOPE_MODULE_PATH: &str = "/mitex/compat.typ";
 
 const MAIN_PATH: &str = "/main.typ";
 
-const EMBEDDED_SOURCES: [(&str, &str); 4] = [
+/// The mitex Typst scope and its compatibility layer, as (virtual path,
+/// source) pairs. Other crates that typeset converted math, such as PDF
+/// export, serve these in their own Typst world.
+pub const MITEX_SOURCES: [(&str, &str); 4] = [
     (SCOPE_MODULE_PATH, include_str!("../assets/compat.typ")),
     ("/mitex/mod.typ", include_str!("../assets/mitex/mod.typ")),
     (
@@ -47,7 +50,7 @@ impl SharedEnvironment {
             .flat_map(|data| Font::iter(Bytes::new(data)))
             .collect();
         let book = FontBook::from_fonts(&fonts);
-        let sources = EMBEDDED_SOURCES
+        let sources = MITEX_SOURCES
             .iter()
             .map(|(path, text)| Source::new(file_id(path), (*text).to_owned()))
             .collect();

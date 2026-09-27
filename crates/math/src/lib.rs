@@ -16,3 +16,4 @@ pub use convert::latex_to_typst;
 pub use error::MathError;
 pub use render::{RenderedMath, evict_layout_memory, render_latex, render_typst, warm_up};
 pub use scan::{MathSnippet, find_math};
+pub use world::{MITEX_SOURCES, SCOPE_MODULE_PATH};
