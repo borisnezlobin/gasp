@@ -237,14 +237,10 @@ fn has_room_for_broken(footnotes: &FootnotePlan) -> bool {
 }
 
 fn allocate(plans: &mut [NotePlan], rng: &mut Rng, notes: &[usize], allocation: Allocation) {
-    let slots = if allocation.min_each == 0 {
-        notes.len()
-    } else {
-        notes
-            .len()
-            .min(allocation.uses / allocation.min_each)
-            .max(1)
-    };
+    let slots = allocation
+        .uses
+        .checked_div(allocation.min_each)
+        .map_or(notes.len(), |fit| notes.len().min(fit).max(1));
     let slots = slots.min(notes.len());
     let counts = distribute(
         rng,

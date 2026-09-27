@@ -407,3 +407,17 @@ fn a_new_vault_adopts_the_remote_history() {
     );
     assert_eq!(read(&fresh, "note.md"), "hello\n");
 }
+
+#[test]
+fn line_endings_sync_byte_for_byte() {
+    let crlf_note = b"first line\r\nsecond line\r\n";
+    let lf_note = b"first line\nsecond line\n";
+    let world = World::seeded(&[("windows.md", crlf_note), ("unix.md", lf_note)]);
+    let device = world.device("laptop");
+
+    let config = Repository::open(device.root()).unwrap().config().unwrap();
+    let local = config.open_level(git2::ConfigLevel::Local).unwrap();
+    assert!(!local.get_bool("core.autocrlf").unwrap());
+    assert_eq!(read_bytes(&device, "windows.md"), crlf_note);
+    assert_eq!(read_bytes(&device, "unix.md"), lf_note);
+}
