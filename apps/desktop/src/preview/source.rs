@@ -11,6 +11,8 @@ use editor_core::syntax::{self, Edit, SyntaxTree};
 pub struct Source {
     text: String,
     tree: SyntaxTree,
+    /// The tree is [`syntax::plain`], waiting for a real parse.
+    plain: bool,
 }
 
 /// What an update changed, in line numbers before and after it.
@@ -26,7 +28,23 @@ impl Source {
         Self {
             text: text.to_owned(),
             tree: syntax::parse(text),
+            plain: false,
         }
+    }
+
+    /// `text` as plain lines, to show at once while [`Source::new`] runs
+    /// elsewhere. The first edit parses it for real.
+    pub fn unparsed(text: &str) -> Self {
+        Self {
+            text: text.to_owned(),
+            tree: syntax::plain(text),
+            plain: true,
+        }
+    }
+
+    /// Whether the tree is still the plain one of [`Source::unparsed`].
+    pub fn is_plain(&self) -> bool {
+        self.plain
     }
 
     pub fn text(&self) -> &str {
@@ -76,7 +94,9 @@ impl Source {
     }
 
     fn apply(&mut self, edit: Edit, old_lines: Range<usize>) -> SourceChange {
+        // A plain tree has no blocks to reparse, so this parses it all.
         self.tree.edit(&self.text, &edit);
+        self.plain = false;
         let new_end = edit.old.start + edit.new_len;
         let new_lines = self.lines_of(&(edit.old.start..new_end));
         SourceChange {
@@ -181,6 +201,17 @@ mod tests {
         let new = "x".repeat(1000) + "bb" + &"y".repeat(700);
         let edit = differing_range(&old, &new).unwrap();
         assert_eq!((edit.old, edit.new_len), (1000..1001, 2));
+    }
+
+    #[test]
+    fn an_unparsed_source_has_lines_and_parses_on_its_first_edit() {
+        let mut source = Source::unparsed("# a\n\ntext");
+        assert!(source.is_plain());
+        assert_eq!(source.line_count(), 3);
+        assert_eq!(source.line_text(2), "text");
+        source.replace(0..0, "x");
+        assert!(!source.is_plain());
+        assert_eq!(*source.tree(), syntax::parse(source.text()));
     }
 
     #[test]

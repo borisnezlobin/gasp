@@ -138,6 +138,8 @@ pub struct EditorView {
     /// with the keyboard reveals it; each frame sets this from its focus,
     /// so a split showing the same note elsewhere reads as a preview.
     pub(crate) reveals_at_cursor: bool,
+    /// The cursor goes after the frontmatter once the note is parsed.
+    pub(crate) cursor_after_frontmatter: bool,
     pub(crate) footnotes: FootnoteChecks,
     pub(crate) hover: HoverState,
     pub(crate) cards: LinkCards,
@@ -248,6 +250,7 @@ impl EditorView {
             curl_pasted_quotes: config.settings.editor.curl_pasted_quotes,
             read_only: false,
             reveals_at_cursor: true,
+            cursor_after_frontmatter: false,
             footnotes: FootnoteChecks::default(),
             hover: HoverState::default(),
             cards: LinkCards::default(),
@@ -443,6 +446,11 @@ impl EditorView {
     /// Puts the cursor where the body starts, so a note opens with its
     /// frontmatter shown as properties rather than as source.
     pub fn place_cursor_after_frontmatter(&mut self, cx: &mut Context<Self>) {
+        if self.source.is_plain() {
+            // Where the frontmatter ends is known once the parse arrives.
+            self.cursor_after_frontmatter = true;
+            return;
+        }
         let start = self.body_start();
         if start > 0 && self.selected_range() == (0..0) {
             self.select(start, start, cx);
@@ -696,6 +704,27 @@ impl EditorView {
         self.pinned_top = None;
         let max_scroll = self.max_scroll(self.viewport_height());
         self.scroll_y = (self.scroll_y + delta).clamp(px(0.), max_scroll);
+        cx.notify();
+    }
+
+    /// Whether the note shows as plain lines while it's parsed elsewhere.
+    pub fn is_parsing(&self) -> bool {
+        self.source.is_plain()
+    }
+
+    /// Takes the parse of its text made in the background. An edit made
+    /// meanwhile already parsed the note, so a parse that arrives after
+    /// one is dropped.
+    pub fn take_parsed(&mut self, parsed: Source, cx: &mut Context<Self>) {
+        if !self.source.is_plain() || parsed.text() != self.source.text() {
+            return;
+        }
+        self.source = parsed;
+        self.remeasure();
+        if std::mem::take(&mut self.cursor_after_frontmatter) {
+            self.place_cursor_after_frontmatter(cx);
+        }
+        self.check_footnotes_soon(cx);
         cx.notify();
     }
 

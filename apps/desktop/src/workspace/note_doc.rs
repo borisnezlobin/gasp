@@ -12,6 +12,12 @@ use gpui::{AppContext, Context, Entity, Subscription, Task, WeakEntity};
 
 use super::files::{LineEnding, atomic_write};
 use crate::editor::{EditorEvent, EditorView};
+use crate::preview::source::Source;
+
+/// Notes this long open as plain lines and are parsed in the background,
+/// so opening one never stalls a frame; shorter ones parse faster than
+/// the plain frame would show.
+pub const BACKGROUND_PARSE_BYTES: usize = 64 * 1024;
 
 /// How long typing must pause before the note saves.
 pub const AUTOSAVE_DELAY: Duration = Duration::from_millis(1000);
@@ -127,7 +133,14 @@ impl NoteDoc {
             Some(source) => cx.new(|cx| EditorView::with_source(source, image_dirs, config, cx)),
             None => {
                 let text = self.current_text(cx);
-                cx.new(|cx| EditorView::with_config(&text, image_dirs, config, cx))
+                match text.len() >= BACKGROUND_PARSE_BYTES {
+                    true => {
+                        let source = Source::unparsed(&text);
+                        self.parse_in_background(text, cx);
+                        cx.new(|cx| EditorView::with_source(source, image_dirs, config, cx))
+                    }
+                    false => cx.new(|cx| EditorView::with_config(&text, image_dirs, config, cx)),
+                }
             }
         };
         set_paste_context(&editor, self.paste_context(), cx);
@@ -139,6 +152,23 @@ impl NoteDoc {
         self.editors.push(editor.downgrade());
         self.subscriptions.push(subscription);
         editor
+    }
+
+    /// Parses `text` off the main thread and hands the tree to every
+    /// editor still showing it as plain lines, splits included.
+    fn parse_in_background(&mut self, text: String, cx: &mut Context<Self>) {
+        let parsing = cx.background_spawn(async move { Source::new(&text) });
+        cx.spawn(async move |doc, cx| {
+            let parsed = parsing.await;
+            doc.update(cx, |doc, cx| {
+                for editor in doc.live_editors() {
+                    let parsed = parsed.clone();
+                    editor.update(cx, |editor, cx| editor.take_parsed(parsed, cx));
+                }
+            })
+            .ok();
+        })
+        .detach();
     }
 
     /// The note's text as the editors have it.
