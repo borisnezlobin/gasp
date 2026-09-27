@@ -19,6 +19,7 @@ pub mod icons;
 pub mod images;
 pub mod input;
 pub mod keymap;
+pub mod knowledge;
 pub mod line_layout;
 pub mod link_update;
 pub mod metrics;

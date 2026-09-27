@@ -275,6 +275,7 @@ impl Workspace {
         if let Some(bounds) = self.window_bounds {
             device.window = window_state(bounds);
         }
+        device.right_sidebar = self.right_panel.state(self.theme.workspace.sidebar_width);
         let active = self.active_path(cx);
         device.open_tabs.clear();
         device.active_tab = None;

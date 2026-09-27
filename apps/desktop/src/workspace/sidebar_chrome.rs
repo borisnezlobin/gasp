@@ -103,6 +103,12 @@ impl Workspace {
         let ui = ui_theme(cx);
         let new_note =
             self.command_button("sidebar-new-note", IconName::NotePencil, "note.new", cx);
+        let daily = self.command_button(
+            "sidebar-daily-note",
+            IconName::CalendarBlank,
+            "daily.open",
+            cx,
+        );
         let new_folder = IconButton::new("sidebar-new-folder", IconName::FolderPlus)
             .tooltip("New folder")
             .on_click(tree_click(&tree, |tree, window, cx| {
@@ -128,6 +134,7 @@ impl Workspace {
                 .px(ui.sidebar_padding)
                 .pb(ui.space_sm)
                 .children(new_note)
+                .children(daily)
                 .child(new_folder)
                 .child(sort)
                 .child(collapse)

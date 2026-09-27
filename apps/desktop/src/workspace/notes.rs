@@ -205,6 +205,9 @@ impl Workspace {
         doc.update(cx, |doc, cx| doc.save_or_log(cx));
         std::fs::rename(old, &new).map_err(|error| format!("Couldn't rename the note: {error}"))?;
         self.note_moved(doc, old, &new, cx);
+        if self.config.settings.files.update_links_on_rename {
+            crate::knowledge::rename::update_links_after_rename(self, old, &new, cx);
+        }
         Ok(())
     }
 

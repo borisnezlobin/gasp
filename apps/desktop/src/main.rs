@@ -26,6 +26,10 @@ fn main() -> ExitCode {
         }
         Command::Open(path) => open(path.as_deref()),
         Command::Bench { path, config } => bench(&path, config),
+        Command::BenchIndex(vault) => {
+            println!("{}", editor_desktop::knowledge::bench::run(&vault));
+            ExitCode::SUCCESS
+        }
     }
 }
 
