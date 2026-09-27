@@ -457,13 +457,13 @@ Each phase ends with something you can use and a check that proves it works.
 
 These are small throwaway experiments on the riskiest assumptions, each with a fallback if it fails.
 
-| Spike | Passes if | Fallback |
-|---|---|---|
-| GPUI live-preview editor | Mixed font sizes, an inline image widget, selection and IME (Japanese input) work, typing stays under a frame on a long note, and it runs on all three desktops in CI | Slint or Makepad for desktop |
-| Math via `mitex` → Typst | It renders the roughly 4,000 equations in your vault, and a typical one takes under 1 ms when cached and under 20 ms when new | KaTeX in a hidden web view on each platform, as Flo State does |
-| libgit2 on iPhone | Clone, commit, merge and push to `borisnezlobin/notes` with a token from the simulator and a device | GitHub's REST API with our own three-way merge |
-| QuickJS on iPhone | A sample plugin runs and hot-reloads | Declarative plugins only on iPhone |
-| Typst PDF | It reproduces one of your existing PDF Export Plus exports with page-bottom footnotes and the drop cap | Paged.js in a hidden web view at export time |
+| Spike | Passes if | Fallback | Result |
+|---|---|---|---|
+| GPUI live-preview editor | Mixed font sizes, an inline image widget, selection and IME (Japanese input) work, typing stays under a frame on a long note, and it runs on all three desktops in CI | Slint or Makepad for desktop | **Keep GPUI.** `gpui` 0.2.2 from crates.io, in `apps/desktop`. On Linux (Xvfb, software Vulkan), mixed heading sizes, inline images that grow their row, selection and typing all work. On a 5,026-line note a keystroke takes 1.3 ms from edit to painted frame (p95 about 2 ms). IME composition is implemented and tested in GPUI's test context, but real Japanese conversion still needs a desktop with an input method **[Mac]**. The macOS and Windows builds are left to CI. |
+| Math via `mitex` → Typst | It renders the roughly 4,000 equations in your vault, and a typical one takes under 1 ms when cached and under 20 ms when new | KaTeX in a hidden web view on each platform, as Flo State does | **Passes on the synthetic corpus.** All 4,034 corpus equations and 485 hand-written ones render. A new equation takes 0.3 ms median and 2.3 ms at most, and a cached one under 1 µs. Setup costs 19 ms once per launch. mitex 0.2.4 ignores the spec it's given and uses symbol names Typst 0.15 removed, so `crates/math` vendors mitex's newer Typst scope and adds a compat layer. Still to do: run `cargo run --release -p editor-math --example math_spike -- <vault> --failures` on the real vault **[Mac]**. |
+| libgit2 on iPhone | Clone, commit, merge and push to `borisnezlobin/notes` with a token from the simulator and a device | GitHub's REST API with our own three-way merge | **Linux half done.** `crates/sync` clones, commits, merges and pushes between two simulated devices against local bare repos. With 200 notes, a clone takes 10 ms, a commit 7 ms and a merge 4.6 ms. The iPhone half needs a macOS runner. |
+| QuickJS on iPhone | A sample plugin runs and hot-reloads | Declarative plugins only on iPhone | Not started. It needs a macOS runner. |
+| Typst PDF | It reproduces one of your existing PDF Export Plus exports with page-bottom footnotes and the drop cap | Paged.js in a hidden web view at export time | **Works; comparison pending.** `crates/export` compiles all 204 corpus notes with footnotes at the bottom of the citing page and a 3-line drop cap, in about 44 ms for a typical note and 87 ms for the most math-heavy one. The side-by-side check against a real export is still to do **[Mac]**. |
 
 ### Phase 1: core
 
@@ -529,6 +529,9 @@ These are my defaults. Tell me if any are wrong.
 
 1. **Name.** What should it be called? The name sets the config folder, the bundle ID and the repo name.
 2. **Apple Developer account (needed by Phase 7).** Without the paid account, an app you install on your own iPhone stops launching after 7 days and has to be reinstalled from the Mac. Do you have one, or want one?
+3. **Pane focus keys on Linux.** `Mod+Alt+Left` and `Mod+Alt+Right` become Ctrl+Alt+Left and Right on Linux, which GNOME has used to switch workspaces. Should Linux get different default keys for moving focus between panes?
+4. **Device-only files the repo already tracks.** Sync never commits changes to device-only files, but it leaves any that are already in the repo alone, because removing them would delete them on your other devices too. Should the first sync remove them from the repo?
+5. **Drop cap default.** Your PDF Export Plus settings have the drop cap turned off (`applyLedeStyles: false`), but this plan asks for a 3-line drop cap. The export currently turns it on. Which do you want by default?
 
 ## Decisions
 
