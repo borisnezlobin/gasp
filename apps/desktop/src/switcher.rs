@@ -178,13 +178,12 @@ impl SwitcherDelegate {
             .child(div().flex_none().child(name))
             .child(
                 div()
+                    .flex()
                     .flex_1()
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .text_ellipsis()
+                    .min_w_0()
                     .text_size(theme.detail_font_size)
                     .text_color(theme.detail_text)
-                    .child(folder),
+                    .child(folder.grow()),
             )
             .into_any_element()
     }

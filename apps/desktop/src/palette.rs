@@ -13,8 +13,8 @@ use gpui::{
 
 use crate::picker::fuzzy::{Candidate, Matcher, Query};
 use crate::picker::shortcut::{Shortcut, capture_chord, is_lone_modifier};
-use crate::picker::{Confirmed, Picker, PickerDelegate, highlighted_text, surface_shadow};
-use crate::theme::{InputTheme, PickerTheme};
+use crate::picker::{Confirmed, Picker, PickerDelegate, highlighted_text};
+use crate::theme::{InputTheme, PickerTheme, UiTheme};
 use crate::ui::keycap;
 
 /// Extra score for the most recently used command, falling by
@@ -383,25 +383,18 @@ impl CommandPalette {
         cx.notify();
     }
 
-    fn render_capture(&self, capture: &Capture, theme: &PickerTheme) -> AnyElement {
+    fn render_capture(&self, capture: &Capture, theme: &PickerTheme, ui: &UiTheme) -> AnyElement {
         let hint = capture.rejection.clone().map_or_else(
             || current_keys(&capture.current, theme).text_color(theme.detail_text),
             |reason| div().text_color(theme.warning_text).child(reason),
         );
-        div()
+        crate::ui::dialog(ui)
             .key_context("PaletteCapture")
             .track_focus(&self.capture_focus)
             .w(theme.width)
-            .flex()
-            .flex_col()
             .gap(theme.capture_gap)
             .px(theme.input_padding_x)
             .py(theme.input_padding_y)
-            .font_family(theme.font_family.clone())
-            .text_color(theme.text)
-            .bg(theme.background)
-            .rounded(theme.corner_radius)
-            .shadow(vec![surface_shadow(theme)])
             .child(
                 div()
                     .text_size(InputTheme::default().query_font_size)
@@ -423,7 +416,7 @@ impl Render for CommandPalette {
         match &self.capture {
             Some(capture) => {
                 let theme = self.picker.read(cx).theme().clone();
-                self.render_capture(capture, &theme)
+                self.render_capture(capture, &theme, &crate::ui::ui_theme(cx))
             }
             None => self.picker.clone().into_any_element(),
         }

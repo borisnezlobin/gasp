@@ -144,17 +144,11 @@ impl PickerDelegate for OutlineDelegate {
         let heading = &self.headings[found.heading];
         let depth = heading.level.saturating_sub(self.top_level);
         div()
+            .flex()
             .w_full()
             .pl(theme.level_indent * f32::from(depth))
-            .overflow_hidden()
-            .whitespace_nowrap()
-            .text_ellipsis()
             .text_size(theme.row_font_size)
-            .child(highlighted_text(
-                heading.title.clone(),
-                &found.positions,
-                theme,
-            ))
+            .child(highlighted_text(heading.title.clone(), &found.positions, theme).grow())
             .into_any_element()
     }
 
