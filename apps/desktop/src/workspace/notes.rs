@@ -349,6 +349,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.index_disk_changes(&changes, cx);
         for change in changes {
             match change {
                 DiskChange::Renamed { from, to } => self.disk_renamed(&from, &to, cx),
@@ -358,6 +359,22 @@ impl Workspace {
         }
         self.refresh_status(cx);
         cx.notify();
+    }
+
+    fn index_disk_changes(&mut self, changes: &[DiskChange], cx: &mut Context<Self>) {
+        let mut changed = Vec::new();
+        let mut removed = Vec::new();
+        for change in changes {
+            match change {
+                DiskChange::Changed(path) => changed.push(path.clone()),
+                DiskChange::Removed(path) => removed.push(path.clone()),
+                DiskChange::Renamed { from, to } => {
+                    removed.push(from.clone());
+                    changed.push(to.clone());
+                }
+            }
+        }
+        self.update_vault_index(changed, removed, cx);
     }
 
     fn disk_renamed(&mut self, from: &Path, to: &Path, cx: &mut Context<Self>) {

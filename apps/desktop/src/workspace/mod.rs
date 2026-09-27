@@ -62,6 +62,7 @@ use crate::editor::EditorView;
 use crate::file_tree::FileTree;
 use crate::theme::Theme;
 use crate::ui::{HasMenuSlot, MenuSlot};
+use crate::vault_index::{VaultIndex, index_changes};
 
 /// Where [`Workspace::open_path`] puts a note.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -121,6 +122,8 @@ pub struct Workspace {
     watcher: Option<notify::RecommendedWatcher>,
     rule_clock: Option<sidebar::ExecutorClock>,
     tasks: Vec<Task<()>>,
+    /// The notes and tags editors suggest from.
+    vault_index: Entity<VaultIndex>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -158,6 +161,7 @@ impl Workspace {
         let show_title = config.settings.editor.show_inline_title;
         crate::ui::hints::set_rules(config.rules.clone(), cx);
         let pane = cx.new(|cx| Pane::new(&vault, show_title, cx));
+        let vault_index = cx.new(|_| VaultIndex::new(&vault));
         let left_panel = LeftPanel::new(
             &config.settings,
             &config.rules,
@@ -189,8 +193,10 @@ impl Workspace {
             watcher: None,
             rule_clock: None,
             tasks: Vec::new(),
+            vault_index,
             _subscriptions: Vec::new(),
         };
+        workspace.scan_vault_index(cx);
         workspace.subscribe_to_pane(&pane, window, cx);
         workspace.observe_window(window, cx);
         workspace.add_launcher_tab(&pane, window, cx);
@@ -372,6 +378,51 @@ impl Workspace {
         } else {
             self.vault.join(path)
         }
+    }
+
+    /// The notes and tags editors suggest from.
+    pub fn vault_index(&self) -> &Entity<VaultIndex> {
+        &self.vault_index
+    }
+
+    /// Reads every note's name and tags on a background thread.
+    fn scan_vault_index(&mut self, cx: &mut Context<Self>) {
+        let root = self.vault.clone();
+        let index = self.vault_index.clone();
+        let scan = cx.background_spawn(async move { VaultIndex::scan(&root) });
+        let task = cx.spawn(async move |_, cx| {
+            let scanned = scan.await;
+            index
+                .update(cx, |index, cx| {
+                    *index = scanned;
+                    cx.notify();
+                })
+                .ok();
+        });
+        self.tasks.push(task);
+    }
+
+    /// Brings the index up to date with files changed on disk, reading
+    /// them on a background thread.
+    pub(crate) fn update_vault_index(
+        &mut self,
+        changed: Vec<PathBuf>,
+        removed: Vec<PathBuf>,
+        cx: &mut Context<Self>,
+    ) {
+        let root = self.vault.clone();
+        let index = self.vault_index.clone();
+        let read = cx.background_spawn(async move { index_changes(&root, &changed, &removed) });
+        cx.spawn(async move |_, cx| {
+            let changes = read.await;
+            index
+                .update(cx, |index, cx| {
+                    index.apply(changes);
+                    cx.notify();
+                })
+                .ok();
+        })
+        .detach();
     }
 
     fn theme(&self) -> &Theme {

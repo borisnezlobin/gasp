@@ -136,7 +136,11 @@ impl Workspace {
         let doc = self.doc(path, cx)?;
         let editor = doc.update(cx, |doc, cx| doc.new_editor(cx));
         let config = self.config.clone();
-        editor.update(cx, |editor, cx| editor.apply_config(&config, cx));
+        let index = self.vault_index().clone();
+        editor.update(cx, |editor, cx| {
+            editor.apply_config(&config, cx);
+            editor.set_vault_index(index, cx);
+        });
         let title_text = note_title(path);
         let title = cx.new(|cx| {
             let mut title = TextInput::new(window, cx)
