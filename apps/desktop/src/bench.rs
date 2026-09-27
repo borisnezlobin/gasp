@@ -216,7 +216,7 @@ impl EditorView {
             return;
         };
         match checkpoint {
-            Checkpoint::StartTyping => {}
+            Checkpoint::StartTyping => crate::keytrace::clear(),
             Checkpoint::TypingDone => bench.results.typing = timings,
             Checkpoint::ScrollingDone => bench.results.scrolling = timings,
         }
@@ -233,6 +233,9 @@ impl EditorView {
     fn finish_bench(&mut self, cx: &mut Context<Self>) {
         if let Some(bench) = self.bench.take() {
             println!("{}", bench.results.report());
+            if let Some(phases) = crate::keytrace::report() {
+                println!("{phases}");
+            }
         }
         cx.quit();
     }

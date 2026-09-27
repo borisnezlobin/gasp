@@ -16,7 +16,7 @@ use crate::preview::items::{Item, LineItems, line_items, line_tone};
 use crate::preview::math::MathStore;
 use crate::preview::source::Source;
 use crate::preview::wrap::{Chunk, Extent, RowBuilder, Shaper};
-use crate::styling::{LineTone, run_font_size, text_run};
+use crate::styling::{LineTone, fill_padding, run_font_size, text_run};
 use crate::theme::Theme;
 
 /// What every line of a frame is laid out against.
@@ -49,6 +49,30 @@ pub fn layout_line(
     context: &LayoutContext<'_>,
     resources: &mut LayoutResources<'_>,
 ) -> VisualLine {
+    let frame = frame_for(plan, context);
+    let code_spans = spans_for_line(plan, context.source, resources.code);
+    layout_framed(plan, frame, code_spans, context, resources)
+}
+
+/// A planned line's frame: its insets, padding and what's behind it.
+pub fn frame_for(plan: &LinePlan, context: &LayoutContext<'_>) -> LineFrame {
+    line_frame(
+        plan,
+        context.source,
+        context.theme,
+        context.column_width,
+        context.code_line_numbers,
+    )
+}
+
+/// Lays out a planned line whose frame and code colours are known.
+pub fn layout_framed(
+    plan: &LinePlan,
+    frame: LineFrame,
+    code_spans: Option<LineSpans>,
+    context: &LayoutContext<'_>,
+    resources: &mut LayoutResources<'_>,
+) -> VisualLine {
     let mut line = VisualLine {
         line: plan.line,
         start: plan.range.start,
@@ -61,7 +85,7 @@ pub fn layout_line(
     if plan.collapsed {
         return line;
     }
-    let mut layouter = LineLayouter::new(plan, context, resources);
+    let mut layouter = LineLayouter::new(plan, frame, code_spans, context, resources);
     let items = line_items(plan);
     let mut builder = layouter.row_builder();
     layouter.place_items(&items, &mut builder);
@@ -92,17 +116,11 @@ pub(super) struct LineLayouter<'a, 'b> {
 impl<'a, 'b> LineLayouter<'a, 'b> {
     fn new(
         plan: &'a LinePlan,
+        frame: LineFrame,
+        code_spans: Option<LineSpans>,
         context: &'a LayoutContext<'a>,
         resources: &'a mut LayoutResources<'b>,
     ) -> Self {
-        let frame = line_frame(
-            plan,
-            context.source,
-            context.theme,
-            context.column_width,
-            context.code_line_numbers,
-        );
-        let code_spans = spans_for_line(plan, context.source, resources.code);
         Self {
             plan,
             context,
@@ -163,7 +181,11 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         if property == Some(false) {
             self.to_value_column(builder);
         }
-        let mut index = self.place_indent(items, builder);
+        // A property's value sits in its column, however it's indented.
+        let mut index = match property {
+            Some(_) => 0,
+            None => self.place_indent(items, builder),
+        };
         if property == Some(true) && index == 0 && !items.is_empty() {
             index = self.place_item(items, 0, builder);
             self.to_value_column(builder);
@@ -224,7 +246,7 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
                     let padding = self.chunk_padding(&chunk);
                     builder.advance(padding);
                     builder.push_chunk(&chunk, &self.shaper());
-                    builder.advance(padding);
+                    builder.advance(padding + self.chip_gap(&items[index]));
                 }
                 return next;
             }
@@ -259,7 +281,8 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
             let at = part.start.saturating_sub(start);
             let before = runs.len();
             self.push_runs(&mut runs, &part, styles);
-            take_backgrounds(&mut runs[before..], at, styles, &mut backgrounds);
+            let padding = fill_padding(styles, self.theme());
+            take_backgrounds(&mut runs[before..], at, padding, &mut backgrounds);
             end = part.end.max(end);
             next += 1;
         }
@@ -274,13 +297,20 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         (chunk, next)
     }
 
+    /// Space after a list property's item, so the next one's fill stands
+    /// apart from it.
+    fn chip_gap(&self, item: &Item) -> Pixels {
+        match item {
+            Item::Text { styles, .. } if styles.contains(&StyleKey::PropertyChip) => {
+                self.theme().property_chip_gap
+            }
+            _ => px(0.),
+        }
+    }
+
     /// Room on each side of inline code, for its fill to reach into.
     fn chunk_padding(&self, chunk: &Chunk) -> Pixels {
-        if chunk.backgrounds.iter().any(|background| background.padded) {
-            self.theme().inline_code_padding
-        } else {
-            px(0.)
-        }
+        chunk_padding(&chunk.backgrounds)
     }
 
     /// Runs for `part`, split where the IME composition starts and ends
@@ -372,10 +402,9 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
 pub(super) fn take_backgrounds(
     runs: &mut [TextRun],
     mut at: usize,
-    styles: &[StyleKey],
+    padding: Pixels,
     backgrounds: &mut Vec<Background>,
 ) {
-    let padded = crate::styling::is_code(styles);
     for run in runs {
         let range = at..at + run.len;
         at = range.end;
@@ -389,10 +418,18 @@ pub(super) fn take_backgrounds(
             _ => backgrounds.push(Background {
                 range,
                 color,
-                padded,
+                padding,
             }),
         }
     }
+}
+
+/// The widest room any fill of a chunk wants at its ends.
+pub(super) fn chunk_padding(backgrounds: &[Background]) -> Pixels {
+    backgrounds
+        .iter()
+        .map(|background| background.padding)
+        .fold(px(0.), Pixels::max)
 }
 
 /// Whether the line is a property row, and whether it starts with a name.

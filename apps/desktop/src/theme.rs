@@ -258,6 +258,10 @@ pub struct Theme {
     pub tab_stop_width: Pixels,
     /// Room at each end of inline code, inside its fill.
     pub inline_code_padding: Pixels,
+    /// Room at each end of a list property's item, inside its fill.
+    pub property_chip_padding: Pixels,
+    /// Space between a list property's items.
+    pub property_chip_gap: Pixels,
     pub composition_underline_thickness: Pixels,
     /// The line under a footnote problem.
     pub problem_underline_thickness: Pixels,
@@ -443,6 +447,8 @@ impl Theme {
             newline_selection_width: space("space.sm", 4.) * 1.5,
             tab_stop_width: space("space.sm", 4.) * 1.5,
             inline_code_padding: space("space.xs", 2.) * 1.5,
+            property_chip_padding: space("space.sm", 4.) * 1.5,
+            property_chip_gap: space("space.sm", 4.),
             composition_underline_thickness: px(1.),
             problem_underline_thickness: px(1.5),
             sentence_tint_inset: space("space.xs", 2.) * 1.5,
@@ -478,7 +484,7 @@ impl Theme {
         scaled
     }
 
-    fn sizes_mut(&mut self) -> [&mut Pixels; 37] {
+    fn sizes_mut(&mut self) -> [&mut Pixels; 39] {
         [
             &mut self.body_font_size,
             &mut self.title_font_size,
@@ -501,6 +507,8 @@ impl Theme {
             &mut self.newline_selection_width,
             &mut self.tab_stop_width,
             &mut self.inline_code_padding,
+            &mut self.property_chip_padding,
+            &mut self.property_chip_gap,
             &mut self.composition_underline_thickness,
             &mut self.problem_underline_thickness,
             &mut self.sentence_tint_inset,
@@ -720,6 +728,8 @@ fn zero_sizes() -> Theme {
         newline_selection_width: zero,
         tab_stop_width: zero,
         inline_code_padding: zero,
+        property_chip_padding: zero,
+        property_chip_gap: zero,
         composition_underline_thickness: zero,
         problem_underline_thickness: zero,
         sentence_tint_inset: zero,

@@ -65,6 +65,31 @@ impl LineIndex {
         }
     }
 
+    /// The index for `new_text`, which is this index's text with `edit`
+    /// applied: lines before the edit stay, lines after it move, and only
+    /// the edited text is searched for line breaks.
+    pub fn edited(&self, new_text: &str, edit: &super::Edit) -> Self {
+        let new_end = edit.old.start + edit.new_len;
+        let kept = self
+            .starts
+            .partition_point(|&start| start <= edit.old.start);
+        let after = self.starts.partition_point(|&start| start <= edit.old.end);
+        let inserted =
+            memchr_newlines(&new_text[edit.old.start..new_end]).map(|at| edit.old.start + at + 1);
+        let delta = edit.new_len as isize - edit.old.len() as isize;
+        let moved = self.starts[after..]
+            .iter()
+            .map(|&start| (start as isize + delta) as usize);
+        let mut starts = Vec::with_capacity(self.starts.len() + edit.new_len.min(64));
+        starts.extend_from_slice(&self.starts[..kept]);
+        starts.extend(inserted);
+        starts.extend(moved);
+        Self {
+            starts,
+            len: new_text.len(),
+        }
+    }
+
     pub fn line_count(&self) -> usize {
         self.starts.len()
     }
@@ -105,7 +130,24 @@ fn memchr_newlines(text: &str) -> impl Iterator<Item = usize> + '_ {
 pub struct SyntaxTree {
     pub(crate) nodes: Vec<Node>,
     pub(crate) lines: LineIndex,
+    pub(crate) definitions: Definitions,
 }
+
+/// The document's link and footnote definitions as Markdown, for parsing
+/// an edited region against. An edit that could change them parses the
+/// whole document again, so once built they hold until then. It's a
+/// cache, not part of what the tree is: trees compare equal whether or
+/// not theirs is filled.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Definitions(pub(crate) std::sync::OnceLock<String>);
+
+impl PartialEq for Definitions {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for Definitions {}
 
 impl SyntaxTree {
     pub const ROOT: NodeId = NodeId(0);
@@ -192,6 +234,30 @@ impl SyntaxTree {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_edited_index_matches_a_fresh_one() {
+        let text = "one\ntwo\n\nthree\nfour";
+        let index = LineIndex::new(text);
+        let edits = [
+            (4..4, "x"),
+            (3..4, ""),
+            (0..0, "new\nlines\n"),
+            (5..14, "\n"),
+            (text.len()..text.len(), "\nend"),
+            (0..text.len(), ""),
+        ];
+        for (old, insert) in edits {
+            let mut new_text = text.to_owned();
+            new_text.replace_range(old.clone(), insert);
+            let edit = super::super::Edit {
+                old: old.clone(),
+                new_len: insert.len(),
+            };
+            let edited = index.edited(&new_text, &edit);
+            assert_eq!(edited, LineIndex::new(&new_text), "{old:?} {insert:?}");
+        }
+    }
+
     use super::*;
 
     #[test]

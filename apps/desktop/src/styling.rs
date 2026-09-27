@@ -3,7 +3,7 @@
 
 use editor_core::render::StyleKey;
 use editor_core::syntax::CalloutKind;
-use gpui::{Font, FontStyle, Hsla, Pixels, StrikethroughStyle, TextRun, UnderlineStyle};
+use gpui::{Font, FontStyle, Hsla, Pixels, StrikethroughStyle, TextRun, UnderlineStyle, px};
 
 use crate::theme::Theme;
 
@@ -55,6 +55,18 @@ pub fn is_code(styles: &[StyleKey]) -> bool {
     styles
         .iter()
         .any(|style| matches!(style, StyleKey::Code | StyleKey::MathSource))
+}
+
+/// Room inside a run's fill at each end: inline code and property chips
+/// have some, so their text doesn't touch the fill's edge.
+pub fn fill_padding(styles: &[StyleKey], theme: &Theme) -> Pixels {
+    if is_code(styles) {
+        theme.inline_code_padding
+    } else if styles.contains(&StyleKey::PropertyChip) {
+        theme.property_chip_padding
+    } else {
+        px(0.)
+    }
 }
 
 /// The font size of a run.
@@ -166,9 +178,8 @@ fn run_background(styles: &[StyleKey], theme: &Theme) -> Option<Hsla> {
     if styles.contains(&StyleKey::Code) {
         return Some(theme.code_background);
     }
-    styles
-        .contains(&StyleKey::Tag)
-        .then_some(theme.tag_background)
+    let chip = styles.contains(&StyleKey::Tag) || styles.contains(&StyleKey::PropertyChip);
+    chip.then_some(theme.tag_background)
 }
 
 fn run_underline(

@@ -116,9 +116,20 @@ impl NoteDoc {
 
     /// A new editor on this note. Edits in any editor reach the others.
     pub fn new_editor(&mut self, config: &Config, cx: &mut Context<Self>) -> Entity<EditorView> {
-        let text = self.current_text(cx);
         let image_dirs = self.image_dirs.clone();
-        let editor = cx.new(|cx| EditorView::with_config(&text, image_dirs, config, cx));
+        // A split starts from the parse an open editor already has, which
+        // copies far faster than a long note parses.
+        let parsed = self
+            .live_editors()
+            .first()
+            .map(|editor| editor.read(cx).source.clone());
+        let editor = match parsed {
+            Some(source) => cx.new(|cx| EditorView::with_source(source, image_dirs, config, cx)),
+            None => {
+                let text = self.current_text(cx);
+                cx.new(|cx| EditorView::with_config(&text, image_dirs, config, cx))
+            }
+        };
         set_paste_context(&editor, self.paste_context(), cx);
         let subscription = cx.subscribe(&editor, |doc, editor, event, cx| {
             if *event == EditorEvent::Edited {

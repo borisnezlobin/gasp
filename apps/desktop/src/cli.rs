@@ -17,8 +17,9 @@ notes are joined into one long note), types into the middle and scrolls
 through it, then prints frame timings and quits. --in-code types in the
 first code block after the middle instead, and --in-math in the first
 math block, where snippets and the math helpers do the most work. --no-prose turns sentence
-tints and grammar flags off, to measure what they cost. On Linux
-without a display, run it under xvfb-run.
+tints and grammar flags off, to measure what they cost. With
+EDITOR_TRACE_KEYS=1 it also lists where each keystroke's time went. On
+Linux without a display, run it under xvfb-run.
 
 --bench-index builds VAULT's link index and prints how long that, a
 save, a backlinks list, an unlinked-mentions search and a rename take.";
