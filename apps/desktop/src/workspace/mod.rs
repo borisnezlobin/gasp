@@ -33,6 +33,7 @@ mod panes;
 pub mod prompt;
 mod render;
 pub mod right_panel;
+mod shortcut_sheet;
 pub mod sidebar;
 mod sidebar_chrome;
 pub mod startup;
@@ -62,6 +63,7 @@ use self::note_doc::NoteDoc;
 pub use self::pane::{Pane, ReadingProbe};
 use self::pane_tree::{PaneTree, SplitId};
 use self::right_panel::RightPanel;
+pub use self::shortcut_sheet::{FocusArea, HOLD_DELAY, SheetGroup, sheet_groups};
 use self::sidebar::LeftPanel;
 use self::startup::VaultStart;
 use self::status::StatusInfo;
@@ -142,6 +144,8 @@ pub struct Workspace {
     tasks: Vec<Task<()>>,
     /// The notes and tags editors suggest from.
     vault_index: Entity<VaultIndex>,
+    /// The shortcuts that holding Mod shows.
+    sheet: shortcut_sheet::ShortcutSheet,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -225,12 +229,14 @@ impl Workspace {
             sync_indicator: None,
             tasks: Vec::new(),
             vault_index,
+            sheet: Default::default(),
             _subscriptions: Vec::new(),
         };
         workspace.scan_vault_index(cx);
         workspace.subscribe_to_pane(&pane, window, cx);
         workspace.observe_window(window, cx);
         workspace.observe_appearance(window, cx);
+        workspace.watch_keystrokes_for_sheet(window, cx);
         workspace.add_launcher_tab(&pane, window, cx);
         workspace
     }

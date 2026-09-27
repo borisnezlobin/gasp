@@ -60,6 +60,13 @@ impl SettingsView {
         self.focus_handle.contains_focused(window, cx)
     }
 
+    /// Whether `focus` has the keyboard and shows its ring: only while
+    /// the keyboard is driving, so a screen opens and a click lands
+    /// without one.
+    fn rings(&self, focus: SettingsFocus, window: &Window, cx: &Context<Self>) -> bool {
+        self.focus == focus && crate::ui::focus_visible::ring(self.has_focus(window, cx), cx)
+    }
+
     // ---- Section list ----
 
     fn render_nav(
@@ -142,7 +149,7 @@ impl SettingsView {
     fn search_box(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {
         let style = &self.style;
         let waiting = self.searching_by_keys();
-        let focused = waiting || self.focus == SettingsFocus::Search && self.has_focus(window, cx);
+        let focused = waiting || self.rings(SettingsFocus::Search, window, cx);
         let rejection = self
             .capture
             .as_ref()
@@ -205,7 +212,7 @@ impl SettingsView {
     ) -> impl IntoElement {
         let style = &self.style;
         let selected = index == self.current;
-        let list_focused = self.focus == SettingsFocus::Sections && self.has_focus(window, cx);
+        let list_focused = self.rings(SettingsFocus::Sections, window, cx);
         let hover = style.hover;
         div()
             .id(("settings-section", index))
@@ -411,7 +418,7 @@ impl SettingsView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let focused = self.focus == SettingsFocus::Control(index) && self.has_focus(window, cx);
+        let focused = self.rings(SettingsFocus::Control(index), window, cx);
         let text = self.row_text(row);
         let control = self.row_control(index, row, focused, window, cx);
         let page = self

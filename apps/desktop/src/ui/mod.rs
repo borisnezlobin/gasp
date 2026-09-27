@@ -8,6 +8,7 @@
 
 pub mod breadcrumbs;
 pub mod button;
+pub mod focus_visible;
 pub mod hints;
 pub mod icon_button;
 pub mod keycap;

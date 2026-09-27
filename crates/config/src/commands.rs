@@ -195,6 +195,11 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
         "Toggle right sidebar",
         "Tabs and panels",
     ),
+    spec(
+        "sidebar.right.focus",
+        "Focus right sidebar",
+        "Tabs and panels",
+    ),
     spec("sidebar.backlinks", "Show backlinks", "Tabs and panels"),
     spec(
         "sidebar.outgoing-links",

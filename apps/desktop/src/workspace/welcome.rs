@@ -151,6 +151,8 @@ impl Render for Welcome {
             .font_family(ui.font_family.clone())
             .text_size(ui.font_size)
             .text_color(ui.text)
+            .relative()
+            .child(crate::ui::focus_visible::pointer_watch())
             .child(
                 div()
                     .flex()
@@ -184,7 +186,9 @@ impl Render for Welcome {
                             .bg(ui.accent)
                             .text_color(ui.on_accent)
                             .hover(|style| style.bg(ui.accent.opacity(0.85)))
-                            .when(focused, |button| button.shadow(vec![ui.focus()]))
+                            .when(crate::ui::focus_visible::ring(focused, cx), |button| {
+                                button.shadow(vec![ui.focus()])
+                            })
                             .child(
                                 icon(IconName::FolderOpen)
                                     .size(ui.icon_size - gpui::px(2.))

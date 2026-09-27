@@ -1662,6 +1662,11 @@ pub struct UiTheme {
     pub status_height: Pixels,
     pub status_gap: Pixels,
     pub help_row_height: Pixels,
+    /// The shortcuts sheet that holding Mod shows: its width, row height
+    /// and how wide one column of it is at least.
+    pub sheet_width: Pixels,
+    pub sheet_row_height: Pixels,
+    pub sheet_column_width: Pixels,
     pub keycap: KeycapTheme,
     pub backdrop: Hsla,
     /// Secondary text that still has to be read, such as a note's folder
@@ -1835,6 +1840,9 @@ impl UiTheme {
             status_height: px(24.),
             status_gap: px(16.),
             help_row_height: px(32.),
+            sheet_width: px(920.),
+            sheet_row_height: px(26.),
+            sheet_column_width: px(260.),
             keycap: KeycapTheme::default().on_text(p.text),
             backdrop: p.backdrop,
             text_detail: p.text_detail,
