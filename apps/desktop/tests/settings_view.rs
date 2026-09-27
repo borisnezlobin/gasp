@@ -797,9 +797,8 @@ fn shortcut(
 /// A chord as this platform's shortcut rows write it: `Ctrl+N` or `⌘N`.
 fn label(keys: &str) -> String {
     let platform = Platform::current();
-    KeyChord::parse_for(keys, platform)
-        .unwrap()
-        .display_for(platform)
+    let chord = KeyChord::parse_for(keys, platform).unwrap();
+    editor_desktop::picker::shortcut::shortcut_label(chord, platform)
 }
 
 #[gpui::test]
