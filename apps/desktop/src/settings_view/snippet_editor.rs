@@ -276,7 +276,15 @@ impl SettingsView {
         }
         let view = cx.entity().downgrade();
         window.on_next_frame(move |_, cx| {
-            view.update(cx, |view, cx| view.reveal_row(index, cx)).ok();
+            view.update(cx, |view, cx| {
+                // The item after the editor comes into view with it, so its
+                // buttons don't sit on the modal's bottom edge.
+                let after = (item + 1).min(view.list.item_count().saturating_sub(1));
+                view.list.scroll_to_reveal_item(after);
+                view.list.scroll_to_reveal_item(item);
+                cx.notify();
+            })
+            .ok();
         });
     }
 
@@ -470,8 +478,11 @@ impl SettingsView {
             (OptionControl::Place | OptionControl::Fire, "left") => {
                 self.step_snippet_choice(control, -1, cx)
             }
-            (OptionControl::Place | OptionControl::Fire, "right" | "space") => {
+            (OptionControl::Place | OptionControl::Fire, "right") => {
                 self.step_snippet_choice(control, 1, cx)
+            }
+            (OptionControl::Place | OptionControl::Fire, "space") => {
+                self.step_snippet_choice(control, 0, cx)
             }
             (OptionControl::WholeWord | OptionControl::AfterSpace, "space" | "enter") => {
                 self.toggle_snippet_option(control, cx)
@@ -481,7 +492,8 @@ impl SettingsView {
         true
     }
 
-    /// Moves a choice one way, stopping at the ends; Space wraps round.
+    /// Moves a choice `step` places, stopping at the ends; a step of zero
+    /// is Space's, which moves on one and wraps round.
     fn step_snippet_choice(&mut self, control: OptionControl, step: isize, cx: &mut Context<Self>) {
         let Some(editor) = self.snippet_editor.as_ref() else {
             return;
@@ -498,10 +510,10 @@ impl SettingsView {
                 FIRES.len(),
             ),
         };
-        let next = match at {
-            Some(at) if step > 0 => (at + 1) % count,
-            Some(at) => at.saturating_sub(1),
-            None => 0,
+        let next = match (at, step) {
+            (None, _) => 0,
+            (Some(at), 0) => (at + 1) % count,
+            (Some(at), step) => at.saturating_add_signed(step).min(count - 1),
         };
         match control {
             OptionControl::Place => self.set_snippet_place(Place::ALL[next].0, cx),
@@ -731,8 +743,12 @@ impl SettingsView {
                 style,
             ))
             .child(label)
-            .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
-                view.toggle_snippet_option(control, cx)
+            // Space and Enter are handled as they're pressed, so the click
+            // GPUI makes of their release mustn't flip it back.
+            .on_click(cx.listener(move |view, event: &ClickEvent, _, cx| {
+                if !event.is_keyboard() {
+                    view.toggle_snippet_option(control, cx)
+                }
             }))
     }
 

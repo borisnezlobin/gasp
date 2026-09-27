@@ -2366,7 +2366,7 @@ impl SettingsTheme {
             control_background: p.popover,
             control_ring: p.shadow,
             toggle_off: p.text_faint,
-            segment_track: p.hover,
+            segment_track: p.fill_pressed,
             knob: p.knob,
             focus_ring: p.focus(),
             warning: p.conflict,
