@@ -5,7 +5,7 @@ use editor_core::commands::{
 };
 use editor_core::footnotes::FootnoteSettings;
 use editor_core::motion;
-use gpui::{ClipboardItem, Context, Window};
+use gpui::{Context, Window};
 
 use crate::editor::EditorView;
 use crate::navigation::Motion;
@@ -28,7 +28,7 @@ const MOTIONS: [(&str, &str, Motion); 12] = [
     ("cursor.page-down", "select.page-down", Motion::PageDown),
 ];
 
-const HANDLERS: [(&str, Handler); 18] = [
+const HANDLERS: [(&str, Handler); 19] = [
     ("select.all", |view, _, cx| view.select_all(cx)),
     ("edit.delete-backward", |view, _, cx| {
         view.delete_or(|doc, at| doc.prev_char_boundary(at)..at, cx)
@@ -53,10 +53,13 @@ const HANDLERS: [(&str, Handler); 18] = [
     ("edit.outdent", |view, _, cx| view.run_edit(outdent, cx)),
     ("edit.undo", |view, _, cx| view.undo(cx)),
     ("edit.redo", |view, _, cx| view.redo(cx)),
-    ("edit.copy", |view, _, cx| view.copy(cx)),
-    ("edit.cut", |view, _, cx| view.cut(cx)),
-    ("edit.paste", |view, _, cx| view.paste(cx)),
-    ("edit.paste-plain", |view, _, cx| view.paste(cx)),
+    ("edit.copy", |view, _, cx| view.copy_selection_or_line(cx)),
+    ("edit.cut", |view, _, cx| view.cut_selection_or_line(cx)),
+    ("edit.paste", |view, _, cx| view.smart_paste(cx)),
+    ("edit.paste-plain", |view, _, cx| view.paste_plain(cx)),
+    ("note.import-image", |view, window, cx| {
+        view.import_image(window, cx)
+    }),
     ("format.link", |view, _, cx| view.run_edit(insert_link, cx)),
     ("footnote.insert-or-jump", |view, _, cx| view.footnote(cx)),
 ];
@@ -104,30 +107,6 @@ impl EditorView {
 
     fn select_all(&mut self, cx: &mut Context<Self>) {
         self.select(0, self.doc().len(), cx);
-    }
-
-    fn selected_text(&self) -> Option<String> {
-        let range = self.selected_range();
-        (!range.is_empty()).then(|| self.doc().slice(range))
-    }
-
-    fn copy(&mut self, cx: &mut Context<Self>) {
-        if let Some(text) = self.selected_text() {
-            cx.write_to_clipboard(ClipboardItem::new_string(text));
-        }
-    }
-
-    fn cut(&mut self, cx: &mut Context<Self>) {
-        if let Some(text) = self.selected_text() {
-            cx.write_to_clipboard(ClipboardItem::new_string(text));
-            self.insert("", cx);
-        }
-    }
-
-    fn paste(&mut self, cx: &mut Context<Self>) {
-        if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
-            self.insert(&text, cx);
-        }
     }
 
     fn footnote(&mut self, cx: &mut Context<Self>) {

@@ -1792,6 +1792,7 @@ dependencies = [
  "editor-snippets",
  "proptest",
  "pulldown-cmark",
+ "regex",
  "ropey",
 ]
 
@@ -1810,9 +1811,12 @@ dependencies = [
  "anyhow",
  "editor-config",
  "editor-core",
+ "editor-export",
  "env_logger",
  "gpui",
  "image",
+ "tempfile",
+ "unicode-normalization",
  "x11rb",
 ]
 

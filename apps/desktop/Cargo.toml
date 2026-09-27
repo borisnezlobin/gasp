@@ -18,14 +18,17 @@ anyhow = "1"
 env_logger = { version = "0.11", default-features = false }
 editor-config = { path = "../../crates/config" }
 editor-core = { path = "../../crates/core" }
+editor-export = { path = "../../crates/export" }
 gpui = "=0.2.2"
 image = "0.25"
+unicode-normalization = "0.1"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 x11rb = "0.13"
 
 [dev-dependencies]
 gpui = { version = "=0.2.2", features = ["test-support"] }
+tempfile = "3"
 
 [lints]
 workspace = true
