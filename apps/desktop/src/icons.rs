@@ -17,11 +17,13 @@ pub enum IconName {
     Article,
     Asterisk,
     BookOpen,
+    Bug,
     CaretDown,
     CaretLeft,
     CaretRight,
     CaretUp,
     Check,
+    CheckCircle,
     CheckSquare,
     Checks,
     ClipboardText,
@@ -41,6 +43,7 @@ pub enum IconName {
     FilePdf,
     FilePlus,
     FileText,
+    Flame,
     Folder,
     FolderOpen,
     FolderPlus,
@@ -64,6 +67,7 @@ pub enum IconName {
     Plus,
     Printer,
     PushPin,
+    Question,
     Quotes,
     Rows,
     SidebarSimple,
@@ -83,7 +87,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 72] = [
+const ICONS: [(IconName, &str, &[u8]); 76] = [
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -125,6 +129,11 @@ const ICONS: [(IconName, &str, &[u8]); 72] = [
         include_bytes!("../assets/icons/book-open.svg"),
     ),
     (
+        IconName::Bug,
+        "bug",
+        include_bytes!("../assets/icons/bug.svg"),
+    ),
+    (
         IconName::CaretDown,
         "caret-down",
         include_bytes!("../assets/icons/caret-down.svg"),
@@ -148,6 +157,11 @@ const ICONS: [(IconName, &str, &[u8]); 72] = [
         IconName::Check,
         "check",
         include_bytes!("../assets/icons/check.svg"),
+    ),
+    (
+        IconName::CheckCircle,
+        "check-circle",
+        include_bytes!("../assets/icons/check-circle.svg"),
     ),
     (
         IconName::CheckSquare,
@@ -243,6 +257,11 @@ const ICONS: [(IconName, &str, &[u8]); 72] = [
         IconName::FileText,
         "file-text",
         include_bytes!("../assets/icons/file-text.svg"),
+    ),
+    (
+        IconName::Flame,
+        "flame",
+        include_bytes!("../assets/icons/flame.svg"),
     ),
     (
         IconName::Folder,
@@ -358,6 +377,11 @@ const ICONS: [(IconName, &str, &[u8]); 72] = [
         IconName::PushPin,
         "push-pin",
         include_bytes!("../assets/icons/push-pin.svg"),
+    ),
+    (
+        IconName::Question,
+        "question",
+        include_bytes!("../assets/icons/question.svg"),
     ),
     (
         IconName::Quotes,

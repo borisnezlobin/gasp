@@ -1,275 +1,268 @@
-//! A small line styler for the spike: headings, strong, emphasis, inline
-//! code and images. Phase 2 replaces it with the core render planner.
+//! Maps the render planner's semantic styles to fonts, colours and
+//! decorations from the theme.
 
-use std::ops::Range;
+use editor_core::render::StyleKey;
+use editor_core::syntax::CalloutKind;
+use gpui::{Font, FontStyle, Hsla, Pixels, StrikethroughStyle, TextRun, UnderlineStyle};
 
-/// What an inline span means.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SpanKind {
-    Strong,
-    Emphasis,
-    Code,
-    Image { target: String },
-}
+use crate::theme::Theme;
 
-/// An inline span. Offsets are bytes within the line.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Span {
-    /// The whole span, markers included.
-    pub range: Range<usize>,
-    /// The part between the markers.
-    pub content: Range<usize>,
-    pub kind: SpanKind,
-}
-
-impl Span {
-    pub fn is_image(&self) -> bool {
-        matches!(self.kind, SpanKind::Image { .. })
-    }
-}
-
-/// How one source line is styled.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct LineStyle {
+/// What a line's text looks like before its runs' own styles apply.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LineTone {
     /// 1 to 6 for headings, 0 for body text.
     pub heading_level: u8,
-    /// The `#` markers and the space after them.
-    pub heading_marker: Option<Range<usize>>,
-    pub spans: Vec<Span>,
+    /// Code block lines use the code font throughout.
+    pub code: bool,
+    /// Frontmatter and other compact blocks use the small size.
+    pub small: bool,
+    pub muted: bool,
+    /// The callout whose header this line is, for the title colour.
+    pub callout: Option<CalloutKind>,
 }
 
-impl LineStyle {
-    pub fn has_image(&self) -> bool {
-        self.spans.iter().any(Span::is_image)
-    }
+impl LineTone {
+    pub const PLAIN: LineTone = LineTone {
+        heading_level: 0,
+        code: false,
+        small: false,
+        muted: false,
+        callout: None,
+    };
 
-    /// The span covering `offset`, if any.
-    pub fn span_at(&self, offset: usize) -> Option<&Span> {
-        self.spans.iter().find(|span| span.range.contains(&offset))
-    }
-
-    /// Whether `offset` is a marker (a heading `#` or a span delimiter).
-    pub fn is_marker(&self, offset: usize) -> bool {
-        if self
-            .heading_marker
-            .as_ref()
-            .is_some_and(|marker| marker.contains(&offset))
-        {
-            return true;
+    /// The size of the line's text without inline code.
+    pub fn font_size(&self, theme: &Theme) -> Pixels {
+        match (self.code, self.small) {
+            (true, _) => theme.body_font_size * theme.code_scale,
+            (false, true) => theme.small_font_size,
+            _ => theme.font_size(self.heading_level),
         }
-        self.span_at(offset)
-            .is_some_and(|span| !span.content.contains(&offset))
+    }
+
+    pub fn line_height_factor(&self, theme: &Theme) -> f32 {
+        if self.code {
+            theme.code_line_height_factor
+        } else {
+            theme.line_height_factor
+        }
     }
 }
 
-/// Styles one line of Markdown.
-pub fn style_line(text: &str) -> LineStyle {
-    let (heading_level, heading_marker) = heading(text);
-    let body_start = heading_marker.as_ref().map_or(0, |marker| marker.end);
-    LineStyle {
-        heading_level,
-        heading_marker,
-        spans: scan_spans(text, body_start),
+/// Whether a run with these styles is set in the code font at code size.
+pub fn is_code(styles: &[StyleKey]) -> bool {
+    styles
+        .iter()
+        .any(|style| matches!(style, StyleKey::Code | StyleKey::MathSource))
+}
+
+/// The font size of a run.
+pub fn run_font_size(styles: &[StyleKey], tone: &LineTone, theme: &Theme) -> Pixels {
+    let size = tone.font_size(theme);
+    if is_code(styles) && !tone.code {
+        size * theme.code_scale
+    } else {
+        size
     }
 }
 
-/// Heading level from the line's `#` prefix, without styling the rest.
-pub fn heading_level(text: &str) -> u8 {
-    heading(text).0
-}
-
-/// Whether the line has an image, without building the rest of the style.
-pub fn line_has_image(text: &str) -> bool {
-    text.contains("![") && style_line(text).has_image()
-}
-
-fn heading(text: &str) -> (u8, Option<Range<usize>>) {
-    let hashes = text.bytes().take_while(|byte| *byte == b'#').count();
-    if !(1..=6).contains(&hashes) || text.as_bytes().get(hashes) != Some(&b' ') {
-        return (0, None);
+/// A text run of `len` bytes with the given styles.
+pub fn text_run(
+    len: usize,
+    styles: &[StyleKey],
+    tone: &LineTone,
+    marked: bool,
+    theme: &Theme,
+) -> TextRun {
+    let color = run_color(styles, tone, theme);
+    TextRun {
+        len,
+        font: run_font(styles, tone, theme),
+        color,
+        background_color: run_background(styles, theme),
+        underline: run_underline(styles, marked, color, theme),
+        strikethrough: run_strikethrough(styles, color, theme),
     }
-    (hashes as u8, Some(0..hashes + 1))
 }
 
-type Matcher = fn(&str, usize) -> Option<Span>;
+fn run_font(styles: &[StyleKey], tone: &LineTone, theme: &Theme) -> Font {
+    let has = |key: StyleKey| styles.contains(&key);
+    let mut font = if tone.code || is_code(styles) {
+        theme.code_font()
+    } else {
+        theme.body_font()
+    };
+    let bold = has(StyleKey::Strong) || tone.heading_level > 0 || is_heading(styles);
+    if bold {
+        font.weight = theme.bold_weight;
+    } else if has(StyleKey::CalloutTitle) {
+        font.weight = theme.medium_weight;
+    }
+    if has(StyleKey::Emphasis) {
+        font.style = FontStyle::Italic;
+    }
+    font
+}
 
-const MATCHERS: &[Matcher] = &[
-    wiki_image,
-    markdown_image,
-    inline_code,
-    strong,
-    emphasis_star,
-    emphasis_underscore,
+fn is_heading(styles: &[StyleKey]) -> bool {
+    styles
+        .iter()
+        .any(|style| matches!(style, StyleKey::Heading(_)))
+}
+
+/// Colour by the first style that sets one, in order of precedence.
+const COLOR_STYLES: [StyleKey; 8] = [
+    StyleKey::MarkupDimmed,
+    StyleKey::Comment,
+    StyleKey::Html,
+    StyleKey::TaskDone,
+    StyleKey::Link,
+    StyleKey::FootnoteRef,
+    StyleKey::Tag,
+    StyleKey::Frontmatter,
 ];
 
-fn scan_spans(text: &str, from: usize) -> Vec<Span> {
-    let mut spans = Vec::new();
-    let mut at = from;
-    while at < text.len() {
-        if let Some(span) = MATCHERS.iter().find_map(|matcher| matcher(text, at)) {
-            at = span.range.end;
-            spans.push(span);
-            continue;
-        }
-        at += text[at..].chars().next().map_or(1, char::len_utf8);
+fn run_color(styles: &[StyleKey], tone: &LineTone, theme: &Theme) -> Hsla {
+    let keyed = COLOR_STYLES
+        .iter()
+        .find(|key| styles.contains(key))
+        .map(|key| style_color(*key, theme));
+    if let Some(color) = keyed {
+        return color;
     }
-    spans
+    match tone.callout {
+        Some(kind) if styles.contains(&StyleKey::CalloutTitle) => theme.callout_color(kind),
+        _ if tone.muted => theme.text_muted,
+        _ if tone.heading_level > 0 || is_heading(styles) => theme.heading_text,
+        _ if is_code(styles) || tone.code => theme.code_text,
+        _ => theme.text,
+    }
 }
 
-/// Finds `open … close` starting at `at`, with non-empty content that
-/// doesn't start with a space.
-fn delimited(
-    text: &str,
-    at: usize,
-    open: &str,
-    close: &str,
-) -> Option<(Range<usize>, Range<usize>)> {
-    if !text[at..].starts_with(open) {
-        return None;
+fn style_color(key: StyleKey, theme: &Theme) -> Hsla {
+    match key {
+        StyleKey::MarkupDimmed | StyleKey::Html => theme.markup_dimmed,
+        StyleKey::Comment | StyleKey::TaskDone => theme.text_faint,
+        StyleKey::Link | StyleKey::FootnoteRef | StyleKey::Tag => theme.link,
+        _ => theme.text_muted,
     }
-    let content_start = at + open.len();
-    let content_len = text[content_start..].find(close)?;
-    let starts_with_space = text[content_start..].starts_with(' ');
-    if content_len == 0 || starts_with_space {
-        return None;
-    }
-    let content = content_start..content_start + content_len;
-    Some((at..content.end + close.len(), content))
 }
 
-fn simple(text: &str, at: usize, marker: &str, kind: SpanKind) -> Option<Span> {
-    let (range, content) = delimited(text, at, marker, marker)?;
-    Some(Span {
-        range,
-        content,
-        kind,
+fn run_background(styles: &[StyleKey], theme: &Theme) -> Option<Hsla> {
+    if styles.contains(&StyleKey::Highlight) {
+        return Some(theme.highlight);
+    }
+    if styles.contains(&StyleKey::Code) {
+        return Some(theme.code_background);
+    }
+    styles
+        .contains(&StyleKey::Tag)
+        .then_some(theme.tag_background)
+}
+
+fn run_underline(
+    styles: &[StyleKey],
+    marked: bool,
+    color: Hsla,
+    theme: &Theme,
+) -> Option<UnderlineStyle> {
+    let underlined = marked
+        || styles.contains(&StyleKey::Underline)
+        || styles.contains(&StyleKey::Link) && !styles.contains(&StyleKey::MarkupDimmed);
+    underlined.then_some(UnderlineStyle {
+        thickness: theme.composition_underline_thickness,
+        color: Some(if marked {
+            theme.composition_underline
+        } else {
+            color
+        }),
+        wavy: false,
     })
 }
 
-fn inline_code(text: &str, at: usize) -> Option<Span> {
-    simple(text, at, "`", SpanKind::Code)
-}
-
-fn strong(text: &str, at: usize) -> Option<Span> {
-    simple(text, at, "**", SpanKind::Strong)
-}
-
-fn emphasis_star(text: &str, at: usize) -> Option<Span> {
-    simple(text, at, "*", SpanKind::Emphasis)
-}
-
-fn emphasis_underscore(text: &str, at: usize) -> Option<Span> {
-    simple(text, at, "_", SpanKind::Emphasis)
-}
-
-fn wiki_image(text: &str, at: usize) -> Option<Span> {
-    let (range, content) = delimited(text, at, "![[", "]]")?;
-    let inner = &text[content.clone()];
-    let target = inner.split('|').next().unwrap_or(inner).trim().to_owned();
-    Some(Span {
-        range,
-        content,
-        kind: SpanKind::Image { target },
+fn run_strikethrough(
+    styles: &[StyleKey],
+    color: Hsla,
+    theme: &Theme,
+) -> Option<StrikethroughStyle> {
+    let struck = styles.contains(&StyleKey::Strikethrough) || styles.contains(&StyleKey::TaskDone);
+    struck.then_some(StrikethroughStyle {
+        thickness: theme.rule_thickness,
+        color: Some(color),
     })
-}
-
-fn markdown_image(text: &str, at: usize) -> Option<Span> {
-    let (alt_range, _) = delimited(text, at, "![", "]").or_else(|| empty_alt(text, at))?;
-    let (target_range, target) = delimited(text, alt_range.end, "(", ")")?;
-    Some(Span {
-        range: at..target_range.end,
-        content: target.clone(),
-        kind: SpanKind::Image {
-            target: text[target].trim().to_owned(),
-        },
-    })
-}
-
-fn empty_alt(text: &str, at: usize) -> Option<(Range<usize>, Range<usize>)> {
-    text[at..]
-        .starts_with("![]")
-        .then(|| (at..at + 3, at + 2..at + 2))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn kinds(text: &str) -> Vec<(String, SpanKind)> {
-        style_line(text)
-            .spans
-            .into_iter()
-            .map(|span| (text[span.range].to_owned(), span.kind))
-            .collect()
+    fn run(styles: &[StyleKey]) -> TextRun {
+        text_run(3, styles, &LineTone::PLAIN, false, &Theme::default())
     }
 
     #[test]
-    fn headings_have_a_level_and_a_marker() {
-        let style = style_line("## Kinematics");
-        assert_eq!(style.heading_level, 2);
-        assert_eq!(style.heading_marker, Some(0..3));
-        assert!(style.is_marker(0));
-        assert!(!style.is_marker(3));
+    fn strong_and_emphasis_combine() {
+        let theme = Theme::default();
+        let both = run(&[StyleKey::Strong, StyleKey::Emphasis]);
+        assert_eq!(both.font.weight, theme.bold_weight);
+        assert_eq!(both.font.style, FontStyle::Italic);
+        assert_eq!(both.color, theme.text);
     }
 
     #[test]
-    fn hashes_without_a_space_are_not_a_heading() {
-        assert_eq!(heading_level("#tag"), 0);
-        assert_eq!(heading_level("####### seven"), 0);
-        assert_eq!(heading_level("###### six"), 6);
+    fn markup_is_dimmed_even_inside_links() {
+        let theme = Theme::default();
+        let bracket = run(&[StyleKey::Link, StyleKey::MarkupDimmed]);
+        assert_eq!(bracket.color, theme.markup_dimmed);
+        assert!(bracket.underline.is_none());
+        let link = run(&[StyleKey::Link]);
+        assert_eq!(link.color, theme.link);
+        assert!(link.underline.is_some());
     }
 
     #[test]
-    fn finds_strong_emphasis_and_code() {
+    fn code_uses_the_code_font_size_and_background() {
+        let theme = Theme::default();
+        let code = run(&[StyleKey::Code]);
+        assert_eq!(code.font.family, theme.code_font_family);
+        assert_eq!(code.background_color, Some(theme.code_background));
         assert_eq!(
-            kinds("a **bold** and *it* or _it_ with `code`"),
-            vec![
-                ("**bold**".to_owned(), SpanKind::Strong),
-                ("*it*".to_owned(), SpanKind::Emphasis),
-                ("_it_".to_owned(), SpanKind::Emphasis),
-                ("`code`".to_owned(), SpanKind::Code),
-            ]
+            run_font_size(&[StyleKey::Code], &LineTone::PLAIN, &theme),
+            theme.body_font_size * theme.code_scale
         );
     }
 
     #[test]
-    fn unclosed_or_spaced_markers_are_plain() {
-        assert!(kinds("2 * 3 = 6 and a ** b").is_empty());
-        assert!(kinds("a `b").is_empty());
+    fn decorations_follow_their_styles() {
+        let theme = Theme::default();
+        assert!(run(&[StyleKey::Strikethrough]).strikethrough.is_some());
+        assert!(run(&[StyleKey::Underline]).underline.is_some());
+        assert_eq!(
+            run(&[StyleKey::Highlight]).background_color,
+            Some(theme.highlight)
+        );
+        let done = run(&[StyleKey::TaskDone]);
+        assert_eq!(done.color, theme.text_faint);
+        assert!(done.strikethrough.is_some());
+        assert_eq!(run(&[StyleKey::Comment]).color, theme.text_faint);
+        let marked = text_run(1, &[], &LineTone::PLAIN, true, &theme);
+        assert!(marked.underline.is_some());
     }
 
     #[test]
-    fn finds_wiki_and_markdown_images() {
-        let image = |target: &str| SpanKind::Image {
-            target: target.to_owned(),
+    fn headings_and_callout_titles_take_the_line_tone() {
+        let theme = Theme::default();
+        let heading = LineTone {
+            heading_level: 2,
+            ..LineTone::PLAIN
         };
-        assert_eq!(
-            kinds("see ![[plot.png|200]] and ![alt](images/a.png) or ![](b.png)"),
-            vec![
-                ("![[plot.png|200]]".to_owned(), image("plot.png")),
-                ("![alt](images/a.png)".to_owned(), image("images/a.png")),
-                ("![](b.png)".to_owned(), image("b.png")),
-            ]
-        );
-        assert!(line_has_image("x ![[a.png]] y"));
-        assert!(!line_has_image("x ![ y"));
-    }
-
-    #[test]
-    fn markers_are_offsets_outside_the_content() {
-        let style = style_line("x **b** y");
-        assert!(style.is_marker(2));
-        assert!(style.is_marker(3));
-        assert!(!style.is_marker(4));
-        assert!(style.is_marker(6));
-        assert!(!style.is_marker(8));
-    }
-
-    #[test]
-    fn handles_multibyte_text() {
-        assert_eq!(
-            kinds("日本語 **太字** です"),
-            vec![("**太字**".to_owned(), SpanKind::Strong)]
-        );
+        let run = text_run(1, &[StyleKey::Heading(2)], &heading, false, &theme);
+        assert_eq!(run.font.weight, theme.bold_weight);
+        assert_eq!(heading.font_size(&theme), theme.font_size(2));
+        let callout = LineTone {
+            callout: Some(CalloutKind::Warning),
+            ..LineTone::PLAIN
+        };
+        let title = text_run(1, &[StyleKey::CalloutTitle], &callout, false, &theme);
+        assert_eq!(title.color, theme.callout_color(CalloutKind::Warning));
     }
 }

@@ -35,6 +35,8 @@ serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 serde_json = "1"
 toml_edit = "0.22"
+editor-math = { path = "../../crates/math" }
+resvg = { version = "0.45", default-features = false }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 x11rb = "0.13"

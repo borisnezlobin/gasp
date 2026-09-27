@@ -118,7 +118,7 @@ pub fn group_thousands(number: usize) -> String {
 pub fn render_status_bar(
     info: Option<&StatusInfo>,
     theme: &WorkspaceTheme,
-    font_family: &'static str,
+    font_family: gpui::SharedString,
     _cx: &App,
 ) -> impl IntoElement {
     let item = |text: String| -> gpui::Div {

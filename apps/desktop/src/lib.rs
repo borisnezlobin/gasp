@@ -27,6 +27,7 @@ pub mod outline;
 pub mod palette;
 pub mod paste;
 pub mod picker;
+pub mod preview;
 pub mod settings_view;
 pub mod stats;
 pub mod styling;

@@ -156,7 +156,7 @@ impl Render for Launcher {
             .justify_center()
             .pt(theme.modal_top_offset)
             .bg(self.theme.background)
-            .font_family(self.theme.body_font_family)
+            .font_family(self.theme.body_font_family.clone())
             .text_size(theme.ui_font_size)
             .child(div().w(theme.launcher_width).child(body))
     }

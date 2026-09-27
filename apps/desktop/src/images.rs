@@ -5,10 +5,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use gpui::{Pixels, RenderImage, Size, size};
+use gpui::{Pixels, RenderImage, Size, px, size};
 use image::{Frame, RgbaImage};
-
-use crate::theme::Theme;
 
 const PLACEHOLDER_SIZE: (u32, u32) = (96, 64);
 const MAX_ASPECT_RATIO: f32 = 4.;
@@ -51,13 +49,25 @@ impl ImageStore {
     }
 }
 
-/// The size an image is drawn at: the theme's image height, and a width
-/// from its aspect ratio.
-pub fn display_size(image: &RenderImage, theme: &Theme) -> Size<Pixels> {
+/// The size an image is drawn at: the width written in the note (`|300`)
+/// or its natural size, scaled by the view's zoom, never wider than
+/// `max_width`, keeping its aspect ratio unless a height is written too.
+pub fn display_size(
+    image: &RenderImage,
+    requested: (Option<u32>, Option<u32>),
+    zoom: f32,
+    max_width: Pixels,
+) -> Size<Pixels> {
     let pixels = image.size(0);
-    let aspect = (pixels.width.0 as f32 / pixels.height.0.max(1) as f32)
-        .clamp(1. / MAX_ASPECT_RATIO, MAX_ASPECT_RATIO);
-    size(theme.image_height * aspect, theme.image_height)
+    let natural = (pixels.width.0.max(1) as f32, pixels.height.0.max(1) as f32);
+    let aspect = (natural.0 / natural.1).clamp(1. / MAX_ASPECT_RATIO, MAX_ASPECT_RATIO);
+    let wanted_width = requested.0.map_or(natural.0, |width| width as f32) * zoom;
+    let wanted_height = match requested {
+        (Some(_), Some(height)) => height as f32 * zoom,
+        _ => wanted_width / aspect,
+    };
+    let shrink = (f32::from(max_width.max(px(1.))) / wanted_width).min(1.);
+    size(px(wanted_width * shrink), px(wanted_height * shrink))
 }
 
 fn decode(path: &Path) -> Option<RenderImage> {
@@ -96,13 +106,17 @@ mod tests {
 
     #[test]
     fn display_size_keeps_the_aspect_ratio() {
-        let theme = Theme::default();
         let image = render_image(RgbaImage::new(40, 20));
-        let shown = display_size(&image, &theme);
-        assert_eq!(shown.height, theme.image_height);
-        assert_eq!(shown.width, theme.image_height * 2.);
-        let thin = render_image(RgbaImage::new(1, 100));
-        assert_eq!(display_size(&thin, &theme).width, theme.image_height / 4.);
+        let natural = display_size(&image, (None, None), 1., px(1000.));
+        assert_eq!((natural.width, natural.height), (px(40.), px(20.)));
+        let wide = display_size(&image, (Some(300), None), 1., px(1000.));
+        assert_eq!((wide.width, wide.height), (px(300.), px(150.)));
+        let capped = display_size(&image, (Some(300), None), 1., px(100.));
+        assert_eq!((capped.width, capped.height), (px(100.), px(50.)));
+        let zoomed = display_size(&image, (Some(300), None), 1.5, px(1000.));
+        assert_eq!(zoomed.width, px(450.));
+        let explicit = display_size(&image, (Some(100), Some(100)), 1., px(1000.));
+        assert_eq!(explicit.height, px(100.));
     }
 
     #[test]

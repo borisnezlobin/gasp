@@ -6,7 +6,7 @@ use editor_config::{Platform, RuleSet};
 use editor_desktop::EditorView;
 use editor_desktop::actions::bind_keys;
 use editor_desktop::keymap::editor_bindings;
-use editor_desktop::line_layout::PieceContent;
+use editor_desktop::line_layout::{Piece, PieceContent, RowKind};
 use gpui::{
     Entity, EntityInputHandler, Focusable, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent,
     Pixels, Point, TestAppContext, VisualTestContext, point, px,
@@ -204,6 +204,10 @@ fn ime_reads_text_and_selection_in_utf16(cx: &mut TestAppContext) {
     assert_eq!(fragment, (Some("語a".to_owned()), Some(2..4)));
 }
 
+fn is_image(piece: &Piece) -> bool {
+    matches!(piece.content, PieceContent::Image { .. })
+}
+
 #[gpui::test]
 fn headings_are_taller_and_images_grow_their_row(cx: &mut TestAppContext) {
     let (view, cx) = open(cx, NOTE);
@@ -212,15 +216,12 @@ fn headings_are_taller_and_images_grow_their_row(cx: &mut TestAppContext) {
         let heading = &frame.line(0).unwrap().visual;
         let body = &frame.line(1).unwrap().visual;
         let image = &frame.line(2).unwrap().visual;
-        assert!(heading.text_height > body.text_height);
+        assert!(heading.rows[0].caret_height > body.rows[0].caret_height);
         assert!(image.height > body.height);
-        let kinds: Vec<bool> = image
-            .pieces
-            .iter()
-            .map(|piece| matches!(piece.content, PieceContent::Image(_)))
-            .collect();
+        let kinds: Vec<bool> = image.pieces().map(is_image).collect();
         assert_eq!(kinds, vec![false, true, false]);
-        assert!(image.pieces[2].x > image.pieces[1].x);
+        let pieces: Vec<&Piece> = image.pieces().collect();
+        assert!(pieces[2].x > pieces[1].x);
     });
 }
 
@@ -231,8 +232,17 @@ fn the_cursor_reveals_image_source(cx: &mut TestAppContext) {
     place_cursor(&view, cx, inside_image);
     view.read_with(cx, |view, _| {
         let image = &view.frame().unwrap().line(2).unwrap().visual;
-        assert_eq!(image.pieces[0].range, 0..18);
-        assert!(matches!(image.pieces[1].content, PieceContent::Image(_)));
+        let text: Vec<std::ops::Range<usize>> = image.rows[0]
+            .pieces
+            .iter()
+            .map(|piece| piece.range.clone())
+            .collect();
+        assert_eq!(text.first().map(|range| range.start), Some(0));
+        assert_eq!(text.last().map(|range| range.end), Some(23));
+        assert!(!image.rows[0].pieces.iter().any(is_image));
+        let below = image.rows.last().unwrap();
+        assert_eq!(below.kind, RowKind::Below);
+        assert!(below.pieces.iter().any(is_image));
     });
 }
 
