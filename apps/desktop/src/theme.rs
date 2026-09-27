@@ -1408,6 +1408,8 @@ pub struct UiTheme {
     pub drop_target: Hsla,
     /// Opacity of a file tree entry that's been cut and waits to be pasted.
     pub cut_opacity: f32,
+    /// The soft edge where tabs run past the tab strip.
+    pub tab_fade_width: Pixels,
 }
 
 impl Default for UiTheme {
@@ -1521,6 +1523,7 @@ impl Default for UiTheme {
             find_bar_width: px(480.),
             drop_target: hsla(0., 0., 0., 0.08),
             cut_opacity: 0.5,
+            tab_fade_width: px(24.),
         }
     }
 }
