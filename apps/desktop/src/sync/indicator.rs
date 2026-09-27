@@ -167,7 +167,7 @@ impl SyncIndicator {
                 button.tooltip(move |window, cx| {
                     let service = service.read(cx);
                     let text = state::tooltip(&service.phase(), service.times());
-                    Tooltip::new(text, shortcut.clone()).builder()(window, cx)
+                    Tooltip::new(text, shortcut).builder()(window, cx)
                 })
             })
             .on_click(

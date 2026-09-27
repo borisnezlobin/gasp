@@ -70,8 +70,11 @@ impl SettingsView {
             let sync = sync.read(cx);
             (sync.remote_url().map(str::to_string), sync.is_signed_in())
         });
-        self.remote_cache = remote;
-        self.signed_in_cache = signed_in;
+        if remote != self.remote_cache || signed_in != self.signed_in_cache {
+            self.remote_cache = remote;
+            self.signed_in_cache = signed_in;
+            self.invalidate_layouts();
+        }
     }
 
     pub(super) fn remote_description(&self) -> String {

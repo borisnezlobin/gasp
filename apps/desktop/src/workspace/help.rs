@@ -7,8 +7,9 @@ use gpui::{
     SharedString, Window, div, prelude::*,
 };
 
+use crate::picker::shortcut::Shortcut;
 use crate::ui::hints::{command_title, shortcut};
-use crate::ui::ui_theme;
+use crate::ui::{keycap, ui_theme};
 
 /// The commands the dialog lists, in groups shown apart.
 pub const HELP_COMMANDS: [(&str, &[&str]); 5] = [
@@ -60,7 +61,7 @@ pub enum HelpEvent {
 struct HelpRow {
     id: &'static str,
     title: SharedString,
-    shortcut: Option<SharedString>,
+    shortcut: Option<Shortcut>,
     group: usize,
 }
 
@@ -141,15 +142,7 @@ impl Render for ShortcutsHelp {
                 list = list.child(div().h(ui.space_md));
             }
             last_group = Some(row.group);
-            let keycap = row.shortcut.clone().map(|shortcut| {
-                div()
-                    .px(ui.keycap_padding_x)
-                    .rounded(ui.keycap_radius)
-                    .bg(ui.keycap_background)
-                    .text_size(ui.small_font_size)
-                    .text_color(ui.text_muted)
-                    .child(shortcut)
-            });
+            let keycap = row.shortcut.map(|shortcut| keycap(shortcut, &ui.keycap));
             let selector = format!("help-{}", row.id);
             list = list.child(
                 div()

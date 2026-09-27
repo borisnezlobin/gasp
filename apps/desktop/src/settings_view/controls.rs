@@ -1,6 +1,7 @@
 //! The settings screen's building blocks: the two-column row, pill
-//! switches, dropdown buttons, buttons, steppers, keycaps, swatches and
-//! the dropdown menu's panel. Each takes its look from
+//! switches, dropdown buttons, buttons, steppers, removable key chips,
+//! the field a shortcut is pressed into, swatches, the dropdown menu's
+//! panel and the note hung under a control. Each takes its look from
 //! [`SettingsTheme`] and leaves behaviour to the caller.
 //!
 //! These are general enough to share with other screens.
@@ -11,7 +12,9 @@ use gpui::{
 };
 
 use crate::icons::{IconName, icon};
-use crate::theme::SettingsTheme;
+use crate::picker::shortcut::Shortcut;
+use crate::theme::{KeycapTheme, SettingsTheme};
+use crate::ui::{Tooltip, keycap};
 
 /// A row with its text on the left and its control on the right. The
 /// text column takes the room that's left and wraps; the control column
@@ -292,21 +295,141 @@ pub fn stepper(
     with_focus(stepper, focused, style)
 }
 
-/// A key as a small raised cap.
-pub fn keycap(label: impl Into<SharedString>, style: &SettingsTheme) -> Div {
-    div()
+/// A shortcut's chip with a cross inside its right edge that removes it.
+/// The cross is always shown, so removing never hides behind a hover,
+/// and its tooltip says which key it removes. `marked` stresses the chip,
+/// such as for the key a search found, and `warning` for a key another
+/// command also uses; both tint it.
+pub fn removable_keycap(
+    id: SharedString,
+    shortcut: Shortcut,
+    marked: bool,
+    warning: bool,
+    keycaps: &KeycapTheme,
+    style: &SettingsTheme,
+) -> (Div, Stateful<Div>) {
+    let cross = keycaps.height - style.gap_sm;
+    let (hover, strong) = (keycaps.fill, style_text(keycaps));
+    let remove_label = format!("Remove {}", shortcut.label());
+    let group = SharedString::from(format!("{id}-group"));
+    let remove = div()
+        .id(id)
         .flex_none()
+        .size(cross)
         .flex()
         .items_center()
-        .gap(style.gap_xs)
-        .px(style.keycap_padding_x)
-        .py(style.keycap_padding_y)
+        .justify_center()
+        .rounded(keycaps.radius - style.hairline)
+        .cursor_pointer()
+        .hover(move |button| button.bg(hover))
+        .tooltip(Tooltip::new(remove_label, None).builder())
+        .group(group.clone())
+        .child(
+            icon(IconName::X)
+                .size(keycaps.icon_size)
+                .text_color(style.text_muted)
+                .group_hover(group, move |cross| cross.text_color(strong)),
+        );
+    // Colour, not a ring or shadow, marks a chip: shadows fill in under
+    // a see-through chip rather than outlining it.
+    let keycaps = if warning {
+        keycaps.clone().on_text(style.warning)
+    } else if marked {
+        keycaps.clone().emphasized()
+    } else {
+        keycaps.clone()
+    };
+    let chip = keycap(shortcut, &keycaps).pr(style.gap_xs);
+    (chip, remove)
+}
+
+/// The glyph colour at full strength, for a hovered cross.
+fn style_text(keycaps: &KeycapTheme) -> Hsla {
+    Hsla {
+        a: 1.,
+        ..keycaps.glyph
+    }
+}
+
+/// A small borderless button holding one small icon, for use inside a
+/// field or chip.
+pub fn small_icon_button(
+    id: impl Into<ElementId>,
+    name: IconName,
+    style: &SettingsTheme,
+) -> Stateful<Div> {
+    let hover = style.hover;
+    let size = style.control_height - style.gap_sm * 2.;
+    div()
+        .id(id)
+        .flex_none()
+        .size(size)
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(style.radius - style.gap_xs)
+        .cursor_pointer()
+        .hover(move |button| button.bg(hover))
+        .child(
+            icon(name)
+                .size(style.small_icon_size)
+                .text_color(style.text_muted),
+        )
+}
+
+/// The box a chord is pressed into: ringed like a focused field, saying
+/// what it waits for, with a button that stops waiting.
+pub fn capture_field(
+    prompt: impl Into<SharedString>,
+    cancel: Stateful<Div>,
+    style: &SettingsTheme,
+) -> Div {
+    div()
+        .flex_none()
+        .h(style.control_height)
+        .min_w(style.capture_field_width)
+        .pl(style.control_gap)
+        .pr(style.gap_xs)
+        .flex()
+        .items_center()
+        .justify_between()
+        .gap(style.gap_sm)
         .rounded(style.radius)
         .bg(style.control_background)
-        .shadow(vec![style.outline(), style.lift()])
+        .shadow(vec![style.focus()])
         .text_size(style.small_text_size)
+        .text_color(style.text_muted)
         .whitespace_nowrap()
-        .child(label.into())
+        .child(prompt.into())
+        .child(cancel)
+}
+
+/// A note hung under the control before it in a relative container, such
+/// as why a value or key was refused. It's drawn over the rows below, so
+/// showing it moves nothing.
+pub fn control_note(message: impl Into<SharedString>, style: &SettingsTheme) -> Div {
+    let panel = div()
+        .occlude()
+        .max_w(style.menu_width)
+        .flex()
+        .items_start()
+        .gap(style.gap_sm)
+        .px(style.control_gap)
+        .py(style.gap_sm * 1.5)
+        .rounded(style.radius)
+        .bg(style.background)
+        .shadow(vec![style.outline(), style.popover_shadow()])
+        .text_size(style.small_text_size)
+        .text_color(style.text)
+        .child(
+            icon(IconName::WarningCircle)
+                .flex_none()
+                .mt(style.gap_xs)
+                .size(style.small_icon_size)
+                .text_color(style.warning),
+        )
+        .child(div().min_w_0().child(message.into()));
+    popover(panel, style)
 }
 
 /// A round colour swatch, ringed while it's the chosen one.
