@@ -379,10 +379,10 @@ impl Render for TextInput {
         let look = self.look();
         let theme = &self.theme;
         let focused = self.focus_handle.is_focused(window);
-        let background = if self.invalid {
-            theme.error_background
-        } else {
-            theme.background
+        let background = match (self.invalid, focused) {
+            (true, _) => theme.error_background,
+            (false, true) => theme.focused_background,
+            (false, false) => theme.background,
         };
         div()
             .key_context(TEXT_INPUT_CONTEXT)

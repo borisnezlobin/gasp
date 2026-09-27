@@ -401,7 +401,7 @@ impl CommandPalette {
             .gap(theme.capture_gap)
             .px(theme.input_padding_x)
             .py(theme.input_padding_y)
-            .font_family(theme.font_family)
+            .font_family(theme.font_family.clone())
             .text_color(theme.text)
             .bg(theme.background)
             .rounded(theme.corner_radius)

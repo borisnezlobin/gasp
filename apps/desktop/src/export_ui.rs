@@ -203,7 +203,10 @@ impl ExportDialog {
             selected: 0,
             state: ExportState::Choosing,
             focus_handle: cx.focus_handle(),
-            theme: Theme::default().find_ui,
+            theme: FindUiTheme {
+                font_family: crate::ui::ui_theme(cx).font_family,
+                ..Theme::default().find_ui
+            },
             export_task: None,
         }
     }
@@ -342,7 +345,7 @@ impl Render for ExportDialog {
                 blur_radius: theme.panel_shadow_blur,
                 spread_radius: gpui::px(0.),
             }])
-            .font_family(theme.font_family)
+            .font_family(theme.font_family.clone())
             .text_size(theme.font_size)
             .text_color(theme.text)
             .child(

@@ -14,14 +14,18 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use std::ops::Range;
+
 use gpui::{
-    App, AppContext, ClickEvent, Context, Entity, EventEmitter, FocusHandle, Focusable,
-    HighlightStyle, KeyBinding, ScrollHandle, SharedString, StyledText, Subscription, Task, Window,
-    actions, div, prelude::*,
+    AnyElement, App, AppContext, ClickEvent, Context, Entity, EventEmitter, FocusHandle, Focusable,
+    HighlightStyle, KeyBinding, ScrollStrategy, SharedString, StyledText, Subscription, Task,
+    UniformListScrollHandle, Window, actions, div, prelude::*, uniform_list,
 };
 
-use crate::text_input::{TextInput, TextInputEvent};
-use crate::theme::{FindUiTheme, Theme};
+use crate::icons::{IconName, icon};
+use crate::picker::surface_shadow;
+use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
+use crate::theme::{FindUiTheme, PickerTheme, Theme};
 use engine::{Note, NoteResult, ReplaceReport};
 
 /// The key context the panel sets.
@@ -98,9 +102,12 @@ pub struct VaultSearch {
     replace_task: Option<Task<()>>,
     pending_replace: Option<PendingReplace>,
     status: Option<String>,
-    scroll: ScrollHandle,
+    scroll: UniformListScrollHandle,
     focus_handle: FocusHandle,
     theme: FindUiTheme,
+    /// The picker's surface, so the panel looks like the quick switcher.
+    surface: PickerTheme,
+    show_replace: bool,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -147,10 +154,14 @@ fn plural(count: usize, one: &str, many: &str) -> String {
 impl VaultSearch {
     /// A panel over the notes under `root`, which it starts loading.
     pub fn new(root: PathBuf, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let theme = Theme::default().find_ui;
+        let theme = FindUiTheme {
+            font_family: crate::ui::ui_theme(cx).font_family,
+            ..Theme::default().find_ui
+        };
         let query = cx.new(|cx| {
             TextInput::new(window, cx)
                 .with_placeholder("Search all notes")
+                .with_style(TextInputStyle::Query)
                 .bubble_enter_and_escape()
         });
         let replacement = cx.new(|cx| {
@@ -178,9 +189,14 @@ impl VaultSearch {
             replace_task: None,
             pending_replace: None,
             status: None,
-            scroll: ScrollHandle::new(),
+            scroll: UniformListScrollHandle::new(),
             focus_handle: cx.focus_handle(),
+            surface: PickerTheme {
+                font_family: theme.font_family.clone(),
+                ..PickerTheme::default()
+            },
             theme,
+            show_replace: false,
             _subscriptions: subscriptions,
         };
         panel.refresh(cx);
@@ -196,6 +212,7 @@ impl VaultSearch {
             let notes = loading.await;
             this.update(cx, |panel, cx| {
                 panel.notes = Arc::new(notes);
+                panel.load_task = None;
                 panel.start_search(cx);
             })
             .ok();
@@ -269,7 +286,7 @@ impl VaultSearch {
         self.rows = rows_for(&results);
         self.results = results;
         self.selected = 0;
-        self.scroll.scroll_to_item(0);
+        self.scroll.scroll_to_item(0, ScrollStrategy::Top);
         cx.notify();
     }
 
@@ -288,7 +305,7 @@ impl VaultSearch {
 
     fn select_row(&mut self, index: usize, cx: &mut Context<Self>) {
         self.selected = index;
-        self.scroll.scroll_to_item(index);
+        self.scroll.scroll_to_item(index, ScrollStrategy::Top);
         cx.notify();
     }
 
@@ -381,7 +398,22 @@ impl VaultSearch {
         }
     }
 
+    /// Shows the replace field and focuses it, or hides it and goes back
+    /// to the query.
+    fn toggle_replace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.show_replace = !self.show_replace;
+        let target = if self.show_replace {
+            &self.replacement
+        } else {
+            &self.query
+        };
+        window.focus(&target.focus_handle(cx));
+        cx.notify();
+    }
+
     fn focus_other_field(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.show_replace = true;
+        cx.notify();
         let target = if self.query.focus_handle(cx).is_focused(window) {
             &self.replacement
         } else {
@@ -408,6 +440,9 @@ pub fn rows_for(results: &[NoteResult]) -> Vec<Row> {
 }
 
 type PanelAction = fn(&mut VaultSearch, &ClickEvent, &mut Window, &mut Context<VaultSearch>);
+
+/// Result rows shown before the list scrolls.
+const VISIBLE_ROWS: usize = 12;
 
 impl VaultSearch {
     fn button(
@@ -447,6 +482,31 @@ impl VaultSearch {
             .child(label)
     }
 
+    /// The query, bare and large as in the quick switcher, with the button
+    /// that shows the replace field.
+    fn query_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let surface = &self.surface;
+        let label = if self.show_replace {
+            "Hide replace"
+        } else {
+            "Replace"
+        };
+        div()
+            .flex()
+            .items_center()
+            .gap(self.theme.gap)
+            .px(surface.input_padding_x)
+            .py(surface.input_padding_y)
+            .child(div().flex_1().min_w_0().child(self.query.clone()))
+            .child(self.button(
+                "toggle-replace",
+                label,
+                false,
+                |this, _, window, cx| this.toggle_replace(window, cx),
+                cx,
+            ))
+    }
+
     fn replace_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .key_context(SEARCH_REPLACE_CONTEXT)
@@ -460,6 +520,8 @@ impl VaultSearch {
             .flex()
             .items_center()
             .gap(self.theme.gap)
+            .px(self.surface.input_padding_x)
+            .pb(self.theme.gap)
             .child(div().flex_1().min_w_0().child(self.replacement.clone()))
             .child(self.button(
                 "replace-all",
@@ -475,6 +537,8 @@ impl VaultSearch {
             .flex()
             .items_center()
             .gap(self.theme.gap)
+            .px(self.surface.input_padding_x)
+            .pb(self.theme.gap)
             .child(div().flex_1().child(replace_prompt(pending)))
             .child(self.button(
                 "replace-cancel",
@@ -492,86 +556,148 @@ impl VaultSearch {
             ))
     }
 
-    fn render_row(&self, index: usize, row: Row, cx: &mut Context<Self>) -> impl IntoElement {
+    /// A note's row: its name, the folder it's in, and how many matches.
+    fn note_row(&self, note: &NoteResult) -> gpui::Div {
         let theme = &self.theme;
-        let note = &self.results[row.note];
-        let background = if index == self.selected {
-            theme.row_selected_background
-        } else {
-            gpui::transparent_black()
-        };
-        let base = div()
-            .id(("search-row", index))
-            .w_full()
-            .py(theme.row_padding_y)
-            .px(theme.panel_padding)
-            .rounded(theme.radius)
-            .bg(background)
-            .hover(|style| style.bg(theme.button_hover_background))
-            .on_click(cx.listener(move |this, _, _, cx| {
-                this.selected = index;
-                this.open_selected(cx);
-            }));
-        match row.hit {
-            None => base
-                .when(index > 0, |row| row.mt(theme.gap))
-                .flex()
-                .gap(theme.gap)
-                .child(
-                    div()
-                        .flex_1()
-                        .overflow_hidden()
-                        .child(note.path.with_extension("").to_string_lossy().into_owned()),
-                )
-                .child(
-                    div()
-                        .text_size(theme.small_font_size)
-                        .text_color(theme.muted_text)
-                        .child(note.match_count.to_string()),
-                ),
-            Some(hit) => {
-                let hit = &note.hits[hit];
-                let highlight = HighlightStyle {
-                    background_color: Some(theme.match_background),
-                    ..HighlightStyle::default()
-                };
-                let excerpt = StyledText::new(SharedString::from(hit.excerpt.clone()))
-                    .with_highlights(hit.ranges.iter().map(|range| (range.clone(), highlight)));
-                base.pl(theme.panel_padding + theme.result_indent)
-                    .text_size(theme.small_font_size)
-                    .text_color(theme.muted_text)
+        let name = note
+            .path
+            .file_stem()
+            .map(|stem| stem.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let folder = note
+            .path
+            .parent()
+            .map(|folder| folder.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        div()
+            .flex()
+            .items_center()
+            .gap(self.surface.row_gap)
+            .child(
+                icon(IconName::FileText)
+                    .flex_none()
+                    .size(self.surface.icon_size)
+                    .text_color(self.surface.icon),
+            )
+            .child(div().flex_none().child(name))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
                     .overflow_hidden()
-                    .child(excerpt)
-            }
-        }
+                    .whitespace_nowrap()
+                    .text_ellipsis()
+                    .text_size(theme.small_font_size)
+                    .text_color(self.surface.detail_text)
+                    .child(folder),
+            )
+            .child(
+                div()
+                    .flex_none()
+                    .text_size(theme.small_font_size)
+                    .text_color(self.surface.detail_text)
+                    .child(note.match_count.to_string()),
+            )
     }
 
-    fn results_list(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let rows: Vec<_> = self
-            .rows
-            .iter()
-            .enumerate()
-            .map(|(index, row)| self.render_row(index, *row, cx).into_any_element())
-            .collect();
+    /// One matching line, indented under its note, with the matches marked.
+    fn hit_row(&self, hit: &engine::LineHit) -> gpui::Div {
+        let theme = &self.theme;
+        let highlight = HighlightStyle {
+            background_color: Some(theme.match_background),
+            color: Some(theme.text),
+            ..HighlightStyle::default()
+        };
+        let excerpt = StyledText::new(SharedString::from(hit.excerpt.clone()))
+            .with_highlights(hit.ranges.iter().map(|range| (range.clone(), highlight)));
         div()
-            .id("vault-search-results")
-            .flex()
-            .flex_col()
-            .flex_1()
-            .min_h_0()
-            .overflow_y_scroll()
-            .track_scroll(&self.scroll)
-            .children(rows)
+            .pl(self.surface.icon_size + self.surface.row_gap)
+            .min_w_0()
+            .overflow_hidden()
+            .whitespace_nowrap()
+            .text_ellipsis()
+            .text_size(theme.small_font_size)
+            .text_color(theme.muted_text)
+            .child(excerpt)
+    }
+
+    fn render_rows(&self, range: Range<usize>, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let surface = &self.surface;
+        range
+            .map(|index| {
+                let row = self.rows[index];
+                let note = &self.results[row.note];
+                let content = match row.hit {
+                    None => self.note_row(note),
+                    Some(hit) => self.hit_row(&note.hits[hit]),
+                };
+                let selected = index == self.selected;
+                div()
+                    .id(("search-row", index))
+                    .w_full()
+                    .h(surface.row_height)
+                    .px(surface.row_padding_x)
+                    .flex()
+                    .items_center()
+                    .rounded(surface.row_corner_radius)
+                    .when(selected, |row| row.bg(surface.selected_row))
+                    .when(!selected, |row| {
+                        row.hover(|style| style.bg(surface.hovered_row))
+                    })
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.selected = index;
+                        this.open_selected(cx);
+                    }))
+                    .child(content.w_full())
+                    .into_any_element()
+            })
+            .collect()
+    }
+
+    /// Only the rows on screen are laid out, so a query that matches
+    /// thousands of lines types as fast as one that matches none.
+    fn results_list(&self, cx: &mut Context<Self>) -> AnyElement {
+        let surface = &self.surface;
+        let shown = self.rows.len().min(VISIBLE_ROWS);
+        let list = uniform_list(
+            "vault-search-results",
+            self.rows.len(),
+            cx.processor(|panel, range, _, cx| panel.render_rows(range, cx)),
+        )
+        .track_scroll(self.scroll.clone())
+        .w_full()
+        .h(surface.row_height * shown as f32);
+        div()
+            .px(surface.list_padding)
+            .pb(surface.list_padding)
+            .child(list)
+            .into_any_element()
+    }
+
+    /// A line of muted text under the fields: the replace summary, or why
+    /// there are no results.
+    fn message(&self, cx: &mut Context<Self>) -> Option<String> {
+        if let Some(status) = &self.status {
+            return Some(status.clone());
+        }
+        let has_query = !self.query.read(cx).text().trim().is_empty();
+        if !has_query || !self.rows.is_empty() {
+            return None;
+        }
+        Some(if self.load_task.is_some() {
+            "Reading your notes…".to_string()
+        } else {
+            "No notes match".to_string()
+        })
     }
 }
 
 impl Render for VaultSearch {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = self.theme.clone();
-        let status = self.status.clone();
+        let surface = self.surface.clone();
         let pending = self.pending_replace.clone();
-        let has_query = !self.query.read(cx).text().trim().is_empty();
-        let empty = has_query && self.rows.is_empty();
+        let message = self.message(cx);
         div()
             .key_context(SEARCH_CONTEXT)
             .track_focus(&self.focus_handle)
@@ -586,25 +712,30 @@ impl Render for VaultSearch {
             }))
             .flex()
             .flex_col()
-            .size_full()
-            .gap(theme.gap)
-            .p(theme.panel_padding)
-            .bg(theme.panel_background)
-            .font_family(theme.font_family)
-            .text_size(theme.font_size)
+            .w_full()
+            .bg(surface.background)
+            .rounded(surface.corner_radius)
+            .shadow(vec![surface_shadow(&surface)])
+            .font_family(theme.font_family.clone())
+            .text_size(surface.row_font_size)
             .text_color(theme.text)
-            .child(self.query.clone())
-            .child(self.replace_row(cx))
+            .child(self.query_row(cx))
+            .when(self.show_replace, |panel| panel.child(self.replace_row(cx)))
             .when_some(pending, |panel, pending| {
                 panel.child(self.confirm_row(&pending, cx))
             })
-            .when_some(status, |panel, status| {
-                panel.child(div().text_color(theme.muted_text).child(status))
+            .when_some(message, |panel, message| {
+                panel.child(
+                    div()
+                        .px(surface.input_padding_x)
+                        .pb(surface.input_padding_y)
+                        .text_color(surface.detail_text)
+                        .child(message),
+                )
             })
-            .when(empty, |panel| {
-                panel.child(div().text_color(theme.muted_text).child("No notes match"))
+            .when(!self.rows.is_empty(), |panel| {
+                panel.child(self.results_list(cx))
             })
-            .child(self.results_list(cx))
     }
 }
 

@@ -121,7 +121,10 @@ impl FileTree {
         let mut tree = FileTree {
             focus_handle: cx.focus_handle(),
             model: TreeModel::new(vault_root),
-            theme: PanelTheme::default(),
+            theme: PanelTheme {
+                font_family: crate::ui::ui_theme(cx).font_family,
+                ..PanelTheme::default()
+            },
             selected: None,
             active: None,
             scroll: UniformListScrollHandle::new(),
