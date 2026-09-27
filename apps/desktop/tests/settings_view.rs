@@ -1,6 +1,7 @@
 //! Drives the settings screen through GPUI's test platform on a temporary
-//! vault: keyboard navigation, toggles, choices, numbers, text, search,
-//! resets and what ends up in `.editor/settings.toml`.
+//! vault: layout, keyboard navigation, toggles, dropdowns, numbers, text,
+//! search, resets, theme fonts and colours, and keyboard shortcuts, and
+//! what ends up in `.editor/settings.toml`, `theme.toml` and `rules.toml`.
 
 use std::cell::RefCell;
 use std::fs;
@@ -9,10 +10,14 @@ use std::rc::Rc;
 
 use editor_config::RuleSet;
 use editor_desktop::settings_view::{
-    ControlRow, SectionRef, SettingsEvent, SettingsFocus, SettingsView,
+    ControlRow, Page, SettingsEvent, SettingsFocus, SettingsRequest, SettingsView, modal_size,
 };
 use editor_desktop::text_input;
-use gpui::{DismissEvent, Entity, Focusable, Modifiers, TestAppContext, VisualTestContext};
+use editor_desktop::theme::SettingsTheme;
+use gpui::{
+    Bounds, DismissEvent, Entity, Focusable, Modifiers, Pixels, TestAppContext, VisualTestContext,
+    px, size,
+};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -28,22 +33,28 @@ mode = \"push\"
 fn vault(settings: Option<&str>) -> TempDir {
     let dir = tempfile::tempdir().unwrap();
     if let Some(text) = settings {
-        fs::create_dir_all(dir.path().join(".editor")).unwrap();
-        fs::write(settings_file(dir.path()), text).unwrap();
+        write_config(dir.path(), "settings.toml", text);
     }
     dir
 }
 
-fn settings_file(root: &Path) -> std::path::PathBuf {
-    root.join(".editor/settings.toml")
+fn write_config(root: &Path, file: &str, text: &str) {
+    fs::create_dir_all(root.join(".editor")).unwrap();
+    fs::write(root.join(".editor").join(file), text).unwrap();
+}
+
+fn read_config(root: &Path, file: &str) -> String {
+    fs::read_to_string(root.join(".editor").join(file)).unwrap_or_default()
 }
 
 fn read_settings(root: &Path) -> String {
-    fs::read_to_string(settings_file(root)).unwrap_or_default()
+    read_config(root, "settings.toml")
 }
 
+#[derive(Default)]
 struct Recorded {
     changed: Vec<String>,
+    requests: Vec<SettingsRequest>,
     dismissed: usize,
 }
 
@@ -60,16 +71,17 @@ fn open<'a>(
     let (view, cx) = cx.add_window_view(move |window, cx| {
         SettingsView::with_rules(root.clone(), &RuleSet::defaults(), window, cx)
     });
-    let recorded = Rc::new(RefCell::new(Recorded {
-        changed: Vec::new(),
-        dismissed: 0,
-    }));
-    let (changed, dismissed) = (recorded.clone(), recorded.clone());
+    let recorded = Rc::new(RefCell::new(Recorded::default()));
+    let (changed, requests, dismissed) = (recorded.clone(), recorded.clone(), recorded.clone());
     cx.update(|window, cx| {
         window.focus(&view.focus_handle(cx));
         cx.subscribe(&view, move |_, event: &SettingsEvent, _| {
             let SettingsEvent::Changed(key) = event;
             changed.borrow_mut().changed.push(key.clone());
+        })
+        .detach();
+        cx.subscribe(&view, move |_, request: &SettingsRequest, _| {
+            requests.borrow_mut().requests.push(request.clone());
         })
         .detach();
         cx.subscribe(&view, move |_, _: &DismissEvent, _| {
@@ -81,20 +93,27 @@ fn open<'a>(
     (view, cx, recorded)
 }
 
+fn titles(view: &Entity<SettingsView>, cx: &mut VisualTestContext) -> Vec<String> {
+    view.read_with(cx, |view, _| {
+        view.visible_sections()
+            .into_iter()
+            .map(|page| view.section_title(page))
+            .collect()
+    })
+}
+
 /// Selects the section titled `title` from the keyboard and moves into
 /// its first control.
 fn go_to_section(view: &Entity<SettingsView>, title: &str, cx: &mut VisualTestContext) {
     view.update_in(cx, |view, window, cx| view.focus_sections(window, cx));
-    let index = view.read_with(cx, |view, _| {
-        view.visible_sections()
-            .into_iter()
-            .position(|section| view.section_title(section) == title)
-            .unwrap_or_else(|| panic!("no section {title}"))
-    });
+    let index = titles(view, cx)
+        .iter()
+        .position(|known| known == title)
+        .unwrap_or_else(|| panic!("no section {title}"));
     let current = view.read_with(cx, |view, _| {
         view.visible_sections()
             .iter()
-            .position(|s| Some(*s) == view.current_section())
+            .position(|page| Some(*page) == view.current_section())
             .unwrap()
     });
     let key = if index >= current { "down" } else { "up" };
@@ -104,26 +123,283 @@ fn go_to_section(view: &Entity<SettingsView>, title: &str, cx: &mut VisualTestCo
     cx.simulate_keystrokes("right");
 }
 
-/// Moves down to the control for `key` in the current section.
-fn go_to_control(view: &Entity<SettingsView>, key: &str, cx: &mut VisualTestContext) {
-    let index = view.read_with(cx, |view, _| {
-        view.rows()
+/// Moves down to the first row that `wanted` picks on the current page.
+fn go_to_row(
+    view: &Entity<SettingsView>,
+    cx: &mut VisualTestContext,
+    wanted: impl Fn(&ControlRow) -> bool,
+) -> usize {
+    let (index, first) = view.read_with(cx, |view, _| {
+        let rows = view.rows();
+        let index = rows.iter().position(&wanted).expect("row on this page");
+        let first = rows.iter().position(ControlRow::is_focusable).unwrap();
+        let skipped = rows[first..index]
             .iter()
-            .position(|row| row.item().is_some_and(|item| item.key == key))
-            .unwrap_or_else(|| panic!("no control for {key}"))
+            .filter(|row| !row.is_focusable())
+            .count();
+        (index, index - first - skipped)
     });
-    for _ in 0..index {
+    for _ in 0..first {
         cx.simulate_keystrokes("down");
     }
     assert_eq!(
         view.read_with(cx, |view, _| view.focus_state()),
         SettingsFocus::Control(index)
     );
+    index
+}
+
+fn go_to_control(view: &Entity<SettingsView>, key: &str, cx: &mut VisualTestContext) {
+    go_to_row(view, cx, |row| {
+        row.item().is_some_and(|item| item.key == key)
+    });
 }
 
 fn value(view: &Entity<SettingsView>, key: &str, cx: &mut VisualTestContext) -> Value {
     view.read_with(cx, |view, _| view.value(key)).unwrap()
 }
+
+fn token(view: &Entity<SettingsView>, name: &str, cx: &mut VisualTestContext) -> String {
+    view.read_with(cx, |view, _| view.token(name)).unwrap()
+}
+
+fn bounds(cx: &mut VisualTestContext, selector: String) -> Option<Bounds<Pixels>> {
+    cx.debug_bounds(Box::leak(selector.into_boxed_str()))
+}
+
+fn click(cx: &mut VisualTestContext, selector: &str) {
+    cx.run_until_parked();
+    let found = bounds(cx, selector.to_string()).unwrap_or_else(|| panic!("{selector} drawn"));
+    cx.simulate_click(found.center(), Modifiers::default());
+}
+
+// ---- Layout ----
+
+/// Every row's text column and control column sit side by side without
+/// touching, and both stay inside the screen.
+fn assert_rows_do_not_overlap(view: &Entity<SettingsView>, cx: &mut VisualTestContext) {
+    let pages = view.read_with(cx, |view, _| view.visible_sections());
+    let screen = modal_size(
+        cx.update(|window, _| window.viewport_size()),
+        &SettingsTheme::default(),
+    );
+    for (page_index, page) in pages.iter().enumerate() {
+        view.update(cx, |view, cx| view.show_section(page_id(*page), cx));
+        cx.run_until_parked();
+        let rows = view.read_with(cx, |view, _| view.rows());
+        for (index, row) in rows.iter().enumerate() {
+            let name = format!("{}-{index}", page_id(*page));
+            let text = bounds(cx, format!("settings-text-{name}"))
+                .unwrap_or_else(|| panic!("{page:?} row {index} has no text"));
+            assert!(
+                text.size.width > px(0.),
+                "{page:?} row {index} text has no room"
+            );
+            assert!(
+                text.right() <= screen.width,
+                "{page:?} row {index} text overflows"
+            );
+            let Some(control) = bounds(cx, format!("settings-control-{name}")) else {
+                assert_eq!(
+                    *row,
+                    ControlRow::Version,
+                    "{page:?} row {index} has no control"
+                );
+                continue;
+            };
+            assert!(
+                !text.intersects(&control),
+                "{page:?} (page {page_index}) row {index}: text {text:?} overlaps control {control:?}"
+            );
+            assert!(
+                text.right() <= control.left(),
+                "{page:?} row {index}: text runs into control"
+            );
+            assert!(
+                control.right() <= screen.width,
+                "{page:?} row {index} control overflows {control:?} {screen:?} {row:?}"
+            );
+        }
+    }
+}
+
+fn page_id(page: Page) -> &'static str {
+    match page {
+        Page::General => "general",
+        Page::Appearance => "appearance",
+        Page::Sidebar => "sidebar",
+        Page::Shortcuts => "keyboard-shortcuts",
+        Page::Editor => "editor",
+        Page::Files => "files",
+        Page::Prose => "prose",
+    }
+}
+
+#[gpui::test]
+fn rows_never_overlap_their_controls(cx: &mut TestAppContext) {
+    let dir = vault(Some(
+        "[markdown.symbols.overrides]\nlink-url = \"always-hidden\"\n",
+    ));
+    let (view, cx, _) = open(cx, dir.path());
+    assert_rows_do_not_overlap(&view, cx);
+    // A narrow window squeezes the text column, which wraps instead.
+    cx.simulate_resize(size(px(760.), px(560.)));
+    cx.run_until_parked();
+    assert_rows_do_not_overlap(&view, cx);
+}
+
+#[gpui::test]
+fn the_modal_is_a_share_of_the_window_up_to_a_maximum(cx: &mut TestAppContext) {
+    let style = SettingsTheme::default();
+    let small = modal_size(size(px(1000.), px(700.)), &style);
+    assert_eq!(small, size(px(800.), px(560.)));
+    let huge = modal_size(size(px(4000.), px(3000.)), &style);
+    assert_eq!(huge, size(style.modal_max_width, style.modal_max_height));
+    let dir = vault(None);
+    let (_, cx, recorded) = open(cx, dir.path());
+    click(cx, "settings-close");
+    assert_eq!(recorded.borrow().dismissed, 1);
+}
+
+// ---- Sections and search ----
+
+#[gpui::test]
+fn every_section_is_listed_in_order(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    assert_eq!(
+        titles(&view, cx),
+        [
+            "General",
+            "Appearance",
+            "Sidebar",
+            "Keyboard shortcuts",
+            "Editor",
+            "Files and links"
+        ]
+    );
+    go_to_section(&view, "Keyboard shortcuts", cx);
+    let layout = view.read_with(cx, |view, _| view.layout());
+    let settings = layout.rows.iter().find_map(|row| match row {
+        ControlRow::Shortcut(shortcut) if shortcut.id == "settings.open" => Some(shortcut.clone()),
+        _ => None,
+    });
+    assert_eq!(settings.unwrap().keys.len(), 2);
+    // Shortcuts are grouped on one card per category.
+    let first = layout.cards.first().unwrap();
+    assert_eq!(first.title.as_deref(), Some("Formatting"));
+}
+
+#[gpui::test]
+fn general_shows_the_vault_and_opens_another(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, recorded) = open(cx, dir.path());
+    go_to_section(&view, "General", cx);
+    let rows = view.read_with(cx, |view, _| view.rows());
+    assert_eq!(rows, [ControlRow::Vault, ControlRow::Version]);
+    assert!(
+        ControlRow::Version
+            .title()
+            .contains(env!("CARGO_PKG_VERSION"))
+    );
+    // Version has nothing to press, so Down stays on the vault row.
+    cx.simulate_keystrokes("down");
+    assert_eq!(
+        view.read_with(cx, |view, _| view.focus_state()),
+        SettingsFocus::Control(0)
+    );
+    cx.simulate_keystrokes("enter");
+    assert_eq!(
+        recorded.borrow().requests,
+        [SettingsRequest::RunCommand("vault.open".into())]
+    );
+    assert_eq!(recorded.borrow().dismissed, 1);
+}
+
+#[gpui::test]
+fn search_filters_sections_and_rows(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, recorded) = open(cx, dir.path());
+    view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
+    cx.simulate_input("trash");
+    let (sections, rows) = view.read_with(cx, |view, _| (view.visible_sections(), view.rows()));
+    // "Move note to trash" in shortcuts, and the files page.
+    assert_eq!(sections, [Page::Shortcuts, Page::Files]);
+    go_to_section(&view, "Files and links", cx);
+    let rows_now = view.read_with(cx, |view, _| view.rows());
+    let keys: Vec<String> = rows_now
+        .iter()
+        .filter_map(|row| row.item().map(|i| i.key.clone()))
+        .collect();
+    assert!(!rows.is_empty());
+    assert_eq!(keys, ["files.trash"]);
+    cx.simulate_keystrokes("right");
+    assert_eq!(value(&view, "files.trash", cx), Value::from("vault"));
+    // Escape clears the search, and a second one closes the screen.
+    view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
+    cx.simulate_keystrokes("escape");
+    assert_eq!(view.read_with(cx, |view, _| view.query().to_string()), "");
+    assert_eq!(recorded.borrow().dismissed, 0);
+    cx.simulate_keystrokes("escape");
+    assert_eq!(recorded.borrow().dismissed, 1);
+}
+
+#[gpui::test]
+fn search_finds_theme_rows_and_shortcuts(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
+    cx.simulate_input("interface font");
+    let rows = view.read_with(cx, |view, _| view.rows());
+    assert!(rows.contains(&ControlRow::Font(
+        editor_desktop::settings_view::FontSlot::Interface
+    )));
+    view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
+    cx.simulate_keystrokes("secondary-a");
+    cx.simulate_input("command palette");
+    let (sections, rows) = view.read_with(cx, |view, _| (view.visible_sections(), view.rows()));
+    assert_eq!(sections, [Page::Shortcuts]);
+    assert!(
+        rows.iter()
+            .any(|row| matches!(row, ControlRow::Shortcut(s) if s.id == "palette.open"))
+    );
+}
+
+#[gpui::test]
+fn typing_outside_a_field_starts_a_search(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    cx.simulate_input("font");
+    assert_eq!(
+        view.read_with(cx, |view, _| view.query().to_string()),
+        "font"
+    );
+    assert_eq!(
+        view.read_with(cx, |view, _| view.focus_state()),
+        SettingsFocus::Search
+    );
+}
+
+#[gpui::test]
+fn tab_walks_search_sections_and_controls(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    let focus = |cx: &mut VisualTestContext| view.read_with(cx, |view, _| view.focus_state());
+    assert_eq!(focus(cx), SettingsFocus::Sections);
+    // General has one control: the vault button. Version is skipped.
+    cx.simulate_keystrokes("tab");
+    assert_eq!(focus(cx), SettingsFocus::Control(0));
+    cx.simulate_keystrokes("tab");
+    assert_eq!(focus(cx), SettingsFocus::Search);
+    cx.simulate_keystrokes("shift-tab");
+    assert_eq!(focus(cx), SettingsFocus::Control(0));
+    cx.simulate_keystrokes("up");
+    assert_eq!(focus(cx), SettingsFocus::Sections);
+    cx.simulate_keystrokes("up");
+    assert_eq!(focus(cx), SettingsFocus::Search);
+}
+
+// ---- Settings ----
 
 #[gpui::test]
 fn space_toggles_a_setting_and_writes_only_changes(cx: &mut TestAppContext) {
@@ -154,7 +430,7 @@ fn arrows_change_choices_and_delete_resets(cx: &mut TestAppContext) {
     let dir = vault(Some(USER_FILE));
     let root = dir.path();
     let (view, cx, _) = open(cx, root);
-    go_to_section(&view, "Files", cx);
+    go_to_section(&view, "Files and links", cx);
     go_to_control(&view, "files.trash", cx);
     cx.simulate_keystrokes("right");
     assert_eq!(value(&view, "files.trash", cx), Value::from("vault"));
@@ -167,32 +443,49 @@ fn arrows_change_choices_and_delete_resets(cx: &mut TestAppContext) {
     );
     assert!(text.contains("attachments-folder = \"./assets\"   # matches the website"));
     assert!(text.contains("trash = \"delete\""));
-    assert!(text.contains("[sidebar.files]\nmode = \"push\""));
     cx.simulate_keystrokes("delete");
     assert_eq!(read_settings(root), USER_FILE);
     assert_eq!(value(&view, "files.trash", cx), Value::from("system"));
 }
 
 #[gpui::test]
-fn clicking_a_segment_or_toggle_changes_it(cx: &mut TestAppContext) {
+fn enter_opens_a_dropdown_that_arrows_and_enter_pick_from(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let root = dir.path();
+    let (view, cx, recorded) = open(cx, root);
+    go_to_section(&view, "Sidebar", cx);
+    go_to_control(&view, "sidebar.files.reveal", cx);
+    cx.simulate_keystrokes("enter");
+    assert!(view.read_with(cx, |view, _| view.menu_open()));
+    // The menu opens on the current choice, "hover", the last option.
+    cx.simulate_keystrokes("up up enter");
+    assert!(!view.read_with(cx, |view, _| view.menu_open()));
+    assert_eq!(
+        value(&view, "sidebar.files.reveal", cx),
+        Value::from("always")
+    );
+    assert_eq!(recorded.borrow().changed, ["sidebar.files.reveal"]);
+    // Escape closes an open menu without closing the screen.
+    cx.simulate_keystrokes("space escape");
+    assert!(!view.read_with(cx, |view, _| view.menu_open()));
+    assert_eq!(recorded.borrow().dismissed, 0);
+}
+
+#[gpui::test]
+fn clicking_a_dropdown_option_or_toggle_changes_it(cx: &mut TestAppContext) {
     let dir = vault(None);
     let root = dir.path();
     let (view, cx, _) = open(cx, root);
     go_to_section(&view, "Sidebar", cx);
-    let always = cx
-        .debug_bounds("choice-sidebar.files.reveal-always")
-        .expect("segment drawn");
-    cx.simulate_click(always.center(), Modifiers::default());
+    click(cx, "dropdown-sidebar.files.reveal");
+    click(cx, "menu-option-always");
     assert_eq!(
         value(&view, "sidebar.files.reveal", cx),
         Value::from("always")
     );
     assert!(read_settings(root).contains("reveal = \"always\""));
-    go_to_section(&view, "Files", cx);
-    let toggle = cx
-        .debug_bounds("toggle-files.update-links-on-rename")
-        .expect("toggle drawn");
-    cx.simulate_click(toggle.center(), Modifiers::default());
+    go_to_section(&view, "Files and links", cx);
+    click(cx, "toggle-files.update-links-on-rename");
     assert_eq!(
         value(&view, "files.update-links-on-rename", cx),
         Value::Bool(false)
@@ -216,19 +509,29 @@ fn numbers_step_and_take_typed_digits(cx: &mut TestAppContext) {
     );
     cx.simulate_keystrokes("backspace");
     assert_eq!(read_settings(root), "");
+    click(cx, "increase-appearance.base-font-size");
+    assert_eq!(
+        value(&view, "appearance.base-font-size", cx),
+        Value::from(13)
+    );
 }
 
 #[gpui::test]
-fn numbers_never_go_below_zero(cx: &mut TestAppContext) {
-    let dir = vault(Some("[prose.sentence-length]\nshort-below = 0\n"));
-    let root = dir.path();
-    let (view, cx, _) = open(cx, root);
-    go_to_section(&view, "Prose", cx);
-    go_to_control(&view, "prose.sentence-length.short-below", cx);
+fn the_font_size_has_a_floor(cx: &mut TestAppContext) {
+    let dir = vault(Some("[appearance]\nbase-font-size = 6\n"));
+    let (view, cx, _) = open(cx, dir.path());
+    go_to_section(&view, "Appearance", cx);
+    go_to_control(&view, "appearance.base-font-size", cx);
     cx.simulate_keystrokes("left");
     assert_eq!(
-        value(&view, "prose.sentence-length.short-below", cx),
-        Value::from(0)
+        value(&view, "appearance.base-font-size", cx),
+        Value::from(6)
+    );
+    cx.simulate_input("2");
+    cx.simulate_keystrokes("enter");
+    assert_eq!(
+        value(&view, "appearance.base-font-size", cx),
+        Value::from(6)
     );
     assert!(view.read_with(cx, |view, _| view.last_error().is_none()));
 }
@@ -238,7 +541,7 @@ fn text_settings_save_on_enter(cx: &mut TestAppContext) {
     let dir = vault(Some(USER_FILE));
     let root = dir.path();
     let (view, cx, recorded) = open(cx, root);
-    go_to_section(&view, "Files", cx);
+    go_to_section(&view, "Files and links", cx);
     go_to_control(&view, "files.attachments-folder", cx);
     cx.simulate_keystrokes("secondary-a");
     cx.simulate_input("./media");
@@ -257,9 +560,8 @@ fn text_settings_save_on_enter(cx: &mut TestAppContext) {
 #[gpui::test]
 fn escape_in_a_text_field_reverts_it(cx: &mut TestAppContext) {
     let dir = vault(None);
-    let root = dir.path();
-    let (view, cx, recorded) = open(cx, root);
-    go_to_section(&view, "Files", cx);
+    let (view, cx, recorded) = open(cx, dir.path());
+    go_to_section(&view, "Files and links", cx);
     go_to_control(&view, "files.attachments-folder", cx);
     cx.simulate_input("xyz");
     cx.simulate_keystrokes("escape");
@@ -275,114 +577,12 @@ fn escape_in_a_text_field_reverts_it(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn search_filters_sections_and_rows(cx: &mut TestAppContext) {
-    let dir = vault(None);
-    let (view, cx, recorded) = open(cx, dir.path());
-    view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
-    cx.simulate_input("trash");
-    let (sections, rows) = view.read_with(cx, |view, _| (view.visible_sections(), view.rows()));
-    // The files section, and the shortcut for "Move note to trash".
-    assert_eq!(sections.len(), 2);
-    assert_eq!(sections[1], SectionRef::Shortcuts);
-    let keys: Vec<String> = rows
-        .iter()
-        .filter_map(|row| row.item().map(|i| i.key.clone()))
-        .collect();
-    assert_eq!(keys, ["files.trash"]);
-    cx.simulate_keystrokes("down right");
-    assert_eq!(value(&view, "files.trash", cx), Value::from("vault"));
-    // Escape clears the search, and a second one closes the screen.
-    view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
-    cx.simulate_keystrokes("escape");
-    assert_eq!(view.read_with(cx, |view, _| view.query().to_string()), "");
-    assert_eq!(recorded.borrow().dismissed, 0);
-    cx.simulate_keystrokes("escape");
-    assert_eq!(recorded.borrow().dismissed, 1);
-}
-
-#[gpui::test]
-fn search_finds_shortcuts_by_their_keys(cx: &mut TestAppContext) {
-    let dir = vault(None);
-    let (view, cx, _) = open(cx, dir.path());
-    view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
-    cx.simulate_input("command palette");
-    let (sections, rows) = view.read_with(cx, |view, _| (view.visible_sections(), view.rows()));
-    assert_eq!(sections, [SectionRef::Shortcuts]);
-    assert!(
-        rows.iter()
-            .any(|row| matches!(row, ControlRow::Shortcut(s) if s.id == "palette.open"))
-    );
-}
-
-#[gpui::test]
-fn typing_outside_a_field_starts_a_search(cx: &mut TestAppContext) {
-    let dir = vault(None);
-    let (view, cx, _) = open(cx, dir.path());
-    cx.simulate_input("font");
-    assert_eq!(
-        view.read_with(cx, |view, _| view.query().to_string()),
-        "font"
-    );
-    assert_eq!(
-        view.read_with(cx, |view, _| view.focus_state()),
-        SettingsFocus::Search
-    );
-}
-
-#[gpui::test]
-fn tab_walks_search_sections_and_controls(cx: &mut TestAppContext) {
-    let dir = vault(None);
-    let (view, cx, _) = open(cx, dir.path());
-    let focus = |cx: &mut VisualTestContext| view.read_with(cx, |view, _| view.focus_state());
-    assert_eq!(focus(cx), SettingsFocus::Sections);
-    cx.simulate_keystrokes("tab");
-    assert_eq!(focus(cx), SettingsFocus::Control(0));
-    cx.simulate_keystrokes("shift-tab shift-tab");
-    assert_eq!(focus(cx), SettingsFocus::Search);
-    cx.simulate_keystrokes("tab");
-    assert_eq!(focus(cx), SettingsFocus::Sections);
-    cx.simulate_keystrokes("up");
-    assert_eq!(focus(cx), SettingsFocus::Search);
-}
-
-#[gpui::test]
-fn every_section_is_listed_with_shortcuts_last(cx: &mut TestAppContext) {
-    let dir = vault(None);
-    let (view, cx, _) = open(cx, dir.path());
-    let titles = view.read_with(cx, |view, _| {
-        view.visible_sections()
-            .into_iter()
-            .map(|section| view.section_title(section))
-            .collect::<Vec<_>>()
-    });
-    assert_eq!(
-        titles,
-        [
-            "Appearance",
-            "Editor",
-            "Files",
-            "Markdown",
-            "Prose",
-            "Sidebar",
-            "Keyboard shortcuts"
-        ]
-    );
-    go_to_section(&view, "Keyboard shortcuts", cx);
-    let rows = view.read_with(cx, |view, _| view.rows());
-    let settings = rows.iter().find_map(|row| match row {
-        ControlRow::Shortcut(shortcut) if shortcut.id == "settings.open" => Some(shortcut.clone()),
-        _ => None,
-    });
-    assert_eq!(settings.unwrap().keys.len(), 2);
-}
-
-#[gpui::test]
 fn map_entries_can_be_added_and_removed(cx: &mut TestAppContext) {
     let dir = vault(None);
     let root = dir.path();
     let (view, cx, recorded) = open(cx, root);
-    go_to_section(&view, "Markdown", cx);
-    go_to_control(&view, "markdown.symbols.overrides", cx);
+    go_to_section(&view, "Editor", cx);
+    go_to_row(&view, cx, |row| matches!(row, ControlRow::MapAdd(_)));
     cx.simulate_input("not a syntax");
     cx.simulate_keystrokes("enter");
     assert!(view.read_with(cx, |view, _| view.last_error().is_some()));
@@ -407,8 +607,251 @@ fn reload_picks_up_outside_edits(cx: &mut TestAppContext) {
     let dir = vault(None);
     let root = dir.path();
     let (view, cx, _) = open(cx, root);
-    fs::create_dir_all(root.join(".editor")).unwrap();
-    fs::write(settings_file(root), "[files]\ntrash = \"delete\"\n").unwrap();
+    write_config(root, "settings.toml", "[files]\ntrash = \"delete\"\n");
+    write_config(root, "theme.toml", "[font]\ncode = \"Iosevka\"\n");
     view.update(cx, |view, cx| view.reload(cx));
     assert_eq!(value(&view, "files.trash", cx), Value::from("delete"));
+    assert_eq!(token(&view, "font.code", cx), "Iosevka");
+}
+
+// ---- Appearance: theme tokens ----
+
+const FONTS: [&str; 5] = [
+    "DejaVu Sans",
+    "Noto Serif",
+    "Liberation Serif",
+    "Liberation Mono",
+    "Georgia",
+];
+
+fn with_fonts(view: &Entity<SettingsView>, cx: &mut VisualTestContext) {
+    view.update(cx, |view, cx| {
+        view.set_font_names(FONTS.map(String::from).to_vec(), cx)
+    });
+}
+
+#[gpui::test]
+fn picking_a_font_writes_the_theme_and_reports_it(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let root = dir.path();
+    write_config(
+        root,
+        "theme.toml",
+        "# Mine.\n[color]\nbackground = \"#fdf6e3\"\n",
+    );
+    let (view, cx, recorded) = open(cx, root);
+    with_fonts(&view, cx);
+    go_to_section(&view, "Appearance", cx);
+    go_to_row(&view, cx, |row| {
+        *row == ControlRow::Font(editor_desktop::settings_view::FontSlot::Text)
+    });
+    cx.simulate_keystrokes("enter");
+    // The filter has focus: typing narrows the list, Enter picks.
+    cx.simulate_input("serif");
+    let shown = view.read_with(cx, |view, _| view.menu_options());
+    assert_eq!(shown, ["Liberation Serif", "Noto Serif"]);
+    cx.simulate_keystrokes("down enter");
+    assert_eq!(token(&view, "font.text", cx), "Noto Serif");
+    let text = read_config(root, "theme.toml");
+    assert!(
+        text.starts_with("# Mine.\n[color]\nbackground = \"#fdf6e3\"\n"),
+        "{text}"
+    );
+    assert!(text.contains("[font]\ntext = \"Noto Serif\"\n"), "{text}");
+    assert_eq!(recorded.borrow().changed, ["theme.font.text"]);
+    // The built-in font, picked again, leaves the file.
+    cx.simulate_keystrokes("enter");
+    cx.simulate_input("charter");
+    cx.simulate_keystrokes("enter");
+    assert_eq!(token(&view, "font.text", cx), "Charter");
+    assert!(!read_config(root, "theme.toml").contains("[font]"));
+}
+
+#[gpui::test]
+fn the_font_menu_lists_the_current_font_first(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    with_fonts(&view, cx);
+    go_to_section(&view, "Appearance", cx);
+    click(cx, "dropdown-font.code");
+    let shown = view.read_with(cx, |view, _| view.menu_options());
+    assert_eq!(shown[0], "Courier New");
+    assert_eq!(shown.len(), FONTS.len() + 1);
+    assert_eq!(shown[1], "DejaVu Sans");
+    click(cx, "menu-option-Liberation Mono");
+    assert_eq!(token(&view, "font.code", cx), "Liberation Mono");
+    // Clicking outside closes a menu without picking.
+    click(cx, "dropdown-font.ui");
+    assert!(view.read_with(cx, |view, _| view.menu_open()));
+    click(cx, "settings-text-appearance-0");
+    assert!(!view.read_with(cx, |view, _| view.menu_open()));
+    assert_eq!(token(&view, "font.ui", cx), "Charter");
+}
+
+#[gpui::test]
+fn the_accent_comes_from_swatches_or_hex(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let root = dir.path();
+    let (view, cx, recorded) = open(cx, root);
+    go_to_section(&view, "Appearance", cx);
+    go_to_row(&view, cx, |row| *row == ControlRow::Accent);
+    cx.simulate_keystrokes("right");
+    assert_eq!(token(&view, "color.accent", cx), "#2f5fd0");
+    assert_eq!(
+        read_config(root, "theme.toml"),
+        "[color]\naccent = \"#2f5fd0\"\n"
+    );
+    assert_eq!(recorded.borrow().changed, ["theme.color.accent"]);
+    // The screen's own switches follow the accent.
+    let accent = view.read_with(cx, |view, _| view.style().accent);
+    assert_eq!(
+        accent,
+        editor_desktop::theme::parse_color("#2f5fd0").unwrap()
+    );
+    click(cx, "swatch-#7048c8");
+    assert_eq!(token(&view, "color.accent", cx), "#7048c8");
+    // Enter moves into the hex field; a bad colour is refused.
+    cx.simulate_keystrokes("enter secondary-a");
+    cx.simulate_input("#12");
+    cx.simulate_keystrokes("enter");
+    assert!(view.read_with(cx, |view, _| view.last_error().is_some()));
+    assert_eq!(token(&view, "color.accent", cx), "#7048c8");
+    cx.simulate_keystrokes("enter secondary-a");
+    cx.simulate_input("#123456");
+    cx.simulate_keystrokes("enter");
+    assert_eq!(token(&view, "color.accent", cx), "#123456");
+    // Delete goes back to the built-in accent and empties the file.
+    cx.simulate_keystrokes("delete");
+    assert_eq!(token(&view, "color.accent", cx), "#000000");
+    assert_eq!(read_config(root, "theme.toml"), "");
+}
+
+// ---- Keyboard shortcuts ----
+
+fn shortcut(
+    view: &Entity<SettingsView>,
+    id: &str,
+    cx: &mut VisualTestContext,
+) -> editor_desktop::settings_view::model::ShortcutRow {
+    view.read_with(cx, |view, _| {
+        view.rows().into_iter().find_map(|row| match row {
+            ControlRow::Shortcut(shortcut) if shortcut.id == id => Some(shortcut),
+            _ => None,
+        })
+    })
+    .unwrap_or_else(|| panic!("no shortcut row for {id}"))
+}
+
+#[gpui::test]
+fn a_captured_chord_is_added_to_the_rules(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let root = dir.path();
+    let (view, cx, recorded) = open(cx, root);
+    go_to_section(&view, "Keyboard shortcuts", cx);
+    go_to_row(
+        &view,
+        cx,
+        |row| matches!(row, ControlRow::Shortcut(s) if s.id == "tab.new"),
+    );
+    cx.simulate_keystrokes("enter");
+    assert_eq!(
+        view.read_with(cx, |view, _| view.capturing().map(str::to_string)),
+        Some("tab.new".into())
+    );
+    // A plain letter can't be a shortcut; the row says why and keeps waiting.
+    cx.simulate_keystrokes("j");
+    assert!(view.read_with(cx, |view, _| view.capturing().is_some()));
+    cx.simulate_keystrokes("ctrl-alt-j");
+    assert!(view.read_with(cx, |view, _| view.capturing().is_none()));
+    let rules = read_config(root, "rules.toml");
+    assert!(rules.contains("id = \"user.key.tab.new\""), "{rules}");
+    assert!(rules.contains("keys = \"Mod+Alt+J\""), "{rules}");
+    assert!(rules.contains("do = \"tab.new\""), "{rules}");
+    assert_eq!(recorded.borrow().changed, ["rules"]);
+    let row = shortcut(&view, "tab.new", cx);
+    let added = row
+        .keys
+        .iter()
+        .find(|key| key.label == "Ctrl+Alt+J")
+        .unwrap();
+    assert_eq!(added.user_rule.as_deref(), Some("user.key.tab.new"));
+    assert!(row.conflicts.is_empty());
+    // Escape while waiting gives up without writing anything.
+    cx.simulate_keystrokes("enter escape");
+    assert!(view.read_with(cx, |view, _| view.capturing().is_none()));
+    assert_eq!(recorded.borrow().changed, ["rules"]);
+    assert_eq!(recorded.borrow().dismissed, 0);
+}
+
+#[gpui::test]
+fn a_chord_another_command_uses_is_added_with_a_warning(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let root = dir.path();
+    let (view, cx, _) = open(cx, root);
+    go_to_section(&view, "Keyboard shortcuts", cx);
+    let index = go_to_row(
+        &view,
+        cx,
+        |row| matches!(row, ControlRow::Shortcut(s) if s.id == "tab.new"),
+    );
+    click(cx, "add-key-tab.new");
+    cx.simulate_keystrokes("ctrl-,");
+    let row = shortcut(&view, "tab.new", cx);
+    assert_eq!(
+        row.conflicts,
+        [("Ctrl+,".to_string(), "Open settings".to_string())]
+    );
+    let settings = shortcut(&view, "settings.open", cx);
+    assert_eq!(
+        settings.conflicts,
+        [("Ctrl+,".to_string(), "New tab".to_string())]
+    );
+    assert!(read_config(root, "rules.toml").contains("keys = \"Mod+,\""));
+    cx.run_until_parked();
+    let text = bounds(cx, format!("settings-text-keyboard-shortcuts-{index}")).unwrap();
+    assert!(
+        text.size.height > px(30.),
+        "the warning shows under the title"
+    );
+    // The same chord again on the same command isn't added twice.
+    cx.simulate_keystrokes("enter ctrl-,");
+    let rules = read_config(root, "rules.toml");
+    assert_eq!(rules.matches("keys = \"Mod+,\"").count(), 1, "{rules}");
+    assert!(view.read_with(cx, |view, _| view.last_error().is_some()));
+}
+
+#[gpui::test]
+fn user_shortcuts_are_removed_by_their_cross_or_delete(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let root = dir.path();
+    write_config(
+        root,
+        "rules.toml",
+        "# Keep this.\n[[rule]]\nid = \"user.key.note.new\"\non = \"key\"\nkeys = \"Mod+Alt+N\"\ndo = \"note.new\"\n\n\
+         [[rule]]\nid = \"user.key.note.new~2\"\non = \"key\"\nkeys = \"F6\"\ndo = \"note.new\"\n",
+    );
+    let (view, cx, recorded) = open(cx, root);
+    view.update(cx, |view, cx| {
+        let rules = editor_desktop::settings_view::config_files::load_rules(view.vault_root());
+        view.set_rules(&rules, cx)
+    });
+    go_to_section(&view, "Keyboard shortcuts", cx);
+    go_to_row(
+        &view,
+        cx,
+        |row| matches!(row, ControlRow::Shortcut(s) if s.id == "note.new"),
+    );
+    assert_eq!(shortcut(&view, "note.new", cx).keys.len(), 3);
+    click(cx, "remove-key-user.key.note.new");
+    let rules = read_config(root, "rules.toml");
+    assert!(!rules.contains("Mod+Alt+N"), "{rules}");
+    assert!(rules.starts_with("# Keep this.\n"), "{rules}");
+    assert_eq!(recorded.borrow().changed, ["rules"]);
+    // Delete removes the last shortcut the user added; built-in ones stay.
+    cx.simulate_keystrokes("delete");
+    let row = shortcut(&view, "note.new", cx);
+    assert_eq!(row.labels(), ["Ctrl+N"]);
+    cx.simulate_keystrokes("delete");
+    assert_eq!(shortcut(&view, "note.new", cx).labels(), ["Ctrl+N"]);
+    assert_eq!(recorded.borrow().changed, ["rules", "rules"]);
 }

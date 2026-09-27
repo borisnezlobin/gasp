@@ -1,11 +1,13 @@
 //! Keyboard handling for the settings screen. Tab moves between the
 //! search box, the section list and the controls; arrows move within
-//! them; Space and Enter toggle; left and right change a choice or number;
-//! Delete resets a setting to its default; Escape closes.
+//! them; Space and Enter toggle a switch, open a dropdown or press a
+//! button; left and right change a choice, number or colour; Delete
+//! resets a setting or removes a shortcut you added; Escape closes.
 
 use editor_config::schema::SettingKind;
 use gpui::{Context, DismissEvent, Focusable, KeyDownEvent, Keystroke, Window};
 
+use super::model::SettingItem;
 use super::view::{ControlRow, SettingsFocus, SettingsView};
 
 impl SettingsView {
@@ -19,20 +21,43 @@ impl SettingsView {
         if self.focus == SettingsFocus::Search && !self.search.focus_handle(cx).is_focused(window) {
             self.focus = SettingsFocus::Sections;
         }
-        let handled = self.tab_key(keystroke, window, cx)
-            || match self.focus {
-                SettingsFocus::Search => self.search_key(keystroke, window, cx),
-                SettingsFocus::Sections => self.sections_key(keystroke, window, cx),
-                SettingsFocus::Control(index) => self.control_key(index, keystroke, window, cx),
-            };
+        let typing_hex = self.hex_field.focus_handle(cx).is_focused(window);
+        let handled = if self.menu.is_some() {
+            self.menu_key(&keystroke.key, window, cx)
+        } else if typing_hex {
+            // The hex field takes typing; only Tab leaves it.
+            self.tab_key(keystroke, window, cx)
+        } else {
+            self.focus_key(keystroke, window, cx)
+        };
         if handled {
             cx.stop_propagation();
         }
     }
 
+    fn focus_key(
+        &mut self,
+        keystroke: &Keystroke,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        self.tab_key(keystroke, window, cx)
+            || match self.focus {
+                SettingsFocus::Search => self.search_key(keystroke, window, cx),
+                SettingsFocus::Sections => self.sections_key(keystroke, window, cx),
+                SettingsFocus::Control(index) => self.control_key(index, keystroke, window, cx),
+            }
+    }
+
     /// The order Tab walks: search, sections, then each control.
     fn focus_order(&self) -> Vec<SettingsFocus> {
-        let controls = (0..self.rows().len()).map(SettingsFocus::Control);
+        let controls = self
+            .rows()
+            .iter()
+            .enumerate()
+            .filter(|(_, row)| row.is_focusable())
+            .map(|(index, _)| SettingsFocus::Control(index))
+            .collect::<Vec<_>>();
         [SettingsFocus::Search, SettingsFocus::Sections]
             .into_iter()
             .chain(controls)
@@ -62,12 +87,13 @@ impl SettingsView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        match keystroke.key.as_str() {
-            "down" if !self.rows().is_empty() => {
-                self.set_focus(SettingsFocus::Control(0), window, cx)
-            }
-            "down" => self.set_focus(SettingsFocus::Sections, window, cx),
-            _ => return false,
+        if keystroke.key != "down" {
+            return false;
+        }
+        if self.rows().iter().any(ControlRow::is_focusable) {
+            self.focus_first_control(window, cx);
+        } else {
+            self.set_focus(SettingsFocus::Sections, window, cx);
         }
         true
     }
@@ -83,9 +109,7 @@ impl SettingsView {
             "up" if current == 0 => self.set_focus(SettingsFocus::Search, window, cx),
             "up" => self.select_section(current - 1, cx),
             "down" => self.select_section(current + 1, cx),
-            "right" | "enter" if !self.rows().is_empty() => {
-                self.set_focus(SettingsFocus::Control(0), window, cx)
-            }
+            "right" | "enter" => self.focus_first_control(window, cx),
             "escape" => cx.emit(DismissEvent),
             _ => return self.type_to_search(keystroke, window, cx),
         }
@@ -131,31 +155,36 @@ impl SettingsView {
             return false;
         };
         match keystroke.key.as_str() {
-            "up" => self.step_control(index, -1, rows.len(), window, cx),
-            "down" => self.step_control(index, 1, rows.len(), window, cx),
+            "up" => self.step_control(index, -1, &rows, window, cx),
+            "down" => self.step_control(index, 1, &rows, window, cx),
             "enter" if row.uses_field() => {
                 self.set_focus(SettingsFocus::Control(index), window, cx)
             }
             "escape" => self.escape_control(cx),
             _ if row.uses_field() => return false,
-            _ => return self.edit_key(&row, keystroke, window, cx),
+            _ => return self.edit_key(index, &row, keystroke, window, cx),
         }
         true
     }
 
-    /// Up from the first control goes back to the section list.
+    /// Moves to the next row that takes focus. Up from the first goes back
+    /// to the section list.
     fn step_control(
         &mut self,
         index: usize,
         delta: isize,
-        count: usize,
+        rows: &[ControlRow],
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let target = index as isize + delta;
+        let mut target = index as isize + delta;
+        while target >= 0 && (target as usize) < rows.len() && !rows[target as usize].is_focusable()
+        {
+            target += delta;
+        }
         if target < 0 {
             self.set_focus(SettingsFocus::Sections, window, cx);
-        } else if (target as usize) < count {
+        } else if (target as usize) < rows.len() {
             self.set_focus(SettingsFocus::Control(target as usize), window, cx);
         }
     }
@@ -172,33 +201,48 @@ impl SettingsView {
     /// Keys that change the focused control's value.
     fn edit_key(
         &mut self,
+        index: usize,
         row: &ControlRow,
         keystroke: &Keystroke,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        let Some(item) = row.item().cloned() else {
-            return self.type_to_search(keystroke, window, cx);
+        let key = keystroke.key.as_str();
+        let handled = match row {
+            ControlRow::Setting(item) | ControlRow::MapEntry { item, .. } => {
+                self.setting_key(index, item, keystroke, window, cx)
+            }
+            ControlRow::Font(slot) => self.font_key(index, slot.token(), key, window, cx),
+            ControlRow::Accent => self.accent_key(key, window, cx),
+            ControlRow::Vault => self.button_key(key, cx),
+            ControlRow::Shortcut(shortcut) => self.shortcut_key(row, &shortcut.id, key, window, cx),
+            _ => false,
         };
+        handled || self.type_to_search(keystroke, window, cx)
+    }
+
+    fn setting_key(
+        &mut self,
+        index: usize,
+        item: &SettingItem,
+        keystroke: &Keystroke,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
         let key = keystroke.key.as_str();
         if matches!(key, "delete" | "backspace") && self.number_edit.is_none() {
             self.reset(&item.key, cx);
             return true;
         }
         match &item.kind {
-            SettingKind::Bool => self.bool_key(&item, key, cx),
-            SettingKind::Choice(_) => self.choice_key(&item, key, cx),
-            SettingKind::Integer | SettingKind::Number => self.number_key(&item, keystroke, cx),
+            SettingKind::Bool => self.bool_key(item, key, cx),
+            SettingKind::Choice(_) => self.choice_key(index, item, key, window, cx),
+            SettingKind::Integer | SettingKind::Number => self.number_key(item, keystroke, cx),
             _ => false,
         }
     }
 
-    fn bool_key(
-        &mut self,
-        item: &super::model::SettingItem,
-        key: &str,
-        cx: &mut Context<Self>,
-    ) -> bool {
+    fn bool_key(&mut self, item: &SettingItem, key: &str, cx: &mut Context<Self>) -> bool {
         let on = self.current_value(item).as_bool().unwrap_or(false);
         let wanted = match key {
             "space" | "enter" => !on,
@@ -214,14 +258,16 @@ impl SettingsView {
 
     fn choice_key(
         &mut self,
-        item: &super::model::SettingItem,
+        index: usize,
+        item: &SettingItem,
         key: &str,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
         match key {
-            "left" => self.step_choice(item, -1, false, cx),
-            "right" => self.step_choice(item, 1, false, cx),
-            "space" | "enter" => self.step_choice(item, 1, true, cx),
+            "left" => self.step_choice(item, -1, cx),
+            "right" => self.step_choice(item, 1, cx),
+            "space" | "enter" => self.open_menu(index, window, cx),
             _ => return false,
         }
         true
@@ -229,7 +275,7 @@ impl SettingsView {
 
     fn number_key(
         &mut self,
-        item: &super::model::SettingItem,
+        item: &SettingItem,
         keystroke: &Keystroke,
         cx: &mut Context<Self>,
     ) -> bool {
@@ -248,6 +294,59 @@ impl SettingsView {
                 };
                 self.type_number(item, digits, cx);
             }
+        }
+        true
+    }
+
+    fn font_key(
+        &mut self,
+        index: usize,
+        token: &str,
+        key: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        match key {
+            "space" | "enter" => self.open_menu(index, window, cx),
+            "delete" | "backspace" => self.write_token(token, None, cx),
+            _ => return false,
+        }
+        true
+    }
+
+    fn accent_key(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        match key {
+            "left" => self.step_accent(-1, cx),
+            "right" => self.step_accent(1, cx),
+            "enter" => window.focus(&self.hex_field.focus_handle(cx)),
+            "delete" | "backspace" => {
+                self.write_token(super::model::ACCENT_TOKEN, None, cx);
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    fn button_key(&mut self, key: &str, cx: &mut Context<Self>) -> bool {
+        if matches!(key, "space" | "enter") {
+            self.request_command("vault.open", cx);
+            return true;
+        }
+        false
+    }
+
+    fn shortcut_key(
+        &mut self,
+        row: &ControlRow,
+        command: &str,
+        key: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        match key {
+            "space" | "enter" | "+" | "=" => self.start_capture(command, window, cx),
+            "delete" | "backspace" => self.remove_last_user_shortcut(row, cx),
+            _ => return false,
         }
         true
     }

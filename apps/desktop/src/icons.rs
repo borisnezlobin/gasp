@@ -22,6 +22,7 @@ pub enum IconName {
     CaretLeft,
     CaretRight,
     CaretUp,
+    CaretUpDown,
     Check,
     CheckCircle,
     CheckSquare,
@@ -63,6 +64,7 @@ pub enum IconName {
     MagnifyingGlassPlus,
     Minus,
     NoteBlank,
+    Palette,
     PencilSimple,
     Plus,
     Printer,
@@ -71,6 +73,7 @@ pub enum IconName {
     Quotes,
     Rows,
     SidebarSimple,
+    SlidersHorizontal,
     Square,
     Swap,
     TextAa,
@@ -87,7 +90,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 76] = [
+const ICONS: [(IconName, &str, &[u8]); 79] = [
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -152,6 +155,11 @@ const ICONS: [(IconName, &str, &[u8]); 76] = [
         IconName::CaretUp,
         "caret-up",
         include_bytes!("../assets/icons/caret-up.svg"),
+    ),
+    (
+        IconName::CaretUpDown,
+        "caret-up-down",
+        include_bytes!("../assets/icons/caret-up-down.svg"),
     ),
     (
         IconName::Check,
@@ -359,6 +367,11 @@ const ICONS: [(IconName, &str, &[u8]); 76] = [
         include_bytes!("../assets/icons/note-blank.svg"),
     ),
     (
+        IconName::Palette,
+        "palette",
+        include_bytes!("../assets/icons/palette.svg"),
+    ),
+    (
         IconName::PencilSimple,
         "pencil-simple",
         include_bytes!("../assets/icons/pencil-simple.svg"),
@@ -397,6 +410,11 @@ const ICONS: [(IconName, &str, &[u8]); 76] = [
         IconName::SidebarSimple,
         "sidebar-simple",
         include_bytes!("../assets/icons/sidebar-simple.svg"),
+    ),
+    (
+        IconName::SlidersHorizontal,
+        "sliders-horizontal",
+        include_bytes!("../assets/icons/sliders-horizontal.svg"),
     ),
     (
         IconName::Square,
