@@ -1,6 +1,72 @@
 # Editor plan
 
-A native, very fast Markdown editor for your Obsidian vault. It runs on macOS, Windows, Linux and iPhone, syncs through GitHub, and can be customized at every level, including behaviour. "Editor" is a working name until we pick a real one (see [Open questions](#open-questions)).
+A native, very fast Markdown editor for your Obsidian vault. It runs on macOS, Windows, Linux and iPhone, syncs through GitHub, and can be customized at every level, including behaviour. "Editor" is a working name until we pick a real one (see [Open questions](#open-questions)). Until then, the crates, the binary and the config folder (`.editor/`) use `editor`.
+
+## Start here
+
+This section is for an agent picking the project up with no earlier context. Everything below it is the design.
+
+### Where things stand
+
+The plan is complete. No code exists yet, and the next step is Phase 0. This repo used to hold an abandoned Electron editor, which is still in the git history and should be ignored.
+
+| Phase | Status |
+|---|---|
+| 0 Spikes | not started |
+| 1 Core | not started |
+| 2 Desktop editor | not started |
+| 3 Sync and travel check | not started |
+| 4 Search and prose | not started |
+| 5 Export | not started |
+| 6 MCP and headless modes | not started |
+| 7 iPhone | not started |
+| 8 Plugins and agents | not started |
+
+Update this table, and the phase's section, when work lands.
+
+### What you can and can't reach
+
+A cloud session is probably a Linux container with this repo cloned. It can't see the owner's Mac.
+
+You can reach these:
+
+- **This repo** (`borisnezlobin/editor`), where all the code goes.
+- **[Flo State](https://github.com/Altimor/flo-state)** is the native Swift editor that inspired this project. Read its `oracle/`, `fixtures/` and `Sources/FloCore/Render/RenderPlanner.swift` for the parity-testing and render-planner ideas. It's GPLv3, so read it for ideas and don't copy its code.
+- **[PDF Export Plus](https://github.com/borisnezlobin/obsidian-pdf-export-plus)** is the owner's PDF plugin, which Phase 5 ports to Typst.
+- **[The owner's website](https://github.com/borisnezlobin/website)**. `scripts/publish-article.mjs` and `app/styles/` describe the current HTML export flow that Phase 5 replaces.
+- **Library docs and source** for GPUI, Typst, mitex, harper-core, Tantivy, git2, rquickjs and UniFFI.
+
+These stay out of reach:
+
+- **The notes vault and the private `borisnezlobin/notes` repo.** Never clone, read or push to it. Sync work uses local bare repos in tests, plus a throwaway repo the owner provides for network tests.
+- **The owner's Obsidian config**, including the 212 Latex Suite snippets and the prettifier table. Settings that matter are quoted in this plan. Build the migrator against Obsidian's documented file formats with synthetic fixtures, and the owner runs it on the Mac against the real `.obsidian` folder.
+- **`vault-sync` and Footnotes Plus.** Both exist only on the owner's Mac. Their behaviour is described in [Sync](#sync) and [Footnotes](#footnotes), and that description is the spec.
+- **Obsidian itself**, which the parity oracle drives. Try running it on a macOS GitHub Actions runner against the synthetic corpus. If that doesn't work, the owner runs the oracle locally.
+
+Steps marked **[Mac]** need the owner's machine or a macOS runner.
+
+### First tasks
+
+1. **Workspace and CI.** Create the Cargo workspace from [Repository layout](#repository-layout) and a GitHub Actions workflow that builds, tests and lints on `ubuntu-latest`, `windows-latest` and `macos-latest`. It's done when an empty crate passes on all three.
+2. **Synthetic corpus.** Write a generator for a fake vault that uses every feature in [What your vault actually uses](#what-your-vault-actually-uses), in similar proportions. Math-heavy notes, callouts, footnotes, tables, tasks and raw HTML matter most. Every committed test fixture comes from this corpus.
+3. **Phase 0 spikes**, each on its own branch with a short result written into the spike table: what passed, the measured numbers, and the decision. The GPUI, math, Typst and git2 spikes can run on Linux and CI. The iPhone spikes run on a macOS runner.
+
+### Working rules
+
+- **Complexity.** A cyclomatic complexity limit of 15 per function is a hard requirement, treated like a failing test. Enforce it in CI with Clippy's `cognitive_complexity` lint (threshold 15, set to deny) plus a cyclomatic check using `rust-code-analysis-cli`, and use SwiftLint's `cyclomatic_complexity` rule at 15 on the iPhone app. Split functions, use early returns and lookup tables rather than raising the limit.
+- **Code style.** Names should explain the code. Comments are only for genuinely tricky logic.
+- **Files.** Don't write summary Markdown files or backup copies of files. Git is the history.
+- **Private data.** Never commit anything from the owner's notes. Fixtures recorded from the real vault stay on the Mac.
+- **Git.** Work on a branch per spike or phase and open a pull request to `master`. Never force-push `master`. End commit messages with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- **Decisions.** Anything in [Decisions](#decisions) or [Assumptions](#assumptions) is settled. If a spike shows one is wrong, say so in the pull request instead of silently changing course.
+- **UI.** The owner's design rules apply to every screen:
+  - Icons come from the Phosphor set, and emoji are never used as icons.
+  - Text is never all-caps unless the content really is uppercase (acronyms, codes), and letter-spacing is never changed.
+  - Monospace is only for actual code, paths and aligned figures.
+  - No gradient text, and no visible coloured border on a rounded element (use a fill, shadow or ring instead).
+  - Every visual value comes from a theme token defined once.
+  - Every state (selected, disabled, syncing, conflict) gets a visible change, not a text label.
+  - Copy is short, plain and conversational.
 
 ## Goals
 
@@ -159,9 +225,35 @@ When rules aren't enough, a TypeScript plugin uses the same commands, events and
 - **Math.** It's rendered in place and reveals its source when the cursor enters. There's a live preview above the line while you edit, matching bracket colours, and concealed commands (Latex Suite's conceal). See [the math spike](#phase-0-spikes).
 - **Code blocks** get syntax highlighting, an optional title (`title:` in the fence line, replacing Embedded Code Title), line numbers, highlighted lines, and a copy button. Their appearance is themed through tokens rather than Code Styler's separate theme system.
 - **Links.** Markdown links and wikilinks both resolve, hovering shows a page preview, and renames update every link.
+- **Formatting commands** toggle: with a selection they wrap or unwrap it, with no selection they act on the word under the cursor, and on an empty spot they insert the pair with the cursor between. Markdown has no underline syntax, so underline uses `<u>…</u>`, which the editor, both exports and the site all render. Default bindings are in [Default keymap](#default-keymap).
 - **Tabs.** Opening a link uses a new tab, or switches to the tab that already has that note (replacing Opener).
 - **Pasting images** saves them to `./images` named after the note, the way Paste Image Rename is set up now.
 - **The status bar** shows word count (for the selection when there is one), reading time and edit time.
+
+### Default keymap
+
+`Mod` is Cmd on macOS and Ctrl on Windows and Linux. Every binding is a rule, so each can be changed or removed. The first group is standard formatting, and the rest carries over the owner's current Obsidian hotkeys.
+
+| Keys | Command |
+|---|---|
+| `Mod+B` | Bold (`**`) |
+| `Mod+I` | Italic (`*`) |
+| `Mod+U` | Underline (`<u>`) |
+| `Mod+K` | Insert or edit link |
+| `Mod+E` | Inline code |
+| `Mod+Shift+X` | Strikethrough |
+| `Mod+Shift+H` | Highlight (`==`) |
+| `Mod+Shift+M` | Inline math |
+| `Mod+P` | Command palette |
+| `Mod+O` | Quick switcher |
+| `Mod+Shift+F` | Search |
+| `Mod+Shift+R` | Search and replace |
+| `Mod+J` | Toggle sentence-length highlighting |
+| `Alt+0` | Insert or jump to footnote |
+| `Mod+Shift+P` | Export PDF |
+| `Mod+S` | Sync now |
+| `Mod+,` and `Mod+L` | Settings |
+| `Mod+Shift+N` | Open another vault |
 
 ### Replacements
 
@@ -249,7 +341,7 @@ Pasting a URL on an empty line can turn it into a preview card, as Link Embed do
 
 ### What exists today
 
-Your vault is already a git clone of `borisnezlobin/notes` on branch `main`. Your `vault-sync` daemon (`~/Documents/CurrentProjects/vault-sync`, launchd agent `com.randomletters.vault-sync`) commits a minute after you stop typing, merges, and pushes. The iPhone uses GitSync triggered by Shortcuts automations. The repo's default branch is `fake-default-lol`, and there is no `master` branch, so the app targets `main`.
+Your vault is already a git clone of `borisnezlobin/notes` on branch `main`. Your `vault-sync` daemon (a Node program on the owner's Mac, not on GitHub, run by the launchd agent `com.randomletters.vault-sync`) commits a minute after you stop typing, merges, and pushes. The iPhone uses GitSync triggered by Shortcuts automations. The repo's default branch is `fake-default-lol`, and there is no `master` branch, so the app targets `main`.
 
 ### Design
 
@@ -270,7 +362,7 @@ The repo is 252 MB, and about 77 MB of it is Obsidian plugin binaries (`mcp-tool
 
 ### HTML export to your website
 
-Today the flow has three steps. Webpage HTML Export writes to `~/Downloads/bored/HTML Exports`. Then `website/scripts/publish-article.mjs` extracts the `.markdown-preview-view` body, strips scripts, styles and frontmatter, archives it to `website/html/blog/<slug>.html`, and can publish it to the live site. The site's CSS (`obsidian.css`, `mjx.css`, `code-styler.css`) is written against Obsidian's class names and MathJax's HTML output.
+Today the flow has three steps. Webpage HTML Export writes to `~/Downloads/bored/HTML Exports`. Then [`scripts/publish-article.mjs`](https://github.com/borisnezlobin/website/blob/main/scripts/publish-article.mjs) in the website repo extracts the `.markdown-preview-view` body, strips scripts, styles and frontmatter, archives it to `website/html/blog/<slug>.html`, and can publish it to the live site. The site's CSS (`obsidian.css`, `mjx.css`, `code-styler.css`) is written against Obsidian's class names and MathJax's HTML output.
 
 The native export produces the cleaned article body directly and can publish it to the site in one step. The site's credentials are kept in the OS credential store, and the archive copy lands in the website repo.
 
@@ -334,7 +426,7 @@ These are small throwaway experiments on the riskiest assumptions, each with a f
 
 ### Phase 1: core
 
-This covers the document model, transactions and undo, the parser with Obsidian extensions, the render planner, the config and rules engine, the command registry, the parity oracle, and the migrator for your `.obsidian` settings, hotkeys and snippets. It's done when the parser and render planner match the Obsidian fixtures on the whole vault.
+This covers the document model, transactions and undo, the parser with Obsidian extensions, the render planner, the config and rules engine, the command registry, the parity oracle, and the migrator for your `.obsidian` settings, hotkeys and snippets. It's done when the parser and render planner match the Obsidian fixtures for the synthetic corpus in CI, and for the real vault on the owner's Mac **[Mac]**.
 
 ### Phase 2: desktop editor
 
