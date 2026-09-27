@@ -349,7 +349,7 @@ impl SettingsView {
                 .items_center()
                 .gap(style.gap_sm)
                 .child(keycap(shortcut, &self.keycaps))
-                .child("runs nothing yet, so it's free to use.")
+                .child("runs nothing yet, so it’s free to use.")
                 .into_any_element(),
             None => div()
                 .child(format!(

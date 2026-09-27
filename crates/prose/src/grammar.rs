@@ -60,21 +60,21 @@ impl Flag {
 const RULES: &[(&str, Option<&str>)] = &[
     (
         "SpellCheck",
-        Some("This word isn't in the dictionary or in your other notes."),
+        Some("This word isn’t in the dictionary or in your other notes."),
     ),
     (
         "RepeatedWords",
         Some("The same word appears twice in a row."),
     ),
-    ("Spaces", Some("There's more than one space here.")),
+    ("Spaces", Some("There’s more than one space here.")),
     (
         "NoFrenchSpaces",
-        Some("There's more than one space after this full stop."),
+        Some("There’s more than one space after this full stop."),
     ),
     ("AnA", None),
     (
         "CorrectNumberSuffix",
-        Some("The ending doesn't match the number."),
+        Some("The ending doesn’t match the number."),
     ),
     ("EllipsisLength", Some("An ellipsis has three dots.")),
 ];

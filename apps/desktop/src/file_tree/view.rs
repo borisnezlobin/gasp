@@ -678,7 +678,7 @@ impl FileTree {
                 });
             }
             Err(error) => cx.emit(FileTreeEvent::Failed {
-                message: format!("Couldn't move it to the trash: {error}"),
+                message: format!("Couldn’t move it to the trash: {error}"),
             }),
         }
         cx.notify();

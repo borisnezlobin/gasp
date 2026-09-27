@@ -62,7 +62,7 @@ impl SettingsFile {
     /// follows an existing value.
     pub fn set(&mut self, key: &str, value: &Value) -> Result<(), String> {
         let (tables, leaf) = split_key(key).ok_or("empty key")?;
-        let new_value = to_toml(value).ok_or("that kind of value can't be saved")?;
+        let new_value = to_toml(value).ok_or("that kind of value can’t be saved")?;
         let table = table_mut(self.doc.as_table_mut(), &tables)?;
         match table.get_mut(leaf).and_then(Item::as_value_mut) {
             Some(existing) => {
@@ -121,7 +121,7 @@ fn table_mut<'a>(
         current = current
             .get_mut(part)
             .and_then(Item::as_table_like_mut)
-            .ok_or_else(|| format!("`{part}` isn't a table in settings.toml"))?;
+            .ok_or_else(|| format!("`{part}` isn’t a table in settings.toml"))?;
     }
     Ok(current)
 }
@@ -212,7 +212,7 @@ pub fn write_setting(
     let text = file.to_string();
     build_settings(SETTINGS_FILE, Some(&text)).map_err(|diagnostics| {
         diagnostics.first().map_or_else(
-            || "that value isn't allowed".to_string(),
+            || "that value isn’t allowed".to_string(),
             |d| d.message.clone(),
         )
     })?;

@@ -280,7 +280,7 @@ impl RecoveryDialog {
         let style = &self.style;
         let changed = self.comparison.as_ref().map_or(0, |(_, changed)| *changed);
         let summary = match changed {
-            0 => "It's the same as the note now.".to_owned(),
+            0 => "It’s the same as the note now.".to_owned(),
             1 => "One line differs from the note now.".to_owned(),
             n => format!("{n} lines differ from the note now."),
         };

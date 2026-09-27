@@ -161,7 +161,7 @@ mod tests {
         for (id, _) in HANDLERS {
             assert!(
                 BUILTIN_COMMANDS.iter().any(|spec| spec.id == id),
-                "{id} isn't a built-in command"
+                "{id} isn’t a built-in command"
             );
         }
     }

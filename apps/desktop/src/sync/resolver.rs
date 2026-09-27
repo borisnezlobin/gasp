@@ -41,8 +41,8 @@ impl Choice {
 
     fn label(self) -> &'static str {
         match self {
-            Choice::Mine => "Keep this device's",
-            Choice::Theirs => "Keep the other device's",
+            Choice::Mine => "Keep this device’s",
+            Choice::Theirs => "Keep the other device’s",
             Choice::Both => "Keep both",
         }
     }
@@ -591,7 +591,7 @@ impl Render for ConflictResolver {
                     .px(style.content_padding_x)
                     .py(style.content_padding_y)
                     .text_color(style.text_muted)
-                    .child("There's nothing left to resolve."),
+                    .child("There’s nothing left to resolve."),
             );
         }
         root.w(size.width)

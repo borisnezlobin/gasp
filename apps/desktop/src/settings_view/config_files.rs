@@ -97,7 +97,7 @@ fn write_theme_value(
     let text = file.to_string();
     let (tokens, _) = build_theme(THEME_FILE, Some(&text)).map_err(|diagnostics| {
         diagnostics.first().map_or_else(
-            || "that value isn't allowed".to_string(),
+            || "that value isn’t allowed".to_string(),
             |d| d.message.clone(),
         )
     })?;
@@ -155,7 +155,7 @@ fn rules_mut(doc: &mut DocumentMut) -> Result<&mut ArrayOfTables, String> {
     }
     doc.get_mut("rule")
         .and_then(Item::as_array_of_tables_mut)
-        .ok_or_else(|| "`rule` in rules.toml isn't a list of [[rule]] tables".to_string())
+        .ok_or_else(|| "`rule` in rules.toml isn’t a list of [[rule]] tables".to_string())
 }
 
 /// Checks the rules file still loads, saves it and returns the rules now
@@ -164,7 +164,7 @@ fn save_rules(path: &Path, doc: &DocumentMut) -> Result<RuleSet, String> {
     let text = doc.to_string();
     let (rules, _) = build_rules(RULES_FILE, Some(&text), &known_commands()).map_err(|errors| {
         errors.first().map_or_else(
-            || "the rules file doesn't load".to_string(),
+            || "the rules file doesn’t load".to_string(),
             |d| d.message.clone(),
         )
     })?;

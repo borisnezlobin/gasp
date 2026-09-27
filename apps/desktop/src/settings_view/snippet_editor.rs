@@ -758,7 +758,7 @@ impl SettingsView {
         let caption = match &editor.result {
             _ if editor.problem.is_some() => "Fix the snippet to try it.",
             None => "Type in the box above to see what it becomes.",
-            Some(result) if result.expansions == 0 => "It doesn't fire on this text.",
+            Some(result) if result.expansions == 0 => "It doesn’t fire on this text.",
             Some(result) if result.tab => "With Tab pressed after it, that gives",
             Some(_) => "That gives",
         };

@@ -179,7 +179,7 @@ fn missing_note(
                     div()
                         .flex_1()
                         .text_color(theme.text_muted)
-                        .child("This note doesn't exist yet."),
+                        .child("This note doesn’t exist yet."),
                 )
                 .child(Button::new("hover-preview-create", "Create").on_click(on_create)),
         );

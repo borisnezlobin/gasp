@@ -66,7 +66,7 @@ const TEXTS: &[(&str, &str, &str)] = &[
     (
         "prose.grammar.spelling",
         "Check spelling",
-        "Underline misspelled words too. A word you've used in three or more notes is never flagged.",
+        "Underline misspelled words too. A word you’ve used in three or more notes is never flagged.",
     ),
     (
         "prose.grammar.english",
@@ -81,7 +81,7 @@ const TEXTS: &[(&str, &str, &str)] = &[
     (
         "recovery.keep-days",
         "Keep snapshots for",
-        "Days a snapshot is kept before it's deleted.",
+        "Days a snapshot is kept before it’s deleted.",
     ),
     (
         "files.attachments-folder",
@@ -130,7 +130,7 @@ const TEXTS: &[(&str, &str, &str)] = &[
     ),
     (
         "editor.show-inline-title",
-        "Show the note's title",
+        "Show the note’s title",
         "Show the file name as an editable title above the text.",
     ),
     (
@@ -161,7 +161,7 @@ const TEXTS: &[(&str, &str, &str)] = &[
     (
         "editor.snippets",
         "Expand snippets",
-        "Typing a snippet's trigger, such as mk in text or // in math, puts its expansion in its place.",
+        "Typing a snippet’s trigger, such as mk in text or // in math, puts its expansion in its place.",
     ),
     (
         "editor.replacements",
@@ -206,7 +206,7 @@ const TEXTS: &[(&str, &str, &str)] = &[
     (
         "sync.auto",
         "Sync automatically",
-        "Sync a minute after you stop typing, when you come back to the window, and every few minutes. When it's off, sync runs only when you ask.",
+        "Sync a minute after you stop typing, when you come back to the window, and every few minutes. When it’s off, sync runs only when you ask.",
     ),
     (
         "sync.interval-minutes",
@@ -221,7 +221,7 @@ const TEXTS: &[(&str, &str, &str)] = &[
     (
         "sync.legacy-branch",
         "Also bring in",
-        "A branch older sync tools still use. Its changes come into the branch above, one way. Leave it empty once they're retired.",
+        "A branch older sync tools still use. Its changes come into the branch above, one way. Leave it empty once they’re retired.",
     ),
     (
         "sync.device-only",
@@ -244,7 +244,7 @@ const CHOICE_LABELS: &[(&str, &str)] = &[
     ("line", "The whole line"),
     ("block", "The whole block"),
     ("system", "System trash"),
-    ("vault", "The vault's .trash folder"),
+    ("vault", "The vault’s .trash folder"),
     ("delete", "Delete for good"),
     ("light", "Light"),
     ("dark", "Dark"),
@@ -631,7 +631,7 @@ pub const THEME_NUMBERS: &[ThemeNumber] = &[
     ThemeNumber {
         token: "font.scale.title",
         title: "Title size",
-        description: "The note's title above its text, as a multiple of the text size.",
+        description: "The note’s title above its text, as a multiple of the text size.",
         step: 0.1,
         min: 1.,
         max: 4.,

@@ -37,7 +37,7 @@ pub struct PlannedInsert {
 
 /// The notice shown when jumping from a definition nothing references.
 pub fn unreferenced_message(label: &str) -> String {
-    format!("Footnote [^{label}] isn't referenced in the text.")
+    format!("Footnote [^{label}] isn’t referenced in the text.")
 }
 
 /// Where the cursor goes to type a definition: after `[^label]:` and one space.

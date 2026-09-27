@@ -53,7 +53,7 @@ pub fn tidy_message(result: &RenumberResult, applied: bool) -> String {
     let labels = blocking_labels(&result.problems);
     if !labels.is_empty() {
         return format!(
-            "Couldn't renumber. These footnotes don't match up: {}. They're underlined in the editor.",
+            "Couldn’t renumber. These footnotes don’t match up: {}. They’re underlined in the editor.",
             labels.join(", ")
         );
     }

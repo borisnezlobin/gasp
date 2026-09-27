@@ -137,7 +137,7 @@ impl SettingsView {
     ) -> Result<(), String> {
         let platform = Platform::current();
         let (_, chord) = pressed_chord(keystroke, platform)
-            .ok_or_else(|| "That key can't be searched for.".to_string())?;
+            .ok_or_else(|| "That key can’t be searched for.".to_string())?;
         let label = Shortcut::new(chord, platform).label();
         self.set_query(&label, cx);
         self.focus_first_control(window, cx);

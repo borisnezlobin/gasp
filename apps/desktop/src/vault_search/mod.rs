@@ -149,7 +149,7 @@ pub fn replace_summary(report: &ReplaceReport) -> String {
     );
     if !report.failed.is_empty() {
         summary.push_str(&format!(
-            ", {} couldn't be changed",
+            ", {} couldn’t be changed",
             plural(report.failed.len(), "note", "notes")
         ));
     }
@@ -833,7 +833,7 @@ mod tests {
         };
         assert_eq!(
             replace_summary(&report),
-            "Replaced 5 matches in 2 notes, 1 note couldn't be changed"
+            "Replaced 5 matches in 2 notes, 1 note couldn’t be changed"
         );
     }
 }
