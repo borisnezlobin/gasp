@@ -1,12 +1,15 @@
 [package]
 name = "editor-snippets"
-description = "Snippet engine and the Latex Suite migrator."
+description = "Snippet engine, snippet file format and the replacements table."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [dependencies]
+fancy-regex = "0.16"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
 
 [lints]
 workspace = true
