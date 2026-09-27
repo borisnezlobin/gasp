@@ -32,6 +32,17 @@ highlight   = "#fff59d"
 link        = "{color.accent}"
 code-background = "{color.gray-100}"
 
+# Syntax colours in fenced code blocks: quiet, and readable on the code
+# background. Plain code keeps the text colour.
+[color.code]
+comment  = "#6e6e78"
+string   = "#3d6e45"
+number   = "#9a5b1e"
+constant = "#9a5b1e"
+keyword  = "#7a4390"
+function = "#2f5f93"
+type     = "#26707a"
+
 [color.sentence]
 short  = "#e3f2fd"
 medium = "#fff3e0"

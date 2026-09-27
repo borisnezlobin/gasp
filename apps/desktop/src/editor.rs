@@ -21,6 +21,7 @@ use crate::frame::{FrameLayout, PlacedLine};
 use crate::images::ImageStore;
 use crate::line_layout::{LayoutContext, LayoutResources, VisualLine, layout_line};
 use crate::metrics::{Estimator, LineMetrics};
+use crate::preview::code_highlight::CodeHighlighter;
 use crate::preview::folds::Folds;
 use crate::preview::math::{MathStore, RenderFn};
 use crate::preview::reveal::reveal_settings;
@@ -76,6 +77,7 @@ pub struct EditorView {
     pub(crate) math: MathStore,
     pub(crate) folds: Folds,
     pub(crate) images: ImageStore,
+    pub(crate) code: CodeHighlighter,
     /// Width of the text column in the last frame.
     pub(crate) column_width: Pixels,
     /// How far the view is scrolled down, counting the header.
@@ -137,6 +139,7 @@ impl EditorView {
             math: MathStore::default(),
             folds: Folds::default(),
             images: ImageStore::new(image_dirs),
+            code: CodeHighlighter::default(),
             column_width,
             scroll_y: px(0.),
             header_height: px(0.),
@@ -568,6 +571,7 @@ impl EditorView {
             text_system: window.text_system(),
             images: &mut self.images,
             math: &mut self.math,
+            code: &mut self.code,
         };
         layout_line(plan, &context, &mut resources)
     }
@@ -640,6 +644,7 @@ impl EditorView {
         let padding = self.theme.text_padding;
         let viewport = (bounds.size.height - padding * 2.).max(px(0.));
         self.math.begin_frame();
+        self.code.begin_frame();
         self.apply_autoscroll(viewport, window);
         self.scroll_y = self.scroll_y.clamp(px(0.), self.max_scroll(viewport));
         let text_scroll = self.scroll_y - self.header_height;

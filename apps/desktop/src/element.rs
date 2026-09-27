@@ -97,6 +97,7 @@ impl Element for EditorElement {
                 window.defer_draw(popover, window.element_offset(), SUGGESTION_LAYER);
             }
             view.start_math_renders(cx);
+            view.start_code_loads(cx);
             view.timings.layout.push(started.elapsed());
             Prepainted {
                 frame,
