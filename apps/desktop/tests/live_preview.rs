@@ -330,10 +330,15 @@ fn checkboxes_draw_their_state_and_know_the_pointer(cx: &mut TestAppContext) {
     let checkbox = piece_center(&view, cx, 0, |piece| {
         matches!(piece.hit, Hit::Checkbox { .. })
     });
+    let pointer = |view: &Entity<EditorView>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |view, _| view.pointer_cursor())
+    };
     cx.simulate_mouse_move(checkbox, None, Modifiers::none());
     assert_eq!(hovered(&view, cx), Some(2), "the open task's marker");
+    assert_eq!(pointer(&view, cx), gpui::CursorStyle::PointingHand);
     cx.simulate_mouse_move(point(px(1.), px(1.)), None, Modifiers::none());
     assert_eq!(hovered(&view, cx), None);
+    assert_eq!(pointer(&view, cx), gpui::CursorStyle::IBeam);
 }
 
 #[gpui::test]
@@ -717,6 +722,36 @@ fn table_cells_show_rendered_math_on_the_text_baseline(cx: &mut TestAppContext) 
         two.x >= math.right(),
         "the column after the equation starts past it"
     );
+}
+
+#[gpui::test]
+fn table_cells_wrap_within_their_columns_and_keep_math_whole(cx: &mut TestAppContext) {
+    let long = long_paragraph();
+    let tex = "a+b+c";
+    let note = format!(
+        "| name | meaning | formula |\n| --- | --- | --- |\n| wave | {long} | ${tex}$ |\n\nend"
+    );
+    let (view, cx) = open(cx, &note);
+    place_cursor(&view, cx, note.len());
+    cx.run_until_parked();
+    let column = view.read_with(cx, |view, _| view.frame().unwrap().column_width);
+    let line = visual(&view, cx, 0);
+    let widest = line.pieces().map(Piece::right).fold(px(0.), Pixels::max);
+    assert!(
+        widest <= column + px(0.01),
+        "{widest:?} spills past {column:?}"
+    );
+    let text_tops: std::collections::BTreeSet<i32> = line
+        .pieces()
+        .filter(|piece| piece.is_text())
+        .map(|piece| f32::from(piece.top) as i32)
+        .collect();
+    assert!(text_tops.len() > 3, "the long cell takes several lines");
+    let math = line
+        .pieces()
+        .find(|piece| matches!(piece.content, PieceContent::Image { .. }))
+        .expect("the equation is drawn");
+    assert_eq!(math.width, px(4. * tex.len() as f32), "in one piece");
 }
 
 #[gpui::test]

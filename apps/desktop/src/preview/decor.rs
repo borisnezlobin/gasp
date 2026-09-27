@@ -57,7 +57,21 @@ pub fn line_frame(
     for style in &plan.line_styles {
         builder.block_style(style);
     }
+    builder.block_margin();
     builder.frame
+}
+
+/// Whether a node draws a surface behind its lines.
+fn has_surface(kind: &NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::Frontmatter | NodeKind::Conflict | NodeKind::CodeBlock(_) | NodeKind::Callout(_)
+    )
+}
+
+/// A line with nothing on it but quote markers.
+fn is_blank(line: &str) -> bool {
+    line.chars().all(|ch| ch.is_whitespace() || ch == '>')
 }
 
 impl<'a> FrameBuilder<'a> {
@@ -95,6 +109,44 @@ impl<'a> FrameBuilder<'a> {
             width: (self.column - left).max(px(0.)),
             color,
         });
+    }
+
+    /// The blocks with surfaces that contain `line`'s start, by where
+    /// they start.
+    fn surface_blocks(&self, line: usize) -> Vec<usize> {
+        let tree = self.source.tree();
+        let start = self.source.line_range(line).start;
+        tree.path_at(start)
+            .into_iter()
+            .map(|id| tree.node(id))
+            .filter(|node| has_surface(&node.kind))
+            .map(|node| node.range.start)
+            .collect()
+    }
+
+    /// Room between a block with a surface and text written right
+    /// against it, with no blank line between, so the block doesn't sit
+    /// flush on the text. It goes above the first line that differs from
+    /// the line before: the block's first line, or the text after it.
+    fn block_margin(&mut self) {
+        let line = self.plan.line;
+        if line == 0 || is_blank(self.source.line_text(line)) {
+            return;
+        }
+        let above = line - 1;
+        if is_blank(self.source.line_text(above))
+            || self.surface_blocks(above) == self.surface_blocks(line)
+        {
+            return;
+        }
+        // Room a heading already leaves above counts; a block's inner
+        // padding doesn't.
+        let room = match self.frame.decor.surfaces.is_empty() {
+            true => self.frame.pad_top,
+            false => px(0.),
+        };
+        let margin = self.theme.space_md - room;
+        self.frame.decor.margin_top = margin.max(px(0.));
     }
 
     fn quote_style(&mut self, style: &LineStyle) {
@@ -234,6 +286,23 @@ impl<'a> FrameBuilder<'a> {
         self.frame.left = left + theme.space_md;
         self.frame.right = self.frame.right.max(theme.space_md);
         self.pad_edges(node, theme.space_sm);
+        // While the fences hide, the first and last properties are the
+        // block's edges.
+        let is_property = self
+            .plan
+            .line_styles
+            .iter()
+            .any(|style| matches!(style, LineStyle::Property { .. }));
+        if is_property {
+            let first = self.source.line_of(node.range.start);
+            let last = self.source.line_of(node.range.end);
+            if self.plan.line == first + 1 {
+                self.frame.pad_top = self.frame.pad_top.max(theme.space_sm);
+            }
+            if self.plan.line + 1 == last {
+                self.frame.pad_bottom = self.frame.pad_bottom.max(theme.space_sm);
+            }
+        }
     }
 }
 
@@ -285,6 +354,39 @@ mod tests {
         assert_eq!(header.decor.surfaces[0].group, body.decor.surfaces[0].group);
         assert!(header.pad_top > px(0.) && body.pad_bottom > px(0.));
         assert_eq!(header.pad_bottom, px(0.));
+    }
+
+    #[test]
+    fn blocks_keep_apart_from_text_written_against_them() {
+        let theme = Theme::default();
+        let margins = |text: &str| -> Vec<Pixels> {
+            frames(text)
+                .iter()
+                .map(|frame| frame.decor.margin_top)
+                .collect()
+        };
+        let m = theme.space_md;
+        let zero = px(0.);
+        // Text right after the properties, and a code block right after text.
+        assert_eq!(
+            margins("---\na: 1\n---\nText\n```\ncode\n```\nMore"),
+            [zero, zero, zero, m, m, zero, zero, m]
+        );
+        assert_eq!(
+            margins("<<<<<<< a\nmine\n=======\ntheirs\n>>>>>>> b\nText"),
+            [zero, zero, zero, zero, zero, m]
+        );
+        // A blank line already keeps them apart, and a heading has its own room.
+        assert_eq!(margins("> [!note]\n> body\n\nText"), [zero; 4]);
+        assert_eq!(margins("> [!note]\n> body\n## Heading")[2], zero);
+    }
+
+    #[test]
+    fn hidden_fences_leave_the_properties_padded() {
+        let frames = frames("---\na: 1\nb: 2\n---\n\nText");
+        assert!(frames[1].pad_top > px(0.));
+        assert_eq!(frames[1].pad_bottom, px(0.));
+        assert!(frames[2].pad_bottom > px(0.));
     }
 
     #[test]

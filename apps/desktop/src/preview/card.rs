@@ -1,13 +1,15 @@
 //! A link card: a web page's title, description and address on a quiet
 //! surface, with its preview image on the right. The card keeps its size
 //! while the image downloads, so nothing moves when it arrives. Clicking
-//! it opens the page.
+//! it puts the cursor in its source, as clicking any widget does; its
+//! Open button, or Mod+click, opens the page.
 
 use std::ops::Range;
 
 use editor_core::link_card::LinkCard;
 use gpui::{Font, Hsla, Pixels, TextRun, px};
 
+use crate::icons::IconName;
 use crate::line_layout::{Hit, Piece, PieceContent};
 use crate::preview::layout::LineLayouter;
 
@@ -80,13 +82,50 @@ impl LineLayouter<'_, '_> {
         let footer_top = top + height - pad - self.small_style(theme.text_faint).line_height;
         pieces.extend(self.card_footer(range, card, (text_left, footer_top), text_width));
         pieces.push(self.spacer(range, left, top + height + theme.space_sm));
-        let hit = Hit::Link {
+        let hit = Hit::Card {
             url: card.url.clone(),
         };
         for piece in &mut pieces {
             piece.hit = hit.clone();
         }
+        pieces.extend(self.open_button(range, &card.url, (left + width, top)));
         pieces
+    }
+
+    /// The Open button at the card's top right, shaped like a code
+    /// block's copy button. The editor draws it only while the pointer is
+    /// over the card.
+    fn open_button(
+        &self,
+        range: &Range<usize>,
+        url: &str,
+        (right, top): (Pixels, Pixels),
+    ) -> [Piece; 2] {
+        let theme = self.theme();
+        let icon = crate::code_copy::copy_icon_size(theme);
+        let side = icon + theme.space_sm * 3.;
+        let (x, y) = (right - theme.space_sm - side, top + theme.space_sm);
+        let hit = Hit::Link {
+            url: url.to_owned(),
+        };
+        let square = Piece {
+            hit: hit.clone(),
+            ..self.card_quad(range, (x, y), (side, side), theme.surface, theme.radius_sm)
+        };
+        let inset = (side - icon) / 2.;
+        let glyph = Piece {
+            range: range.clone(),
+            x: x + inset,
+            top: y + inset,
+            width: icon,
+            height: icon,
+            content: PieceContent::Icon {
+                path: IconName::ArrowSquareOut.path(),
+                color: theme.text_muted,
+            },
+            hit,
+        };
+        [square, glyph]
     }
 
     fn small_style(&self, color: Hsla) -> Style {

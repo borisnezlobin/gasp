@@ -153,7 +153,8 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
     fn row_builder(&self) -> RowBuilder {
         let strut = self.strut(&self.line_font(), self.font_size(), self.line_height());
         let limit = self.context.column_width - self.frame.right;
-        RowBuilder::new(self.frame.left, limit, self.frame.pad_top, strut)
+        let top = self.frame.pad_top + self.frame.decor.margin_top;
+        RowBuilder::new(self.frame.left, limit, top, strut)
     }
 
     fn place_items(&mut self, line: &LineItems, builder: &mut RowBuilder) {

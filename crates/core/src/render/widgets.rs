@@ -263,6 +263,10 @@ pub(crate) fn marker_widget(
             })
         }
         (MarkupKind::ConflictMarker, NodeKind::Conflict) => conflict_label(&node.markup, token),
+        // `[[#Heading]]` names a heading in this note: it just hides.
+        (MarkupKind::WikiSubpath, NodeKind::WikiLink(_)) => {
+            (token.range.start != node.range.start + 2).then_some(WidgetKind::SubpathSeparator)
+        }
         _ => None,
     }
 }

@@ -335,10 +335,12 @@ impl CalloutColors {
 }
 
 impl Default for Theme {
-    /// The built-in theme at the built-in base font size.
+    /// The built-in theme at the built-in base font size, built once:
+    /// every pane and editor starts from it.
     fn default() -> Self {
-        let config = Config::defaults();
-        Self::from_config(&config, false)
+        static DEFAULT: std::sync::LazyLock<Theme> =
+            std::sync::LazyLock::new(|| Theme::from_config(&Config::defaults(), false));
+        DEFAULT.clone()
     }
 }
 

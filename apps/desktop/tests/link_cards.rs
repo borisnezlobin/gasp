@@ -6,9 +6,16 @@ use editor_config::{Platform, RuleSet};
 use editor_core::link_card::LinkCard;
 use editor_desktop::EditorView;
 use editor_desktop::actions::bind_keys;
+use editor_desktop::editor::EditorEvent;
 use editor_desktop::keymap::editor_bindings;
+use editor_desktop::line_layout::Hit;
 use editor_desktop::link_cards::OfferState;
-use gpui::{ClipboardItem, Entity, Focusable, Modifiers, TestAppContext, VisualTestContext};
+use gpui::{
+    Bounds, ClipboardItem, CursorStyle, Entity, Focusable, Modifiers, Pixels, TestAppContext,
+    VisualTestContext, point, size,
+};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 const URL: &str = "https://physics.example.org/waves";
 
@@ -100,7 +107,7 @@ fn the_chip_turns_the_line_into_a_card(cx: &mut TestAppContext) {
                 placed.visual.rows.iter().any(|row| {
                     row.pieces
                         .iter()
-                        .any(|piece| matches!(&piece.hit, editor_desktop::line_layout::Hit::Link { url } if url == URL))
+                        .any(|piece| matches!(&piece.hit, Hit::Card { url } if url == URL))
                 })
             })
         })
@@ -137,4 +144,90 @@ fn a_page_that_cant_be_reached_leaves_the_address(cx: &mut TestAppContext) {
         .advance_clock(std::time::Duration::from_secs(5));
     cx.run_until_parked();
     assert_eq!(offer(&view, cx), None);
+}
+
+/// Where the first piece `want` accepts is drawn, in the window.
+fn piece_bounds(
+    view: &Entity<EditorView>,
+    cx: &mut VisualTestContext,
+    want: fn(&Hit) -> bool,
+) -> Option<Bounds<Pixels>> {
+    view.read_with(cx, |view, _| {
+        let frame = view.frame()?;
+        frame.lines.iter().find_map(|placed| {
+            placed.visual.rows.iter().find_map(|row| {
+                row.pieces
+                    .iter()
+                    .find(|piece| want(&piece.hit))
+                    .map(|piece| {
+                        Bounds::new(
+                            point(frame.text_left + piece.x, placed.top + row.top + piece.top),
+                            size(piece.width, piece.height),
+                        )
+                    })
+            })
+        })
+    })
+}
+
+fn opened(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> Rc<RefCell<Vec<String>>> {
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let sink = seen.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(view, move |_, event: &EditorEvent, _| {
+            if let EditorEvent::OpenLink(url) = event {
+                sink.borrow_mut().push(url.clone());
+            }
+        })
+        .detach()
+    });
+    seen
+}
+
+#[gpui::test]
+fn a_card_opens_from_its_button_or_mod_click_and_a_click_edits_it(cx: &mut TestAppContext) {
+    let note = format!("Intro\n\n```embed\ntitle: \"Waves\"\nurl: \"{URL}\"\n```\n\nAfter.");
+    let (view, cx) = open(cx, &note, 0);
+    let seen = opened(&view, cx);
+    let card = piece_bounds(&view, cx, |hit| matches!(hit, Hit::Card { .. })).expect("a card");
+    let middle = point(card.left() + card.size.width / 3., card.center().y);
+    cx.simulate_mouse_move(middle, None, Modifiers::none());
+    cx.run_until_parked();
+    let (hovered, cursor) =
+        view.read_with(cx, |view, _| (view.hovered_card(), view.pointer_cursor()));
+    assert_eq!(hovered.map(|(_, on_button)| on_button), Some(false));
+    assert_eq!(cursor, CursorStyle::Arrow, "the card itself isn't a button");
+    cx.simulate_mouse_move(middle, None, Modifiers::secondary_key());
+    cx.run_until_parked();
+    let cursor = view.read_with(cx, |view, _| view.pointer_cursor());
+    assert_eq!(cursor, CursorStyle::PointingHand, "Mod makes it a link");
+
+    let button = piece_bounds(&view, cx, |hit| matches!(hit, Hit::Link { .. })).expect("a button");
+    cx.simulate_mouse_move(button.center(), None, Modifiers::none());
+    cx.run_until_parked();
+    let (hovered, cursor) =
+        view.read_with(cx, |view, _| (view.hovered_card(), view.pointer_cursor()));
+    assert_eq!(hovered.map(|(_, on_button)| on_button), Some(true));
+    assert_eq!(cursor, CursorStyle::PointingHand);
+    cx.simulate_click(button.center(), Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(seen.borrow().as_slice(), [URL.to_string()]);
+
+    cx.simulate_click(middle, Modifiers::secondary_key());
+    cx.run_until_parked();
+    assert_eq!(seen.borrow().len(), 2, "Mod+click opens the page");
+
+    cx.simulate_click(middle, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(seen.borrow().len(), 2, "a plain click doesn't");
+    let cursor = view.read_with(cx, |view, _| view.cursor());
+    let block = note.find("```embed").unwrap()..note.find("\n\nAfter").unwrap();
+    assert!(
+        block.contains(&cursor) || cursor == block.end,
+        "the cursor is in the card's source"
+    );
+    assert!(
+        piece_bounds(&view, cx, |hit| matches!(hit, Hit::Card { .. })).is_none(),
+        "and the source shows"
+    );
 }

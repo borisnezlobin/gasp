@@ -61,6 +61,12 @@ pub(crate) fn add_markup(node: &mut Node, text: &str, embed: bool) {
     let inner_start = start + parts.open_len;
     let inner_end = inner_start + parts.inner.len();
     node.add_markup(MarkupKind::WikiBracket, start..inner_start);
+    if !embed && parts.pipe.is_none() {
+        for (at, _) in parts.inner.match_indices('#') {
+            let at = inner_start + at;
+            node.add_markup(MarkupKind::WikiSubpath, at..at + 1);
+        }
+    }
     if let Some(pipe) = parts.pipe.map(|at| inner_start + at) {
         let has_size =
             matches!(&node.kind, super::kinds::NodeKind::Embed(info) if info.size.is_some());

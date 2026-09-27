@@ -322,6 +322,9 @@ pub enum MarkupKind {
     WikiBracket,
     /// `target#heading|` when a wikilink has an alias.
     WikiTarget,
+    /// Each `#` before a heading or `^block` in a wikilink without an
+    /// alias, drawn as a separator between the note and the heading.
+    WikiSubpath,
     /// `|300` on an embed.
     EmbedSize,
     /// `[^`, `]` and `]:` around footnote labels.
@@ -403,6 +406,7 @@ const MARKUP_SYNTAX: &[(MarkupKind, SyntaxKind)] = &[
     (MarkupKind::LinkDestination, SyntaxKind::LinkUrl),
     (MarkupKind::WikiBracket, SyntaxKind::WikiLink),
     (MarkupKind::WikiTarget, SyntaxKind::LinkUrl),
+    (MarkupKind::WikiSubpath, SyntaxKind::WikiLink),
     (MarkupKind::EmbedSize, SyntaxKind::Image),
     (MarkupKind::FootnoteMarker, SyntaxKind::Footnote),
     (MarkupKind::CodeFence, SyntaxKind::CodeBlock),
@@ -439,7 +443,7 @@ mod tests {
 
     #[test]
     fn every_markup_kind_has_a_syntax_kind() {
-        assert_eq!(MARKUP_SYNTAX.len(), 26);
+        assert_eq!(MARKUP_SYNTAX.len(), 27);
         assert_eq!(MarkupKind::WikiTarget.syntax_kind(), SyntaxKind::LinkUrl);
     }
 }

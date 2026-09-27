@@ -95,6 +95,15 @@ pub struct EditorView {
     /// Where the marker of the task under the pointer starts, so its box
     /// can show it's clickable.
     pub(crate) hovered_task: Option<usize>,
+    /// The line of the link card under the pointer, and whether the
+    /// pointer is on its Open button.
+    pub(crate) hovered_card: Option<(usize, bool)>,
+    /// What the pointer shows over the text: a hand over controls and
+    /// over links while Mod is held, an arrow over other widgets.
+    pub(crate) pointer_cursor: gpui::CursorStyle,
+    /// Where the pointer last moved over the editor, so pressing Mod can
+    /// change what it shows without it moving.
+    pub(crate) pointer_at: Option<gpui::Point<Pixels>>,
     pub(crate) click_unit: ClickUnit,
     pub(crate) click_origin: Range<usize>,
     pub(crate) autoscroll: bool,
@@ -198,6 +207,9 @@ impl EditorView {
             goal_x: None,
             is_selecting: false,
             hovered_task: None,
+            hovered_card: None,
+            pointer_cursor: gpui::CursorStyle::IBeam,
+            pointer_at: None,
             click_unit: ClickUnit::Character,
             click_origin: 0..0,
             autoscroll: false,
@@ -298,6 +310,17 @@ impl EditorView {
     /// Where the marker of the task under the pointer starts.
     pub fn hovered_task(&self) -> Option<usize> {
         self.hovered_task
+    }
+
+    /// The pointer's look over the editor right now.
+    pub fn pointer_cursor(&self) -> gpui::CursorStyle {
+        self.pointer_cursor
+    }
+
+    /// The link card under the pointer: its line, and whether the pointer
+    /// is on its Open button.
+    pub fn hovered_card(&self) -> Option<(usize, bool)> {
+        self.hovered_card
     }
 
     pub fn anchor(&self) -> usize {

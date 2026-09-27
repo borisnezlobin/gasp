@@ -78,7 +78,10 @@ impl EditorView {
         if !self.read_only {
             window.focus(&self.focus_handle);
         }
-        if self.click_copy_button(event.position, cx) || self.click_widget(event.position, cx) {
+        let secondary = event.modifiers.secondary();
+        if self.click_copy_button(event.position, cx)
+            || self.click_widget(event.position, secondary, cx)
+        {
             return;
         }
         let offset = self.offset_for_point(event.position, window);
@@ -115,9 +118,15 @@ impl EditorView {
         }
     }
 
-    /// Clicks on a checkbox or a callout's fold control act on it instead
-    /// of placing the cursor.
-    fn click_widget(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) -> bool {
+    /// Clicks on a checkbox, a callout's fold control or a card's Open
+    /// button act on it instead of placing the cursor, as Mod+click on a
+    /// link card does.
+    fn click_widget(
+        &mut self,
+        position: Point<Pixels>,
+        secondary: bool,
+        cx: &mut Context<Self>,
+    ) -> bool {
         let hit = self
             .frame
             .as_ref()
@@ -128,6 +137,7 @@ impl EditorView {
             Some(Hit::Checkbox { marker }) => self.toggle_task(marker, cx),
             Some(Hit::Fold { header, folded }) => self.toggle_fold(header, folded, cx),
             Some(Hit::Link { url }) => cx.emit(EditorEvent::OpenLink(url)),
+            Some(Hit::Card { url }) if secondary => cx.emit(EditorEvent::OpenLink(url)),
             _ => return false,
         }
         true
@@ -150,19 +160,45 @@ impl EditorView {
             let over = self.hover_target_at_point(event.position);
             self.hover_moved(over, event.modifiers.secondary(), cx);
         }
-        let hovered = self
-            .frame
-            .as_ref()
-            .and_then(|frame| frame.piece_at(event.position))
-            .and_then(|(_, piece)| match &piece.hit {
-                Hit::Checkbox { marker } => Some(marker.start),
-                _ => None,
-            });
-        if hovered != self.hovered_task {
-            self.hovered_task = hovered;
+        self.pointer_at = Some(event.position);
+        self.point_at(event.modifiers.secondary(), cx);
+        self.hover_code(Some(event.position), cx);
+    }
+
+    /// Follows what's under the pointer: the task box and link card that
+    /// show they're clickable, and the pointer's look. Redraws only when
+    /// one of them changes.
+    fn point_at(&mut self, secondary: bool, cx: &mut Context<Self>) {
+        let under = self
+            .pointer_at
+            .zip(self.frame.as_ref())
+            .and_then(|(position, frame)| frame.piece_at(position))
+            .map(|(placed, piece)| (placed.visual.line, piece.hit.clone()));
+        let task = match &under {
+            Some((_, Hit::Checkbox { marker })) => Some(marker.start),
+            _ => None,
+        };
+        let card = match &under {
+            Some((line, Hit::Card { .. })) => Some((*line, false)),
+            Some((line, Hit::Link { .. })) => Some((*line, true)),
+            _ => None,
+        };
+        let on_link = || {
+            self.pointer_at
+                .zip(self.frame.as_ref())
+                .and_then(|(position, frame)| frame.offset_at(position))
+                .and_then(|offset| self.link_at(offset))
+                .is_some()
+        };
+        let cursor = pointer_style(under.as_ref().map(|(_, hit)| hit), secondary, on_link);
+        let changed =
+            (task, card, cursor) != (self.hovered_task, self.hovered_card, self.pointer_cursor);
+        if changed {
+            self.hovered_task = task;
+            self.hovered_card = card;
+            self.pointer_cursor = cursor;
             cx.notify();
         }
-        self.hover_code(Some(event.position), cx);
     }
 
     /// The pointer left the editor: link previews and code copy buttons
@@ -171,6 +207,8 @@ impl EditorView {
         if !*hovered {
             self.hover_left(cx);
             self.hover_code(None, cx);
+            self.pointer_at = None;
+            self.point_at(false, cx);
         }
     }
 
@@ -181,12 +219,26 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         self.hover_modifiers_changed(event.modifiers.secondary(), cx);
+        self.point_at(event.modifiers.secondary(), cx);
     }
 
     fn on_scroll(&mut self, event: &ScrollWheelEvent, _: &mut Window, cx: &mut Context<Self>) {
         self.close_preview(cx);
         let delta = event.delta.pixel_delta(self.theme.body_line_height());
         self.scroll_by(-delta.y, cx);
+    }
+}
+
+/// A hand where a click acts (and over links and cards while Mod is
+/// held, as Mod+click opens them), an arrow over a card, which a click
+/// selects rather than types into, and a text cursor elsewhere.
+fn pointer_style(hit: Option<&Hit>, secondary: bool, on_link: impl Fn() -> bool) -> CursorStyle {
+    match hit {
+        Some(hit) if hit.is_control() => CursorStyle::PointingHand,
+        Some(Hit::Card { .. }) if secondary => CursorStyle::PointingHand,
+        Some(Hit::Card { .. }) => CursorStyle::Arrow,
+        _ if secondary && on_link() => CursorStyle::PointingHand,
+        _ => CursorStyle::IBeam,
     }
 }
 
@@ -206,7 +258,7 @@ impl Render for EditorView {
             .size_full()
             .key_context(KEY_CONTEXT)
             .track_focus(&self.focus_handle)
-            .cursor(CursorStyle::IBeam)
+            .cursor(self.pointer_cursor)
             .bg(self.theme.background)
             .on_action(cx.listener(Self::on_run_command))
             .on_key_down(cx.listener(Self::on_key_down))

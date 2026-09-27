@@ -113,10 +113,27 @@ pub enum Hit {
         header: usize,
         folded: bool,
     },
-    /// Opens this address, as a link card does.
+    /// A link card: a click puts the cursor in its source, Mod+click
+    /// opens the page.
+    Card {
+        url: String,
+    },
+    /// Opens this address, as a link card's Open button does. Drawn only
+    /// while the pointer is over its card.
     Link {
         url: String,
     },
+}
+
+impl Hit {
+    /// Whether a click here acts rather than placing the cursor, so the
+    /// pointer shows a hand.
+    pub fn is_control(&self) -> bool {
+        matches!(
+            self,
+            Hit::Checkbox { .. } | Hit::Fold { .. } | Hit::Link { .. }
+        )
+    }
 }
 
 /// A laid-out piece of a row.
@@ -295,6 +312,9 @@ pub struct LineDecor {
     /// Pieces in the line's margin, such as code line numbers. Their tops
     /// are relative to the line's top.
     pub gutter: Vec<Piece>,
+    /// Space above the line where a block starts or ends, outside the
+    /// surface of a block that starts here.
+    pub margin_top: Pixels,
 }
 
 /// One source line, laid out.
@@ -387,11 +407,21 @@ impl VisualLine {
         }
     }
 
-    /// The piece under a point relative to the line's top-left.
+    /// The piece under a point relative to the line's top-left. In a
+    /// block, where pieces stack, the one drawn last wins.
     pub fn piece_at_point(&self, x: Pixels, y: Pixels) -> Option<&Piece> {
         let row = &self.rows[self.row_at_y(y)?];
         let inside = y >= row.top && y < row.bottom();
-        inside.then(|| row.piece_at(x)).flatten()
+        if !inside {
+            return None;
+        }
+        let y = y - row.top;
+        let stacked = (row.kind == RowKind::Block).then(|| {
+            row.pieces.iter().rev().find(|piece| {
+                piece.x <= x && x < piece.right() && piece.top <= y && y < piece.top + piece.height
+            })
+        });
+        stacked.flatten().or_else(|| row.piece_at(x))
     }
 }
 
