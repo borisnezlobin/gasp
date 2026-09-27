@@ -97,6 +97,9 @@ impl<'a> Planner<'a> {
             self.revealed_extras(id);
         }
         self.add_node_styles(id);
+        if self.node(id).kind == NodeKind::Frontmatter {
+            self.frontmatter_properties(id);
+        }
         let markup = self.node(id).markup.clone();
         for token in &markup {
             self.markup_effect(id, token);
@@ -272,6 +275,36 @@ impl<'a> Planner<'a> {
             .count()
     }
 
+    /// Property names in the frontmatter are muted. While its symbols are
+    /// hidden, each line is a property row: the colon after a name hides
+    /// and the app sets values in a column.
+    fn frontmatter_properties(&mut self, id: NodeId) {
+        let node = self.node(id);
+        let (text, tree) = (self.revealer.text, self.revealer.tree);
+        let revealed = self.revealer.revealed(id, SyntaxKind::Frontmatter, None);
+        let lines = self.lines_of(&node.range);
+        for line in lines.start + 1..lines.end.saturating_sub(1) {
+            let range = tree.lines().line_range(text, line);
+            let key = property_key(&text[range.clone()]);
+            if let Some((name, _)) = key {
+                let name = range.start..range.start + name;
+                self.effects.spans.push((name, StyleKey::FrontmatterKey));
+            }
+            if revealed {
+                continue;
+            }
+            if let Some((name, value)) = key {
+                self.effects
+                    .hidden
+                    .push(range.start + name..range.start + value);
+            }
+            let style = LineStyle::Property {
+                keyed: key.is_some(),
+            };
+            self.effects.line_styles.push((line..line + 1, style));
+        }
+    }
+
     /// Tables reveal their pipes as a whole; other markup reveals with its node.
     fn reveal_owner(&self, id: NodeId, kind: MarkupKind) -> NodeId {
         if kind != MarkupKind::TablePipe {
@@ -367,6 +400,23 @@ fn simple_line_style(kind: &NodeKind) -> Option<LineStyle> {
         _ => return None,
     };
     Some(style)
+}
+
+/// Where a top-level YAML key on `line` ends and its value starts: `name:`
+/// followed by a space or the line's end. Indented lines, list items and
+/// comments have none.
+fn property_key(line: &str) -> Option<(usize, usize)> {
+    let first = line.chars().next()?;
+    if first.is_whitespace() || matches!(first, '-' | '#' | '[' | '{') {
+        return None;
+    }
+    let colon = line.find(':')?;
+    let rest = &line[colon + 1..];
+    if !rest.is_empty() && !rest.starts_with([' ', '\t']) {
+        return None;
+    }
+    let value = colon + 1 + (rest.len() - rest.trim_start().len());
+    Some((colon, value))
 }
 
 /// `$$` with nothing inside stays literal text, though it counts as math

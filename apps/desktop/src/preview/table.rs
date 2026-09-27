@@ -12,11 +12,11 @@ use editor_core::render::{
     LinePlan, RenderInput, RevealMode, RevealSettings, StyleKey, WidgetKind, plan_lines,
 };
 use editor_core::syntax::{Alignment, SyntaxKind};
-use gpui::{Hsla, Pixels, ShapedLine, TextRun, px};
+use gpui::{Hsla, Pixels, TextRun, px};
 
-use crate::line_layout::{Hit, Piece, PieceContent, TextPiece};
+use crate::line_layout::{Background, Hit, Piece, PieceContent, TextPiece};
 use crate::preview::items::{Item, line_items};
-use crate::preview::layout::LineLayouter;
+use crate::preview::layout::{LineLayouter, take_backgrounds};
 use crate::preview::math::{MathImage, MathState};
 use crate::preview::wrap::Extent;
 use crate::styling::{LineTone, run_font_size, text_run};
@@ -30,7 +30,7 @@ pub struct TableSpec<'a> {
 
 /// Something drawn in a cell.
 enum FragmentContent {
-    Text(Box<ShapedLine>),
+    Text(Box<TextPiece>),
     Math(Arc<MathImage>),
 }
 
@@ -71,6 +71,7 @@ impl Cell {
 struct PendingText {
     text: String,
     runs: Vec<TextRun>,
+    backgrounds: Vec<Background>,
     font_size: Option<Pixels>,
 }
 
@@ -250,8 +251,15 @@ impl LineLayouter<'_, '_> {
             self.flush(cell, pending);
         }
         pending.font_size = Some(font_size);
+        let mut runs = [run];
+        take_backgrounds(
+            &mut runs,
+            pending.text.len(),
+            styles,
+            &mut pending.backgrounds,
+        );
         pending.text.push_str(text);
-        pending.runs.push(run);
+        pending.runs.extend(runs);
     }
 
     fn flush(&self, cell: &mut Cell, pending: &mut PendingText) {
@@ -264,7 +272,19 @@ impl LineLayouter<'_, '_> {
         let line_height = font_size * self.theme().line_height_factor;
         let extent = Extent::of_text(&shaped, line_height);
         let width = shaped.width;
-        cell.push(FragmentContent::Text(Box::new(shaped)), width, extent);
+        let height = extent.ascent + extent.descent;
+        let padding = match pending
+            .backgrounds
+            .iter()
+            .any(|background| background.padded)
+        {
+            true => self.theme().inline_code_padding,
+            false => px(0.),
+        };
+        let text = TextPiece::whole(shaped, height).with_backgrounds(pending.backgrounds);
+        cell.width += padding;
+        cell.push(FragmentContent::Text(Box::new(text)), width, extent);
+        cell.width += padding;
     }
 
     /// An equation in a cell: rendered when ready, its source until then,
@@ -357,10 +377,9 @@ fn cell_pieces(
     cell.fragments.into_iter().map(move |fragment| {
         let top = baseline - fragment.extent.ascent;
         let (content, height) = match fragment.content {
-            FragmentContent::Text(shaped) => {
-                let height = fragment.extent.ascent + fragment.extent.descent;
-                let text = TextPiece::whole(*shaped, height);
-                (PieceContent::Text(Box::new(text)), height)
+            FragmentContent::Text(text) => {
+                let height = text.line_height;
+                (PieceContent::Text(text), height)
             }
             FragmentContent::Math(image) => (
                 PieceContent::Image {
@@ -384,6 +403,8 @@ fn cell_pieces(
 
 #[cfg(test)]
 mod tests {
+    use gpui::ShapedLine;
+
     use super::*;
 
     #[test]
@@ -413,8 +434,16 @@ mod tests {
             ascent: px(8.),
             descent: px(2.),
         };
-        cell.push(FragmentContent::Text(Box::default()), px(10.), short);
-        cell.push(FragmentContent::Text(Box::default()), px(5.), tall);
+        cell.push(
+            FragmentContent::Text(Box::new(TextPiece::whole(ShapedLine::default(), px(10.)))),
+            px(10.),
+            short,
+        );
+        cell.push(
+            FragmentContent::Text(Box::new(TextPiece::whole(ShapedLine::default(), px(10.)))),
+            px(5.),
+            tall,
+        );
         assert_eq!(cell.width, px(15.));
         assert_eq!(cell.fragments[1].x, px(10.));
         assert_eq!(

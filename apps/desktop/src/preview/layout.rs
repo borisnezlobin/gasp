@@ -3,11 +3,13 @@
 
 use std::ops::Range;
 
-use editor_core::render::{LinePlan, StyleKey, WidgetKind};
+use editor_core::render::{LinePlan, LineStyle, StyleKey, WidgetKind};
 use gpui::{Font, Pixels, TextRun, WindowTextSystem, px};
 
 use crate::images::ImageStore;
-use crate::line_layout::{Hit, Piece, PieceContent, RowKind, TextPiece, VisualLine, VisualRow};
+use crate::line_layout::{
+    Background, Hit, Piece, PieceContent, RowKind, TextPiece, VisualLine, VisualRow,
+};
 use crate::preview::code_highlight::{CodeHighlighter, LineSpans, spans_for_line};
 use crate::preview::decor::{LineFrame, line_frame};
 use crate::preview::items::{Item, LineItems, line_items, line_tone};
@@ -148,7 +150,15 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
 
     fn place_items(&mut self, line: &LineItems, builder: &mut RowBuilder) {
         let items = &line.items;
+        let property = property_row(self.plan);
+        if property == Some(false) {
+            self.to_value_column(builder);
+        }
         let mut index = self.place_indent(items, builder);
+        if property == Some(true) && index == 0 && !items.is_empty() {
+            index = self.place_item(items, 0, builder);
+            self.to_value_column(builder);
+        }
         let mut in_marker = true;
         while index < items.len() {
             let is_marker = matches!(
@@ -164,6 +174,14 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
             in_marker &= is_marker;
             index = self.place_item(items, index, builder);
         }
+    }
+
+    /// Moves to where a property's value starts, leaving at least a gap
+    /// after a long name.
+    fn to_value_column(&self, builder: &mut RowBuilder) {
+        let theme = self.theme();
+        let column = self.frame.left + theme.property_key_width;
+        builder.advance((column - builder.x()).max(theme.space_md));
     }
 
     /// Leading tabs and spaces become an indent, so tabs line up.
@@ -194,7 +212,10 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
             Item::Text { .. } => {
                 let (chunk, next) = self.collect_chunk(items, index);
                 if !chunk.text.is_empty() {
+                    let padding = self.chunk_padding(&chunk);
+                    builder.advance(padding);
                     builder.push_chunk(&chunk, &self.shaper());
+                    builder.advance(padding);
                 }
                 return next;
             }
@@ -218,6 +239,7 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         let start = range.start.max(indent_end).min(range.end);
         let mut end = start;
         let mut runs = Vec::new();
+        let mut backgrounds = Vec::new();
         let mut next = first;
         while let Some(Item::Text { range, styles }) = items.get(next) {
             let same_size = run_font_size(styles, &self.tone, self.theme()) == font_size;
@@ -225,7 +247,10 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
                 break;
             }
             let part = range.start.max(start)..range.end;
+            let at = part.start.saturating_sub(start);
+            let before = runs.len();
             self.push_runs(&mut runs, &part, styles);
+            take_backgrounds(&mut runs[before..], at, styles, &mut backgrounds);
             end = part.end.max(end);
             next += 1;
         }
@@ -235,8 +260,18 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
             font_size,
             line_height: font_size * self.tone.line_height_factor(self.theme()),
             runs,
+            backgrounds,
         };
         (chunk, next)
+    }
+
+    /// Room on each side of inline code, for its fill to reach into.
+    fn chunk_padding(&self, chunk: &Chunk) -> Pixels {
+        if chunk.backgrounds.iter().any(|background| background.padded) {
+            self.theme().inline_code_padding
+        } else {
+            px(0.)
+        }
     }
 
     /// Runs for `part`, split where the IME composition starts and ends
@@ -321,6 +356,42 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         piece.range = 0..0;
         self.frame.decor.gutter.push(piece);
     }
+}
+
+/// Moves the fills of `runs`, which start `at` bytes into their chunk,
+/// into `backgrounds`, joining one that continues the last.
+pub(super) fn take_backgrounds(
+    runs: &mut [TextRun],
+    mut at: usize,
+    styles: &[StyleKey],
+    backgrounds: &mut Vec<Background>,
+) {
+    let padded = crate::styling::is_code(styles);
+    for run in runs {
+        let range = at..at + run.len;
+        at = range.end;
+        let Some(color) = run.background_color.take() else {
+            continue;
+        };
+        match backgrounds.last_mut() {
+            Some(last) if last.range.end == range.start && last.color == color => {
+                last.range.end = range.end;
+            }
+            _ => backgrounds.push(Background {
+                range,
+                color,
+                padded,
+            }),
+        }
+    }
+}
+
+/// Whether the line is a property row, and whether it starts with a name.
+fn property_row(plan: &LinePlan) -> Option<bool> {
+    plan.line_styles.iter().find_map(|style| match style {
+        LineStyle::Property { keyed } => Some(*keyed),
+        _ => None,
+    })
 }
 
 /// Columns of leading indentation, and the byte length they span.

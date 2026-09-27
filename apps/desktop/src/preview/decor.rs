@@ -162,7 +162,19 @@ impl<'a> FrameBuilder<'a> {
         match *style {
             LineStyle::CodeBlock { index } => self.code_line(index),
             LineStyle::Frontmatter => self.frontmatter(),
+            LineStyle::Heading(level) => self.heading(level),
             _ => {}
+        }
+    }
+
+    /// Room above a heading's first line, so it sits nearer the text it
+    /// introduces than the text before it.
+    fn heading(&mut self, level: u8) {
+        let theme = self.theme;
+        let headings = self.enclosing(|kind| matches!(kind, NodeKind::Heading { .. }));
+        if headings.last().is_some_and(|node| self.is_first_line(node)) {
+            let space = theme.font_size(level) * theme.heading_space_above;
+            self.frame.pad_top = self.frame.pad_top.max(space);
         }
     }
 

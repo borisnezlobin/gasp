@@ -155,6 +155,7 @@ impl LineLayouter<'_, '_> {
             font_size,
             line_height: self.line_height(),
             runs: vec![run],
+            backgrounds: Vec::new(),
         };
         builder.push_chunk(&chunk, &self.shaper());
     }
@@ -195,29 +196,23 @@ impl LineLayouter<'_, '_> {
         self.theme().list_marker_width * (self.font_size() / self.theme().body_font_size)
     }
 
+    /// A task's box, centred on the text's x-height like a bullet.
     fn checkbox(&mut self, range: &Range<usize>, checked: bool, builder: &mut RowBuilder) {
         let theme = self.theme();
-        let size = self.font_size();
-        let (icon, color) = if checked {
-            (IconName::CheckSquare, theme.accent)
-        } else {
-            (IconName::Square, theme.text_muted)
-        };
+        let side = theme.checkbox_size * (self.font_size() / theme.body_font_size);
         let mut piece = blank_piece(
             range.clone(),
             self.marker_slot(),
-            size,
-            PieceContent::Icon {
-                path: icon.path(),
-                color,
-            },
+            side,
+            PieceContent::Checkbox { checked },
         );
         piece.hit = Hit::Checkbox {
             marker: self.absolute(range),
         };
+        let lift = self.font_size() * 0.3;
         let extent = Extent {
-            ascent: size * 0.85,
-            descent: size * 0.15,
+            ascent: lift + side / 2.,
+            descent: side / 2. - lift,
         };
         builder.push_atomic(piece, extent);
     }
@@ -254,8 +249,14 @@ impl LineLayouter<'_, '_> {
             self.line_height(),
         );
         piece.range = range.clone();
-        piece.width = piece.width.max(slot);
+        // Numbers end where a bullet does and the text starts at the same
+        // place after either; a long number hangs out to the left, as
+        // numbers set outside a list do.
+        let bullet = theme.bullet_size * (self.font_size() / theme.body_font_size);
+        let marker_end = (slot + bullet) / 2.;
+        builder.advance(marker_end - piece.width);
         builder.push_atomic(piece, extent);
+        builder.advance(slot - marker_end);
     }
 
     fn superscript(&mut self, range: &Range<usize>, label: &str, builder: &mut RowBuilder) {
