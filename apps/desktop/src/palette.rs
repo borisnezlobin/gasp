@@ -12,9 +12,10 @@ use gpui::{
 };
 
 use crate::picker::fuzzy::{Candidate, Matcher, Query};
-use crate::picker::shortcut::{capture_chord, is_lone_modifier, shortcut_label};
-use crate::picker::{Confirmed, Picker, PickerDelegate, highlighted_text, keycap};
+use crate::picker::shortcut::{Shortcut, capture_chord, is_lone_modifier};
+use crate::picker::{Confirmed, Picker, PickerDelegate, highlighted_text};
 use crate::theme::{InputTheme, PickerTheme, UiTheme};
+use crate::ui::keycap;
 
 /// Extra score for the most recently used command, falling by
 /// [`RECENT_STEP`] per place in the recent list.
@@ -38,8 +39,8 @@ pub struct PaletteCommand {
     pub id: String,
     pub title: String,
     pub category: String,
-    /// The shortcuts that run it, as shown on this platform.
-    pub shortcuts: Vec<String>,
+    /// The shortcuts that run it on this platform.
+    pub shortcuts: Vec<Shortcut>,
     /// Its place in the recent list, most recent first.
     pub recent_rank: Option<usize>,
     title_candidate: Candidate,
@@ -81,7 +82,7 @@ impl PaletteDelegate {
                 let shortcuts = rules
                     .keys_for(&info.id, platform)
                     .into_iter()
-                    .map(|chord| shortcut_label(chord, platform))
+                    .map(|chord| Shortcut::new(chord, platform))
                     .collect();
                 PaletteCommand {
                     id: info.id.clone(),
@@ -191,7 +192,7 @@ impl PickerDelegate for PaletteDelegate {
                 command
                     .shortcuts
                     .iter()
-                    .map(|label| keycap(label.clone(), theme)),
+                    .map(|shortcut| keycap(*shortcut, &theme.keycap)),
             )
             .into_any_element()
     }
@@ -215,7 +216,7 @@ impl PickerDelegate for PaletteDelegate {
 struct Capture {
     command: String,
     title: String,
-    current: Vec<String>,
+    current: Vec<Shortcut>,
     rejection: Option<SharedString>,
     _interceptor: Subscription,
 }
@@ -383,13 +384,8 @@ impl CommandPalette {
     }
 
     fn render_capture(&self, capture: &Capture, theme: &PickerTheme, ui: &UiTheme) -> AnyElement {
-        let now = if capture.current.is_empty() {
-            "It has no shortcut yet.".to_string()
-        } else {
-            format!("Now {}.", capture.current.join(" or "))
-        };
         let hint = capture.rejection.clone().map_or_else(
-            || div().text_color(theme.detail_text).child(now),
+            || current_keys(&capture.current, theme).text_color(theme.detail_text),
             |reason| div().text_color(theme.warning_text).child(reason),
         );
         crate::ui::dialog(ui)
@@ -425,6 +421,26 @@ impl Render for CommandPalette {
             None => self.picker.clone().into_any_element(),
         }
     }
+}
+
+/// "Now Ctrl+B or Ctrl+Shift+B.", with each shortcut drawn as keys.
+fn current_keys(current: &[Shortcut], theme: &PickerTheme) -> gpui::Div {
+    let line = div()
+        .flex()
+        .flex_wrap()
+        .items_center()
+        .gap(theme.capture_gap);
+    if current.is_empty() {
+        return line.child("It has no shortcut yet.");
+    }
+    let mut line = line.child("Now");
+    for (index, shortcut) in current.iter().enumerate() {
+        if index > 0 {
+            line = line.child("or");
+        }
+        line = line.child(keycap(*shortcut, &theme.keycap));
+    }
+    line
 }
 
 #[cfg(test)]

@@ -29,7 +29,9 @@ const FOCUS_RING_ALPHA: f32 = 0.3;
 pub const RING_BLUR: f32 = if cfg!(target_os = "macos") { 0. } else { 0.5 };
 
 /// The ring around whatever has keyboard focus: a crisp two-pixel band of
-/// `color`. Every focus ring in the app is drawn with this.
+/// `color`. Every focus ring in the app is drawn with this. It's a
+/// shadow, so it shows through a translucent fill: whatever wears it
+/// needs an opaque one (see [`over`]).
 pub fn focus_ring(color: Hsla) -> BoxShadow {
     BoxShadow {
         color,
@@ -617,9 +619,7 @@ pub struct PickerTheme {
     pub icon_size: Pixels,
     /// Indent per heading level in the outline.
     pub level_indent: Pixels,
-    pub keycap_padding_x: Pixels,
-    pub keycap_padding_y: Pixels,
-    pub keycap_corner_radius: Pixels,
+    pub keycap: KeycapTheme,
     pub shadow_blur: Pixels,
     pub shadow_offset_y: Pixels,
     pub background: Hsla,
@@ -631,8 +631,6 @@ pub struct PickerTheme {
     pub icon: Hsla,
     pub selected_row: Hsla,
     pub hovered_row: Hsla,
-    pub keycap_background: Hsla,
-    pub keycap_text: Hsla,
     pub warning_text: Hsla,
 }
 
@@ -656,9 +654,7 @@ impl Default for PickerTheme {
             detail_font_size: px(12.),
             icon_size: px(16.),
             level_indent: px(16.),
-            keycap_padding_x: px(6.),
-            keycap_padding_y: px(2.),
-            keycap_corner_radius: px(4.),
+            keycap: KeycapTheme::default(),
             shadow_blur: px(32.),
             shadow_offset_y: px(8.),
             background: hsla(0., 0., 1., 1.),
@@ -670,8 +666,6 @@ impl Default for PickerTheme {
             icon: hsla(0., 0., 0.45, 1.),
             selected_row: hsla(0., 0., 0.92, 1.),
             hovered_row: hsla(0., 0., 0.96, 1.),
-            keycap_background: hsla(0., 0., 0.94, 1.),
-            keycap_text: hsla(0., 0., 0.4, 1.),
             warning_text: hsla(0.03, 0.7, 0.42, 1.),
         }
     }
@@ -832,8 +826,6 @@ pub struct PanelTheme {
     pub content_max_width: Pixels,
     pub section_padding: Pixels,
     pub setting_gap: Pixels,
-    pub keycap_background: Hsla,
-    pub keycap_padding_y: Pixels,
 }
 
 impl Default for PanelTheme {
@@ -886,8 +878,6 @@ impl Default for PanelTheme {
             content_max_width: px(640.),
             section_padding: px(24.),
             setting_gap: px(18.),
-            keycap_background: hsla(0., 0., 0., 0.06),
-            keycap_padding_y: px(2.),
         }
     }
 }
@@ -1175,6 +1165,119 @@ pub const UI_FONT_CANDIDATES: [&str; 6] = [
     "Times New Roman",
 ];
 
+/// The face key glyphs are set in, first installed one wins: the
+/// platform's own sans, the kind printed on keyboards. Keys are glyphs,
+/// not prose, so they don't take the serif interface font.
+#[cfg(target_os = "macos")]
+pub const KEY_FONT_CANDIDATES: [&str; 1] = [".SystemUIFont"];
+#[cfg(target_os = "windows")]
+pub const KEY_FONT_CANDIDATES: [&str; 2] = ["Segoe UI", "Arial"];
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+pub const KEY_FONT_CANDIDATES: [&str; 6] = [
+    "Inter",
+    "Cantarell",
+    "Noto Sans",
+    "Liberation Sans",
+    "DejaVu Sans",
+    "FreeSans",
+];
+
+/// The first of `candidates` among `installed`, or the first candidate.
+fn first_installed(candidates: &[&str], installed: &[String]) -> SharedString {
+    candidates
+        .iter()
+        .find(|candidate| installed.iter().any(|name| name == *candidate))
+        .unwrap_or(&candidates[0])
+        .to_string()
+        .into()
+}
+
+/// How much of the text colour a keycap's fill takes.
+const KEYCAP_FILL_ALPHA: f32 = 0.075;
+/// How much of the text colour a keycap's glyphs take.
+const KEYCAP_GLYPH_ALPHA: f32 = 0.82;
+
+/// A shortcut drawn as a flat chip, the same wherever one appears: the
+/// settings screen, the palette, menus, tooltips and the help dialog.
+/// The fill and glyphs are the surface's text colour at low and high
+/// strength, so a chip reads on any background without a border or
+/// shadow.
+#[derive(Clone, Debug, PartialEq)]
+pub struct KeycapTheme {
+    pub font_family: SharedString,
+    pub font_size: Pixels,
+    pub font_weight: FontWeight,
+    pub icon_size: Pixels,
+    pub height: Pixels,
+    pub padding_x: Pixels,
+    /// Space between the keys of a chord inside one chip.
+    pub gap: Pixels,
+    pub radius: Pixels,
+    pub fill: Hsla,
+    pub glyph: Hsla,
+}
+
+impl Default for KeycapTheme {
+    fn default() -> Self {
+        KeycapTheme {
+            font_family: KEY_FONT_CANDIDATES[0].into(),
+            font_size: px(12.5),
+            font_weight: FontWeight::MEDIUM,
+            icon_size: px(12.),
+            height: px(22.),
+            padding_x: px(6.),
+            gap: px(4.),
+            radius: px(5.),
+            fill: hsla(0., 0., 0., 0.),
+            glyph: hsla(0., 0., 0., 0.),
+        }
+        .on_text(rgb(0x27272a).into())
+    }
+}
+
+impl KeycapTheme {
+    /// The chip recoloured for a surface whose text is `text`.
+    pub fn on_text(mut self, text: Hsla) -> KeycapTheme {
+        self.fill = Hsla {
+            a: text.a * KEYCAP_FILL_ALPHA,
+            ..text
+        };
+        self.glyph = Hsla {
+            a: text.a * KEYCAP_GLYPH_ALPHA,
+            ..text
+        };
+        self
+    }
+
+    /// A chip that stands out from its neighbours, such as the key a
+    /// search found: a deeper fill and full-strength glyphs.
+    pub fn emphasized(mut self) -> KeycapTheme {
+        self.fill.a *= 2.4;
+        self.glyph.a = 1.;
+        self
+    }
+
+    /// The smaller chip menus and tooltips use, where it sits beside a
+    /// label rather than standing alone.
+    pub fn compact(mut self) -> KeycapTheme {
+        self.font_size = px(11.5);
+        self.icon_size = px(11.);
+        self.height = px(18.);
+        self.padding_x = px(4.);
+        self.gap = px(3.);
+        self.radius = px(4.);
+        self
+    }
+
+    /// The default chip set in the first installed key face.
+    pub fn with_installed_fonts(installed: &[String]) -> KeycapTheme {
+        KeycapTheme {
+            font_family: first_installed(&KEY_FONT_CANDIDATES, installed),
+            ..KeycapTheme::default()
+        }
+    }
+}
+
 /// Sizes, fonts and colours for the workspace chrome and `crate::ui`.
 #[derive(Clone, Debug)]
 pub struct UiTheme {
@@ -1262,9 +1365,7 @@ pub struct UiTheme {
     pub status_height: Pixels,
     pub status_gap: Pixels,
     pub help_row_height: Pixels,
-    pub keycap_background: Hsla,
-    pub keycap_padding_x: Pixels,
-    pub keycap_radius: Pixels,
+    pub keycap: KeycapTheme,
     pub backdrop: Hsla,
     /// Secondary text that still has to be read, such as a note's folder
     /// in a list: between `text_muted` and `text_faint`.
@@ -1391,9 +1492,7 @@ impl Default for UiTheme {
             status_height: px(24.),
             status_gap: px(16.),
             help_row_height: px(32.),
-            keycap_background: hsla(0., 0., 0., 0.06),
-            keycap_padding_x: px(6.),
-            keycap_radius: px(4.),
+            keycap: KeycapTheme::default(),
             backdrop: hsla(0., 0., 0., 0.12),
             text_detail: rgb(0x71717a).into(),
             dialog_radius: px(12.),
@@ -1449,12 +1548,9 @@ impl UiTheme {
     /// The default tokens with the first candidate UI font found among
     /// `installed` font family names.
     pub fn with_installed_fonts(installed: &[String]) -> UiTheme {
-        let family = UI_FONT_CANDIDATES
-            .iter()
-            .find(|candidate| installed.iter().any(|name| name == *candidate))
-            .unwrap_or(&UI_FONT_CANDIDATES[0]);
         UiTheme {
-            font_family: (*family).into(),
+            font_family: first_installed(&UI_FONT_CANDIDATES, installed),
+            keycap: KeycapTheme::with_installed_fonts(installed),
             ..UiTheme::default()
         }
     }
@@ -1538,6 +1634,8 @@ pub struct SettingsTheme {
     pub card_padding_x: Pixels,
     pub card_radius: Pixels,
     pub row_padding_y: Pixels,
+    /// Rows in long lists, such as the shortcuts, sit closer together.
+    pub list_row_padding_y: Pixels,
     /// Space between a row's text column and its control column.
     pub row_gap: Pixels,
     /// The narrowest a row's text column gets before its controls wrap.
@@ -1560,12 +1658,12 @@ pub struct SettingsTheme {
     pub swatch_size: Pixels,
     pub stepper_value_width: Pixels,
     pub field_width: Pixels,
+    /// The box a shortcut is pressed into.
+    pub capture_field_width: Pixels,
     pub hex_field_width: Pixels,
     pub menu_width: Pixels,
     pub menu_max_height: Pixels,
     pub menu_offset: Pixels,
-    pub keycap_padding_x: Pixels,
-    pub keycap_padding_y: Pixels,
     pub ring_width: Pixels,
     /// Rings need a little blur to be drawn at all.
     pub ring_blur: Pixels,
@@ -1628,6 +1726,7 @@ impl SettingsTheme {
             card_padding_x: space("space.xl", 16.) * 1.25,
             card_radius: space("radius.lg", 10.) * 1.2,
             row_padding_y: space("space.lg", 12.) * 1.25,
+            list_row_padding_y: space("space.md", 8.),
             row_gap: space("space.xxl", 24.),
             text_min_width: px(140.),
             nav_fraction: 0.3,
@@ -1647,12 +1746,11 @@ impl SettingsTheme {
             swatch_size: px(22.),
             stepper_value_width: px(34.),
             field_width: px(220.),
+            capture_field_width: px(168.),
             hex_field_width: px(92.),
             menu_width: px(260.),
             menu_max_height: px(320.),
             menu_offset: space("space.sm", 4.),
-            keycap_padding_x: space("space.md", 8.) * 0.75,
-            keycap_padding_y: space("space.xs", 2.),
             ring_width: px(1.),
             ring_blur: px(0.5),
             shadow_blur: px(12.),
@@ -1730,8 +1828,7 @@ impl PickerTheme {
             row_font_size: ui.font_size,
             detail_font_size: ui.small_font_size,
             icon_size: ui.icon_size - px(2.),
-            keycap_padding_x: ui.keycap_padding_x,
-            keycap_corner_radius: ui.keycap_radius,
+            keycap: ui.keycap.clone(),
             shadow_blur: ui.dialog_shadow_blur,
             shadow_offset_y: ui.dialog_shadow_offset,
             background: ui.menu_background,
@@ -1742,8 +1839,6 @@ impl PickerTheme {
             icon: ui.icon,
             selected_row: ui.row_selected,
             hovered_row: ui.row_hover,
-            keycap_background: ui.keycap_background,
-            keycap_text: ui.text_muted,
             warning_text: ui.error,
             ..PickerTheme::default()
         }

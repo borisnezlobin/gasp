@@ -7,6 +7,7 @@ use gpui::{
     KeyDownEvent, SharedString, Window, div, prelude::*,
 };
 
+use crate::picker::shortcut::Shortcut;
 use crate::theme::UiTheme;
 use crate::ui::hints::{command_title, shortcut};
 use crate::ui::{keycap, ui_theme};
@@ -67,7 +68,7 @@ pub enum HelpEvent {
 struct HelpRow {
     id: &'static str,
     title: SharedString,
-    shortcut: Option<SharedString>,
+    shortcut: Option<Shortcut>,
     group: usize,
 }
 
@@ -159,7 +160,7 @@ impl ShortcutsHelp {
             })
             .on_click(cx.listener(move |help, _, _, cx| help.run(index, cx)))
             .child(crate::ui::truncated(row.title.clone()).grow())
-            .children(row.shortcut.clone().map(|shortcut| keycap(shortcut, ui)))
+            .children(row.shortcut.map(|shortcut| keycap(shortcut, &ui.keycap)))
             .into_any_element()
     }
 

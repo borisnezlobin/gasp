@@ -188,6 +188,8 @@ fn assert_rows_do_not_overlap(view: &Entity<SettingsView>, cx: &mut VisualTestCo
         cx.run_until_parked();
         let rows = view.read_with(cx, |view, _| view.rows());
         for (index, row) in rows.iter().enumerate() {
+            view.update(cx, |view, cx| view.reveal_row(index, cx));
+            cx.run_until_parked();
             let name = format!("{}-{index}", page_id(*page));
             let text = bounds(cx, format!("settings-text-{name}"))
                 .unwrap_or_else(|| panic!("{page:?} row {index} has no text"));
@@ -797,9 +799,8 @@ fn shortcut(
 /// A chord as this platform's shortcut rows write it: `Ctrl+N` or `⌘N`.
 fn label(keys: &str) -> String {
     let platform = Platform::current();
-    KeyChord::parse_for(keys, platform)
-        .unwrap()
-        .display_for(platform)
+    let chord = KeyChord::parse_for(keys, platform).unwrap();
+    editor_desktop::picker::shortcut::shortcut_label(chord, platform)
 }
 
 #[gpui::test]
@@ -873,11 +874,26 @@ fn a_chord_another_command_uses_is_added_with_a_warning(cx: &mut TestAppContext)
         text.size.height > px(30.),
         "the warning shows under the title"
     );
-    // The same chord again on the same command isn't added twice.
+    // The same chord again on the same command isn't added twice: the
+    // capture says why and keeps waiting, and the rows don't move.
+    let before = bounds(
+        cx,
+        format!("settings-text-keyboard-shortcuts-{}", index + 1),
+    );
     cx.simulate_keystrokes("enter secondary-,");
     let rules = read_config(root, "rules.toml");
     assert_eq!(rules.matches("keys = \"Mod+,\"").count(), 1, "{rules}");
-    assert!(view.read_with(cx, |view, _| view.last_error().is_some()));
+    let rejection = view.read_with(cx, |view, _| view.capture_rejection().map(str::to_string));
+    assert_eq!(
+        rejection,
+        Some(format!("{} already runs this.", label("Mod+,")))
+    );
+    cx.run_until_parked();
+    let after = bounds(
+        cx,
+        format!("settings-text-keyboard-shortcuts-{}", index + 1),
+    );
+    assert_eq!(before, after, "the message moved the next row");
 }
 
 #[gpui::test]
@@ -907,11 +923,131 @@ fn user_shortcuts_are_removed_by_their_cross_or_delete(cx: &mut TestAppContext) 
     assert!(!rules.contains("Mod+Alt+N"), "{rules}");
     assert!(rules.starts_with("# Keep this.\n"), "{rules}");
     assert_eq!(recorded.borrow().changed, ["rules"]);
-    // Delete removes the last shortcut the user added; built-in ones stay.
+    // Delete removes the row's last key, then the built-in one, which
+    // the file turns off by its id; once none is left, Delete puts the
+    // built-in keys back.
     cx.simulate_keystrokes("delete");
     let row = shortcut(&view, "note.new", cx);
     assert_eq!(row.labels(), [label("Mod+N")]);
+    assert!(row.changed_from.is_none());
     cx.simulate_keystrokes("delete");
-    assert_eq!(shortcut(&view, "note.new", cx).labels(), [label("Mod+N")]);
-    assert_eq!(recorded.borrow().changed, ["rules", "rules"]);
+    let row = shortcut(&view, "note.new", cx);
+    assert!(row.labels().is_empty());
+    let rules = read_config(root, "rules.toml");
+    assert!(
+        rules.contains("id = \"key.note.new\"\ndelete = true"),
+        "{rules}"
+    );
+    cx.simulate_keystrokes("delete");
+    let row = shortcut(&view, "note.new", cx);
+    assert_eq!(row.labels(), [label("Mod+N")]);
+    assert!(row.changed_from.is_none());
+    assert_eq!(read_config(root, "rules.toml").trim(), "# Keep this.");
+    assert_eq!(recorded.borrow().changed.len(), 4);
+}
+
+#[gpui::test]
+fn a_built_in_key_is_removed_by_its_cross_and_reset_brings_it_back(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let root = dir.path();
+    let (view, cx, _) = open(cx, root);
+    go_to_section(&view, "Keyboard shortcuts", cx);
+    let index = go_to_row(
+        &view,
+        cx,
+        |row| matches!(row, ControlRow::Shortcut(s) if s.id == "format.bold"),
+    );
+    let text = bounds(cx, format!("settings-text-keyboard-shortcuts-{index}")).unwrap();
+    click(cx, "remove-key-key.format.bold");
+    let row = shortcut(&view, "format.bold", cx);
+    assert!(row.keys.is_empty());
+    let defaults: Vec<String> = row
+        .changed_from
+        .clone()
+        .unwrap()
+        .iter()
+        .map(|shortcut| shortcut.label())
+        .collect();
+    assert_eq!(defaults, [label("Mod+B")]);
+    let rules = read_config(root, "rules.toml");
+    assert_eq!(rules, "[[rule]]\nid = \"key.format.bold\"\ndelete = true\n");
+    // The row now says what reset brings back, under its title.
+    cx.run_until_parked();
+    let changed = bounds(cx, format!("settings-text-keyboard-shortcuts-{index}")).unwrap();
+    assert!(changed.size.height > text.size.height);
+    // Editing is remove and add: a new key goes on beside the removed one.
+    click(cx, "add-key-format.bold");
+    cx.simulate_keystrokes("secondary-alt-b");
+    assert_eq!(
+        shortcut(&view, "format.bold", cx).labels(),
+        [label("Mod+Alt+B")]
+    );
+    click(cx, "reset-format.bold");
+    let row = shortcut(&view, "format.bold", cx);
+    assert_eq!(row.labels(), [label("Mod+B")]);
+    assert!(row.changed_from.is_none());
+    assert_eq!(read_config(root, "rules.toml").trim(), "");
+}
+
+#[gpui::test]
+fn typing_keys_in_the_search_finds_the_commands_they_run(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
+    // "cmd" is the platform's main modifier: Command on a Mac, Ctrl elsewhere.
+    cx.simulate_input("cmd shift p");
+    let ids = |view: &Entity<SettingsView>, cx: &mut VisualTestContext| -> Vec<String> {
+        view.read_with(cx, |view, _| {
+            view.rows()
+                .into_iter()
+                .filter_map(|row| match row {
+                    ControlRow::Shortcut(shortcut) => Some(shortcut.id),
+                    _ => None,
+                })
+                .collect()
+        })
+    };
+    assert_eq!(ids(&view, cx), ["palette.open"]);
+    // The label the rows show reads back as the same keys.
+    view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
+    cx.simulate_keystrokes("secondary-a");
+    cx.simulate_input(&label("Mod+Shift+P"));
+    assert_eq!(ids(&view, cx), ["palette.open"]);
+    // Naming the page shows all of it.
+    view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
+    cx.simulate_keystrokes("secondary-a");
+    cx.simulate_input("shortcuts");
+    let all = view.read_with(cx, |view, _| view.rows().len());
+    assert_eq!(all, editor_config::commands::BUILTIN_COMMANDS.len());
+}
+
+#[gpui::test]
+fn search_by_keys_waits_for_a_chord_and_searches_for_it(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    click(cx, "search-by-keys");
+    assert!(view.read_with(cx, |view, _| view.searching_by_keys()));
+    cx.simulate_keystrokes("secondary-shift-p");
+    assert!(!view.read_with(cx, |view, _| view.searching_by_keys()));
+    assert_eq!(
+        view.read_with(cx, |view, _| view.query().to_string()),
+        label("Mod+Shift+P")
+    );
+    assert_eq!(
+        view.read_with(cx, |view, _| view.current_section()),
+        Some(Page::Shortcuts)
+    );
+    let found = shortcut(&view, "palette.open", cx);
+    assert!(found.labels().contains(&label("Mod+Shift+P")));
+    // A chord nothing uses leaves the page empty, with a way back.
+    click(cx, "search-by-keys");
+    cx.simulate_keystrokes("secondary-alt-shift-f12");
+    assert!(view.read_with(cx, |view, _| view.rows().is_empty()));
+    click(cx, "clear-search");
+    assert_eq!(view.read_with(cx, |view, _| view.query().to_string()), "");
+    // Escape stops waiting without searching.
+    click(cx, "search-by-keys");
+    cx.simulate_keystrokes("escape");
+    assert!(!view.read_with(cx, |view, _| view.searching_by_keys()));
+    assert_eq!(view.read_with(cx, |view, _| view.query().to_string()), "");
 }

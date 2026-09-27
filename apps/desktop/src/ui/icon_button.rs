@@ -12,6 +12,7 @@ use super::tooltip::Tooltip;
 use super::ui_theme;
 use crate::icons::{IconName, icon};
 use crate::keymap::RunCommand;
+use crate::picker::shortcut::Shortcut;
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
@@ -60,7 +61,7 @@ impl IconButton {
     pub fn tooltip_with_shortcut(
         mut self,
         label: impl Into<SharedString>,
-        shortcut: Option<SharedString>,
+        shortcut: Option<Shortcut>,
     ) -> IconButton {
         self.tooltip = Some(Tooltip::new(label, shortcut));
         self
@@ -164,8 +165,15 @@ impl RenderOnce for IconButton {
             .size(size)
             .rounded(theme.icon_button_radius)
             .when(self.active, |button| button.bg(theme.control_active))
+            // The ring is a shadow and shows through a see-through fill,
+            // so a toggle that's on takes the same fill made opaque.
             .when(self.toggled, |button| {
-                button.shadow(vec![theme.ring(theme.menu_ring)])
+                button
+                    .bg(crate::theme::over(
+                        theme.control_active,
+                        theme.menu_background,
+                    ))
+                    .shadow(vec![theme.ring(theme.menu_ring)])
             })
             .when(!self.disabled, |button| {
                 button

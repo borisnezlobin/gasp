@@ -15,9 +15,10 @@ use gpui::{
     Stateful, Subscription, WeakEntity, Window, anchored, deferred, div, point, prelude::*, px,
 };
 
-use super::ui_theme;
+use super::{keycap, ui_theme};
 use crate::icons::{IconName, icon};
 use crate::keymap::RunCommand;
+use crate::picker::shortcut::Shortcut;
 use crate::theme::UiTheme;
 
 /// What choosing an item does. It runs after the menu has closed and focus
@@ -41,7 +42,7 @@ pub enum MenuItem {
 pub struct MenuEntry {
     pub label: SharedString,
     pub icon: Option<IconName>,
-    pub shortcut: Option<SharedString>,
+    pub shortcut: Option<Shortcut>,
     pub checked: bool,
     pub disabled: bool,
     handler: MenuHandler,
@@ -116,7 +117,7 @@ impl MenuItem {
         self
     }
 
-    pub fn with_shortcut(mut self, shortcut: Option<SharedString>) -> MenuItem {
+    pub fn with_shortcut(mut self, shortcut: Option<Shortcut>) -> MenuItem {
         if let MenuItem::Entry(entry) = &mut self {
             entry.shortcut = shortcut;
         }
@@ -427,12 +428,20 @@ impl DropdownMenu {
     /// A shortcut hint, or the caret and the open submenu.
     fn render_row_end(&self, index: usize, theme: &UiTheme) -> AnyElement {
         match &self.items[index] {
-            MenuItem::Entry(entry) => div()
-                .flex_none()
-                .pl(theme.space_xl)
-                .text_color(theme.text_faint)
-                .children(entry.shortcut.clone())
-                .into_any_element(),
+            MenuItem::Entry(entry) => {
+                // A disabled entry's keys fade with its label.
+                let text = if entry.disabled {
+                    theme.text_faint
+                } else {
+                    theme.text_muted
+                };
+                let keys = theme.keycap.clone().compact().on_text(text);
+                div()
+                    .flex_none()
+                    .pl(theme.space_lg)
+                    .children(entry.shortcut.map(|shortcut| keycap(shortcut, &keys)))
+                    .into_any_element()
+            }
             MenuItem::Submenu { .. } => {
                 let open = self
                     .submenu

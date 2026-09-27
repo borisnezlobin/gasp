@@ -392,21 +392,6 @@ pub fn match_ranges(text: &str, positions: &[usize]) -> Vec<Range<usize>> {
     ranges
 }
 
-/// A shortcut drawn as a small key cap, as [`crate::ui::keycap`] draws it.
-pub fn keycap(label: impl Into<SharedString>, theme: &PickerTheme) -> AnyElement {
-    div()
-        .flex_none()
-        .px(theme.keycap_padding_x)
-        .py(theme.keycap_padding_y)
-        .rounded(theme.keycap_corner_radius)
-        .bg(theme.keycap_background)
-        .text_color(theme.keycap_text)
-        .text_size(theme.detail_font_size)
-        .whitespace_nowrap()
-        .child(label.into())
-        .into_any_element()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

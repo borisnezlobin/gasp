@@ -203,7 +203,7 @@ fn render_action(
         })
         .child(row_icon(name, &ui))
         .child(div().flex_1().child(label))
-        .children(crate::ui::hints::shortcut(id, cx).map(|shortcut| keycap(shortcut, &ui)))
+        .children(crate::ui::hints::shortcut(id, cx).map(|shortcut| keycap(shortcut, &ui.keycap)))
 }
 
 impl Render for Launcher {
