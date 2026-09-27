@@ -102,7 +102,7 @@ impl Launcher {
             .py(theme.space_sm)
             .rounded(theme.radius_md)
             .text_color(theme.text)
-            .hover(|style| style.bg(theme.hover_background))
+            .hover(|style| style.bg(theme.list_hover_background))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |launcher, _, _, cx| launcher.open(index, cx)),
@@ -114,7 +114,7 @@ impl Launcher {
             )
             .child(SharedString::from(note_title(path)));
         if selected {
-            row = row.bg(theme.hover_background);
+            row = row.bg(theme.list_hover_background);
         }
         if let Some(folder) = self.folder_label(path) {
             row = row.child(div().text_color(theme.text_faint).child(folder));

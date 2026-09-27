@@ -100,9 +100,10 @@ impl LeftPanel {
         self.mode == SidebarMode::Overlay
     }
 
-    /// Whether the left-edge strip should listen for the pointer.
+    /// Whether the left-edge strip should listen for the pointer. With
+    /// nothing in the panel, there's nothing to reveal.
     pub fn wants_edge(&self) -> bool {
-        self.reveal == SidebarReveal::Hover && !self.is_visible()
+        self.reveal == SidebarReveal::Hover && !self.is_visible() && self.view.is_some()
     }
 
     pub fn toggle(&mut self) {

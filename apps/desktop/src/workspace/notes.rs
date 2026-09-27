@@ -5,7 +5,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use editor_config::settings::TrashMode;
-use gpui::{Context, Entity, Focusable, PromptLevel, Window};
+use gpui::{Context, Entity, Focusable, PromptButton, PromptLevel, Window};
 
 use super::files::{atomic_write, clean_title, note_title, renamed_path, unique_untitled};
 use super::history::{BIG_JUMP_LINES, Location};
@@ -62,6 +62,7 @@ impl Workspace {
         self.status = self
             .active_editor(cx)
             .map(|editor| StatusInfo::of_editor(editor.read(cx)));
+        cx.notify();
     }
 
     pub(crate) fn on_title_event(
@@ -144,7 +145,13 @@ impl Workspace {
         if let Err(message) = result {
             self.set_titles(doc, &note_title(&old), cx);
             // Only an acknowledgement; there is nothing to do with the answer.
-            drop(window.prompt(PromptLevel::Info, &message, None, &["OK"], cx));
+            drop(window.prompt(
+                PromptLevel::Info,
+                &message,
+                None,
+                &[PromptButton::ok("OK")],
+                cx,
+            ));
         }
     }
 

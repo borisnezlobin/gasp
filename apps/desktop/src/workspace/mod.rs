@@ -20,6 +20,7 @@ pub mod pane;
 pub mod pane_tree;
 mod panel;
 mod panes;
+pub mod prompt;
 mod render;
 pub mod sidebar;
 pub mod state;

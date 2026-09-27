@@ -92,6 +92,7 @@ impl Workspace {
     }
 
     fn render_left_panel(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let view = self.left_panel.view()?.clone();
         if !self.left_panel.is_visible() {
             return None;
         }
@@ -116,7 +117,7 @@ impl Workspace {
                 };
                 workspace.pointer_event(kind, PANEL_TARGET, window, cx);
             }))
-            .children(self.left_panel.view().cloned())
+            .child(view)
             .child(self.render_panel_edge(cx));
         let panel = if overlays {
             panel
