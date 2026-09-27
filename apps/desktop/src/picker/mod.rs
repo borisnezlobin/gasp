@@ -119,8 +119,10 @@ impl<D: PickerDelegate> Picker<D> {
     /// A picker over `delegate`, focused and showing the matches for an
     /// empty query.
     pub fn new(mut delegate: D, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let ui = crate::ui::ui_theme(cx);
         let theme = PickerTheme {
-            font_family: crate::ui::ui_theme(cx).font_family,
+            font_family: ui.font_family,
+            keycap: ui.keycap,
             ..PickerTheme::default()
         };
         let placeholder = delegate.placeholder();
@@ -408,20 +410,6 @@ pub fn match_ranges(text: &str, positions: &[usize]) -> Vec<Range<usize>> {
         }
     }
     ranges
-}
-
-/// A shortcut drawn as a small key cap.
-pub fn keycap(label: impl Into<SharedString>, theme: &PickerTheme) -> AnyElement {
-    div()
-        .flex_none()
-        .px(theme.keycap_padding_x)
-        .py(theme.keycap_padding_y)
-        .rounded(theme.keycap_corner_radius)
-        .bg(theme.keycap_background)
-        .text_color(theme.keycap_text)
-        .text_size(theme.detail_font_size)
-        .child(label.into())
-        .into_any_element()
 }
 
 #[cfg(test)]
