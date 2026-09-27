@@ -1,0 +1,12 @@
+[package]
+name = "editor-search"
+description = "Search index, queries and excerpts."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

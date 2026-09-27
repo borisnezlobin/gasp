@@ -1,0 +1,12 @@
+[package]
+name = "editor-snippets"
+description = "Snippet engine and the Latex Suite migrator."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

@@ -1,0 +1,12 @@
+[package]
+name = "editor-core"
+description = "Document model, transactions, undo, parser, input pipeline and render planner."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

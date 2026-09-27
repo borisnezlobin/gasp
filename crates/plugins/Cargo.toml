@@ -1,0 +1,12 @@
+[package]
+name = "editor-plugins"
+description = "QuickJS plugin runtime and the TypeScript API."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

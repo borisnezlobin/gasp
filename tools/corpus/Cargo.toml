@@ -1,0 +1,12 @@
+[package]
+name = "editor-corpus"
+description = "Generator for the synthetic vault that every committed fixture comes from."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true
