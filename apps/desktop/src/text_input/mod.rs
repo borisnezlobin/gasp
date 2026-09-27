@@ -169,6 +169,13 @@ impl TextInput {
         }
     }
 
+    /// Sets the input in another family, such as the code font for text
+    /// that is code.
+    pub fn with_font_family(mut self, family: SharedString) -> Self {
+        self.theme.font_family = family;
+        self
+    }
+
     pub fn with_style(mut self, style: TextInputStyle) -> Self {
         self.style = style;
         self

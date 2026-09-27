@@ -24,6 +24,7 @@ use super::model::{
     PageSpec, RowSpec, SettingItem, ShortcutQuery, ShortcutRow, map_name_label, map_names,
     page_cards, setting_items, shortcut_rows, theme_number_items, words_match,
 };
+use super::snippets_page::{ReplacementRow, SnippetEditor, SnippetRow, TypingLists};
 use super::store::{SettingsFile, settings_path};
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
 use crate::theme::{ACCENT_CHOICES, DARK_ACCENT_CHOICES, KeycapTheme, SettingsTheme, Theme};
@@ -85,6 +86,12 @@ pub enum ControlRow {
         list: SettingItem,
         value: String,
     },
+    /// Where the snippets come from, with a button to add one.
+    SnippetsFile,
+    Snippet(SnippetRow),
+    /// The editor open on a snippet, drawn under its row.
+    SnippetEditor,
+    Replacement(ReplacementRow),
 }
 
 impl ControlRow {
@@ -104,7 +111,7 @@ impl ControlRow {
         match self {
             ControlRow::Setting(item) => item.kind == SettingKind::Text,
             ControlRow::MapAdd(item) => map_names(&item.key).is_none(),
-            ControlRow::SyncRemote | ControlRow::ListAdd(_) => true,
+            ControlRow::SyncRemote | ControlRow::ListAdd(_) | ControlRow::SnippetEditor => true,
             _ => false,
         }
     }
@@ -112,6 +119,27 @@ impl ControlRow {
     /// Whether keyboard focus can land on the row.
     pub fn is_focusable(&self) -> bool {
         *self != ControlRow::Version
+    }
+
+    /// Whether the row is on the Snippets page's lists.
+    pub fn is_typing_row(&self) -> bool {
+        matches!(
+            self,
+            ControlRow::SnippetsFile
+                | ControlRow::Snippet(_)
+                | ControlRow::SnippetEditor
+                | ControlRow::Replacement(_)
+        )
+    }
+
+    /// The title of a row on the Snippets page: what's typed.
+    fn typing_title(&self) -> String {
+        match self {
+            ControlRow::Snippet(row) => row.trigger.clone(),
+            ControlRow::Replacement(row) => row.from.clone(),
+            ControlRow::SnippetEditor => "Edit snippet".to_string(),
+            _ => "Snippets".to_string(),
+        }
     }
 
     /// The row's title, as the screen shows it.
@@ -128,6 +156,10 @@ impl ControlRow {
             ControlRow::SyncAccount => "GitHub token".to_string(),
             ControlRow::ListAdd(item) => item.title.clone(),
             ControlRow::ListEntry { value, .. } => value.clone(),
+            ControlRow::SnippetsFile
+            | ControlRow::Snippet(_)
+            | ControlRow::SnippetEditor
+            | ControlRow::Replacement(_) => self.typing_title(),
         }
     }
 }
@@ -149,7 +181,7 @@ pub struct PaneLayout {
 }
 
 impl PaneLayout {
-    fn push_card(&mut self, title: Option<String>, rows: Vec<ControlRow>) {
+    pub(super) fn push_card(&mut self, title: Option<String>, rows: Vec<ControlRow>) {
         if rows.is_empty() {
             return;
         }
@@ -220,6 +252,9 @@ pub struct SettingsView {
     pub(super) sync: Option<Entity<crate::sync::SyncService>>,
     pub(super) remote_cache: Option<String>,
     pub(super) signed_in_cache: bool,
+    /// The snippets and replacements the Snippets page lists.
+    pub(super) typing_lists: TypingLists,
+    pub(super) snippet_editor: Option<SnippetEditor>,
     pub(super) _subscriptions: Vec<Subscription>,
 }
 
@@ -308,8 +343,11 @@ impl SettingsView {
             sync: None,
             remote_cache: None,
             signed_in_cache: false,
+            typing_lists: TypingLists::default(),
+            snippet_editor: None,
             _subscriptions: Vec::new(),
         };
+        view.typing_lists = TypingLists::load(&view.vault_root);
         view.restyle();
         let mut subscriptions = view.watch_inputs(window, cx);
         subscriptions.extend(view.build_fields(window, cx));
@@ -449,6 +487,8 @@ impl SettingsView {
             self.invalidate_layouts();
         }
         self.tokens = config_files::load_tokens(&self.vault_root);
+        self.typing_lists = TypingLists::load(&self.vault_root);
+        self.invalidate_layouts();
         self.restyle();
         self.set_rules(&config_files::load_rules(&self.vault_root), cx);
         self.sync_fields(cx);
@@ -474,6 +514,16 @@ impl SettingsView {
     /// Focuses the search box, ready to type.
     pub fn focus_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.set_focus(SettingsFocus::Search, window, cx);
+    }
+
+    /// Focuses row `index` of the current page, as the arrows would.
+    pub fn focus_control(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        self.set_focus(SettingsFocus::Control(index), window, cx);
+    }
+
+    /// Searches for `text`, as typing it into the search box would.
+    pub fn search(&mut self, text: &str, cx: &mut Context<Self>) {
+        self.set_query(text, cx);
     }
 
     /// Shows a page by id, such as `files` or
@@ -625,6 +675,9 @@ impl SettingsView {
                 .collect();
             layout.push_card(None, rows);
         }
+        if page == Page::Snippets {
+            self.snippet_cards(query, &mut layout);
+        }
         layout
     }
 
@@ -714,6 +767,10 @@ impl SettingsView {
             ControlRow::Accent => ACCENT_DESCRIPTION.to_string(),
             ControlRow::Vault => self.vault_root.display().to_string(),
             ControlRow::Shortcut(_) => String::new(),
+            ControlRow::SnippetsFile => self.snippets_file_description(),
+            ControlRow::Snippet(_) | ControlRow::SnippetEditor | ControlRow::Replacement(_) => {
+                String::new()
+            }
         }
     }
 
@@ -770,6 +827,13 @@ impl SettingsView {
             ControlRow::ListAdd(item) => add_field_key(&item.key),
             ControlRow::SyncRemote if self.sync_remote().is_some() => {
                 super::sync_page::REMOTE_FIELD.to_string()
+            }
+            ControlRow::SnippetEditor => {
+                return self.snippet_editor.as_ref().map(|editor| {
+                    editor
+                        .field(super::snippets_page::EditorField::Trigger)
+                        .clone()
+                });
             }
             _ => return None,
         };
