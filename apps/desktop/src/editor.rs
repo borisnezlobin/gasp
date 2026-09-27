@@ -94,7 +94,9 @@ pub struct EditorView {
     pub(crate) log_timings: bool,
     pub(crate) highlights: BTreeMap<HighlightKind, Vec<Range<usize>>>,
     pub(crate) suggest: SuggestState,
-    pipeline: Pipeline,
+    pub(crate) pipeline: Pipeline,
+    /// Whether pasted text gets curly quotes, from the settings.
+    pub(crate) curl_pasted_quotes: bool,
     clock: Instant,
 }
 
@@ -150,6 +152,7 @@ impl EditorView {
             highlights: Default::default(),
             suggest: SuggestState::default(),
             pipeline: Pipeline::builtin(),
+            curl_pasted_quotes: config.settings.editor.curl_pasted_quotes,
             clock: Instant::now(),
         }
     }
@@ -162,6 +165,7 @@ impl EditorView {
         self.base_theme = theme;
         self.symbols = config.settings.markdown.symbols.clone();
         self.reveal = reveal_settings(&self.symbols);
+        self.apply_typing_settings(&config.settings.editor);
         self.set_zoom(self.zoom, cx);
     }
 
@@ -327,12 +331,33 @@ impl EditorView {
     /// Applies a transaction from a command or the input pipeline and
     /// re-measures the lines. Any composition ends.
     pub fn apply_transaction(&mut self, transaction: Transaction, cx: &mut Context<Self>) {
+        let single_edit = match transaction.changes.edits() {
+            [edit] => Some(edit.clone()),
+            _ => None,
+        };
         if self.state.apply(transaction).is_err() {
             return;
         }
+        // One edit, as typing makes, updates the source in place; anything
+        // else finds what changed by comparing the whole text.
         self.goal_x = None;
         self.timings.input_started.get_or_insert_with(Instant::now);
-        self.after_history_step(cx);
+        match single_edit {
+            Some(edit) => {
+                let change = self.source.replace(edit.range, &edit.insert);
+                self.source_changed(change);
+                self.after_edit(cx);
+            }
+            None => self.after_history_step(cx),
+        }
+    }
+
+    /// Applies transactions in order, each its own undo step, as the input
+    /// pipeline returns them.
+    pub fn apply_transactions(&mut self, transactions: Vec<Transaction>, cx: &mut Context<Self>) {
+        for transaction in transactions {
+            self.apply_transaction(transaction, cx);
+        }
     }
 
     /// Runs a core editing command on the current document and selection.
@@ -363,17 +388,20 @@ impl EditorView {
 
     /// Enter runs through the input pipeline so lists continue.
     pub fn newline(&mut self, cx: &mut Context<Self>) {
-        let transaction = self.pipeline.run(
-            EditRequest::Newline,
+        self.run_pipeline(EditRequest::Newline, cx);
+    }
+
+    /// Runs a request through the input pipeline and applies what it
+    /// makes of it.
+    pub(crate) fn run_pipeline(&mut self, request: EditRequest, cx: &mut Context<Self>) {
+        let transactions = self.pipeline.run_steps(
+            request,
             self.state.doc(),
             self.state.selection(),
             self.source.tree(),
             self.now_ms(),
         );
-        match transaction {
-            Some(transaction) => self.apply_transaction(transaction, cx),
-            None => self.insert("\n", cx),
-        }
+        self.apply_transactions(transactions, cx);
     }
 
     pub fn undo(&mut self, cx: &mut Context<Self>) {
@@ -392,6 +420,11 @@ impl EditorView {
         if let Some(change) = self.source.sync(self.state.doc()) {
             self.source_changed(change);
         }
+        self.after_edit(cx);
+    }
+
+    /// Everything an edit settles once the source matches the document.
+    fn after_edit(&mut self, cx: &mut Context<Self>) {
         self.marked = None;
         self.autoscroll = true;
         self.refresh_suggestions(cx);

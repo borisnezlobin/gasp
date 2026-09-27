@@ -66,14 +66,14 @@ impl Typist {
         let text = self.state.doc().slice(0..self.state.doc().len());
         let tree = syntax::parse(&text);
         self.clock += 10;
-        let transaction = self.pipeline.run(
+        let transactions = self.pipeline.run_steps(
             request,
             self.state.doc(),
             self.state.selection(),
             &tree,
             self.clock,
         );
-        if let Some(transaction) = transaction {
+        for transaction in transactions {
             self.state.apply(transaction).expect("transaction applies");
         }
     }
@@ -153,4 +153,20 @@ fn an_expansion_undoes_in_one_step() {
     assert!(typist.state.undo(10_000));
     assert_ne!(typist.shown(), before_undo);
     assert_eq!(typist.state.doc().slice(0..typist.state.doc().len()), "");
+}
+
+#[test]
+fn undo_right_after_a_replacement_gives_back_what_was_typed() {
+    let mut typist = Typist::new("", 0);
+    typist.type_text("a --");
+    assert_eq!(typist.shown(), "a —|");
+    assert!(typist.state.undo(typist.clock));
+    assert_eq!(typist.shown(), "a --|");
+}
+
+#[test]
+fn replacements_shorter_than_what_they_replace_keep_the_caret() {
+    let mut typist = Typist::new("", 0);
+    typist.type_text("x -> y");
+    assert_eq!(typist.shown(), "x → y|");
 }

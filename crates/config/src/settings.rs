@@ -204,12 +204,19 @@ pub enum TrashMode {
 pub struct EditorSettings {
     /// Whether the note's file name shows as a title above the text.
     pub show_inline_title: bool,
+    /// Whether typed straight quotes become curly ones, outside code,
+    /// math, frontmatter and links.
+    pub smart_quotes: bool,
+    /// Whether pasted text gets curly quotes too, while smart quotes are on.
+    pub curl_pasted_quotes: bool,
 }
 
 impl Default for EditorSettings {
     fn default() -> Self {
         EditorSettings {
             show_inline_title: true,
+            smart_quotes: true,
+            curl_pasted_quotes: true,
         }
     }
 }

@@ -31,7 +31,7 @@ const MOTIONS: [(&str, &str, Motion); 12] = [
 const HANDLERS: [(&str, Handler); 25] = [
     ("select.all", |view, _, cx| view.select_all(cx)),
     ("edit.delete-backward", |view, _, cx| {
-        view.delete_or(|doc, at| doc.prev_char_boundary(at)..at, cx)
+        view.delete_backward(cx)
     }),
     ("edit.delete-forward", |view, _, cx| {
         view.delete_or(|doc, at| at..doc.next_char_boundary(at), cx)

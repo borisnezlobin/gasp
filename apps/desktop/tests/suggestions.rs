@@ -76,7 +76,7 @@ fn tab_accepts_and_undo_takes_it_back(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("tab");
     assert_eq!(text(&view, cx), "[[Reading]]");
     view.update(cx, |view, cx| view.undo(cx));
-    assert_eq!(text(&view, cx), "[[read");
+    assert_eq!(text(&view, cx), "[[read]]", "typing [[ paired its brackets");
 }
 
 #[gpui::test]
@@ -89,7 +89,7 @@ fn escape_hides_the_list_until_the_cursor_leaves(cx: &mut TestAppContext) {
     cx.simulate_input("a");
     assert!(labels(&view, cx).is_empty(), "still dismissed");
     cx.simulate_keystrokes("enter");
-    assert_eq!(text(&view, cx), "[[wa\n", "Enter types a newline again");
+    assert_eq!(text(&view, cx), "[[wa\n]]", "Enter types a newline again");
     cx.simulate_input("[[");
     assert!(!labels(&view, cx).is_empty(), "a new link suggests again");
 }
