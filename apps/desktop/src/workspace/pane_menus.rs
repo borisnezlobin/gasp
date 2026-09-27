@@ -116,7 +116,9 @@ const TAB_MOVE_ITEMS: [(Command, Direction); 4] = [
 
 /// The note's right-click menu before the Format submenu, in groups, in
 /// the order native text menus use.
-const EDIT_GROUPS: [&[Command]; 3] = [
+const EDIT_GROUPS: &[&[Command]] = &[
+    #[cfg(target_os = "macos")]
+    &[("edit.look-up", "Look up", IconName::BookOpen)],
     &[
         ("edit.undo", "Undo", IconName::ArrowCounterClockwise),
         ("edit.redo", "Redo", IconName::ArrowClockwise),
@@ -231,7 +233,7 @@ impl Workspace {
                     editor.update(cx, |editor, cx| editor.close_preview(cx));
                 }
                 let mut items = flag_items(pane, &anchor, cx);
-                items.extend(self.editor_items(pane, cx));
+                items.extend(self.editor_items(pane, &anchor, cx));
                 items
             }
             PaneMenu::Tab(index) => self.tab_items(pane, index, cx),
@@ -381,18 +383,17 @@ impl Workspace {
         tidy_separators(items)
     }
 
-    fn editor_items(&self, pane: &Entity<Pane>, cx: &App) -> Vec<MenuItem> {
+    fn editor_items(&self, pane: &Entity<Pane>, anchor: &MenuAnchor, cx: &App) -> Vec<MenuItem> {
         let command = |(id, label, icon): Command| {
             MenuItem::command(id, cx).with_label(label).with_icon(icon)
         };
         let available = EditAvailability::of(pane, cx);
         let mut items: Vec<MenuItem> = Vec::new();
         for group in EDIT_GROUPS {
-            items.extend(
-                group
-                    .iter()
-                    .map(|&item| command(item).disabled(!available.allows(item.0))),
-            );
+            items.extend(group.iter().map(|&item| {
+                let entry = command(item).disabled(!available.allows(item.0));
+                look_up_where_clicked(entry, item.0, pane, anchor, cx)
+            }));
             items.push(MenuItem::Separator);
         }
         let format = FORMAT_ITEMS.into_iter().map(command).collect();
@@ -474,6 +475,27 @@ impl EditAvailability {
             _ => true,
         }
     }
+}
+
+/// Look up from the right-click menu looks up the word clicked on, not
+/// the one at the caret, as native text menus do.
+fn look_up_where_clicked(
+    item: MenuItem,
+    id: &str,
+    pane: &Entity<Pane>,
+    anchor: &MenuAnchor,
+    cx: &App,
+) -> MenuItem {
+    let (MenuAnchor::Pointer(position), "edit.look-up") = (anchor, id) else {
+        return item;
+    };
+    let Some(editor) = pane.read(cx).active_editor() else {
+        return item;
+    };
+    let position = *position;
+    item.with_handler(move |window, cx| {
+        editor.read(cx).look_up(Some(position), window, cx);
+    })
 }
 
 /// Copy path and Open in default app, for the note at `path`.

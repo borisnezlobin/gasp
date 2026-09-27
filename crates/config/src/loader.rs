@@ -10,7 +10,7 @@ use std::sync::LazyLock;
 
 use toml::Table;
 
-use crate::commands::BUILTIN_COMMANDS;
+use crate::commands::{BUILTIN_COMMANDS, PLATFORM_COMMANDS};
 use crate::device::DeviceSettings;
 use crate::diagnostics::{Diagnostic, span_of_key};
 use crate::layout::{LayoutNode, LayoutSpec};
@@ -223,7 +223,12 @@ impl ConfigLoader {
         ConfigLoader {
             dir: dir.into(),
             config: Config::defaults(),
-            known_commands: BUILTIN_COMMANDS.iter().map(|c| c.id.to_string()).collect(),
+            known_commands: BUILTIN_COMMANDS
+                .iter()
+                .map(|c| c.id)
+                .chain(PLATFORM_COMMANDS.iter().copied())
+                .map(str::to_string)
+                .collect(),
         }
     }
 
