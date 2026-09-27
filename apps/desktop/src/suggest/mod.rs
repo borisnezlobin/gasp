@@ -27,7 +27,7 @@ use crate::frame::FrameLayout;
 use crate::outline::{Heading, headings, headings_in};
 use crate::picker::fuzzy::{Candidate, Matcher, Query};
 use crate::ui::suggestions::{list_height, scroll_to_show, scrolled};
-use crate::ui::{ListHandlers, RowGlyph, SuggestionRow, suggestion_list};
+use crate::ui::{ListHandlers, SuggestionRow, suggestion_list};
 use crate::vault_index::VaultIndex;
 
 /// The most suggestions a list holds; the popover scrolls through them.
@@ -469,17 +469,13 @@ fn emoji_suggestions(query: &str) -> Vec<Suggestion> {
             let entry = hit.entry;
             let wide = entry.kind == emoji::EntryKind::Emoticon;
             let glyph = SharedString::from(entry.glyph);
-            let row_glyph = RowGlyph {
-                text: glyph.clone(),
-                emoji: entry.kind == emoji::EntryKind::Emoji,
-            };
             Suggestion {
                 row: SuggestionRow {
                     label: SharedString::from(entry.name),
                     positions: hit.positions,
                     detail: wide.then(|| glyph.clone()),
                     indent: 0,
-                    glyph: (!wide).then_some(row_glyph),
+                    glyph: (!wide).then_some(glyph),
                 },
                 insert: entry.glyph.to_owned(),
             }

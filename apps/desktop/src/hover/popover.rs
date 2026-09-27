@@ -4,7 +4,7 @@
 
 use gpui::{
     AnyElement, ClickEvent, Context, Corner, Div, Entity, FontWeight, MouseButton, Pixels,
-    SharedString, Window, anchored, div, point, prelude::*,
+    SharedString, TextRun, Window, anchored, div, point, prelude::*,
 };
 
 use super::PreviewContent;
@@ -38,7 +38,7 @@ impl EditorView {
             PreviewContent::Missing { link } => {
                 missing_note(link.name(), &theme, cx.listener(Self::create_previewed))
             }
-            PreviewContent::Message(message) => message_line(message, &theme),
+            PreviewContent::Message(message) => message_line(message, &theme, window),
         };
         let viewport = window.viewport_size().height;
         let gap = theme.suggestion_gap;
@@ -187,11 +187,28 @@ fn missing_note(
 }
 
 /// One line of explanation, such as a footnote with no definition.
-fn message_line(message: &str, theme: &UiTheme) -> (Div, Pixels) {
+/// It hugs a short message and wraps a long one at the footnote width.
+/// The width is measured here because a popover is laid out at its
+/// content's natural width, where text doesn't know to wrap.
+fn message_line(message: &str, theme: &UiTheme, window: &Window) -> (Div, Pixels) {
+    let run = TextRun {
+        len: message.len(),
+        font: gpui::font(theme.font_family.clone()),
+        color: theme.text_muted,
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let natural = window
+        .text_system()
+        .shape_line(message.to_owned().into(), theme.font_size, &[run], None)
+        .width;
+    let padding = theme.popover_padding;
+    let width = (natural + padding * 2. + theme.space_xs).min(theme.hover_footnote_width);
     let body = surface(theme)
-        .px(theme.popover_padding)
+        .px(padding)
         .py(theme.space_md)
-        .max_w(theme.hover_footnote_width)
+        .w(width)
         .text_color(theme.text_muted)
         .child(message.to_owned());
     (body, theme.menu_row_height + theme.space_md * 2.)

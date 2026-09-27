@@ -25,15 +25,7 @@ pub struct SuggestionRow {
     pub indent: usize,
     /// A character drawn in a column before the label, such as the emoji
     /// a name stands for.
-    pub glyph: Option<RowGlyph>,
-}
-
-/// A row's glyph, and whether it's an emoji, which takes the colour
-/// emoji face.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RowGlyph {
-    pub text: SharedString,
-    pub emoji: bool,
+    pub glyph: Option<SharedString>,
 }
 
 /// What a row does when the pointer acts on it.
@@ -160,8 +152,7 @@ pub fn scrolled(first: usize, rows: isize, count: usize, visible: usize) -> usiz
 
 /// The fixed-width cell a row's glyph sits in, so the names line up
 /// whether or not a row has one.
-fn glyph_cell(glyph: Option<RowGlyph>, theme: &UiTheme) -> Div {
-    let emoji = glyph.as_ref().is_some_and(|glyph| glyph.emoji);
+fn glyph_cell(glyph: Option<SharedString>, theme: &UiTheme) -> Div {
     div()
         .flex_none()
         .w(theme.suggestion_glyph_width)
@@ -169,10 +160,7 @@ fn glyph_cell(glyph: Option<RowGlyph>, theme: &UiTheme) -> Div {
         .justify_center()
         .text_size(theme.suggestion_glyph_size)
         .text_color(theme.text)
-        .when(emoji, |cell| {
-            cell.font_family(theme.emoji_font_family.clone())
-        })
-        .children(glyph.map(|glyph| glyph.text))
+        .children(glyph)
 }
 
 /// The label, its matched characters in the match weight.
