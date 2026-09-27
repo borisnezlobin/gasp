@@ -10,7 +10,7 @@ use editor_core::history::EditorState;
 use editor_core::pipeline::{EditRequest, Pipeline};
 use editor_core::syntax;
 use editor_core::transaction::{ChangeSet, Origin, Transaction};
-use gpui::{App, Bounds, Context, FocusHandle, Focusable, Pixels, Point, Window, px};
+use gpui::{App, Bounds, Context, EventEmitter, FocusHandle, Focusable, Pixels, Point, Window, px};
 
 use crate::actions::ClickUnit;
 use crate::bench::Bench;
@@ -23,6 +23,23 @@ use crate::theme::Theme;
 
 /// Edits between timing reports when logging is on.
 const TIMING_LOG_INTERVAL: usize = 100;
+
+/// What the editor tells its container.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EditorEvent {
+    /// The text changed, by typing, a command, undo or a reload.
+    Edited,
+    /// The selection moved without the text changing.
+    SelectionChanged,
+}
+
+/// Ranges drawn with a background, such as find matches. Each kind is
+/// replaced as a whole by [`EditorView::set_highlights`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum HighlightKind {
+    SearchMatch,
+    ActiveSearchMatch,
+}
 
 /// A live-preview Markdown editor view.
 pub struct EditorView {
@@ -42,9 +59,12 @@ pub struct EditorView {
     pub(crate) timings: Timings,
     pub(crate) bench: Option<Bench>,
     pub(crate) log_timings: bool,
+    pub(crate) highlights: std::collections::BTreeMap<HighlightKind, Vec<Range<usize>>>,
     pipeline: Pipeline,
     clock: Instant,
 }
+
+impl EventEmitter<EditorEvent> for EditorView {}
 
 impl Focusable for EditorView {
     fn focus_handle(&self, _: &App) -> FocusHandle {
@@ -74,6 +94,7 @@ impl EditorView {
             timings: Timings::default(),
             bench: None,
             log_timings: false,
+            highlights: Default::default(),
             pipeline: Pipeline::builtin(),
             clock: Instant::now(),
         }
@@ -134,6 +155,7 @@ impl EditorView {
             .apply(transaction)
             .expect("a selection-only transaction always applies");
         self.autoscroll = true;
+        cx.emit(EditorEvent::SelectionChanged);
         cx.notify();
     }
 
@@ -172,6 +194,7 @@ impl EditorView {
         self.goal_x = None;
         self.autoscroll = true;
         self.timings.input_started.get_or_insert_with(Instant::now);
+        cx.emit(EditorEvent::Edited);
         cx.notify();
         inserted
     }
@@ -251,7 +274,50 @@ impl EditorView {
         self.metrics = LineMetrics::build(self.state.doc(), &self.theme);
         self.marked = None;
         self.autoscroll = true;
+        cx.emit(EditorEvent::Edited);
         cx.notify();
+    }
+
+    /// Replaces the whole text, as when the file changed on disk. The
+    /// cursor keeps its offset where it still fits, and the replacement is
+    /// one undo step.
+    pub fn replace_all_text(&mut self, text: &str, cx: &mut Context<Self>) {
+        if self.state.doc().to_string() == text {
+            return;
+        }
+        let cursor = self.cursor().min(text.len());
+        let whole = 0..self.state.doc().len();
+        let transaction = Transaction::new(
+            ChangeSet::replace(whole, text),
+            Origin::Other("reload".into()),
+            self.now_ms(),
+        );
+        if self.state.apply(transaction).is_err() {
+            return;
+        }
+        let cursor = self.state.doc().floor_char_boundary(cursor);
+        self.after_history_step(cx);
+        self.select(cursor, cursor, cx);
+    }
+
+    /// Replaces the ranges drawn for `kind`.
+    pub fn set_highlights(
+        &mut self,
+        kind: HighlightKind,
+        ranges: Vec<Range<usize>>,
+        cx: &mut Context<Self>,
+    ) {
+        if ranges.is_empty() {
+            self.highlights.remove(&kind);
+        } else {
+            self.highlights.insert(kind, ranges);
+        }
+        cx.notify();
+    }
+
+    /// The ranges drawn for `kind`.
+    pub fn highlights(&self, kind: HighlightKind) -> &[Range<usize>] {
+        self.highlights.get(&kind).map_or(&[], Vec::as_slice)
     }
 
     /// Stores the frame just painted and records its timings.

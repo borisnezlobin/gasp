@@ -302,6 +302,38 @@ keys = "Mod+Shift+N"
 do   = "vault.open"
 
 
+# ---- Panes, text size and pasting (beyond the plan's keymap table). ----
+
+[[rule]]
+id   = "key.pane.split-right"
+on   = "key"
+keys = "Mod+Shift+\\"
+do   = "pane.split-right"
+
+[[rule]]
+id   = "key.view.zoom-in"
+on   = "key"
+keys = "Mod+="
+do   = "view.zoom-in"
+
+[[rule]]
+id   = "key.view.zoom-out"
+on   = "key"
+keys = "Mod+-"
+do   = "view.zoom-out"
+
+[[rule]]
+id   = "key.view.zoom-reset"
+on   = "key"
+keys = "Mod+0"
+do   = "view.zoom-reset"
+
+[[rule]]
+id   = "key.edit.paste-plain"
+on   = "key"
+keys = "Mod+Shift+V"
+do   = "edit.paste-plain"
+
 # ---- Text editing. Where Apple and PC conventions differ, each gets its own rule. ----
 
 [[rule]]

@@ -16,8 +16,12 @@ pub struct RunCommand {
 
 actions!(editor, [Quit]);
 
-/// The key context the editor view sets, which every binding is scoped to.
+/// The key context the editor view sets. Commands the editor runs bind here.
 pub const KEY_CONTEXT: &str = "Editor";
+
+/// The key context of the window's root view. Every other command binds
+/// here, so it works whatever has focus.
+pub const WORKSPACE_CONTEXT: &str = "Workspace";
 
 /// Binds every default key rule whose command the editor can run.
 pub fn bind_keys(cx: &mut App) {
@@ -26,29 +30,57 @@ pub fn bind_keys(cx: &mut App) {
 
 /// Binds the key rules in `rules` for this platform.
 pub fn bind_rules(rules: &RuleSet, cx: &mut App) {
-    let bindings =
-        editor_bindings(rules, Platform::current())
-            .into_iter()
-            .map(|(keystroke, id)| {
-                KeyBinding::new(&keystroke, RunCommand { id: id.into() }, Some(KEY_CONTEXT))
-            });
+    let bindings = all_bindings(rules, Platform::current())
+        .into_iter()
+        .map(|binding| {
+            let action = RunCommand {
+                id: binding.command.into(),
+            };
+            KeyBinding::new(&binding.keystroke, action, Some(binding.context))
+        });
     cx.bind_keys(bindings);
     // The app menu normally owns Quit; without one, Cmd+Q or Ctrl+Q quits.
     cx.bind_keys([KeyBinding::new("secondary-q", Quit, None)]);
     cx.on_action(|_: &Quit, cx| cx.quit());
 }
 
-/// (GPUI keystroke, command id) for every key rule on `platform` whose
-/// command the editor view handles. Rules limited to an input context are
-/// left for the pipeline.
-pub fn editor_bindings(rules: &RuleSet, platform: Platform) -> Vec<(String, String)> {
+/// One key rule as a GPUI binding.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Binding {
+    pub keystroke: String,
+    pub command: String,
+    pub context: &'static str,
+}
+
+/// Every key rule on `platform` as a binding: editor commands in the
+/// editor's context, the rest in the workspace's. Rules limited to an
+/// input context are left for the pipeline.
+pub fn all_bindings(rules: &RuleSet, platform: Platform) -> Vec<Binding> {
     rules
         .key_rules(platform)
-        .filter(|rule| rule.when.is_none() && handles(&rule.command))
+        .filter(|rule| rule.when.is_none())
         .filter_map(|rule| {
             let chord = rule.chord_for(platform)?;
-            Some((keystroke_for(chord, platform), rule.command.clone()))
+            let context = if handles(&rule.command) {
+                KEY_CONTEXT
+            } else {
+                WORKSPACE_CONTEXT
+            };
+            Some(Binding {
+                keystroke: keystroke_for(chord, platform),
+                command: rule.command.clone(),
+                context,
+            })
         })
+        .collect()
+}
+
+/// (GPUI keystroke, command id) for the key rules the editor view runs.
+pub fn editor_bindings(rules: &RuleSet, platform: Platform) -> Vec<(String, String)> {
+    all_bindings(rules, platform)
+        .into_iter()
+        .filter(|binding| binding.context == KEY_CONTEXT)
+        .map(|binding| (binding.keystroke, binding.command))
         .collect()
 }
 
@@ -132,9 +164,9 @@ mod tests {
     #[test]
     fn every_default_binding_parses_as_a_gpui_keystroke() {
         for platform in [Platform::Macos, Platform::Windows, Platform::Linux] {
-            for (keystroke, id) in editor_bindings(&RuleSet::defaults(), platform) {
-                let parsed = gpui::Keystroke::parse(&keystroke);
-                assert!(parsed.is_ok(), "{keystroke} for {id} on {platform:?}");
+            for binding in all_bindings(&RuleSet::defaults(), platform) {
+                let parsed = gpui::Keystroke::parse(&binding.keystroke);
+                assert!(parsed.is_ok(), "{binding:?} on {platform:?}");
             }
         }
     }

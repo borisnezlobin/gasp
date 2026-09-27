@@ -7,6 +7,7 @@ use gpui::{AppContext, Application, Bounds, WindowBounds, WindowOptions, px, siz
 use crate::actions::bind_keys;
 use crate::bench::BenchConfig;
 use crate::editor::EditorView;
+use crate::icons::Assets;
 use crate::note::LoadedNote;
 
 const WINDOW_SIZE: (f32, f32) = (900., 700.);
@@ -32,7 +33,7 @@ pub fn launch(note: LoadedNote, bench: Option<BenchConfig>) {
         start_watchdog();
         start_x11_wake();
     }
-    Application::new().run(move |cx| {
+    Application::new().with_assets(Assets).run(move |cx| {
         bind_keys(cx);
         let bounds = Bounds::centered(None, size(px(WINDOW_SIZE.0), px(WINDOW_SIZE.1)), cx);
         let options = WindowOptions {
