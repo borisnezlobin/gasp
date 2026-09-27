@@ -88,14 +88,6 @@ pub fn is_hidden(name: &str) -> bool {
     name.starts_with('.')
 }
 
-/// Folders first, then files, each in natural order.
-pub fn tree_order(a: &Entry, b: &Entry) -> Ordering {
-    b.is_folder()
-        .cmp(&a.is_folder())
-        .then_with(|| natural_cmp(a.label(), b.label()))
-        .then_with(|| a.file_name().cmp(b.file_name()))
-}
-
 /// How the tree orders each folder. Folders always come before files.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SortOrder {
@@ -117,12 +109,8 @@ pub fn sort_entries(
     modified: impl Fn(&Entry) -> Option<std::time::SystemTime>,
 ) {
     match order {
-        SortOrder::NameAscending => entries.sort_by(tree_order),
-        SortOrder::NameDescending => entries.sort_by(|a, b| {
-            b.is_folder()
-                .cmp(&a.is_folder())
-                .then_with(|| tree_order(b, a))
-        }),
+        SortOrder::NameAscending => sort_by_name(entries, false),
+        SortOrder::NameDescending => sort_by_name(entries, true),
         SortOrder::ModifiedNewest | SortOrder::ModifiedOldest => {
             let newest = order == SortOrder::ModifiedNewest;
             entries.sort_by_cached_key(|entry| {
@@ -160,7 +148,28 @@ impl PartialOrd for ModifiedKey {
 /// Folders, which sort as equals by time, go by name.
 fn sort_runs_by_name(entries: &mut [Entry]) {
     let folders = entries.iter().take_while(|entry| entry.is_folder()).count();
-    entries[..folders].sort_by(tree_order);
+    sort_by_name(&mut entries[..folders], false);
+}
+
+/// Sorts folders first, then files, each in natural order by name, or
+/// with names reversed (folders still first).
+/// Each entry's name is found in its path once, not on every comparison,
+/// which makes a folder of thousands of notes sort several times faster.
+fn sort_by_name(entries: &mut [Entry], descending: bool) {
+    let keys: Vec<(bool, &str, &str)> = entries
+        .iter()
+        .map(|entry| (entry.is_folder(), entry.label(), entry.file_name()))
+        .collect();
+    let mut order: Vec<usize> = (0..entries.len()).collect();
+    order.sort_by(|&a, &b| {
+        let (a, b) = (&keys[a], &keys[b]);
+        let (first, second) = if descending { (b, a) } else { (a, b) };
+        b.0.cmp(&a.0)
+            .then_with(|| natural_cmp(first.1, second.1))
+            .then_with(|| first.2.cmp(second.2))
+    });
+    let sorted: Vec<Entry> = order.iter().map(|&at| entries[at].clone()).collect();
+    entries.clone_from_slice(&sorted);
 }
 
 /// Compares names the way people count: `Note 2` before `Note 10`, and
@@ -200,6 +209,14 @@ fn compare_chunks(a: &str, b: &str) -> Ordering {
     let numeric = |s: &str| s.starts_with(|c: char| c.is_ascii_digit());
     if numeric(a) && numeric(b) {
         return compare_numbers(a, b);
+    }
+    // Most names are ASCII, which compares without lowercased copies:
+    // a big folder sorts about twice as fast.
+    if a.is_ascii() && b.is_ascii() {
+        fn lower(s: &str) -> impl Iterator<Item = u8> + '_ {
+            s.bytes().map(|byte| byte.to_ascii_lowercase())
+        }
+        return lower(a).cmp(lower(b));
     }
     a.to_lowercase().cmp(&b.to_lowercase())
 }
@@ -270,7 +287,7 @@ mod tests {
             Entry::new("a.png", EntryKind::Image),
             Entry::new("c", EntryKind::Folder),
         ];
-        entries.sort_by(tree_order);
+        sort_by_name(&mut entries, false);
         let names: Vec<&str> = entries.iter().map(Entry::label).collect();
         assert_eq!(names, ["c", "z", "a.png", "b"]);
     }
