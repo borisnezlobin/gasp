@@ -3,6 +3,8 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
+
+use crate::paste::{PasteContext, set_paste_context};
 use std::time::Duration;
 
 use gpui::{AppContext, Context, Entity, Subscription, Task, WeakEntity};
@@ -36,6 +38,9 @@ pub enum DiskOutcome {
     Missing,
 }
 
+/// Where pasted images go when the settings say nothing else.
+const DEFAULT_ATTACHMENTS: &str = "./images";
+
 /// An open note, shared by every tab that shows it.
 pub struct NoteDoc {
     path: PathBuf,
@@ -45,6 +50,8 @@ pub struct NoteDoc {
     disk_text: String,
     line_ending: LineEnding,
     image_dirs: Vec<PathBuf>,
+    /// The attachments folder setting, for images pasted into this note.
+    attachments: String,
     editors: Vec<WeakEntity<EditorView>>,
     subscriptions: Vec<Subscription>,
     dirty: bool,
@@ -67,11 +74,25 @@ impl NoteDoc {
             saved_text: text.clone(),
             disk_text: text,
             image_dirs,
+            attachments: DEFAULT_ATTACHMENTS.to_owned(),
             editors: Vec::new(),
             subscriptions: Vec::new(),
             dirty: false,
             conflict: None,
             autosave: None,
+        }
+    }
+
+    /// Uses `folder` (the `files.attachments-folder` setting) for pasted images.
+    pub fn with_attachments(mut self, folder: &str) -> NoteDoc {
+        self.attachments = folder.to_owned();
+        self
+    }
+
+    fn paste_context(&self) -> PasteContext {
+        PasteContext {
+            note_path: Some(self.path.clone()),
+            attachments: self.attachments.clone(),
         }
     }
 
@@ -97,6 +118,7 @@ impl NoteDoc {
         let text = self.current_text(cx);
         let image_dirs = self.image_dirs.clone();
         let editor = cx.new(|cx| EditorView::new(&text, image_dirs, cx));
+        set_paste_context(&editor, self.paste_context(), cx);
         let subscription = cx.subscribe(&editor, |doc, editor, event, cx| {
             if *event == EditorEvent::Edited {
                 doc.on_edited(&editor, cx);
@@ -265,6 +287,9 @@ impl NoteDoc {
     /// Follows a rename, ours or one seen on disk.
     pub fn set_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
         self.path = path;
+        for editor in self.live_editors() {
+            set_paste_context(&editor, self.paste_context(), cx);
+        }
         cx.notify();
     }
 }

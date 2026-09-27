@@ -106,6 +106,9 @@ pub struct VaultSearch {
 
 impl EventEmitter<VaultSearchEvent> for VaultSearch {}
 
+/// Lets the workspace host the panel as a modal.
+impl EventEmitter<gpui::DismissEvent> for VaultSearch {}
+
 impl Focusable for VaultSearch {
     fn focus_handle(&self, cx: &App) -> FocusHandle {
         self.query.focus_handle(cx)
@@ -359,6 +362,7 @@ impl VaultSearch {
             self.cancel_replace(cx);
         } else {
             cx.emit(VaultSearchEvent::Dismissed);
+            cx.emit(gpui::DismissEvent);
         }
     }
 

@@ -59,12 +59,17 @@ pub fn join_until(texts: &[String], min_lines: usize) -> String {
     joined
 }
 
-fn markdown_files(root: &Path) -> io::Result<Vec<PathBuf>> {
+/// Every Markdown file under `root`, sorted, skipping hidden folders such
+/// as `.git`, `.obsidian`, `.editor` and `.trash`.
+pub fn markdown_files(root: &Path) -> io::Result<Vec<PathBuf>> {
     let mut found = Vec::new();
     let mut pending = vec![root.to_path_buf()];
     while let Some(dir) = pending.pop() {
         for entry in std::fs::read_dir(&dir)? {
             let path = entry?.path();
+            if is_hidden(&path) {
+                continue;
+            }
             if path.is_dir() {
                 pending.push(path);
             } else if path.extension().is_some_and(|ext| ext == "md") {
@@ -74,6 +79,12 @@ fn markdown_files(root: &Path) -> io::Result<Vec<PathBuf>> {
     }
     found.sort();
     Ok(found)
+}
+
+fn is_hidden(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with('.'))
 }
 
 fn note_dirs(notes: &[PathBuf]) -> Vec<PathBuf> {

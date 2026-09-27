@@ -10,6 +10,7 @@ pub mod demo;
 pub mod editor;
 pub mod element;
 pub mod export_ui;
+pub mod features;
 pub mod file_tree;
 pub mod find;
 pub mod frame;

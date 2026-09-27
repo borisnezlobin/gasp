@@ -110,7 +110,8 @@ impl Workspace {
             return Ok(doc);
         }
         let image_dirs = self.image_dirs(path);
-        let doc = NoteDoc::load(path, image_dirs)?;
+        let doc = NoteDoc::load(path, image_dirs)?
+            .with_attachments(&self.config.settings.files.attachments_folder);
         let doc = cx.new(|_| doc);
         self.docs.push(doc.clone());
         Ok(doc)

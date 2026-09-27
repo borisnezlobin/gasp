@@ -111,6 +111,7 @@ pub fn build_workspace(
     cx: &mut Context<Workspace>,
 ) -> Workspace {
     let mut workspace = Workspace::new(vault, window, cx);
+    crate::features::install(&mut workspace, window, cx);
     workspace.restore_session(window, cx);
     if let Some(note) = note
         && let Err(error) = open_or_create(&mut workspace, note, window, cx)
