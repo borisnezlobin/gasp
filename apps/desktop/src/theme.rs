@@ -1639,6 +1639,10 @@ pub struct UiTheme {
     pub suggestion_rows: usize,
     /// Space between the line being typed and its suggestions.
     pub suggestion_gap: Pixels,
+    /// The thumb that shows where a scrolling list is, and how much of it
+    /// shows.
+    pub scroll_thumb: Hsla,
+    pub scroll_thumb_width: Pixels,
     pub tab_bar_height: Pixels,
     /// Room at the window's top-left for the platform's own window
     /// buttons, where they're drawn over the app (macOS).
@@ -1816,6 +1820,8 @@ impl UiTheme {
             match_weight: FontWeight::BOLD,
             suggestion_rows: 8,
             suggestion_gap: px(4.),
+            scroll_thumb: p.divider_active,
+            scroll_thumb_width: px(3.),
             tab_bar_height: px(40.),
             window_buttons_width: if cfg!(target_os = "macos") {
                 px(72.)
