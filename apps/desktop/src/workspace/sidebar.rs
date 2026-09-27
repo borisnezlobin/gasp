@@ -54,6 +54,30 @@ pub struct LeftPanel {
     /// The pointer left the panel while dragging something out of it;
     /// the panel waits for the drop before it counts as left.
     pub(crate) left_while_dragging: bool,
+    hover: PanelHover,
+}
+
+/// A part of the panel the pointer can be over.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PanelPart {
+    Body,
+    /// The resize strip, half of which hangs outside the panel.
+    Edge,
+}
+
+/// Which parts of the panel the pointer is over. Hover reveal treats
+/// them as one, so reaching for the half of the edge outside the panel
+/// doesn't count as leaving it.
+#[derive(Clone, Copy, Debug, Default)]
+struct PanelHover {
+    body: bool,
+    edge: bool,
+}
+
+impl PanelHover {
+    fn inside(self) -> bool {
+        self.body || self.edge
+    }
 }
 
 impl LeftPanel {
@@ -71,6 +95,7 @@ impl LeftPanel {
             settings: SettingsIndex::new(settings),
             tick: None,
             left_while_dragging: false,
+            hover: PanelHover::default(),
         }
     }
 
@@ -147,6 +172,8 @@ impl LeftPanel {
     }
 
     pub fn hide(&mut self) {
+        // A hidden panel draws nothing to leave, so no leave would come.
+        self.hover = PanelHover::default();
         if self.reveal == SidebarReveal::Hover {
             self.revealed = false;
         } else {
@@ -160,6 +187,34 @@ impl LeftPanel {
 
     pub fn is_pinned(&self) -> bool {
         self.pinned
+    }
+
+    /// The pointer entered or left `part` of the panel. Returns the rule
+    /// event for the panel as a whole, if the pointer crossed into or out
+    /// of it. While `resizing`, leaving is held back so the panel can't
+    /// hide under the drag; [`LeftPanel::end_resize`] lets it through.
+    pub fn hover_part(
+        &mut self,
+        part: PanelPart,
+        hovered: bool,
+        resizing: bool,
+    ) -> Option<EventKind> {
+        let was_inside = self.hover.inside();
+        match part {
+            PanelPart::Body => self.hover.body = hovered,
+            PanelPart::Edge => self.hover.edge = hovered,
+        }
+        match (was_inside, self.hover.inside()) {
+            (false, true) => Some(EventKind::PointerEnter),
+            (true, false) if !resizing => Some(EventKind::PointerLeave),
+            _ => None,
+        }
+    }
+
+    /// A resize of the panel ended: the leave it held back, if the
+    /// pointer is now outside.
+    pub fn end_resize(&self) -> Option<EventKind> {
+        (!self.hover.inside()).then_some(EventKind::PointerLeave)
     }
 
     /// Runs a pointer event through the rules, returning the commands to run.
@@ -234,6 +289,34 @@ mod tests {
         panel.pointer_event(EventKind::PointerEnter, PANEL_TARGET, &clock);
         clock.advance_ms(400);
         assert!(panel.tick(&clock).is_empty());
+    }
+
+    #[test]
+    fn the_edge_outside_the_panel_counts_as_inside() {
+        let mut panel = panel(SidebarReveal::Hover);
+        let (enter, leave) = (Some(EventKind::PointerEnter), Some(EventKind::PointerLeave));
+        assert_eq!(panel.hover_part(PanelPart::Body, true, false), enter);
+        assert_eq!(panel.hover_part(PanelPart::Edge, true, false), None);
+        assert_eq!(panel.hover_part(PanelPart::Body, false, false), None);
+        assert_eq!(panel.hover_part(PanelPart::Edge, false, false), leave);
+        // Onto the edge from outside, whichever part hears of it first.
+        assert_eq!(panel.hover_part(PanelPart::Edge, true, false), enter);
+        assert_eq!(panel.hover_part(PanelPart::Body, false, false), None);
+    }
+
+    #[test]
+    fn a_resize_holds_back_leaving_until_it_ends() {
+        let mut panel = panel(SidebarReveal::Hover);
+        let clock = ManualClock::new();
+        panel.pointer_event(EventKind::PointerEnter, LEFT_EDGE_TARGET, &clock);
+        panel.hover_part(PanelPart::Edge, true, false);
+        assert_eq!(panel.hover_part(PanelPart::Edge, false, true), None);
+        clock.advance_ms(1000);
+        assert!(panel.tick(&clock).is_empty());
+        assert_eq!(panel.end_resize(), Some(EventKind::PointerLeave));
+        // Ending back inside hides nothing.
+        panel.hover_part(PanelPart::Body, true, true);
+        assert_eq!(panel.end_resize(), None);
     }
 
     #[test]
