@@ -1,16 +1,18 @@
 //! The settings screen's state: which page is showing, which control has
 //! focus, and what the vault's settings, theme and key rules hold now.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use editor_config::schema::SettingKind;
 use editor_config::theme::Theme as Tokens;
 use editor_config::{Platform, RuleSet};
 use gpui::{
     App, AppContext, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
-    ScrollHandle, Subscription, Window,
+    ListAlignment, ListOffset, ListState, Subscription, Window, px,
 };
 use serde_json::Value;
 
@@ -19,12 +21,12 @@ use super::config_files;
 use super::menu::OpenMenu;
 use super::model::{
     ACCENT_DESCRIPTION, ACCENT_TITLE, FontSlot, PAGES, Page, PageSpec, RowSpec, SettingItem,
-    ShortcutRow, map_name_label, map_names, page_cards, setting_items, shortcut_rows,
-    theme_number_items, words_match,
+    ShortcutQuery, ShortcutRow, map_name_label, map_names, page_cards, setting_items,
+    shortcut_rows, theme_number_items, words_match,
 };
 use super::store::{SettingsFile, settings_path};
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
-use crate::theme::{SettingsTheme, Theme};
+use crate::theme::{KeycapTheme, SettingsTheme, Theme};
 
 /// What the settings screen tells its host about files it wrote.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -142,11 +144,34 @@ impl PaneLayout {
     }
 }
 
+/// How far past the visible rows the page's list lays out, in pixels,
+/// so rows reached by keyboard are measured before they're scrolled to.
+const LIST_OVERDRAW: f32 = 400.;
+
+/// What the page's list was last given: which page, for which search,
+/// and how many items.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct ListShows {
+    pub page: Option<Page>,
+    pub query: String,
+    pub count: usize,
+}
+
+/// The pages that match the search, each with its rows, built once per
+/// change to the search, the settings file or the rules rather than on
+/// every call: a frame asks for them once per row.
+#[derive(Default)]
+pub(super) struct Layouts {
+    pages: Vec<(Page, Rc<PaneLayout>)>,
+}
+
 /// The settings screen for one vault, sized as a modal over the window.
 pub struct SettingsView {
     pub(super) focus_handle: FocusHandle,
     pub(super) vault_root: PathBuf,
     pub(super) style: SettingsTheme,
+    /// How shortcuts are drawn, shared with the rest of the app.
+    pub(super) keycaps: KeycapTheme,
     pub(super) items: Vec<SettingItem>,
     pub(super) rules: RuleSet,
     pub(super) shortcuts: Vec<ShortcutRow>,
@@ -166,7 +191,11 @@ pub struct SettingsView {
     pub(super) error: Option<(String, String)>,
     pub(super) menu: Option<OpenMenu>,
     pub(super) capture: Option<Capture>,
-    pub(super) scroll: ScrollHandle,
+    /// The page's scrolling list, which builds only the rows in view.
+    pub(super) list: ListState,
+    /// The page, search and item count the list was last given.
+    pub(super) list_shows: RefCell<Option<ListShows>>,
+    pub(super) layouts: RefCell<Option<Rc<Layouts>>>,
     pub(super) _subscriptions: Vec<Subscription>,
 }
 
@@ -228,6 +257,7 @@ impl SettingsView {
             file: SettingsFile::load(&settings_path(&vault_root)).unwrap_or_default(),
             vault_root,
             style: SettingsTheme::default(),
+            keycaps: crate::ui::ui_theme(cx).keycap,
             items: setting_items()
                 .into_iter()
                 .chain(theme_number_items(config_files::default_number))
@@ -247,7 +277,9 @@ impl SettingsView {
             error: None,
             menu: None,
             capture: None,
-            scroll: ScrollHandle::new(),
+            list: ListState::new(0, ListAlignment::Top, px(LIST_OVERDRAW)),
+            list_shows: RefCell::default(),
+            layouts: RefCell::default(),
             _subscriptions: Vec::new(),
         };
         view.restyle();
@@ -353,6 +385,7 @@ impl SettingsView {
     pub fn reload(&mut self, cx: &mut Context<Self>) {
         if let Ok(file) = SettingsFile::load(&settings_path(&self.vault_root)) {
             self.file = file;
+            self.invalidate_layouts();
         }
         self.tokens = config_files::load_tokens(&self.vault_root);
         self.restyle();
@@ -365,6 +398,7 @@ impl SettingsView {
     pub fn set_rules(&mut self, rules: &RuleSet, cx: &mut Context<Self>) {
         self.rules = rules.clone();
         self.shortcuts = shortcut_rows(rules, Platform::current());
+        self.invalidate_layouts();
         cx.notify();
     }
 
@@ -384,8 +418,7 @@ impl SettingsView {
     /// Shows a page by id, such as `files` or
     /// [`super::model::SHORTCUTS_SECTION`]. Clears any search.
     pub fn show_section(&mut self, id: &str, cx: &mut Context<Self>) {
-        self.search.update(cx, |field, cx| field.set_text("", cx));
-        self.query.clear();
+        self.set_query("", cx);
         let index = self
             .visible_sections()
             .iter()
@@ -393,6 +426,13 @@ impl SettingsView {
         if let Some(index) = index {
             self.select_section(index, cx);
         }
+    }
+
+    /// Scrolls row `index` of the current page into view. The page draws
+    /// only the rows in view, so a row has bounds once it's been revealed.
+    pub fn reveal_row(&mut self, index: usize, cx: &mut Context<Self>) {
+        self.list.scroll_to_reveal_item(self.child_index(index));
+        cx.notify();
     }
 
     /// Focuses the section list.
@@ -406,7 +446,10 @@ impl SettingsView {
 
     /// The page showing on the right.
     pub fn current_section(&self) -> Option<Page> {
-        self.visible_sections().get(self.current).copied()
+        self.layouts()
+            .pages
+            .get(self.current)
+            .map(|(page, _)| *page)
     }
 
     /// The value a setting has now: the file's, or else the default.
@@ -445,11 +488,37 @@ impl SettingsView {
 
     /// Pages with at least one row matching the search, in list order.
     pub fn visible_sections(&self) -> Vec<Page> {
-        PAGES
+        self.layouts().pages.iter().map(|(page, _)| *page).collect()
+    }
+
+    /// Every page that matches the search, with its rows.
+    fn layouts(&self) -> Rc<Layouts> {
+        if let Some(layouts) = self.layouts.borrow().as_ref() {
+            return layouts.clone();
+        }
+        let pages = PAGES
             .iter()
-            .map(|spec| spec.page)
-            .filter(|page| !self.layout_for(*page).rows.is_empty())
-            .collect()
+            .map(|spec| (spec.page, Rc::new(self.layout_for(spec.page))))
+            .filter(|(_, layout)| !layout.rows.is_empty())
+            .collect();
+        let layouts = Rc::new(Layouts { pages });
+        *self.layouts.borrow_mut() = Some(layouts.clone());
+        layouts
+    }
+
+    /// Drops the pages built for the old search, file or rules.
+    pub(super) fn invalidate_layouts(&self) {
+        self.layouts.borrow_mut().take();
+    }
+
+    /// Replaces the search, in the box and in the rows it picks.
+    pub(super) fn set_query(&mut self, text: &str, cx: &mut Context<Self>) {
+        if self.search.read(cx).text() != text {
+            self.search.update(cx, |field, cx| field.set_text(text, cx));
+        }
+        self.query = text.to_string();
+        self.invalidate_layouts();
+        self.select_section(0, cx);
     }
 
     pub fn section_title(&self, page: Page) -> String {
@@ -458,34 +527,48 @@ impl SettingsView {
 
     /// The rows the right pane shows for the current page and search.
     pub fn rows(&self) -> Vec<ControlRow> {
-        self.layout().rows
+        self.layout().rows.clone()
     }
 
     /// The current page's rows and cards.
-    pub fn layout(&self) -> PaneLayout {
-        self.current_section()
-            .map(|page| self.layout_for(page))
+    pub fn layout(&self) -> Rc<PaneLayout> {
+        self.layouts()
+            .pages
+            .get(self.current)
+            .map(|(_, layout)| layout.clone())
             .unwrap_or_default()
+    }
+
+    /// The search a page's rows are filtered by: none when the search
+    /// names the page itself, such as "shortcuts", so the whole page shows.
+    fn query_for(&self, page: Page) -> &str {
+        let query = self.query.trim();
+        if !query.is_empty() && words_match(PageSpec::get(page).title, query) {
+            ""
+        } else {
+            query
+        }
     }
 
     fn layout_for(&self, page: Page) -> PaneLayout {
         let mut layout = PaneLayout::default();
+        let query = self.query_for(page);
         if page == Page::Shortcuts {
-            self.shortcut_cards(&mut layout);
+            self.shortcut_cards(query, &mut layout);
             return layout;
         }
         for card in page_cards(page, &self.items) {
             let rows = card
                 .iter()
-                .flat_map(|spec| self.rows_for_spec(spec))
+                .flat_map(|spec| self.rows_for_spec(spec, query))
                 .collect();
             layout.push_card(None, rows);
         }
         layout
     }
 
-    fn shortcut_cards(&self, layout: &mut PaneLayout) {
-        let query = self.query.trim();
+    fn shortcut_cards(&self, query: &str, layout: &mut PaneLayout) {
+        let query = ShortcutQuery::new(query);
         let mut categories: Vec<&str> = Vec::new();
         for row in &self.shortcuts {
             if !categories.contains(&row.category.as_str()) {
@@ -496,7 +579,7 @@ impl SettingsView {
             let rows = self
                 .shortcuts
                 .iter()
-                .filter(|row| row.category == category && row.matches(query))
+                .filter(|row| row.category == category && row.matches_query(&query))
                 .cloned()
                 .map(ControlRow::Shortcut)
                 .collect();
@@ -504,8 +587,7 @@ impl SettingsView {
         }
     }
 
-    fn rows_for_spec(&self, spec: &RowSpec) -> Vec<ControlRow> {
-        let query = self.query.trim();
+    fn rows_for_spec(&self, spec: &RowSpec, query: &str) -> Vec<ControlRow> {
         let row = match spec {
             RowSpec::Setting(key) => {
                 return self
@@ -573,12 +655,20 @@ impl SettingsView {
     ) {
         self.commit_number(cx);
         self.menu = None;
+        if focus != self.focus {
+            self.error = None;
+        }
         self.focus = focus;
         match focus {
             SettingsFocus::Search => window.focus(&self.search.focus_handle(cx)),
             SettingsFocus::Control(index) => {
-                self.scroll.scroll_to_item(self.child_index(index));
-                match self.rows().get(index).and_then(|row| self.field_for(row)) {
+                self.list.scroll_to_reveal_item(self.child_index(index));
+                match self
+                    .layout()
+                    .rows
+                    .get(index)
+                    .and_then(|row| self.field_for(row))
+                {
                     Some(field) => window.focus(&field.focus_handle(cx)),
                     None => window.focus(&self.focus_handle),
                 }
@@ -588,8 +678,8 @@ impl SettingsView {
         cx.notify();
     }
 
-    /// The scroll container's child that holds row `index`: the page
-    /// title comes first, then each card's title (if any) and its rows.
+    /// The list item that holds row `index`: the page title comes
+    /// first, then each card's title (if any) and its rows.
     pub(super) fn child_index(&self, index: usize) -> usize {
         let layout = self.layout();
         let titles = layout
@@ -627,7 +717,7 @@ impl SettingsView {
         wanted: impl Fn(&ControlRow) -> bool,
         cx: &mut Context<Self>,
     ) {
-        if let Some(index) = self.rows().iter().position(wanted) {
+        if let Some(index) = self.layout().rows.iter().position(wanted) {
             self.focus = SettingsFocus::Control(index);
             cx.notify();
         }
@@ -638,7 +728,7 @@ impl SettingsView {
         if count > 0 {
             self.current = index.min(count - 1);
             self.menu = None;
-            self.scroll.scroll_to_item(0);
+            self.list.scroll_to(ListOffset::default());
             cx.notify();
         }
     }
@@ -652,23 +742,19 @@ impl SettingsView {
     ) {
         match event {
             TextInputEvent::Changed => {
-                self.query = self.search.read(cx).text().to_string();
-                self.select_section(0, cx);
+                let text = self.search.read(cx).text().to_string();
+                self.set_query(&text, cx);
             }
             TextInputEvent::Submitted => self.focus_first_control(window, cx),
             TextInputEvent::Blurred => {}
-            TextInputEvent::Cancelled if !self.query.is_empty() => {
-                self.search.update(cx, |field, cx| field.set_text("", cx));
-                self.query.clear();
-                self.select_section(0, cx);
-            }
+            TextInputEvent::Cancelled if !self.query.is_empty() => self.set_query("", cx),
             TextInputEvent::Cancelled => cx.emit(DismissEvent),
         }
     }
 
     /// Focuses the first row that takes focus, if there is one.
     pub(super) fn focus_first_control(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(index) = self.rows().iter().position(ControlRow::is_focusable) {
+        if let Some(index) = self.layout().rows.iter().position(ControlRow::is_focusable) {
             self.set_focus(SettingsFocus::Control(index), window, cx);
         }
     }

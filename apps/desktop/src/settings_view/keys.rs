@@ -2,7 +2,7 @@
 //! search box, the section list and the controls; arrows move within
 //! them; Space and Enter toggle a switch, open a dropdown or press a
 //! button; left and right change a choice, number or colour; Delete
-//! resets a setting or removes a shortcut you added; Escape closes.
+//! resets a setting or removes a row's last shortcut; Escape closes.
 
 use editor_config::schema::SettingKind;
 use gpui::{Context, DismissEvent, Focusable, KeyDownEvent, Keystroke, Window};
@@ -137,8 +137,8 @@ impl SettingsView {
             let typed = format!("{}{text}", field.text());
             field.set_text(&typed, cx);
         });
-        self.query = self.search.read(cx).text().to_string();
-        self.select_section(0, cx);
+        let typed = self.search.read(cx).text().to_string();
+        self.set_query(&typed, cx);
         true
     }
 
@@ -362,7 +362,7 @@ impl SettingsView {
     ) -> bool {
         match key {
             "space" | "enter" | "+" | "=" => self.start_capture(command, window, cx),
-            "delete" | "backspace" => self.remove_last_user_shortcut(row, cx),
+            "delete" | "backspace" => self.delete_on_shortcut_row(row, cx),
             _ => return false,
         }
         true

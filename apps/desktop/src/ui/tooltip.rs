@@ -2,18 +2,19 @@
 
 use gpui::{AnyView, App, AppContext, Context, SharedString, Window, div, prelude::*};
 
-use super::ui_theme;
+use super::{keycap, ui_theme};
+use crate::picker::shortcut::Shortcut;
 
 /// A tooltip's text. Build one for GPUI's `.tooltip(...)` with
 /// [`Tooltip::builder`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tooltip {
     pub label: SharedString,
-    pub shortcut: Option<SharedString>,
+    pub shortcut: Option<Shortcut>,
 }
 
 impl Tooltip {
-    pub fn new(label: impl Into<SharedString>, shortcut: Option<SharedString>) -> Tooltip {
+    pub fn new(label: impl Into<SharedString>, shortcut: Option<Shortcut>) -> Tooltip {
         Tooltip {
             label: label.into(),
             shortcut,
@@ -45,6 +46,7 @@ impl Tooltip {
 impl Render for Tooltip {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = ui_theme(cx);
+        let keys = theme.keycap.clone().compact().on_text(theme.tooltip_text);
         div()
             .flex()
             .flex_row()
@@ -60,10 +62,6 @@ impl Render for Tooltip {
             .text_color(theme.tooltip_text)
             .whitespace_nowrap()
             .child(self.label.clone())
-            .children(
-                self.shortcut
-                    .clone()
-                    .map(|shortcut| div().text_color(theme.tooltip_hint).child(shortcut)),
-            )
+            .children(self.shortcut.map(|shortcut| keycap(shortcut, &keys)))
     }
 }
