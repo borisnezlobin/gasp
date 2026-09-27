@@ -59,7 +59,7 @@ impl LineLayouter<'_, '_> {
         self.plan.range.start + range.start..self.plan.range.start + range.end
     }
 
-    fn math(&mut self, tex: &str, display: bool, font_size: Pixels) -> MathState {
+    pub(super) fn math(&mut self, tex: &str, display: bool, font_size: Pixels) -> MathState {
         let key = MathKey::new(
             tex,
             display,
