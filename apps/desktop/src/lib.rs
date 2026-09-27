@@ -1,0 +1,24 @@
+//! The desktop app: a GPUI live-preview Markdown editor, plus headless CLI
+//! modes for tests and agents.
+
+pub mod actions;
+pub mod app;
+pub mod bench;
+pub mod cli;
+pub mod demo;
+pub mod editor;
+pub mod element;
+pub mod frame;
+pub mod images;
+pub mod input;
+pub mod line_layout;
+pub mod metrics;
+pub mod note;
+pub mod stats;
+pub mod styling;
+pub mod text_offsets;
+pub mod theme;
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+mod x11_wake;
+
+pub use editor::EditorView;

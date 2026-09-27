@@ -6,11 +6,25 @@ edition.workspace = true
 license.workspace = true
 publish = false
 
+[lib]
+path = "src/lib.rs"
+
 [[bin]]
 name = "editor"
 path = "src/main.rs"
 
 [dependencies]
+anyhow = "1"
+env_logger = { version = "0.11", default-features = false }
+editor-core = { path = "../../crates/core" }
+gpui = "=0.2.2"
+image = "0.25"
+
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+x11rb = "0.13"
+
+[dev-dependencies]
+gpui = { version = "=0.2.2", features = ["test-support"] }
 
 [lints]
 workspace = true

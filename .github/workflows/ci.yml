@@ -4,6 +4,7 @@ on:
   push:
     branches: [master]
   pull_request:
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -23,12 +24,25 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Install Linux GPUI packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+            libvulkan-dev libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev \
+            libssl-dev clang xvfb mesa-vulkan-drivers
       - name: Build
         run: cargo build --workspace --all-targets --locked
       - name: Test
         run: cargo test --workspace --locked
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Editor layout bench
+        if: runner.os == 'Linux'
+        timeout-minutes: 15
+        run: |
+          cargo build --release --locked -p editor-desktop
+          xvfb-run -a -s "-screen 0 1280x1024x24" target/release/editor --bench-layout fixtures/corpus
 
   lint:
     name: Format and complexity

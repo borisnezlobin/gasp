@@ -1,0 +1,99 @@
+//! Command-line arguments.
+
+use std::path::PathBuf;
+
+use crate::bench::BenchConfig;
+
+pub const USAGE: &str = "\
+usage: editor [PATH]
+       editor --bench-layout PATH [--keystrokes N] [--scroll-pages N]
+
+PATH is a note, or a folder whose notes are joined into one long note.
+--bench-layout opens a window, types into the middle of the note and
+scrolls through it, then prints frame timings and quits. On Linux without
+a display, run it under xvfb-run.";
+
+/// What the binary was asked to do.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Command {
+    Open(Option<PathBuf>),
+    Bench { path: PathBuf, config: BenchConfig },
+    Help,
+}
+
+/// Parses arguments after the program name.
+pub fn parse(args: &[String]) -> Result<Command, String> {
+    match args.first().map(String::as_str) {
+        None => Ok(Command::Open(None)),
+        Some("-h" | "--help") => Ok(Command::Help),
+        Some("--bench-layout") => parse_bench(&args[1..]),
+        Some(flag) if flag.starts_with("--") => Err(format!("unknown option {flag}")),
+        Some(path) if args.len() == 1 => Ok(Command::Open(Some(PathBuf::from(path)))),
+        Some(_) => Err("expected one path".to_owned()),
+    }
+}
+
+fn parse_bench(args: &[String]) -> Result<Command, String> {
+    let path = args.first().ok_or("--bench-layout needs a path")?;
+    let mut config = BenchConfig::default();
+    for pair in args[1..].chunks(2) {
+        let [flag, value] = pair else {
+            return Err(format!("{} needs a value", pair[0]));
+        };
+        let count: usize = value
+            .parse()
+            .map_err(|_| format!("{flag} needs a number, not {value}"))?;
+        match flag.as_str() {
+            "--keystrokes" => config.keystrokes = count.max(1),
+            "--scroll-pages" => config.scroll_pages = count,
+            _ => return Err(format!("unknown option {flag}")),
+        }
+    }
+    Ok(Command::Bench {
+        path: PathBuf::from(path),
+        config,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(|arg| (*arg).to_owned()).collect()
+    }
+
+    #[test]
+    fn no_arguments_opens_the_demo() {
+        assert_eq!(parse(&[]), Ok(Command::Open(None)));
+    }
+
+    #[test]
+    fn a_path_opens_it() {
+        assert_eq!(
+            parse(&args(&["notes/a.md"])),
+            Ok(Command::Open(Some(PathBuf::from("notes/a.md"))))
+        );
+    }
+
+    #[test]
+    fn bench_takes_a_path_and_counts() {
+        let parsed = parse(&args(&["--bench-layout", "corpus", "--keystrokes", "50"])).unwrap();
+        let Command::Bench { path, config } = parsed else {
+            panic!("expected a bench command");
+        };
+        assert_eq!(path, PathBuf::from("corpus"));
+        assert_eq!(config.keystrokes, 50);
+        assert_eq!(config.scroll_pages, BenchConfig::default().scroll_pages);
+    }
+
+    #[test]
+    fn rejects_bad_arguments() {
+        assert!(parse(&args(&["--bench-layout"])).is_err());
+        assert!(parse(&args(&["--bench-layout", "x", "--keystrokes"])).is_err());
+        assert!(parse(&args(&["--bench-layout", "x", "--keystrokes", "many"])).is_err());
+        assert!(parse(&args(&["--frobnicate"])).is_err());
+        assert!(parse(&args(&["a", "b"])).is_err());
+        assert_eq!(parse(&args(&["--help"])), Ok(Command::Help));
+    }
+}
