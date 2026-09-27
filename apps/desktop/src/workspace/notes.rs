@@ -25,9 +25,12 @@ impl Workspace {
         &mut self,
         editor: &Entity<EditorView>,
         event: &EditorEvent,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if let EditorEvent::OpenLink(target) = event {
+            return self.follow_link(target, editor, window, cx);
+        }
         let (offset, line) = {
             let view = editor.read(cx);
             (view.cursor(), view.doc().line_of_offset(view.cursor()))

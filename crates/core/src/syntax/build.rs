@@ -156,6 +156,11 @@ impl Builder<'_> {
             self.skip(&event);
             return;
         }
+        let range = if matches!(event, Event::Start(Tag::List(_) | Tag::Item)) {
+            skip_leading_blanks(self.text, range)
+        } else {
+            range
+        };
         if let Event::TaskListMarker(checked) = event {
             self.mark_task(checked, range);
             return;
@@ -273,6 +278,17 @@ fn leaf_kind(event: &Event<'_>, text: &str, range: &Range<usize>) -> Option<Node
         _ => return None,
     };
     Some(kind)
+}
+
+/// A list or list item starts at its marker. pulldown-cmark starts a list
+/// nested with a tab at the line break before it, so the range moves past
+/// any leading whitespace.
+fn skip_leading_blanks(text: &str, range: Range<usize>) -> Range<usize> {
+    let blank = text[range.clone()]
+        .bytes()
+        .take_while(|byte| matches!(byte, b' ' | b'\t' | b'\n' | b'\r'))
+        .count();
+    (range.start + blank).min(range.end)..range.end
 }
 
 fn tag_kind(tag: Tag<'_>, source: &str) -> NodeKind {
