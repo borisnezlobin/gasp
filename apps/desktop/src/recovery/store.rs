@@ -27,6 +27,18 @@ pub fn use_data_dir(dir: PathBuf) {
 
 const SNAPSHOT_EXTENSION: &str = "md";
 
+/// A vault in the system's temp folder is a throwaway (every test's is),
+/// so its snapshots stay in the temp folder too and never reach the real
+/// data folder.
+fn throwaway_data_dir(vault: &Path) -> Option<PathBuf> {
+    let temp = std::env::temp_dir();
+    let temp = temp.canonicalize().unwrap_or(temp);
+    let vault = vault.canonicalize().unwrap_or_else(|_| vault.to_path_buf());
+    vault
+        .starts_with(&temp)
+        .then(|| temp.join("editor-throwaway-data"))
+}
+
 /// One saved version of a note.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Snapshot {
@@ -47,6 +59,7 @@ impl SnapshotStore {
             .get()
             .cloned()
             .or_else(|| std::env::var_os(DATA_DIR_ENV).map(PathBuf::from))
+            .or_else(|| throwaway_data_dir(vault))
             .or_else(|| dirs::data_local_dir().map(|dir| dir.join("editor")))?;
         Some(SnapshotStore::at(
             data.join("snapshots").join(vault_key(vault)),
@@ -200,6 +213,15 @@ fn vault_key(vault: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_vault_in_the_temp_folder_keeps_its_snapshots_there() {
+        let vault = tempfile::tempdir().unwrap();
+        let data = throwaway_data_dir(vault.path()).unwrap();
+        let temp = std::env::temp_dir();
+        assert!(data.starts_with(temp.canonicalize().unwrap_or(temp)));
+        assert_eq!(throwaway_data_dir(Path::new("/home/someone/Vault")), None);
+    }
 
     const MINUTE: Duration = Duration::from_secs(60);
     const DAY: Duration = Duration::from_secs(24 * 60 * 60);
