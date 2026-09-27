@@ -29,7 +29,7 @@ const MOTIONS: [(&str, &str, Motion); 12] = [
     ("cursor.page-down", "select.page-down", Motion::PageDown),
 ];
 
-const HANDLERS: [(&str, Handler); 29] = [
+const HANDLERS: [(&str, Handler); 32] = [
     ("select.all", |view, _, cx| view.select_all(cx)),
     ("edit.delete-backward", |view, _, cx| {
         view.delete_backward(cx)
@@ -75,10 +75,15 @@ const HANDLERS: [(&str, Handler); 29] = [
     }),
     ("format.link", |view, _, cx| view.run_edit(insert_link, cx)),
     ("footnote.insert-or-jump", |view, _, cx| view.footnote(cx)),
+    ("footnote.tidy", |view, _, cx| view.tidy_footnotes(cx)),
+    ("footnote.fix-typos", |view, _, cx| {
+        view.fix_footnote_typos(cx)
+    }),
     ("markdown.cycle-symbols", |view, _, cx| {
         view.cycle_symbols(cx)
     }),
     ("link.follow", |view, _, cx| view.follow_link(cx)),
+    ("link.make-card", |view, _, cx| view.make_card(cx)),
     ("view.zoom-in", |view, _, cx| view.zoom_in(cx)),
     ("view.zoom-out", |view, _, cx| view.zoom_out(cx)),
     ("view.zoom-reset", |view, _, cx| view.reset_zoom(cx)),

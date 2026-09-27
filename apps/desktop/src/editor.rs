@@ -17,9 +17,12 @@ use gpui::{App, Bounds, Context, EventEmitter, FocusHandle, Focusable, Pixels, P
 
 use crate::actions::ClickUnit;
 use crate::bench::Bench;
+use crate::footnotes::FootnoteChecks;
 use crate::frame::{FrameLayout, PlacedLine};
+use crate::hover::HoverState;
 use crate::images::ImageStore;
 use crate::line_layout::{LayoutContext, LayoutResources, VisualLine, layout_line};
+use crate::link_cards::LinkCards;
 use crate::metrics::{Estimator, LineMetrics};
 use crate::preview::code_highlight::CodeHighlighter;
 use crate::preview::folds::Folds;
@@ -57,6 +60,8 @@ pub enum EditorEvent {
 pub enum HighlightKind {
     SearchMatch,
     ActiveSearchMatch,
+    /// Missing, duplicate, unused or empty footnotes, drawn underlined.
+    FootnoteProblem,
 }
 
 /// A live-preview Markdown editor view.
@@ -99,6 +104,19 @@ pub struct EditorView {
     pub(crate) pipeline: Pipeline,
     /// Whether pasted text gets curly quotes, from the settings.
     pub(crate) curl_pasted_quotes: bool,
+    /// A view that only shows its note, such as a hover preview: edits,
+    /// suggestions and the caret are off.
+    pub(crate) read_only: bool,
+    pub(crate) footnotes: FootnoteChecks,
+    pub(crate) hover: HoverState,
+    pub(crate) cards: LinkCards,
+    /// A document offset kept at the top of the view until the reader
+    /// scrolls, such as the heading a preview opened at. Line heights are
+    /// estimates until laid out, so it's re-applied each frame.
+    pub(crate) pinned_top: Option<usize>,
+    /// A read-only view's content height when last drawn, to notice when
+    /// laying out lines changed it.
+    drawn_height: std::cell::Cell<Pixels>,
     clock: Instant,
 }
 
@@ -125,23 +143,36 @@ impl EditorView {
         config: &Config,
         cx: &mut Context<Self>,
     ) -> Self {
+        let span = crate::trace::span("editor-parse");
+        let source = Source::new(text);
+        drop(span);
+        Self::with_source(source, image_dirs, config, cx)
+    }
+
+    /// A view of text already parsed, as on a background thread.
+    pub fn with_source(
+        source: Source,
+        image_dirs: Vec<PathBuf>,
+        config: &Config,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let span = crate::trace::span("editor-theme");
         let mut base_theme = Theme::from_config(config, crate::ui::is_dark(cx));
         base_theme.resolve_fonts(&crate::ui::installed_fonts(cx));
         drop(span);
-        let span = crate::trace::span("editor-parse");
-        let source = Source::new(text);
+        let span = crate::trace::span("editor-measure");
         let column_width = px(INITIAL_COLUMN_WIDTH);
         let estimator = Estimator {
             theme: &base_theme,
             column_width,
         };
         let symbols = config.settings.markdown.symbols.clone();
+        let metrics = LineMetrics::build(&source, &estimator);
         drop(span);
-        Self {
+        let mut view = Self {
             focus_handle: cx.focus_handle(),
-            metrics: LineMetrics::build(&source, &estimator),
-            state: EditorState::new(Document::from(text)),
+            metrics,
+            state: EditorState::new(Document::from(source.text())),
             marked: None,
             theme: base_theme.clone(),
             base_theme,
@@ -170,8 +201,16 @@ impl EditorView {
             suggest: SuggestState::default(),
             pipeline: Pipeline::builtin(),
             curl_pasted_quotes: config.settings.editor.curl_pasted_quotes,
+            read_only: false,
+            footnotes: FootnoteChecks::default(),
+            hover: HoverState::default(),
+            cards: LinkCards::default(),
+            pinned_top: None,
+            drawn_height: std::cell::Cell::new(px(0.)),
             clock: Instant::now(),
-        }
+        };
+        view.check_footnotes_soon(cx);
+        view
     }
 
     /// Takes the theme and Markdown symbol settings from a loaded config,
@@ -183,6 +222,7 @@ impl EditorView {
         self.symbols = config.settings.markdown.symbols.clone();
         self.reveal = reveal_settings(&self.symbols);
         self.apply_typing_settings(&config.settings.editor);
+        self.clear_preview_cache();
         self.set_zoom(self.zoom, cx);
     }
 
@@ -305,6 +345,7 @@ impl EditorView {
             .expect("a selection-only transaction always applies");
         self.autoscroll = true;
         self.refresh_suggestions(cx);
+        self.keep_card_offer(cx);
         cx.emit(EditorEvent::SelectionChanged);
         cx.notify();
     }
@@ -342,7 +383,10 @@ impl EditorView {
         self.goal_x = None;
         self.autoscroll = true;
         self.timings.input_started.get_or_insert_with(Instant::now);
+        self.close_preview(cx);
         self.refresh_suggestions(cx);
+        self.keep_card_offer(cx);
+        self.schedule_footnote_checks(cx);
         cx.emit(EditorEvent::Edited);
         cx.notify();
         inserted
@@ -451,9 +495,12 @@ impl EditorView {
 
     /// Everything an edit settles once the source matches the document.
     fn after_edit(&mut self, cx: &mut Context<Self>) {
+        self.close_preview(cx);
         self.marked = None;
         self.autoscroll = true;
         self.refresh_suggestions(cx);
+        self.keep_card_offer(cx);
+        self.schedule_footnote_checks(cx);
         cx.emit(EditorEvent::Edited);
         cx.notify();
     }
@@ -513,6 +560,16 @@ impl EditorView {
         self.highlights.get(&kind).map_or(&[], Vec::as_slice)
     }
 
+    /// Whether a read-only view's content height changed since it was
+    /// last asked, as when laying out lines replaced their estimates.
+    pub(crate) fn take_height_change(&self) -> bool {
+        if !self.read_only {
+            return false;
+        }
+        let height = self.metrics.total_height();
+        (height - self.drawn_height.replace(height)).abs() > px(0.5)
+    }
+
     /// Stores the frame just painted and records its timings.
     pub(crate) fn finish_frame(&mut self, frame: FrameLayout, paint_started: Instant) {
         self.timings.paint.push(paint_started.elapsed());
@@ -540,6 +597,7 @@ impl EditorView {
 
     /// Scrolls by `delta` and clamps to the document.
     pub fn scroll_by(&mut self, delta: Pixels, cx: &mut Context<Self>) {
+        self.pinned_top = None;
         let max_scroll = self.max_scroll(self.viewport_height());
         self.scroll_y = (self.scroll_y + delta).clamp(px(0.), max_scroll);
         cx.notify();
@@ -670,7 +728,14 @@ impl EditorView {
         let viewport = (bounds.size.height - padding * 2.).max(px(0.));
         self.math.begin_frame();
         self.code.begin_frame();
-        self.apply_autoscroll(viewport, window);
+        match self.pinned_top {
+            Some(offset) => {
+                self.autoscroll = false;
+                let line = self.source.line_of(offset.min(self.source.text().len()));
+                self.scroll_y = self.header_height + self.metrics.top_of(line);
+            }
+            None => self.apply_autoscroll(viewport, window),
+        }
         self.scroll_y = self.scroll_y.clamp(px(0.), self.max_scroll(viewport));
         let text_scroll = self.scroll_y - self.header_height;
         let (first, first_top) = self.metrics.line_at_y(text_scroll.max(px(0.)));

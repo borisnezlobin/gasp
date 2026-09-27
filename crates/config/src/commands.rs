@@ -129,6 +129,12 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
         "Insert or jump to footnote",
         "Formatting",
     ),
+    spec("footnote.tidy", "Renumber footnotes", "Formatting"),
+    spec(
+        "footnote.fix-typos",
+        "Convert inline footnote typos",
+        "Formatting",
+    ),
     spec(
         "prose.toggle-sentence-highlighting",
         "Toggle sentence-length highlighting",
@@ -165,6 +171,11 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec(
         "link.follow",
         "Follow link under cursor",
+        "Notes and navigation",
+    ),
+    spec(
+        "link.make-card",
+        "Turn the link on this line into a card",
         "Notes and navigation",
     ),
     spec("history.back", "Go back", "Notes and navigation"),

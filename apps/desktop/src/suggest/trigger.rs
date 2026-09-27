@@ -1,5 +1,6 @@
 //! Spotting what the cursor is completing: a note name after `[[`, a
-//! heading after `[[Note#`, or a tag after `#`.
+//! heading after `[[Note#`, a tag after `#`, or an emoji or symbol name
+//! after `:`.
 
 use std::ops::Range;
 
@@ -18,6 +19,9 @@ pub enum TriggerKind {
     Heading { note: String },
     /// A tag, after `#`.
     Tag,
+    /// An emoji, symbol or emoticon name, after `:`. The replaced range
+    /// starts at the colon.
+    Emoji,
 }
 
 /// A completion the cursor is in the middle of.
@@ -47,6 +51,7 @@ impl Trigger {
     pub fn anchor(&self) -> usize {
         match self.kind {
             TriggerKind::Tag => self.replace.start - 1,
+            TriggerKind::Emoji => self.replace.start + 1,
             _ => self.replace.start,
         }
     }
@@ -55,7 +60,57 @@ impl Trigger {
 /// The trigger around the cursor on a line split at the cursor into
 /// `before` and `after`. `line_start` is the line's document offset.
 pub fn find_trigger(before: &str, after: &str, line_start: usize) -> Option<Trigger> {
-    wikilink_trigger(before, after, line_start).or_else(|| tag_trigger(before, after, line_start))
+    wikilink_trigger(before, after, line_start)
+        .or_else(|| tag_trigger(before, after, line_start))
+        .or_else(|| emoji_trigger(before, after, line_start))
+}
+
+/// Longest emoji name worth completing.
+const MAX_EMOJI_QUERY: usize = 40;
+
+/// The characters of an emoji shortcode or symbol name.
+fn is_emoji_name_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '+')
+}
+
+/// What may come right before the colon: nothing, a space, or an opening
+/// bracket or quote. Anything else is a time (`10:30`), a URL scheme
+/// (`https:`), a label (`Note:`) or math (`f:A`), which stay quiet.
+fn opens_emoji(previous: Option<char>) -> bool {
+    previous.is_none_or(|ch| ch.is_whitespace() || "([{\"'“‘".contains(ch))
+}
+
+fn emoji_trigger(before: &str, after: &str, line_start: usize) -> Option<Trigger> {
+    let body_len: usize = before
+        .chars()
+        .rev()
+        .take_while(|&ch| is_emoji_name_char(ch))
+        .map(char::len_utf8)
+        .sum();
+    let query = &before[before.len() - body_len..];
+    let head = before[..before.len() - body_len].strip_suffix(':')?;
+    let starts_with_letter = query
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_alphabetic());
+    if !starts_with_letter || body_len > MAX_EMOJI_QUERY || !opens_emoji(head.chars().next_back()) {
+        return None;
+    }
+    let rest: usize = after
+        .chars()
+        .take_while(|&ch| is_emoji_name_char(ch))
+        .map(char::len_utf8)
+        .sum();
+    // A closing colon, as in `:smile:`, goes with the name.
+    let closing = usize::from(after[rest..].starts_with(':'));
+    let cursor = line_start + before.len();
+    Some(Trigger {
+        kind: TriggerKind::Emoji,
+        query: query.to_owned(),
+        replace: line_start + head.len()..cursor + rest + closing,
+        closed: false,
+        close_end: cursor,
+    })
 }
 
 /// Longest query worth completing; past this the `[[` is surely not a link
@@ -217,5 +272,30 @@ mod tests {
         assert_eq!(at("“i|"), None, "a wide character before the word");
         assert_eq!(at("“#i|"), None, "a tag can't follow a quote");
         assert_eq!(at("é #tag|").unwrap().replace, 104..107);
+    }
+
+    #[test]
+    fn emoji_names_after_a_colon() {
+        let trigger = at("nice :smi|").unwrap();
+        assert_eq!(trigger.kind, TriggerKind::Emoji);
+        assert_eq!(trigger.query, "smi");
+        assert_eq!(trigger.replace, 105..109);
+        assert_eq!(trigger.anchor(), 106);
+        assert_eq!(at(":a|").unwrap().query, "a");
+        assert_eq!(at("(:thumbs|").unwrap().query, "thumbs");
+        assert_eq!(at(":smi|le: more").unwrap().replace, 100..107);
+    }
+
+    #[test]
+    fn colons_that_are_not_emoji() {
+        assert_eq!(at("at 10:30|"), None, "after a digit");
+        assert_eq!(at("at 10:a|"), None, "after a digit");
+        assert_eq!(at(":|"), None, "needs a letter");
+        assert_eq!(at(":1|"), None, "needs a letter first");
+        assert_eq!(at("https:|"), None);
+        assert_eq!(at("f:A|"), None, "math-like labels");
+        assert_eq!(at("Note:todo|"), None);
+        assert_eq!(at("::smile|"), None);
+        assert_eq!(at(":smile: and|"), None);
     }
 }

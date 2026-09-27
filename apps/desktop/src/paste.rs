@@ -368,8 +368,11 @@ impl EditorView {
             return;
         }
         let selected = self.doc().slice(selection.clone());
+        let line = motion::line_at(self.doc(), selection.start);
+        let line_was_empty = selection.is_empty() && self.doc().slice(line).trim().is_empty();
         let text = self.curl_pasted(&text, selection.start);
         self.paste_text_at(selection, &text_to_paste(&selected, &text), cx);
+        self.offer_card_after_paste(line_was_empty, cx);
     }
 
     /// `edit.paste-plain`: the clipboard's text, exactly, straight quotes

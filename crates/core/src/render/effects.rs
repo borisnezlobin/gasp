@@ -26,8 +26,9 @@ pub(crate) struct Planner<'a> {
 }
 
 /// The syntax kind that decides whether a node is replaced by a widget.
-fn replaceable_syntax(node: &Node) -> Option<SyntaxKind> {
+fn replaceable_syntax(node: &Node, text: &str) -> Option<SyntaxKind> {
     let kind = match &node.kind {
+        NodeKind::CodeBlock(_) if widgets::link_card(text, node).is_some() => SyntaxKind::CodeBlock,
         NodeKind::Math { .. } | NodeKind::MathBlock => SyntaxKind::Math,
         NodeKind::Image(_) | NodeKind::Embed(_) => SyntaxKind::Image,
         NodeKind::ThematicBreak => SyntaxKind::ThematicBreak,
@@ -88,12 +89,17 @@ impl<'a> Planner<'a> {
         if is_empty_math(node) {
             return;
         }
-        self.add_line_styles(id);
-        if let Some(syntax) = replaceable_syntax(node) {
-            if !self.revealer.revealed(id, syntax, None) {
-                self.replace(id);
-                return;
-            }
+        let replaceable = replaceable_syntax(node, self.revealer.text);
+        let replaced = replaceable.is_some_and(|syntax| !self.revealer.revealed(id, syntax, None));
+        // A link card draws its own surface, not a code block's.
+        if !(replaced && matches!(node.kind, NodeKind::CodeBlock(_))) {
+            self.add_line_styles(id);
+        }
+        if replaced {
+            self.replace(id);
+            return;
+        }
+        if replaceable.is_some() {
             self.revealed_extras(id);
         }
         self.add_node_styles(id);

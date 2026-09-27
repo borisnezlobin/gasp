@@ -1816,6 +1816,7 @@ dependencies = [
  "editor-export",
  "editor-math",
  "editor-sync",
+ "emojis",
  "env_logger",
  "futures",
  "git2",
@@ -1837,6 +1838,7 @@ dependencies = [
  "unicode-normalization",
  "unicode-segmentation",
  "x11rb",
+ "zed-reqwest",
 ]
 
 [[package]]
@@ -1935,6 +1937,15 @@ dependencies = [
  "toml 1.1.6+spec-1.1.0",
  "vswhom",
  "winreg",
+]
+
+[[package]]
+name = "emojis"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b1514ced566c94991ed9563258ecf61e311fd773bf0a3f20606830386bf66e3"
+dependencies = [
+ "phf",
 ]
 
 [[package]]
@@ -9689,6 +9700,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "encoding_rs",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "h2",

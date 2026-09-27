@@ -190,6 +190,8 @@ pub enum WidgetKind {
         label: String,
     },
     LineBreak,
+    /// A Link Embed `embed` block drawn as a card.
+    LinkCard(crate::link_card::LinkCard),
 }
 
 /// The plan for one source line.
