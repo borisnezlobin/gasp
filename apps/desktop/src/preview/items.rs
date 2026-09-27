@@ -170,7 +170,7 @@ mod tests {
         let plan = plan(&RenderInput {
             text,
             tree: &tree,
-            selections: &[cursor..cursor],
+            selections: std::slice::from_ref(&(cursor..cursor)),
             settings: &settings,
         });
         line_items(&plan.lines[line])
@@ -237,7 +237,10 @@ mod tests {
             visible_parts(&(0..10), &[2..4, 6..7]),
             vec![0..2, 4..6, 7..10]
         );
-        assert_eq!(visible_parts(&(3..5), &[0..4]), vec![4..5]);
-        assert!(visible_parts(&(3..5), &[0..9]).is_empty());
+        assert_eq!(
+            visible_parts(&(3..5), std::slice::from_ref(&(0..4))),
+            vec![4..5]
+        );
+        assert!(visible_parts(&(3..5), std::slice::from_ref(&(0..9))).is_empty());
     }
 }

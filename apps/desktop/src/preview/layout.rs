@@ -284,10 +284,7 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
             top: px(0.),
             width: shaped.width,
             height: line_height,
-            content: PieceContent::Text(Box::new(TextPiece {
-                shaped,
-                line_height,
-            })),
+            content: PieceContent::Text(Box::new(TextPiece::whole(shaped, line_height))),
             hit: Hit::Widget,
         };
         (piece, extent)

@@ -70,22 +70,6 @@ pub struct Chunk {
     pub runs: Vec<TextRun>,
 }
 
-impl Chunk {
-    fn runs_for(&self, part: &Range<usize>) -> Vec<TextRun> {
-        let mut start = 0;
-        let mut runs = Vec::new();
-        for run in &self.runs {
-            let end = start + run.len;
-            let len = end.min(part.end).saturating_sub(start.max(part.start));
-            if len > 0 {
-                runs.push(TextRun { len, ..run.clone() });
-            }
-            start = end;
-        }
-        runs
-    }
-}
-
 /// Builds the rows of one line.
 pub struct RowBuilder {
     limit: Pixels,
@@ -208,17 +192,19 @@ impl RowBuilder {
         }
     }
 
-    /// Places a chunk of text, wrapping it across rows as needed.
+    /// Places a chunk of text, wrapping it across rows as needed. The
+    /// chunk is shaped once and each row shows a slice of it.
     pub fn push_chunk(&mut self, chunk: &Chunk, shaper: &Shaper<'_>) {
         let whole = shaper.shape(&chunk.text, chunk.font_size, &chunk.runs);
         if self.fits(whole.width) {
-            return self.place_text(chunk, 0..chunk.text.len(), whole);
+            let text = TextPiece::whole(whole, chunk.line_height);
+            return self.place_text(chunk, text);
         }
         let positions = GlyphPositions::new(&whole);
         let breaks = break_points(&chunk.text);
         let mut start = 0;
         while start < chunk.text.len() {
-            start = self.place_next_part(chunk, start, &positions, &breaks, shaper);
+            start = self.place_next_part(chunk, start, &whole, &positions, &breaks);
         }
     }
 
@@ -228,59 +214,56 @@ impl RowBuilder {
         &mut self,
         chunk: &Chunk,
         start: usize,
+        whole: &ShapedLine,
         positions: &GlyphPositions,
         breaks: &[usize],
-        shaper: &Shaper<'_>,
     ) -> usize {
         let text = &chunk.text;
         let base = positions.x_at(start);
         let room = self.limit - self.x;
         let width_to = |end: usize| positions.x_at(trim_end(text, start, end)) - base;
-        if positions.x_at(text.len()) - base <= room {
-            self.place_part(chunk, start..text.len(), shaper);
-            return text.len();
-        }
-        let word_end = breaks
-            .iter()
-            .copied()
-            .filter(|&at| at > start)
-            .take_while(|&at| width_to(at) <= room)
-            .last();
-        let end = match word_end {
-            Some(end) => end,
-            None if self.has_content() => {
-                self.break_row();
-                return start;
+        let end = if positions.x_at(text.len()) - base <= room {
+            text.len()
+        } else {
+            let word_end = breaks
+                .iter()
+                .copied()
+                .filter(|&at| at > start)
+                .take_while(|&at| width_to(at) <= room)
+                .last();
+            match word_end {
+                Some(end) => end,
+                None if self.has_content() => {
+                    self.break_row();
+                    return start;
+                }
+                None => character_fit(text, start, positions.index_before(base + room)),
             }
-            None => character_fit(text, start, positions.index_before(base + room)),
         };
-        self.place_part(chunk, start..end, shaper);
-        self.break_row();
+        let slice = TextPiece {
+            shaped: whole.clone(),
+            line_height: chunk.line_height,
+            slice: start..end,
+            slice_x: base,
+        };
+        self.place_text(chunk, slice);
+        if end < text.len() {
+            self.break_row();
+        }
         end
     }
 
-    fn place_part(&mut self, chunk: &Chunk, part: Range<usize>, shaper: &Shaper<'_>) {
-        let shaped = shaper.shape(
-            &chunk.text[part.clone()],
-            chunk.font_size,
-            &chunk.runs_for(&part),
-        );
-        self.place_text(chunk, part, shaped);
-    }
-
-    fn place_text(&mut self, chunk: &Chunk, part: Range<usize>, shaped: ShapedLine) {
-        let extent = Extent::of_text(&shaped, chunk.line_height);
-        let start = chunk.range.start + part.start;
+    fn place_text(&mut self, chunk: &Chunk, text: TextPiece) {
+        let extent = Extent::of_text(&text.shaped, chunk.line_height);
+        let start = chunk.range.start + text.slice.start;
+        let width = text.x_for_index(text.slice.len());
         let piece = Piece {
-            range: start..start + part.len(),
+            range: start..start + text.slice.len(),
             x: self.x,
             top: px(0.),
-            width: shaped.width,
+            width,
             height: chunk.line_height,
-            content: PieceContent::Text(Box::new(TextPiece {
-                shaped,
-                line_height: chunk.line_height,
-            })),
+            content: PieceContent::Text(Box::new(text)),
             hit: Hit::Text,
         };
         self.x += piece.width;

@@ -13,11 +13,44 @@ use gpui::{Hsla, Pixels, RenderImage, ShapedLine, SharedString, px};
 
 pub use crate::preview::layout::{LayoutContext, LayoutResources, layout_line};
 
-/// Shaped text and the line height it is centred in.
+/// Shaped text and the line height it is centred in. A chunk of text is
+/// shaped once; each soft-wrapped row shows a slice of it, so an edit
+/// reshapes a long paragraph once rather than once per row.
 #[derive(Clone, Debug)]
 pub struct TextPiece {
     pub shaped: ShapedLine,
     pub line_height: Pixels,
+    /// The bytes of `shaped` this piece shows.
+    pub slice: Range<usize>,
+    /// Where the slice starts in `shaped`.
+    pub slice_x: Pixels,
+}
+
+impl TextPiece {
+    /// A piece showing all of `shaped`.
+    pub fn whole(shaped: ShapedLine, line_height: Pixels) -> Self {
+        Self {
+            slice: 0..shaped.len(),
+            shaped,
+            line_height,
+            slice_x: px(0.),
+        }
+    }
+
+    pub fn is_whole(&self) -> bool {
+        self.slice.start == 0 && self.slice.end == self.shaped.len()
+    }
+
+    /// The x of a byte within the slice, from the slice's left edge.
+    pub fn x_for_index(&self, index: usize) -> Pixels {
+        self.shaped.x_for_index(self.slice.start + index) - self.slice_x
+    }
+
+    /// The byte within the slice closest to `x`.
+    pub fn closest_index_for_x(&self, x: Pixels) -> usize {
+        let index = self.shaped.closest_index_for_x(x + self.slice_x);
+        index.clamp(self.slice.start, self.slice.end) - self.slice.start
+    }
 }
 
 /// What a piece draws.
@@ -78,9 +111,9 @@ impl Piece {
         self.x + self.width
     }
 
-    fn text(&self) -> Option<&ShapedLine> {
+    fn text(&self) -> Option<&TextPiece> {
         match &self.content {
-            PieceContent::Text(text) => Some(&text.shaped),
+            PieceContent::Text(text) => Some(text),
             _ => None,
         }
     }
@@ -88,7 +121,7 @@ impl Piece {
     /// The offset closest to `x` within this piece.
     fn offset_at(&self, x: Pixels) -> usize {
         match self.text() {
-            Some(shaped) => self.range.start + shaped.closest_index_for_x(x - self.x),
+            Some(text) => self.range.start + text.closest_index_for_x(x - self.x),
             None if x < self.x + self.width / 2. => self.range.start,
             None => self.range.end,
         }
@@ -157,10 +190,10 @@ impl VisualRow {
                     piece.x
                 };
             }
-            if let Some(shaped) = piece.text()
+            if let Some(text) = piece.text()
                 && offset <= piece.range.end
             {
-                return piece.x + shaped.x_for_index(offset - piece.range.start);
+                return piece.x + text.x_for_index(offset - piece.range.start);
             }
             if offset < piece.range.end {
                 return piece.x;

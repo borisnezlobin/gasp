@@ -260,12 +260,28 @@ fn paint_piece(
     let origin = point(text_left + piece.x, row_top + piece.top);
     let bounds = Bounds::new(origin, size(piece.width, piece.height));
     match &piece.content {
-        PieceContent::Text(text) => {
+        PieceContent::Text(text) if text.is_whole() => {
             report(
                 text.shaped
                     .paint_background(origin, text.line_height, window, cx),
             );
             report(text.shaped.paint(origin, text.line_height, window, cx));
+        }
+        PieceContent::Text(text) => {
+            // A wrapped row paints the whole shaped chunk shifted so its
+            // slice lands here; GPUI skips glyphs outside the mask.
+            let shifted = point(origin.x - text.slice_x, origin.y);
+            let mask = Bounds::new(
+                point(origin.x, origin.y - text.line_height),
+                size(piece.width, text.line_height * 3.),
+            );
+            window.with_content_mask(Some(ContentMask { bounds: mask }), |window| {
+                report(
+                    text.shaped
+                        .paint_background(shifted, text.line_height, window, cx),
+                );
+                report(text.shaped.paint(shifted, text.line_height, window, cx));
+            });
         }
         PieceContent::Image { image, radius } => {
             report(window.paint_image(bounds, (*radius).into(), image.clone(), 0, false));

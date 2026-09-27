@@ -7,10 +7,10 @@
 //! the size type of its `SvgRenderer` isn't public. Calling resvg (the
 //! version GPUI already builds) gives crisp, correctly coloured equations.
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
-use editor_math::{MathCache, MathError, RenderedMath};
+use editor_math::{MathError, RenderedMath, render_latex};
 use gpui::{Hsla, Pixels, RenderImage, Rgba, SharedString, px};
 use image::{Frame, RgbaImage};
 use resvg::{tiny_skia, usvg};
@@ -100,21 +100,23 @@ impl MathRequest {
     }
 }
 
-/// Rendered equations by key, plus the renders still to start.
+/// Rendered equations by key, plus the renders still to start. Only
+/// equations looked up since the last [`MathStore::begin_frame`] start, so
+/// laying out lines off screen (to move the cursor, say) renders nothing.
 pub struct MathStore {
     render: RenderFn,
     entries: HashMap<MathKey, MathState>,
+    started: HashSet<MathKey>,
     queued: Vec<MathKey>,
 }
 
 impl Default for MathStore {
+    /// Renders with Typst. The store caches by source, size, scale and
+    /// colour itself, so renders call `render_latex` directly and run in
+    /// parallel rather than queueing on a shared `MathCache`.
     fn default() -> Self {
-        let cache = Arc::new(Mutex::new(MathCache::new()));
-        Self::with_renderer(Arc::new(move |tex, display, font_size| {
-            let mut cache = cache
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            cache.render(tex, display, font_size)
+        Self::with_renderer(Arc::new(|tex, display, font_size| {
+            render_latex(tex, display, font_size).map(Arc::new)
         }))
     }
 }
@@ -125,24 +127,36 @@ impl MathStore {
         Self {
             render,
             entries: HashMap::new(),
+            started: HashSet::new(),
             queued: Vec::new(),
         }
     }
 
-    /// The equation's state, queueing a render the first time it is asked for.
+    /// The equation's state, queueing its render if it hasn't started.
     pub fn lookup(&mut self, key: MathKey) -> MathState {
-        if let Some(state) = self.entries.get(&key) {
-            return state.clone();
+        let state = self
+            .entries
+            .entry(key.clone())
+            .or_insert(MathState::Pending)
+            .clone();
+        let waiting = matches!(state, MathState::Pending) && !self.started.contains(&key);
+        if waiting && !self.queued.contains(&key) {
+            self.queued.push(key);
         }
-        self.entries.insert(key.clone(), MathState::Pending);
-        self.queued.push(key);
-        MathState::Pending
+        state
+    }
+
+    /// Forgets renders queued by earlier layouts; the frame about to be laid
+    /// out queues the ones it shows.
+    pub fn begin_frame(&mut self) {
+        self.queued.clear();
     }
 
     /// Renders to start now.
     pub fn take_requests(&mut self) -> Vec<MathRequest> {
-        self.queued
-            .drain(..)
+        let keys: Vec<MathKey> = self.queued.drain(..).collect();
+        self.started.extend(keys.iter().cloned());
+        keys.into_iter()
             .map(|key| MathRequest {
                 key,
                 render: self.render.clone(),
@@ -152,16 +166,13 @@ impl MathStore {
 
     /// Stores a finished render.
     pub fn finish(&mut self, key: MathKey, state: MathState) {
+        self.started.remove(&key);
         self.entries.insert(key, state);
     }
 
-    /// Whether every equation asked for has been rendered.
+    /// Whether no render is queued or running.
     pub fn is_idle(&self) -> bool {
-        self.queued.is_empty()
-            && !self
-                .entries
-                .values()
-                .any(|state| matches!(state, MathState::Pending))
+        self.queued.is_empty() && self.started.is_empty()
     }
 }
 
@@ -249,6 +260,23 @@ pub(crate) mod tests {
         assert_eq!(image.baseline, px(8.));
         assert_eq!(image.image.size(0).width.0, 8);
         assert!(store.is_idle());
+    }
+
+    #[test]
+    fn renders_start_only_for_the_frame_being_drawn() {
+        let mut store = MathStore::with_renderer(stub_renderer());
+        store.lookup(key("off screen"));
+        store.begin_frame();
+        store.lookup(key("x"));
+        let requests = store.take_requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].key.tex, "x");
+        assert!(
+            store.take_requests().is_empty(),
+            "started renders aren't queued again"
+        );
+        store.lookup(key("off screen"));
+        assert_eq!(store.take_requests().len(), 1, "a later frame starts it");
     }
 
     #[test]
