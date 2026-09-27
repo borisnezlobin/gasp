@@ -65,6 +65,7 @@ pub enum IconName {
     Function,
     GearSix,
     GitMerge,
+    GlobeSimple,
     Hash,
     HighlighterCircle,
     Image,
@@ -92,9 +93,11 @@ pub enum IconName {
     Quotes,
     Rows,
     Scissors,
+    Selection,
     SelectionAll,
     SidebarSimple,
     SidebarSimpleRight,
+    Sigma,
     SlidersHorizontal,
     SortAscending,
     Square,
@@ -116,7 +119,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 105] = [
+const ICONS: [(IconName, &str, &[u8]); 108] = [
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -398,6 +401,11 @@ const ICONS: [(IconName, &str, &[u8]); 105] = [
         include_bytes!("../assets/icons/git-merge.svg"),
     ),
     (
+        IconName::GlobeSimple,
+        "globe-simple",
+        include_bytes!("../assets/icons/globe-simple.svg"),
+    ),
+    (
         IconName::Hash,
         "hash",
         include_bytes!("../assets/icons/hash.svg"),
@@ -533,6 +541,11 @@ const ICONS: [(IconName, &str, &[u8]); 105] = [
         include_bytes!("../assets/icons/scissors.svg"),
     ),
     (
+        IconName::Selection,
+        "selection",
+        include_bytes!("../assets/icons/selection.svg"),
+    ),
+    (
         IconName::SelectionAll,
         "selection-all",
         include_bytes!("../assets/icons/selection-all.svg"),
@@ -546,6 +559,11 @@ const ICONS: [(IconName, &str, &[u8]); 105] = [
         IconName::SidebarSimpleRight,
         "sidebar-simple-right",
         include_bytes!("../assets/icons/sidebar-simple-right.svg"),
+    ),
+    (
+        IconName::Sigma,
+        "sigma",
+        include_bytes!("../assets/icons/sigma.svg"),
     ),
     (
         IconName::SlidersHorizontal,

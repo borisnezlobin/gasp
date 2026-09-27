@@ -14,10 +14,10 @@ use editor_snippets::{
     FileLine, InputContext, ReplacementFire, Replacements, Scope, Snippet, SnippetFile,
     format_expansion, format_trigger,
 };
-use gpui::{AnyElement, ClickEvent, Context, SharedString, div, prelude::*};
+use gpui::Context;
 
-use super::controls::{button, toggle_switch};
 use super::model::words_match;
+use super::snippet_look::SnippetLook;
 use super::store;
 use super::view::{ControlRow, PaneLayout, SettingsEvent, SettingsView};
 
@@ -108,6 +108,8 @@ pub struct SnippetRow {
     /// Where and when it fires, in words.
     pub when: String,
     pub on: bool,
+    /// What the row shows.
+    pub look: SnippetLook,
 }
 
 impl SnippetRow {
@@ -118,6 +120,7 @@ impl SnippetRow {
             expansion: format_expansion(snippet),
             when: describe(snippet),
             on: !snippet.options.off,
+            look: SnippetLook::of_snippet(snippet),
         }
     }
 }
@@ -130,6 +133,8 @@ pub struct ReplacementRow {
     pub to: String,
     pub when: String,
     pub on: bool,
+    /// What the row shows.
+    pub look: SnippetLook,
 }
 
 /// Where and when a snippet fires, as a sentence.
@@ -225,6 +230,7 @@ fn replacement_groups(table: &Replacements) -> Vec<(String, Vec<ReplacementRow>)
             to: entry.to.clone(),
             when: replacement_when(entry),
             on: entry.enabled,
+            look: SnippetLook::of_replacement(entry),
         };
         match groups.iter_mut().find(|(name, _)| *name == group) {
             Some((_, rows)) => rows.push(row),
@@ -275,7 +281,13 @@ impl SettingsView {
         for (group, rows) in snippet_groups(&lists.snippets) {
             let mut shown = Vec::new();
             for row in rows {
-                let haystack = format!("{} {} {} {group}", row.trigger, row.expansion, row.when);
+                let haystack = format!(
+                    "{} {} {} {group} {}",
+                    row.trigger,
+                    row.expansion,
+                    row.when,
+                    row.look.tooltip_words()
+                );
                 if !words_match(&haystack, query) {
                     continue;
                 }
@@ -291,7 +303,13 @@ impl SettingsView {
             let shown = rows
                 .into_iter()
                 .filter(|row| {
-                    let haystack = format!("{} {} {} {group}", row.from, row.to, row.when);
+                    let haystack = format!(
+                        "{} {} {} {group} {}",
+                        row.from,
+                        row.to,
+                        row.when,
+                        row.look.tooltip_words()
+                    );
                     words_match(&haystack, query)
                 })
                 .map(ControlRow::Replacement)
@@ -310,109 +328,10 @@ impl SettingsView {
             return format!("The file can’t be read, so nothing here changes it: {problem}");
         }
         if self.typing_lists.snippets_from_vault {
-            "Kept in .editor/snippets.txt, so they sync with your notes.".to_string()
+            "Saved in .editor/snippets.txt, so they sync with your notes.".to_string()
         } else {
-            "These are the built-in snippets. Your first change saves a copy to .editor/snippets.txt.".to_string()
+            "Built in. Your first change saves a copy to .editor/snippets.txt.".to_string()
         }
-    }
-
-    /// The title and description of a snippet or replacement row, with
-    /// the typed text in the code font.
-    pub(super) fn typing_row_text(&self, row: &ControlRow) -> Option<AnyElement> {
-        let style = &self.style;
-        let (typed, becomes, when) = match row {
-            ControlRow::Snippet(row) => (&row.trigger, &row.expansion, &row.when),
-            ControlRow::Replacement(row) => (&row.from, &row.to, &row.when),
-            _ => return None,
-        };
-        let code = |text: &str| {
-            div()
-                .font_family(style.code_font_family.clone())
-                .child(text.to_string())
-        };
-        let becomes = div()
-            .flex()
-            .flex_wrap()
-            .items_baseline()
-            .gap(style.gap_sm)
-            .text_size(style.small_text_size)
-            .text_color(style.text_muted)
-            .child(code(becomes).text_color(style.text))
-            .child(when.clone());
-        Some(
-            div()
-                .flex()
-                .flex_col()
-                .gap(style.text_gap)
-                .child(code(typed))
-                .child(becomes)
-                .into_any_element(),
-        )
-    }
-
-    /// The control on a snippet or replacement row.
-    pub(super) fn typing_row_control(
-        &self,
-        row: &ControlRow,
-        focused: bool,
-        cx: &mut Context<Self>,
-    ) -> Option<AnyElement> {
-        let style = &self.style;
-        let control = match row {
-            ControlRow::SnippetsFile => button("add-snippet", "Add snippet", false, focused, style)
-                .debug_selector(|| "add-snippet".to_string())
-                .on_click(cx.listener(|view, _: &ClickEvent, window, cx| {
-                    view.open_snippet_editor(None, window, cx)
-                })),
-            ControlRow::Snippet(row) => {
-                let line = row.line;
-                let edit = button(
-                    SharedString::from(format!("edit-snippet-{line}")),
-                    "Edit",
-                    false,
-                    false,
-                    style,
-                )
-                .debug_selector(move || format!("edit-snippet-{line}"))
-                .on_click(cx.listener(move |view, _: &ClickEvent, window, cx| {
-                    view.open_snippet_editor(Some(line), window, cx)
-                }));
-                let switch = toggle_switch(
-                    SharedString::from(format!("toggle-snippet-{line}")),
-                    row.on,
-                    focused,
-                    style,
-                )
-                .debug_selector(move || format!("toggle-snippet-{line}"))
-                .on_click(
-                    cx.listener(move |view, _: &ClickEvent, _, cx| view.toggle_snippet(line, cx)),
-                );
-                return Some(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(style.control_gap)
-                        .child(edit)
-                        .child(switch)
-                        .into_any_element(),
-                );
-            }
-            ControlRow::Replacement(row) => {
-                let index = row.index;
-                toggle_switch(
-                    SharedString::from(format!("toggle-replacement-{index}")),
-                    row.on,
-                    focused,
-                    style,
-                )
-                .debug_selector(move || format!("toggle-replacement-{index}"))
-                .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
-                    view.toggle_replacement(index, cx)
-                }))
-            }
-            _ => return None,
-        };
-        Some(control.into_any_element())
     }
 
     // ---- Changes ----

@@ -146,6 +146,14 @@ impl MathStore {
         state
     }
 
+    /// The state of some equation with this source, at any size or colour.
+    pub fn find(&self, tex: &str) -> Option<&MathState> {
+        self.entries
+            .iter()
+            .find(|(key, _)| key.tex == tex)
+            .map(|(_, state)| state)
+    }
+
     /// Forgets renders queued by earlier layouts; the frame about to be laid
     /// out queues the ones it shows.
     pub fn begin_frame(&mut self) {

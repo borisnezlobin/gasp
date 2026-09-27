@@ -2311,6 +2311,26 @@ pub struct SettingsTheme {
     pub focus_ring: Hsla,
     pub warning: Hsla,
     pub shadow: Hsla,
+    /// A primary button's fill under the pointer.
+    pub accent_hover: Hsla,
+    /// A clickable row's fill under the pointer; it reads on a card.
+    pub card_hover: Hsla,
+    /// The column a snippet's keys sit in, so the arrows after them line up.
+    pub trigger_column_width: Pixels,
+    /// The size a snippet's math result is rendered at.
+    pub snippet_math_size: Pixels,
+    /// The size the worked example above the snippets is drawn at.
+    pub example_math_size: Pixels,
+    /// The square a where-or-when mark on a snippet row takes.
+    pub indicator_size: Pixels,
+    /// How far a clickable row's hover plate sits inside the row.
+    pub plate_inset: Pixels,
+    /// The mark drawn where a snippet leaves the cursor to type into.
+    pub slot_width: Pixels,
+    pub slot_height: Pixels,
+    pub slot_radius: Pixels,
+    pub slot_border: Pixels,
+    pub slot_fill: Hsla,
 }
 
 impl Default for SettingsTheme {
@@ -2400,6 +2420,18 @@ impl SettingsTheme {
             focus_ring: p.focus(),
             warning: p.conflict,
             shadow: p.shadow,
+            accent_hover: p.accent.opacity(0.85),
+            card_hover: p.fill_strong,
+            trigger_column_width: px(112.),
+            snippet_math_size: px(18.),
+            example_math_size: px(24.),
+            indicator_size: px(24.),
+            plate_inset: space("space.sm", 4.),
+            slot_width: px(8.),
+            slot_height: px(15.),
+            slot_radius: px(2.),
+            slot_border: px(1.),
+            slot_fill: p.accent.opacity(0.12),
         }
     }
 

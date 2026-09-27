@@ -119,8 +119,20 @@ pub fn toggle_switch(
 
 /// The raised surface buttons, dropdowns and steppers share.
 fn raised(id: impl Into<ElementId>, style: &SettingsTheme) -> Stateful<Div> {
-    let hover = style.hover;
+    raised_button(id, false, style)
+}
+
+/// A raised button's surface, in the accent for the main action, with
+/// its fill under the pointer.
+fn raised_button(id: impl Into<ElementId>, primary: bool, style: &SettingsTheme) -> Stateful<Div> {
+    let (fill, hover) = if primary {
+        (style.accent, style.accent_hover)
+    } else {
+        (style.control_background, style.hover)
+    };
     raised_surface(id, style)
+        .bg(fill)
+        .when(primary, |button| button.text_color(style.on_accent))
         .cursor_pointer()
         .hover(move |button| button.bg(hover))
 }
@@ -171,13 +183,35 @@ pub fn button(
     focused: bool,
     style: &SettingsTheme,
 ) -> Stateful<Div> {
-    let button = raised(id, style)
+    let button = raised_button(id, primary, style)
         .px(style.control_padding_x)
         .whitespace_nowrap()
-        .child(label.into())
-        .when(primary, |button| {
-            button.bg(style.accent).text_color(style.on_accent)
-        });
+        .child(label.into());
+    with_focus(button, focused, style)
+}
+
+/// A button with an icon before its label, such as "New snippet".
+pub fn icon_label_button(
+    id: impl Into<ElementId>,
+    name: IconName,
+    label: impl Into<SharedString>,
+    primary: bool,
+    focused: bool,
+    style: &SettingsTheme,
+) -> Stateful<Div> {
+    let color = if primary { style.on_accent } else { style.text };
+    let button = raised_button(id, primary, style)
+        .gap(style.gap_sm * 1.5)
+        .pl(style.control_padding_x * 0.75)
+        .pr(style.control_padding_x)
+        .whitespace_nowrap()
+        .child(
+            icon(name)
+                .flex_none()
+                .size(style.small_icon_size)
+                .text_color(color),
+        )
+        .child(label.into());
     with_focus(button, focused, style)
 }
 

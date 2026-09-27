@@ -13,6 +13,8 @@ use editor_desktop::EditorView;
 use editor_desktop::actions::bind_keys;
 use editor_desktop::keymap::editor_bindings;
 use editor_desktop::settings_view::snippet_editor::{EditorField, EditorStop, OptionControl};
+use editor_desktop::settings_view::snippet_look::ResultPiece;
+use editor_desktop::settings_view::snippets_page::SnippetRow;
 use editor_desktop::settings_view::{ControlRow, SettingsEvent, SettingsView};
 use editor_desktop::text_input;
 use gpui::{Entity, Focusable, TestAppContext, VisualTestContext};
@@ -660,4 +662,159 @@ fn a_replacement_switches_off_in_its_file(cx: &mut TestAppContext) {
         .unwrap();
     assert!(!dash.enabled);
     assert_eq!(changed.borrow().as_slice(), ["replacements"]);
+}
+
+// ---- The rows ----
+
+fn snippet_row(
+    view: &Entity<SettingsView>,
+    cx: &mut VisualTestContext,
+    trigger: &str,
+) -> SnippetRow {
+    rows(view, cx)
+        .into_iter()
+        .find_map(|row| match row {
+            ControlRow::Snippet(row) if row.trigger == trigger => Some(row),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("{trigger} is listed"))
+}
+
+/// Where the element with `selector` was drawn, if it was.
+fn drawn(cx: &mut VisualTestContext, selector: String) -> Option<gpui::Bounds<gpui::Pixels>> {
+    // The selectors are made at runtime; the lookup wants them static.
+    cx.debug_bounds(Box::leak(selector.into_boxed_str()))
+}
+
+fn click(cx: &mut VisualTestContext, selector: &str) {
+    let bounds = drawn(cx, selector.to_string()).unwrap_or_else(|| panic!("{selector} is drawn"));
+    cx.simulate_click(bounds.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn the_new_snippet_button_opens_an_empty_editor(cx: &mut TestAppContext) {
+    let vault = migrated_vault();
+    let (view, cx, _) = open_settings(cx, vault.path());
+    click(cx, "add-snippet");
+    let (_, problem, _) = view
+        .read_with(cx, |view, cx| view.snippet_editor_state(cx))
+        .expect("the editor opens");
+    assert!(
+        problem.is_none(),
+        "nothing is wrong before anything is typed"
+    );
+    assert!(cx.debug_bounds("snippet-editor").is_some());
+}
+
+#[gpui::test]
+fn clicking_a_row_opens_its_editor(cx: &mut TestAppContext) {
+    let vault = migrated_vault();
+    let (view, cx, _) = open_settings(cx, vault.path());
+    view.update(cx, |view, cx| view.search("mk", cx));
+    cx.run_until_parked();
+    let line = snippet_row(&view, cx, "mk").line;
+    click(cx, &format!("snippet-{line}-keys"));
+    assert_eq!(editor_line(&view, cx), "mk → $●$  text, instant");
+}
+
+#[gpui::test]
+fn the_switch_turns_a_snippet_off_without_opening_it(cx: &mut TestAppContext) {
+    let vault = migrated_vault();
+    let (view, cx, _) = open_settings(cx, vault.path());
+    view.update(cx, |view, cx| view.search("mk", cx));
+    cx.run_until_parked();
+    let line = snippet_row(&view, cx, "mk").line;
+    click(cx, &format!("toggle-snippet-{line}"));
+    assert!(snippets_file(&vault).contains("text, instant, off"));
+    assert!(
+        view.read_with(cx, |view, cx| view.snippet_editor_state(cx))
+            .is_none(),
+        "the switch doesn't open the editor"
+    );
+}
+
+#[gpui::test]
+fn a_math_snippet_shows_its_rendered_result(cx: &mut TestAppContext) {
+    let vault = migrated_vault();
+    let (view, cx, _) = open_settings(cx, vault.path());
+    view.update(cx, |view, cx| view.search("reals", cx));
+    cx.run_until_parked();
+    let row = snippet_row(&view, cx, "reals");
+    assert_eq!(row.look.math.as_deref(), Some("\\mathbb{R}"));
+    assert_eq!(
+        view.read_with(cx, |view, _| view.snippet_math("\\mathbb{R}")),
+        Some(true),
+        "the equation was asked for and rendered"
+    );
+    assert!(
+        drawn(cx, format!("snippet-{}-math", row.line)).is_some(),
+        "the row draws the rendered math"
+    );
+}
+
+#[gpui::test]
+fn math_that_cant_render_shows_its_source_with_marks(cx: &mut TestAppContext) {
+    let vault = migrated_vault();
+    let (view, cx, _) = open_settings(cx, vault.path());
+    view.update(cx, |view, cx| view.search("beg", cx));
+    cx.run_until_parked();
+    let row = snippet_row(&view, cx, "beg");
+    let tex = row.look.math.clone().expect("it's math");
+    assert_eq!(
+        view.read_with(cx, |view, _| view.snippet_math(&tex)),
+        Some(false),
+        "an environment without a name doesn't render"
+    );
+    assert!(
+        drawn(cx, format!("snippet-{}-result", row.line)).is_some(),
+        "its source shows instead"
+    );
+    assert!(cx.debug_bounds("snippet-slot").is_some(), "stops are marks");
+    assert!(row.look.result.contains(&ResultPiece::Slot));
+    assert!(row.look.result.iter().all(|piece| match piece {
+        ResultPiece::Text(text) | ResultPiece::Example(text) => !text.contains('●'),
+        _ => true,
+    }));
+}
+
+#[gpui::test]
+fn the_marks_say_where_and_when_in_their_tooltips(cx: &mut TestAppContext) {
+    let vault = migrated_vault();
+    let (view, cx, _) = open_settings(cx, vault.path());
+    let tips = snippet_row(&view, cx, "in").look.tooltips();
+    assert_eq!(
+        tips,
+        ["Works in math, as a whole word, when you type a space after it."]
+    );
+    let tips = snippet_row(&view, cx, "\\sum").look.tooltips();
+    assert_eq!(
+        tips,
+        ["Fires when you press Tab after typing it", "Works in math."]
+    );
+    let tips = snippet_row(&view, cx, "mk").look.tooltips();
+    assert_eq!(tips, ["Works in text."], "as you type needs no mark");
+    view.update(cx, |view, cx| view.search("mk", cx));
+    cx.run_until_parked();
+    let line = snippet_row(&view, cx, "mk").line;
+    assert!(drawn(cx, format!("snippet-{line}-place-Text")).is_some());
+}
+
+#[gpui::test]
+fn searching_for_math_finds_the_math_snippets(cx: &mut TestAppContext) {
+    let vault = migrated_vault();
+    let (view, cx, _) = open_settings(cx, vault.path());
+    view.update(cx, |view, cx| {
+        view.search("math", cx);
+        view.show_section("snippets", cx);
+    });
+    let triggers: Vec<String> = rows(&view, cx)
+        .into_iter()
+        .filter_map(|row| match row {
+            ControlRow::Snippet(row) => Some(row.trigger),
+            _ => None,
+        })
+        .collect();
+    assert!(triggers.contains(&"reals".to_string()), "{triggers:?}");
+    assert!(triggers.contains(&"@a".to_string()), "{triggers:?}");
 }

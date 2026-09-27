@@ -309,11 +309,17 @@ impl SettingsView {
         };
         let (line, expansion_start) = editor_line(editor, cx);
         let test = editor.field(EditorField::Test).read(cx).text().to_string();
+        let blank = is_blank(editor, cx);
         let parsed = parse_snippet(&line);
         let Some(editor) = self.snippet_editor.as_mut() else {
             return;
         };
         match parsed {
+            // A new snippet with nothing written yet has nothing wrong.
+            Err(_) if blank => {
+                editor.problem = None;
+                editor.result = None;
+            }
             Ok(snippet) => {
                 let (context, block) = test_context(&snippet);
                 editor.problem = None;
@@ -373,8 +379,13 @@ impl SettingsView {
             return;
         };
         let (line, _) = editor_line(editor, cx);
+        let blank = is_blank(editor, cx);
         let Ok(snippet) = parse_snippet(&line) else {
             self.check_snippet(cx);
+            if blank && let Some(editor) = self.snippet_editor.as_mut() {
+                let message = "Type the keys that start the snippet first.".to_string();
+                editor.problem = Some((EditorField::Trigger, message));
+            }
             return;
         };
         let mut file = self.typing_lists.snippets.clone();
@@ -538,12 +549,18 @@ impl SettingsView {
         let stop = button("insert-stop", "Add a tab stop ●", false, false, style)
             .debug_selector(|| "insert-stop".to_string())
             .on_click(cx.listener(|view, _: &ClickEvent, window, cx| view.insert_stop(window, cx)));
+        // A new snippet has no row above it to say what's open.
+        let title = editor
+            .line
+            .is_none()
+            .then(|| div().font_weight(style.strong_weight).child("New snippet"));
         div()
             .debug_selector(|| "snippet-editor".to_string())
             .w_full()
             .flex()
             .flex_col()
             .gap(style.control_gap)
+            .children(title)
             .child(self.labelled_field(
                 editor,
                 EditorField::Trigger,
@@ -555,7 +572,7 @@ impl SettingsView {
             .child(self.labelled_field(
                 editor,
                 EditorField::Expansion,
-                "What it becomes. ● marks a tab stop, ␣ a space and ⏎ a new line.",
+                "What you get. ● marks where the cursor stops, ␣ a space and ⏎ a new line.",
                 Some(stop.into_any_element()),
                 window,
                 cx,
@@ -847,6 +864,13 @@ fn editor_line(editor: &SnippetEditor, cx: &gpui::App) -> (String, usize) {
         format!("{trigger} → {expansion}  {options}"),
         expansion_start,
     )
+}
+
+/// Whether nothing has been written in the snippet's two fields.
+fn is_blank(editor: &SnippetEditor, cx: &gpui::App) -> bool {
+    [EditorField::Trigger, EditorField::Expansion]
+        .iter()
+        .all(|field| editor.field(*field).read(cx).text().trim().is_empty())
 }
 
 /// A small muted label above a control.
