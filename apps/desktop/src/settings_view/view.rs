@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 use editor_config::schema::SettingKind;
 use editor_config::theme::Theme as Tokens;
-use editor_config::{Platform, RuleSet};
+use editor_config::{Config, Platform, RuleSet};
 use gpui::{
     App, AppContext, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     ListAlignment, ListOffset, ListState, Subscription, Window, px,
@@ -27,6 +27,7 @@ use super::model::{
 use super::snippet_editor::SnippetEditor;
 use super::snippets_page::{ReplacementRow, SnippetRow, TypingLists};
 use super::store::{SettingsFile, settings_path};
+use crate::editor::EditorView;
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
 use crate::theme::{ACCENT_CHOICES, DARK_ACCENT_CHOICES, KeycapTheme, SettingsTheme, Theme};
 
@@ -256,8 +257,17 @@ pub struct SettingsView {
     /// The snippets and replacements the Snippets page lists.
     pub(super) typing_lists: TypingLists,
     pub(super) snippet_editor: Option<SnippetEditor>,
+    /// A sample note in the vault's current look, shown above the
+    /// Appearance page's controls: the screen covers the notes, so a
+    /// change shows here as it's made.
+    pub(super) preview: Option<Entity<EditorView>>,
     pub(super) _subscriptions: Vec<Subscription>,
 }
+
+/// The note the Appearance page's preview shows: a heading, emphasis, a
+/// link, code and math, so each font and colour setting has something to
+/// change.
+pub const PREVIEW_NOTE: &str = "## Wave packets\n\nA *wave packet* is a sum of waves whose **phases** agree in one place, so it moves like a particle. See [[Fourier series]], `np.fft` and $\\omega = ck$.";
 
 impl EventEmitter<SettingsEvent> for SettingsView {}
 impl EventEmitter<SettingsRequest> for SettingsView {}
@@ -346,6 +356,7 @@ impl SettingsView {
             signed_in_cache: false,
             typing_lists: TypingLists::default(),
             snippet_editor: None,
+            preview: None,
             _subscriptions: Vec::new(),
         };
         view.typing_lists = TypingLists::load(&view.vault_root);
@@ -557,6 +568,33 @@ impl SettingsView {
     }
 
     /// The page showing on the right.
+    /// Styles the Appearance page's preview by `config`, making it the
+    /// first time.
+    pub fn set_preview_config(&mut self, config: &Config, cx: &mut Context<Self>) {
+        match &self.preview {
+            Some(preview) => preview.update(cx, |preview, cx| {
+                preview.apply_config(config, cx);
+                cx.notify();
+            }),
+            None => {
+                let preview = cx.new(|cx| {
+                    let mut preview = EditorView::with_config(PREVIEW_NOTE, Vec::new(), config, cx);
+                    preview.read_only = true;
+                    preview
+                });
+                self.preview = Some(preview);
+            }
+        }
+        cx.notify();
+    }
+
+    /// The preview, while the page it belongs on is showing.
+    pub fn shown_preview(&self) -> Option<&Entity<EditorView>> {
+        self.preview
+            .as_ref()
+            .filter(|_| self.current_section() == Some(Page::Appearance))
+    }
+
     pub fn current_section(&self) -> Option<Page> {
         self.layouts()
             .pages

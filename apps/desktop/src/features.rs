@@ -636,6 +636,8 @@ fn open_settings(
         return;
     };
     workspace.set_modal_self_sized(cx);
+    let config = workspace.config().clone();
+    settings.update(cx, |settings, cx| settings.set_preview_config(&config, cx));
     if let Some(sync) = workspace.sync().cloned() {
         settings.update(cx, |settings, cx| settings.set_sync(sync, cx));
     }
@@ -661,6 +663,10 @@ fn open_settings(
 /// settings.
 fn on_setting_changed(workspace: &mut Workspace, key: &str, cx: &mut gpui::Context<Workspace>) {
     workspace.reload_config(cx);
+    if let Some(settings) = workspace.active_modal::<SettingsView>() {
+        let config = workspace.config().clone();
+        settings.update(cx, |settings, cx| settings.set_preview_config(&config, cx));
+    }
     // The config folder syncs too, but the watcher leaves it out.
     if let Some(sync) = workspace.sync().cloned() {
         let settings = workspace.config().settings.sync.clone();

@@ -2244,6 +2244,8 @@ pub struct SettingsTheme {
     /// A dialog with only a short message and a button, such as one
     /// saying there's nothing to show yet.
     pub empty_dialog_width: Pixels,
+    /// How tall the Appearance page's sample note is.
+    pub preview_height: Pixels,
     /// The section list's share of the modal in narrow windows.
     pub nav_fraction: f32,
     pub text_gap: Pixels,
@@ -2339,6 +2341,7 @@ impl SettingsTheme {
             row_gap: space("space.xxl", 24.),
             text_min_width: px(140.),
             empty_dialog_width: px(440.),
+            preview_height: px(168.),
             nav_fraction: 0.3,
             text_gap: space("space.xs", 2.),
             control_gap: space("space.md", 8.),
