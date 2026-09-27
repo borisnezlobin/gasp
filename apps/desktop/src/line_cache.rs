@@ -129,7 +129,8 @@ impl LineCache {
 
 /// Whether a widget looks the same every time it's laid out. Images,
 /// math and link cards load in the background, so their lines aren't
-/// cached.
+/// cached. Neither are tables: their cells, which may hold math, are on
+/// lines the key doesn't read.
 fn is_settled(kind: &WidgetKind) -> bool {
     !matches!(
         kind,
@@ -138,6 +139,7 @@ fn is_settled(kind: &WidgetKind) -> bool {
             | WidgetKind::MathPreview { .. }
             | WidgetKind::Image { .. }
             | WidgetKind::LinkCard(_)
+            | WidgetKind::Table { .. }
     )
 }
 

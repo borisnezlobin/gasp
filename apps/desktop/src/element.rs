@@ -98,6 +98,7 @@ impl Element for EditorElement {
         let _span = crate::trace::span("editor-prepaint");
         let _phase = crate::keytrace::span("(total) prepaint");
         self.view.update(cx, |view, cx| {
+            view.reveals_at_cursor = !view.read_only && view.focus_handle.is_focused(window);
             let mut frame = view.layout_frame(bounds, window);
             let phase = crate::keytrace::span("selection-and-highlights");
             frame.highlights = view.highlight_rects(&frame);

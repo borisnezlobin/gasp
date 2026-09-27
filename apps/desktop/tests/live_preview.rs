@@ -420,6 +420,35 @@ fn frontmatter_lines_up_property_values(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn only_the_focused_editor_reveals_markup_at_its_cursor(cx: &mut TestAppContext) {
+    let note = "text\n\n# Heading\n\nend";
+    let (view, cx) = open(cx, note);
+    let hash = note.find('#').unwrap();
+    place_cursor(&view, cx, hash + 3);
+    assert!(
+        shows_text_at(&visual(&view, cx, 2), hash),
+        "focused: `#` shows"
+    );
+    let elsewhere = cx.update(|window, cx| {
+        let other = cx.focus_handle();
+        window.focus(&other);
+        other
+    });
+    cx.run_until_parked();
+    assert!(
+        !shows_text_at(&visual(&view, cx, 2), hash),
+        "without the keyboard the heading reads as a preview"
+    );
+    drop(elsewhere);
+    cx.update(|window, cx| window.focus(&view.focus_handle(cx)));
+    cx.run_until_parked();
+    assert!(
+        shows_text_at(&visual(&view, cx, 2), hash),
+        "focus brings it back"
+    );
+}
+
+#[gpui::test]
 fn a_long_block_list_wraps_in_the_value_column(cx: &mut TestAppContext) {
     let items: String = (0..40)
         .map(|at| format!("  - topic number {at}\n"))
