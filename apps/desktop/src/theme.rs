@@ -321,6 +321,11 @@ pub struct Theme {
     pub divider: Hsla,
     pub error: Hsla,
     pub shadow: Hsla,
+    /// What floats over the note, such as the live math preview: raised
+    /// off the page so it doesn't read as part of the text it covers.
+    pub popover: Hsla,
+    /// The hairline around a popover.
+    pub popover_ring: Hsla,
     pub search_match: Hsla,
     pub active_search_match: Hsla,
     /// The mark on a tab stop still to be visited.
@@ -676,6 +681,8 @@ fn read_colors(palette: &Palette) -> Theme {
         divider: p.divider,
         error: p.conflict,
         shadow: p.shadow,
+        popover: p.popover,
+        popover_ring: p.popover_ring,
         search_match: p.search_match,
         active_search_match: p.active_search_match,
         tab_stop: p.tab_stop,
@@ -776,6 +783,8 @@ fn zero_sizes() -> Theme {
         divider: black,
         error: black,
         shadow: black,
+        popover: black,
+        popover_ring: black,
         search_match: black,
         active_search_match: black,
         tab_stop: black,

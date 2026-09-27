@@ -12,11 +12,12 @@ use editor_desktop::actions::bind_keys;
 use editor_desktop::keymap::editor_bindings;
 use editor_desktop::line_layout::{Hit, Piece, PieceContent, VisualLine};
 use editor_desktop::preview::math::RenderFn;
+use editor_desktop::vault_index::{VaultIndex, index_changes};
 use editor_desktop::{EditorEvent, EditorView, HighlightKind};
 use editor_math::{MathError, RenderedMath};
 use gpui::{
-    Entity, Focusable, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, Pixels, Point,
-    TestAppContext, VisualTestContext, point, px,
+    AppContext, Entity, Focusable, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, Pixels,
+    Point, TestAppContext, VisualTestContext, point, px,
 };
 
 /// Draws every equation as a box 4px per source byte wide and 10px tall,
@@ -639,6 +640,32 @@ fn inline_math_sits_on_the_text_baseline(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_preview_fills_arguments_still_to_be_written(cx: &mut TestAppContext) {
+    let note = "a $\\frac{a}{}$ b\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    let line = visual(&view, cx, 0);
+    let math = line
+        .pieces()
+        .find(|piece| matches!(piece.content, PieceContent::Image { .. }))
+        .expect("the equation is drawn");
+    assert_eq!(
+        math.width,
+        px(4. * "\\frac{a}{}".len() as f32),
+        "the note's own rendering keeps the empty group"
+    );
+
+    place_cursor(&view, cx, 13);
+    let line = visual(&view, cx, 0);
+    assert_eq!(line.overlays.len(), 1);
+    assert_eq!(
+        line.overlays[0].width,
+        px(4. * "\\frac{a}{\\square}".len() as f32),
+        "the preview boxes the empty denominator"
+    );
+}
+
+#[gpui::test]
 fn math_errors_show_the_source(cx: &mut TestAppContext) {
     let note = "bad $\\bad$ math\n\nend";
     let (view, cx) = open(cx, note);
@@ -949,4 +976,47 @@ fn reused_lines_match_fresh_layouts(cx: &mut TestAppContext) {
     });
     cx.run_until_parked();
     assert_eq!(reused, geometry(&view, cx));
+}
+
+#[gpui::test]
+fn bare_image_names_are_found_anywhere_in_the_vault(cx: &mut TestAppContext) {
+    let vault = tempfile::tempdir().unwrap();
+    let root = vault.path().to_path_buf();
+    std::fs::create_dir_all(root.join("notes")).unwrap();
+    std::fs::create_dir_all(root.join("attachments/deep")).unwrap();
+    image::RgbaImage::new(40, 20)
+        .save(root.join("attachments/deep/pic.png"))
+        .unwrap();
+    let note = "![[pic.png]]\n\n![[later.png]]\n\nend";
+    let dirs = vec![root.join("notes"), root.clone()];
+    let (view, cx) = cx.add_window_view(move |_, cx| EditorView::new(note, dirs, cx));
+    let index = cx.new(|_| VaultIndex::scan(&root));
+    view.update(cx, |view, cx| view.set_vault_index(index.clone(), cx));
+    place_cursor(&view, cx, note.len());
+    assert_eq!(image_width(&view, cx, 0), px(40.), "found in a deep folder");
+    assert_eq!(
+        image_width(&view, cx, 2),
+        px(96.),
+        "the placeholder, for now"
+    );
+
+    // The watcher reports a new attachment: the placeholder gives way.
+    let later = root.join("later.png");
+    image::RgbaImage::new(30, 10).save(&later).unwrap();
+    let changes = index_changes(&root, &[later], &[]);
+    index.update(cx, |index, cx| {
+        index.apply(changes);
+        cx.notify();
+    });
+    cx.run_until_parked();
+    assert_eq!(image_width(&view, cx, 2), px(30.));
+}
+
+/// The width of the first image drawn on line `line`.
+fn image_width(view: &Entity<EditorView>, cx: &mut VisualTestContext, line: usize) -> Pixels {
+    visual(view, cx, line)
+        .pieces()
+        .find(|piece| matches!(piece.content, PieceContent::Image { .. }))
+        .expect("the image is drawn")
+        .width
 }
