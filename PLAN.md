@@ -48,6 +48,18 @@ These stay out of reach:
 
 Steps marked **[Mac]** need the owner's machine or a macOS runner.
 
+### Building and running
+
+```
+cargo run -p editor-desktop -- <vault folder>     # the desktop app
+cargo test --workspace                            # every crate's tests
+python3 scripts/check-complexity.py               # the complexity limit
+```
+
+On Linux, GPUI needs `libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev libssl-dev clang` (the CI workflow installs the same list).
+
+On macOS, GPUI compiles its Metal shaders at build time, so it needs Apple's Metal Toolchain (Xcode, then `xcodebuild -downloadComponent MetalToolchain` if the build asks for it). Without it, build with `cargo run -p editor-desktop --features runtime-shaders`, which compiles the shaders when the app starts instead.
+
 ### First tasks
 
 These three are done. They're kept here as a record of how the project started.
@@ -382,12 +394,13 @@ Pasting a URL on an empty line can turn it into a preview card, as Link Embed do
 
 ### What exists today
 
-Your vault is already a git clone of `borisnezlobin/notes` on branch `main`. Your `vault-sync` daemon (a Node program on the owner's Mac, not on GitHub, run by the launchd agent `com.randomletters.vault-sync`) commits a minute after you stop typing, merges, and pushes. The iPhone uses GitSync triggered by Shortcuts automations. The repo's default branch is `fake-default-lol`, and there is no `master` branch, so the app targets `main`.
+Your vault is already a git clone of `borisnezlobin/notes` on branch `main`. Your `vault-sync` daemon (a Node program on the owner's Mac, not on GitHub, run by the launchd agent `com.randomletters.vault-sync`) commits a minute after you stop typing, merges, and pushes. The iPhone uses GitSync triggered by Shortcuts automations. The repo's default branch is `fake-default-lol`, and there is no `master` branch yet.
 
 ### Design
 
 The app does the same job natively on every device, including the iPhone, using libgit2 through the `git2` crate. Keeping real git everywhere means the app coexists with `vault-sync` and GitSync during the transition, keeps full local history, and needs no custom server.
 
+- **Branch.** The app syncs a new `master` branch, not `main`. At cutover, the first clone creates `master` from the tip of `main`. Until every device has moved to the app, each sync also merges anything `vault-sync` or GitSync push to `main` into `master`, one way, so nothing is lost. The app never pushes to `main`. Once every device runs the app, `main` is retired. `crates/sync` does this through `VaultConfig::legacy_branch`, which defaults to `main`, and it's tested with a simulated old tool. The `master` branch in `borisnezlobin/notes` isn't created until cutover.
 - **Setup** asks for the repo, the branch and a fine-grained GitHub token limited to that one repo. The token is stored in the Keychain on Apple platforms, Credential Manager on Windows, and the Secret Service on Linux.
 - **Offline editing** works naturally, because edits are committed locally and pushed when there's a connection.
 - **Sync timing** follows `vault-sync`: commit about a minute after you stop typing, then fetch, merge and push. The iPhone also syncs when the app opens, returns to the foreground or goes to the background, so the Shortcuts automation isn't needed.
@@ -413,7 +426,7 @@ The export emits clean semantic HTML instead of Obsidian's markup. It uses plain
 
 This ports PDF Export Plus to Typst, a Rust typesetting engine that runs on every platform including the iPhone. Typst places footnotes at the bottom of the page that cites them natively, which removes the Paged.js machinery the plugin needs inside Electron. LaTeX math converts to Typst math with `mitex`.
 
-Your current settings carry over: A4 pages, 18/16/12/12 mm margins, page numbers, 8.5 pt footnotes, and the professional style in Iowan Old Style at 12 pt with line height 2 and a 3-line drop cap. Page breaks from the Break Page plugin's markup are honoured, and header and footer templates from Better Export PDF become an option. The live preview renders pages as you change settings.
+Your current settings carry over: A4 pages, 18/16/12/12 mm margins, page numbers, 8.5 pt footnotes, and the professional style in Iowan Old Style at 12 pt with line height 2. The drop cap is off by default, as in your PDF Export Plus settings (`applyLedeStyles: false`), and can be turned on with its line count. Page breaks from the Break Page plugin's markup are honoured, and header and footer templates from Better Export PDF become an option. The live preview renders pages as you change settings.
 
 ## MCP and agent access
 
@@ -463,7 +476,7 @@ These are small throwaway experiments on the riskiest assumptions, each with a f
 | Math via `mitex` → Typst | It renders the roughly 4,000 equations in your vault, and a typical one takes under 1 ms when cached and under 20 ms when new | KaTeX in a hidden web view on each platform, as Flo State does | **Passes on the synthetic corpus.** All 4,034 corpus equations and 485 hand-written ones render. A new equation takes 0.3 ms median and 2.3 ms at most, and a cached one under 1 µs. Setup costs 19 ms once per launch. mitex 0.2.4 ignores the spec it's given and uses symbol names Typst 0.15 removed, so `crates/math` vendors mitex's newer Typst scope and adds a compat layer. Still to do: run `cargo run --release -p editor-math --example math_spike -- <vault> --failures` on the real vault **[Mac]**. |
 | libgit2 on iPhone | Clone, commit, merge and push to `borisnezlobin/notes` with a token from the simulator and a device | GitHub's REST API with our own three-way merge | **Linux half done.** `crates/sync` clones, commits, merges and pushes between two simulated devices against local bare repos. With 200 notes, a clone takes 10 ms, a commit 7 ms and a merge 4.6 ms. The iPhone half needs a macOS runner. |
 | QuickJS on iPhone | A sample plugin runs and hot-reloads | Declarative plugins only on iPhone | Not started. It needs a macOS runner. |
-| Typst PDF | It reproduces one of your existing PDF Export Plus exports with page-bottom footnotes and the drop cap | Paged.js in a hidden web view at export time | **Works; comparison pending.** `crates/export` compiles all 204 corpus notes with footnotes at the bottom of the citing page and a 3-line drop cap, in about 44 ms for a typical note and 87 ms for the most math-heavy one. The side-by-side check against a real export is still to do **[Mac]**. |
+| Typst PDF | It reproduces one of your existing PDF Export Plus exports with page-bottom footnotes | Paged.js in a hidden web view at export time | **Works; comparison pending.** `crates/export` compiles all 204 corpus notes with footnotes at the bottom of the citing page and an optional drop cap (off by default), in about 44 ms for a typical note and 87 ms for the most math-heavy one. The side-by-side check against a real export is still to do **[Mac]**. |
 
 ### Phase 1: core
 
@@ -531,11 +544,12 @@ These are my defaults. Tell me if any are wrong.
 2. **Apple Developer account (needed by Phase 7).** Without the paid account, an app you install on your own iPhone stops launching after 7 days and has to be reinstalled from the Mac. Do you have one, or want one?
 3. **Pane focus keys on Linux.** `Mod+Alt+Left` and `Mod+Alt+Right` become Ctrl+Alt+Left and Right on Linux, which GNOME has used to switch workspaces. Should Linux get different default keys for moving focus between panes?
 4. **Device-only files the repo already tracks.** Sync never commits changes to device-only files, but it leaves any that are already in the repo alone, because removing them would delete them on your other devices too. Should the first sync remove them from the repo?
-5. **Drop cap default.** Your PDF Export Plus settings have the drop cap turned off (`applyLedeStyles: false`), but this plan asks for a 3-line drop cap. The export currently turns it on. Which do you want by default?
 
 ## Decisions
 
 - **HTML export** emits clean semantic HTML with MathML, and the site's CSS is updated to match.
 - **Chronotyper frontmatter** is imported into stats files and then removed from the notes.
 - **Audience** is just you for now, so there's no store listing, marketplace or public release work yet.
+- **PDF drop cap** is off by default.
+- **Sync branch** is a new `master`, fed one way from `main` until the old tools are retired (see [Sync](#sync)).
 - **Grammar** aims to replace your pre-publish Claude pass with an offline checker, chosen by measuring false flags first.

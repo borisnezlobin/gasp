@@ -43,7 +43,8 @@ pub struct PdfOptions {
     pub footnote_size_pt: f64,
     /// Adds the note title (or its frontmatter `title`) as a heading.
     pub include_title: bool,
-    /// Lines spanned by the drop cap; 0 turns it off.
+    /// Lines spanned by the drop cap; 0, the default, turns it off, matching
+    /// the owner's PDF Export Plus setting (applyLedeStyles: false).
     pub drop_cap_lines: u32,
     /// Body font families in order of preference. The last entry should be
     /// an embedded font so output does not depend on the machine.
@@ -69,7 +70,7 @@ impl Default for PdfOptions {
             print_background: false,
             footnote_size_pt: 8.5,
             include_title: true,
-            drop_cap_lines: 3,
+            drop_cap_lines: 0,
             font_family: vec!["Iowan Old Style".to_owned(), "Libertinus Serif".to_owned()],
             mono_font_family: vec!["Courier New".to_owned(), "DejaVu Sans Mono".to_owned()],
             font_size_pt: 12.0,

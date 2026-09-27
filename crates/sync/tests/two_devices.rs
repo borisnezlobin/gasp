@@ -57,7 +57,7 @@ fn offline_edits_to_different_parts_merge_cleanly() {
     );
     assert_eq!(read(&laptop, NOTE), both);
     assert_eq!(read(&phone, NOTE), both);
-    assert_eq!(world.remote_file("main", NOTE).unwrap(), both.as_bytes());
+    assert_eq!(world.remote_file("master", NOTE).unwrap(), both.as_bytes());
     assert!(!phone.is_merging());
 }
 
@@ -192,7 +192,7 @@ fn each_resolution_completes_the_merge_and_syncs() {
 
         phone.push().unwrap();
         assert_eq!(
-            world.remote_file("main", NOTE).unwrap(),
+            world.remote_file("master", NOTE).unwrap(),
             expected.as_bytes()
         );
         assert_eq!(sync(&laptop, "laptop"), MergeOutcome::FastForward);
@@ -249,7 +249,7 @@ fn binary_conflict_keeps_the_local_copy() {
     assert_eq!(kept_local, vec![PathBuf::from(image)]);
     assert_eq!(read_bytes(&phone, image), b"\x89PNG\r\n\x1a\n phone pixels");
     assert_eq!(
-        world.remote_file("main", image).unwrap(),
+        world.remote_file("master", image).unwrap(),
         b"\x89PNG\r\n\x1a\n phone pixels"
     );
     sync(&laptop, "laptop");
@@ -299,7 +299,7 @@ fn device_only_files_never_get_committed() {
 
     for path in device_only {
         assert_eq!(
-            world.remote_file("main", path),
+            world.remote_file("master", path),
             None,
             "{path} was committed"
         );
@@ -314,7 +314,7 @@ fn device_only_files_never_get_committed() {
         ".obsidian/app.json",
     ] {
         assert!(
-            world.remote_file("main", path).is_some(),
+            world.remote_file("master", path).is_some(),
             "{path} did not sync"
         );
         assert!(laptop.root().join(path).exists());
@@ -343,8 +343,8 @@ fn custom_device_only_globs_apply_even_to_unignored_paths() {
     write(&laptop, "private/draft.md", b"secret-ish synthetic text\n");
     write(&laptop, "public.md", b"shared\n");
     sync(&laptop, "laptop");
-    assert!(world.remote_file("main", "public.md").is_some());
-    assert_eq!(world.remote_file("main", "private/draft.md"), None);
+    assert!(world.remote_file("master", "public.md").is_some());
+    assert_eq!(world.remote_file("master", "private/draft.md"), None);
 }
 
 #[test]
@@ -371,7 +371,7 @@ fn a_custom_branch_is_used_end_to_end() {
         world.remote_file("trunk", "note.md").unwrap(),
         b"hello from trunk\n"
     );
-    assert_eq!(world.remote_file("main", "note.md"), None);
+    assert_eq!(world.remote_file("master", "note.md"), None);
 }
 
 #[test]

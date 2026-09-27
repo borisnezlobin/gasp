@@ -27,14 +27,14 @@ fn scheduler_commits_a_minute_after_the_last_edit_then_pushes() {
         drive(&laptop, &mut scheduler, secs(60), &who, MESSAGE),
         SyncStatus::Synced
     );
-    assert_eq!(world.remote_file("main", "note.md").unwrap(), b"hello\n");
+    assert_eq!(world.remote_file("master", "note.md").unwrap(), b"hello\n");
 
     assert_eq!(
         drive(&laptop, &mut scheduler, secs(100), &who, MESSAGE),
         SyncStatus::Synced
     );
     assert_eq!(
-        world.remote_file("main", "note.md").unwrap(),
+        world.remote_file("master", "note.md").unwrap(),
         b"hello, second draft\n"
     );
     let kinds: Vec<_> = scheduler.log().map(|event| event.kind.clone()).collect();
@@ -70,7 +70,7 @@ fn push_failure_keeps_commits_local_and_reports_offline() {
     assert!(error.is_offline(), "expected offline, got {error:?}");
     assert_eq!(laptop.head_commit().unwrap(), Some(commit));
     assert_eq!(laptop.unpushed_changes().unwrap(), 2);
-    assert_eq!(world.remote_file("main", "note.md").unwrap(), b"hello\n");
+    assert_eq!(world.remote_file("master", "note.md").unwrap(), b"hello\n");
 
     let report = run_step(&laptop, SyncStep::Push, &who, MESSAGE);
     let mut scheduler = Scheduler::default();
@@ -96,7 +96,7 @@ fn push_failure_keeps_commits_local_and_reports_offline() {
         SyncStatus::Synced
     );
     assert_eq!(
-        world.remote_file("main", "note.md").unwrap(),
+        world.remote_file("master", "note.md").unwrap(),
         b"written on a plane\n"
     );
     assert_eq!(laptop.unpushed_changes().unwrap(), 0);
@@ -151,7 +151,7 @@ fn scheduled_sync_stops_at_a_conflict_and_resumes_after_resolution() {
         SyncStatus::Synced
     );
     assert_eq!(
-        world.remote_file("main", "note.md").unwrap(),
+        world.remote_file("master", "note.md").unwrap(),
         b"phone line\nlaptop line\n"
     );
 }

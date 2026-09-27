@@ -13,6 +13,10 @@ path = "src/lib.rs"
 name = "editor"
 path = "src/main.rs"
 
+[features]
+# Compile GPUI's Metal shaders at startup, for Macs without the Metal Toolchain.
+runtime-shaders = ["gpui/runtime_shaders"]
+
 [dependencies]
 anyhow = "1"
 env_logger = { version = "0.11", default-features = false }
