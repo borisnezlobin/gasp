@@ -325,6 +325,7 @@ impl Render for EditorView {
                 .id("preview")
                 .size_full()
                 .bg(self.theme.background)
+                .rounded(self.corner_radius)
                 .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
                 .on_scroll_wheel(cx.listener(Self::on_scroll))
                 .child(EditorElement::new(cx.entity()));

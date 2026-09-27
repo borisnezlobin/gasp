@@ -150,6 +150,9 @@ pub struct EditorView {
     /// scrolls, such as the heading a preview opened at. Line heights are
     /// estimates until laid out, so it's re-applied each frame.
     pub(crate) pinned_top: Option<usize>,
+    /// Rounds a read-only view's background, for one shown in a card:
+    /// children clip to a rectangle, so the card can't round it.
+    pub(crate) corner_radius: Pixels,
     /// A read-only view's content height when last drawn, to notice when
     /// laying out lines changed it.
     drawn_height: std::cell::Cell<Pixels>,
@@ -259,6 +262,7 @@ impl EditorView {
             hover: HoverState::default(),
             cards: LinkCards::default(),
             pinned_top: None,
+            corner_radius: px(0.),
             drawn_height: std::cell::Cell::new(px(0.)),
             code_line_numbers: config.settings.editor.code_line_numbers,
             code_copy: crate::code_copy::CodeCopy::default(),
