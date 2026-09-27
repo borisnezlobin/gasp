@@ -592,7 +592,7 @@ impl SettingsView {
             let field = cx.new(|cx| {
                 let input = TextInput::new(window, cx)
                     .with_placeholder(placeholders[at])
-                    .with_style(TextInputStyle::Inline);
+                    .with_style(TextInputStyle::Query);
                 match &font {
                     Some(font) => input.with_font_family(font.clone()),
                     None => input,
