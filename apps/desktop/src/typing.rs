@@ -20,6 +20,10 @@ impl EditorView {
     /// Text typed at the keyboard, as opposed to an input method's
     /// composition or a paste.
     pub fn type_text(&mut self, text: &str, cx: &mut Context<Self>) {
+        // Input-to-paint counts from the keystroke, pipeline included.
+        self.timings
+            .input_started
+            .get_or_insert_with(std::time::Instant::now);
         self.run_pipeline(EditRequest::InsertText(text.to_owned()), cx);
     }
 

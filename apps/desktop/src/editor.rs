@@ -453,6 +453,8 @@ impl EditorView {
         self.metrics
             .splice(change.old_lines, change.new_lines, &self.source, &estimator);
         self.folds.map(&change.edit);
+        self.code
+            .text_changed(change.edit.old.clone(), change.edit.new_len);
     }
 
     /// Replaces the whole text, as when the file changed on disk. The
