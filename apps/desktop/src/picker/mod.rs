@@ -119,7 +119,10 @@ impl<D: PickerDelegate> Picker<D> {
     /// A picker over `delegate`, focused and showing the matches for an
     /// empty query.
     pub fn new(mut delegate: D, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let theme = PickerTheme::default();
+        let theme = PickerTheme {
+            font_family: crate::ui::ui_theme(cx).font_family,
+            ..PickerTheme::default()
+        };
         let placeholder = delegate.placeholder();
         let query = cx.new(|cx| {
             TextInput::new(window, cx)
@@ -283,6 +286,7 @@ impl<D: PickerDelegate> Picker<D> {
                 let selected = index == self.selected;
                 div()
                     .id(index)
+                    .w_full()
                     .h(theme.row_height)
                     .px(theme.row_padding_x)
                     .flex()
@@ -321,6 +325,7 @@ impl<D: PickerDelegate> Picker<D> {
             cx.processor(|picker, range, _, cx| picker.render_rows(range, cx)),
         )
         .track_scroll(self.scroll.clone())
+        .w_full()
         .h(theme.row_height * rows as f32);
         div()
             .px(theme.list_padding)
@@ -345,7 +350,7 @@ impl<D: PickerDelegate> Render for Picker<D> {
             .w(theme.width)
             .flex()
             .flex_col()
-            .font_family(theme.font_family)
+            .font_family(theme.font_family.clone())
             .text_color(theme.text)
             .bg(theme.background)
             .rounded(theme.corner_radius)

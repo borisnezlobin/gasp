@@ -575,7 +575,7 @@ const PLATFORM_FONTS: (&str, &str) = ("Liberation Sans", "DejaVu Sans Mono");
 /// Sizes, fonts and colours for the pickers.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PickerTheme {
-    pub font_family: &'static str,
+    pub font_family: SharedString,
     pub width: Pixels,
     /// How far below the top of the window the picker sits.
     pub top_offset: Pixels,
@@ -617,7 +617,7 @@ pub struct PickerTheme {
 impl Default for PickerTheme {
     fn default() -> Self {
         Self {
-            font_family: PLATFORM_FONTS.0,
+            font_family: PLATFORM_FONTS.0.into(),
             width: px(560.),
             top_offset: px(72.),
             visible_rows: 10,
@@ -657,7 +657,7 @@ impl Default for PickerTheme {
 
 impl PickerTheme {
     pub fn font(&self) -> Font {
-        font(self.font_family)
+        font(self.font_family.clone())
     }
 }
 
@@ -756,7 +756,7 @@ impl Default for WorkspaceTheme {
 /// Tokens for the file tree, the settings screen and their shared controls.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PanelTheme {
-    pub font_family: &'static str,
+    pub font_family: SharedString,
     /// The settings screen's main pane.
     pub pane_background: Hsla,
     pub font_size: Pixels,
@@ -817,7 +817,7 @@ pub struct PanelTheme {
 impl Default for PanelTheme {
     fn default() -> Self {
         Self {
-            font_family: PLATFORM_FONTS.0,
+            font_family: PLATFORM_FONTS.0.into(),
             pane_background: hsla(0., 0., 1., 1.),
             font_size: px(13.),
             small_font_size: px(12.),
@@ -892,7 +892,7 @@ impl PanelTheme {
 /// Tokens for the find bar, the vault search panel and the export dialog.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FindUiTheme {
-    pub font_family: &'static str,
+    pub font_family: SharedString,
     pub font_size: Pixels,
     pub small_font_size: Pixels,
     pub title_font_size: Pixels,
@@ -927,7 +927,7 @@ pub struct FindUiTheme {
 impl Default for FindUiTheme {
     fn default() -> Self {
         Self {
-            font_family: PLATFORM_FONTS.0,
+            font_family: PLATFORM_FONTS.0.into(),
             font_size: px(14.),
             small_font_size: px(12.),
             title_font_size: px(16.),
@@ -1077,6 +1077,9 @@ pub struct InputTheme {
     /// A field's fill. Translucent, so it reads on white and grey surfaces.
     pub background: Hsla,
     /// A field's fill while its text isn't valid.
+    /// A focused field's fill: opaque, so the focus ring (a shadow)
+    /// shows only around it.
+    pub focused_background: Hsla,
     pub error_background: Hsla,
     pub focus_ring: Hsla,
     pub ring_width: Pixels,
@@ -1104,6 +1107,7 @@ impl Default for InputTheme {
             padding_x: px(8.),
             radius: px(6.),
             background: hsla(0., 0., 0., 0.06),
+            focused_background: hsla(0., 0., 1., 1.),
             error_background: hsla(0.0, 0.8, 0.95, 1.),
             focus_ring: default_focus_ring(),
             ring_width: px(1.5),

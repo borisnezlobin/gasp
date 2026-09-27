@@ -41,7 +41,7 @@ impl Render for DragPreview {
             .shadow(vec![theme.menu_shadow()])
             .text_size(theme.font_size)
             .text_color(theme.text)
-            .font_family(theme.font_family)
+            .font_family(theme.font_family.clone())
             .child(self.label.clone())
     }
 }
@@ -379,7 +379,7 @@ impl FileTree {
             .rounded(theme.radius)
             .bg(theme.menu_background)
             .shadow(vec![theme.menu_shadow()])
-            .font_family(theme.font_family)
+            .font_family(theme.font_family.clone())
             .text_size(theme.font_size)
             .text_color(theme.text)
             .on_mouse_down_out(cx.listener(|tree, _: &MouseDownEvent, _, cx| tree.close_menu(cx)))

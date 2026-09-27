@@ -314,6 +314,35 @@ fn line_hits(text: &str, matches: &[Range<usize>]) -> Vec<LineHit> {
     hits
 }
 
+/// The markup that starts a line, such as `- [x] `, `## ` or `> `, which
+/// an excerpt leaves out so it reads as text.
+fn markup_prefix_len(line: &str) -> usize {
+    let mut rest = line;
+    loop {
+        let next = strip_one_marker(rest);
+        if next.len() == rest.len() {
+            return line.len() - rest.len();
+        }
+        rest = next;
+    }
+}
+
+fn strip_one_marker(text: &str) -> &str {
+    const MARKERS: [&str; 7] = ["- [ ] ", "- [x] ", "- [X] ", "- ", "* ", "+ ", "> "];
+    if let Some(marker) = MARKERS.iter().find(|marker| text.starts_with(*marker)) {
+        return &text[marker.len()..];
+    }
+    let hashes = text.len() - text.trim_start_matches('#').len();
+    if (1..=6).contains(&hashes) && text[hashes..].starts_with(' ') {
+        return &text[hashes + 1..];
+    }
+    let digits = text.len() - text.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+    if digits > 0 && text[digits..].starts_with(". ") {
+        return &text[digits + 2..];
+    }
+    text
+}
+
 /// Shortens a long line around its first match, keeping ranges aligned.
 fn trim_excerpt(hit: &mut LineHit) {
     let text = hit.excerpt.trim_end_matches('\r');
@@ -324,12 +353,13 @@ fn trim_excerpt(hit: &mut LineHit) {
         .rev()
         .nth(EXCERPT_LEAD - 1)
         .map_or(0, |(index, _)| index);
-    let start = lead.max(indent).min(first);
+    let body = indent + markup_prefix_len(&text[indent..]);
+    let start = lead.max(body).min(first);
     let end = text[start..]
         .char_indices()
         .nth(EXCERPT_CHARS)
         .map_or(text.len(), |(index, _)| start + index);
-    let prefix = if start > indent { "…" } else { "" };
+    let prefix = if start > body { "…" } else { "" };
     let suffix = if end < text.len() { "…" } else { "" };
     let shift = |offset: usize| offset.clamp(start, end) - start + prefix.len();
     hit.ranges = hit
@@ -416,6 +446,21 @@ pub fn write_atomically(path: &Path, contents: &str) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn excerpts_leave_out_line_markup() {
+        assert_eq!(markup_prefix_len("- [x] schedule it"), 6);
+        assert_eq!(markup_prefix_len("> - quoted item"), 4);
+        assert_eq!(markup_prefix_len("## Heading"), 3);
+        assert_eq!(markup_prefix_len("12. Twelfth"), 4);
+        assert_eq!(markup_prefix_len("#tag here"), 0);
+        let hits = line_hits("- [ ] schedule the test", &[6..14]);
+        assert_eq!(hits[0].excerpt, "schedule the test");
+        assert_eq!(hits[0].ranges, vec![0..8]);
+        // A match inside the markup keeps it.
+        let hits = line_hits("- [x] done", &[2..5]);
+        assert_eq!(hits[0].excerpt, "[x] done");
+    }
 
     #[test]
     fn folding_ignores_case_and_diacritics() {

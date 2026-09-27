@@ -100,7 +100,10 @@ pub fn match_label(active: Option<usize>, count: usize, has_query: bool) -> Stri
 impl FindBar {
     /// A bar over `editor`, seeded from its selection and focused.
     pub fn new(editor: Entity<EditorView>, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let theme = editor.read(cx).theme.find_ui.clone();
+        let theme = FindUiTheme {
+            font_family: crate::ui::ui_theme(cx).font_family,
+            ..editor.read(cx).theme.find_ui.clone()
+        };
         let query = cx.new(|cx| {
             TextInput::new(window, cx)
                 .with_placeholder("Find")
@@ -574,7 +577,7 @@ impl Render for FindBar {
                 blur_radius: theme.panel_shadow_blur,
                 spread_radius: gpui::px(0.),
             }])
-            .font_family(theme.font_family)
+            .font_family(theme.font_family.clone())
             .text_size(theme.font_size)
             .text_color(theme.text)
             .child(self.find_row(cx))
