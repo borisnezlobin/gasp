@@ -26,6 +26,7 @@ use crate::preview::math::{MathStore, RenderFn};
 use crate::preview::reveal::reveal_settings;
 use crate::preview::source::{Source, SourceChange};
 use crate::stats::Timings;
+use crate::suggest::SuggestState;
 use crate::theme::Theme;
 
 /// Edits between timing reports when logging is on.
@@ -92,6 +93,7 @@ pub struct EditorView {
     pub(crate) bench: Option<Bench>,
     pub(crate) log_timings: bool,
     pub(crate) highlights: BTreeMap<HighlightKind, Vec<Range<usize>>>,
+    pub(crate) suggest: SuggestState,
     pipeline: Pipeline,
     clock: Instant,
 }
@@ -146,6 +148,7 @@ impl EditorView {
             bench: None,
             log_timings: false,
             highlights: Default::default(),
+            suggest: SuggestState::default(),
             pipeline: Pipeline::builtin(),
             clock: Instant::now(),
         }
@@ -271,6 +274,7 @@ impl EditorView {
             .apply(transaction)
             .expect("a selection-only transaction always applies");
         self.autoscroll = true;
+        self.refresh_suggestions(cx);
         cx.emit(EditorEvent::SelectionChanged);
         cx.notify();
     }
@@ -308,6 +312,7 @@ impl EditorView {
         self.goal_x = None;
         self.autoscroll = true;
         self.timings.input_started.get_or_insert_with(Instant::now);
+        self.refresh_suggestions(cx);
         cx.emit(EditorEvent::Edited);
         cx.notify();
         inserted
@@ -389,6 +394,7 @@ impl EditorView {
         }
         self.marked = None;
         self.autoscroll = true;
+        self.refresh_suggestions(cx);
         cx.emit(EditorEvent::Edited);
         cx.notify();
     }

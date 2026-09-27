@@ -31,11 +31,13 @@ pub mod preview;
 pub mod settings_view;
 pub mod stats;
 pub mod styling;
+pub mod suggest;
 pub mod switcher;
 pub mod text_input;
 pub mod text_offsets;
 pub mod theme;
 pub mod ui;
+pub mod vault_index;
 pub mod vault_search;
 pub mod workspace;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]

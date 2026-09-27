@@ -104,6 +104,9 @@ fn find(id: &str) -> Option<Found> {
 impl EditorView {
     /// Runs a command by id. Returns false when the view doesn't know it.
     pub fn run_command(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if self.run_suggestion_key(id, cx) {
+            return true;
+        }
         match find(id) {
             Some(Found::Motion(motion, extend)) => self.apply_motion(motion, extend, window, cx),
             Some(Found::Format(format)) => {
@@ -111,6 +114,21 @@ impl EditorView {
             }
             Some(Found::Handler(handler)) => handler(self, window, cx),
             None => return false,
+        }
+        true
+    }
+
+    /// While suggestions show, Up and Down move through them and Enter or
+    /// Tab accept one, whatever keys those commands are bound to.
+    fn run_suggestion_key(&mut self, id: &str, cx: &mut Context<Self>) -> bool {
+        if self.suggestions().is_none() {
+            return false;
+        }
+        match id {
+            "cursor.up" => self.move_suggestion(-1, cx),
+            "cursor.down" => self.move_suggestion(1, cx),
+            "edit.newline" | "edit.indent" => return self.accept_suggestion(cx),
+            _ => return false,
         }
         true
     }

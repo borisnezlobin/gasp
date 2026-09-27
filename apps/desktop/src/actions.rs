@@ -5,8 +5,8 @@ use std::ops::Range;
 
 use editor_core::motion;
 use gpui::{
-    Context, CursorStyle, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point,
-    ScrollWheelEvent, Window, div, prelude::*,
+    Context, CursorStyle, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    Pixels, Point, ScrollWheelEvent, Window, div, prelude::*,
 };
 
 use crate::editor::{EditorEvent, EditorView};
@@ -41,6 +41,18 @@ impl EditorView {
     fn on_run_command(&mut self, action: &RunCommand, window: &mut Window, cx: &mut Context<Self>) {
         if !self.run_command(&action.id, window, cx) {
             cx.propagate();
+        }
+    }
+
+    /// Escape closes the suggestion list; otherwise it goes on to the
+    /// workspace.
+    fn on_key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+        let keystroke = &event.keystroke;
+        if keystroke.key == "escape"
+            && !keystroke.modifiers.modified()
+            && self.dismiss_suggestions(cx)
+        {
+            cx.stop_propagation();
         }
     }
 
@@ -141,6 +153,7 @@ impl Render for EditorView {
             .cursor(CursorStyle::IBeam)
             .bg(self.theme.background)
             .on_action(cx.listener(Self::on_run_command))
+            .on_key_down(cx.listener(Self::on_key_down))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
