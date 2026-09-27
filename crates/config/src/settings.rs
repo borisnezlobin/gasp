@@ -200,7 +200,8 @@ pub struct SentenceLengthSettings {
 impl Default for SentenceLengthSettings {
     fn default() -> Self {
         SentenceLengthSettings {
-            enabled: true,
+            // Off, as the owner's Musical Text had it; Mod+J turns it on.
+            enabled: false,
             short_below: 7,
             long_above: 18,
         }

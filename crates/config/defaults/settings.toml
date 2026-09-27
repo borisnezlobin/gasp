@@ -12,7 +12,7 @@ scope = "element"         # "element" | "line" | "block"
 # Per-syntax modes, for example: link-url = "always-hidden"
 
 [prose.sentence-length]
-enabled     = true
+enabled     = false
 short-below = 7
 long-above  = 18
 
