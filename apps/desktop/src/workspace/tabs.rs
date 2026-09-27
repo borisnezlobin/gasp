@@ -416,6 +416,8 @@ impl Workspace {
 
     /// Shows tab `index` of the active pane.
     pub fn activate_tab(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let _span = crate::trace::span("tab-switch");
+        crate::trace::presented(window, "tab-switch");
         let pane = self.active_pane.clone();
         pane.update(cx, |pane, cx| pane.activate(index, cx));
         self.focus_active(window, cx);

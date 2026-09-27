@@ -6,10 +6,13 @@
 //! updates, camelCase splitting) and OCR of images and PDFs are later
 //! phases.
 
+use std::collections::HashMap;
 use std::io;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::SystemTime;
 
 use unicode_normalization::UnicodeNormalization;
 use unicode_normalization::char::is_combining_mark;
@@ -31,19 +34,27 @@ const EXCERPT_CHARS: usize = 160;
 /// Folders never searched: the app's config, git and other apps' data.
 const SKIPPED_FOLDERS: [&str; 4] = [".editor", ".git", ".obsidian", ".trash"];
 
-/// A note in memory.
+/// A note in memory, with what every search reads from it prepared once.
+/// Cloning one is cheap: the text is shared.
 #[derive(Clone, Debug)]
 pub struct Note {
     /// Relative to the vault root.
     pub path: PathBuf,
-    pub text: String,
-    folded: String,
+    pub text: Arc<str>,
+    folded: Arc<str>,
+    fields: Arc<NoteFields>,
 }
 
 impl Note {
     pub fn new(path: PathBuf, text: String) -> Self {
-        let folded = fold(&text).text;
-        Self { path, text, folded }
+        let folded = fold(&text).text.into();
+        let fields = Arc::new(note_fields(&path, &text));
+        Self {
+            path,
+            text: text.into(),
+            folded,
+            fields,
+        }
     }
 }
 
@@ -97,27 +108,99 @@ pub fn fold(text: &str) -> Folded {
 
 /// Loads every Markdown note under `root`, sorted by path.
 pub fn load_vault(root: &Path) -> Vec<Note> {
-    let mut notes = Vec::new();
+    let mut cache = NoteCache::default();
+    cache.refresh(root);
+    cache.notes()
+}
+
+/// When a file was last written, as far as telling a change goes.
+type Stamp = (Option<SystemTime>, u64);
+
+/// A vault's notes kept in memory between searches. A refresh reads only
+/// the notes whose size or modification time changed since last time.
+#[derive(Default)]
+pub struct NoteCache {
+    notes: HashMap<PathBuf, (Stamp, Note)>,
+}
+
+impl NoteCache {
+    /// Every note, sorted by path.
+    pub fn notes(&self) -> Vec<Note> {
+        let mut notes: Vec<Note> = self.notes.values().map(|(_, note)| note.clone()).collect();
+        notes.sort_by(|a, b| a.path.cmp(&b.path));
+        notes
+    }
+
+    /// Brings every note under `root` up to date with the disk.
+    pub fn refresh(&mut self, root: &Path) {
+        let mut old = std::mem::take(&mut self.notes);
+        for (relative, stamp) in note_stamps(root) {
+            let kept = old.remove(&relative).filter(|(seen, _)| *seen == stamp);
+            let entry = match kept {
+                Some(entry) => Some(entry),
+                None => read_note(root, &relative).map(|note| (stamp, note)),
+            };
+            if let Some(entry) = entry {
+                self.notes.insert(relative, entry);
+            }
+        }
+    }
+
+    /// Reads `paths` (relative to `root`) again: notes that changed, and
+    /// files or folders that are gone, whose notes it forgets.
+    pub fn reload(&mut self, root: &Path, paths: &[PathBuf]) {
+        for relative in paths {
+            let absolute = root.join(relative);
+            let note = is_note(&absolute)
+                .then(|| read_note(root, relative))
+                .flatten();
+            match note {
+                Some(note) => {
+                    let stamp = stamp_of(&absolute);
+                    self.notes.insert(relative.clone(), (stamp, note));
+                }
+                None if !absolute.is_dir() => {
+                    self.notes.retain(|path, _| !path.starts_with(relative));
+                }
+                None => {}
+            }
+        }
+    }
+}
+
+fn read_note(root: &Path, relative: &Path) -> Option<Note> {
+    let text = std::fs::read_to_string(root.join(relative)).ok()?;
+    Some(Note::new(relative.to_path_buf(), text))
+}
+
+fn stamp_of(path: &Path) -> Stamp {
+    std::fs::metadata(path).map_or((None, 0), |meta| (meta.modified().ok(), meta.len()))
+}
+
+/// Every note under `root`, relative, with its stamp.
+fn note_stamps(root: &Path) -> Vec<(PathBuf, Stamp)> {
+    let mut found = Vec::new();
     let mut pending = vec![root.to_path_buf()];
     while let Some(dir) = pending.pop() {
         let Ok(entries) = std::fs::read_dir(&dir) else {
             continue;
         };
-        for path in entries.filter_map(Result::ok).map(|entry| entry.path()) {
-            if path.is_dir() {
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            let Ok(meta) = std::fs::metadata(&path) else {
+                continue;
+            };
+            if meta.is_dir() {
                 if !is_skipped(&path) {
                     pending.push(path);
                 }
-            } else if is_note(&path)
-                && let Ok(text) = std::fs::read_to_string(&path)
-            {
+            } else if is_note(&path) {
                 let relative = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
-                notes.push(Note::new(relative, text));
+                found.push((relative, (meta.modified().ok(), meta.len())));
             }
         }
     }
-    notes.sort_by(|a, b| a.path.cmp(&b.path));
-    notes
+    found
 }
 
 fn is_skipped(dir: &Path) -> bool {
@@ -264,8 +347,7 @@ pub fn search(
 
 fn search_note(note: &Note, query: &str) -> Option<NoteResult> {
     let in_body = note.folded.contains(query);
-    let fields = note_fields(&note.path, &note.text);
-    let score = score(&fields, in_body, query);
+    let score = score(&note.fields, in_body, query);
     if score == 0 {
         return None;
     }

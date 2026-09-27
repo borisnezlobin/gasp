@@ -2,7 +2,9 @@
 //! of launch to stderr — when it started, how long it took and how much
 //! CPU its thread used — up to the first frame on screen. With
 //! `EDITOR_TRACE_STARTUP=quit` it also quits after that frame, for timing
-//! launches in a loop.
+//! launches in a loop. With `EDITOR_TRACE_STARTUP=all` it keeps logging
+//! after startup: opening pickers, switching tabs and the like, each with
+//! the time until its frame was on screen.
 //!
 //! Lines look like `startup  config.load  at 12.30  took 4.51  cpu 4.40`
 //! (milliseconds since `main`). The last one, `first-frame`, also gives
@@ -27,11 +29,13 @@ enum Mode {
     Off,
     Log,
     Quit,
+    All,
 }
 
 fn mode() -> Mode {
     *MODE.get_or_init(|| match std::env::var(ENV_VAR).as_deref() {
         Ok("quit") => Mode::Quit,
+        Ok("all") => Mode::All,
         Ok(value) if !value.is_empty() && value != "0" => Mode::Log,
         _ => Mode::Off,
     })
@@ -39,7 +43,11 @@ fn mode() -> Mode {
 
 /// Whether startup tracing is on, and startup isn't over yet.
 pub fn enabled() -> bool {
-    mode() != Mode::Off && !DONE.load(Ordering::Relaxed)
+    match mode() {
+        Mode::Off => false,
+        Mode::All => true,
+        Mode::Log | Mode::Quit => !DONE.load(Ordering::Relaxed),
+    }
 }
 
 /// Starts the clock. Call first thing in `main`.
@@ -127,6 +135,25 @@ pub fn on_first_frame(window: &Window) {
             if mode() == Mode::Quit {
                 cx.update(|cx| cx.quit()).ok();
             }
+        })
+        .detach();
+    });
+}
+
+/// Logs how long after this call `window`'s next frame was on screen, as
+/// `startup  NAME-presented  took MS`.
+pub fn presented(window: &Window, name: &'static str) {
+    if !enabled() {
+        return;
+    }
+    let started = Instant::now();
+    window.on_next_frame(move |_, cx| {
+        cx.spawn(async move |_| {
+            let took = millis(started.elapsed().as_secs_f64());
+            eprintln!(
+                "startup  {name}-presented  at {:.2}  took {took:.2}  cpu nan",
+                since_start()
+            );
         })
         .detach();
     });

@@ -343,9 +343,12 @@ impl Workspace {
             return;
         }
         let vault = self.vault.clone();
+        let texts = self.note_texts.clone();
         let starting = cx.background_spawn(async move {
             let _span = trace::span("watch-vault");
-            watch(&vault).map_err(|error| (vault, error))
+            let watching = watch(&vault).map_err(|error| (vault, error));
+            texts.set_followed(watching.is_ok());
+            watching
         });
         let task = cx.spawn_in(window, async move |workspace, cx| {
             let mut receiver = match starting.await {
