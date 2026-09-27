@@ -6,10 +6,10 @@ use std::time::Instant;
 
 use gpui::{
     App, AvailableSpace, BorderStyle, Bounds, BoxShadow, ContentMask, Corners, CursorStyle,
-    Element, ElementId, ElementInputHandler, Entity, GlobalElementId, Hitbox, HitboxBehavior, Hsla,
-    InspectorElementId, IntoElement, LayoutId, Pixels, SharedString, Style, TextRun,
-    TransformationMatrix, UnderlineStyle, Window, fill, point, px, quad, relative, size,
-    transparent_black,
+    DispatchPhase, Element, ElementId, ElementInputHandler, Entity, GlobalElementId, Hitbox,
+    HitboxBehavior, Hsla, InspectorElementId, IntoElement, LayoutId, MouseMoveEvent, Pixels,
+    SharedString, Style, TextRun, TransformationMatrix, UnderlineStyle, Window, fill, point, px,
+    quad, relative, size, transparent_black,
 };
 
 use crate::code_copy::{CopyButton, blocks_on_screen, copied_width, copy_icon_size};
@@ -196,6 +196,16 @@ impl Element for EditorElement {
             }
         });
         drop(phase);
+        // A drag selection follows the pointer anywhere in the window, not
+        // only over the note, so it can run past the edge and scroll.
+        if self.view.read(cx).is_selecting {
+            let view = self.view.clone();
+            window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
+                if phase == DispatchPhase::Bubble {
+                    view.update(cx, |view, cx| view.drag_moved(event.position, window, cx));
+                }
+            });
+        }
         let frame = prepainted.frame.clone();
         self.view
             .update(cx, |view, _| view.finish_frame(frame, started));

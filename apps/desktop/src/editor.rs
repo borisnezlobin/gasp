@@ -114,6 +114,9 @@ pub struct EditorView {
     /// Where the pointer last moved over the editor, so pressing Mod can
     /// change what it shows without it moving.
     pub(crate) pointer_at: Option<gpui::Point<Pixels>>,
+    /// Scrolls the note while a drag selection is held past its top or
+    /// bottom, so holding still there keeps selecting.
+    pub(crate) drag_scroll: Option<gpui::Task<()>>,
     pub(crate) click_unit: ClickUnit,
     pub(crate) click_origin: Range<usize>,
     pub(crate) autoscroll: bool,
@@ -235,6 +238,7 @@ impl EditorView {
             hovered_card: None,
             pointer_cursor: gpui::CursorStyle::IBeam,
             pointer_at: None,
+            drag_scroll: None,
             click_unit: ClickUnit::Character,
             click_origin: 0..0,
             autoscroll: false,

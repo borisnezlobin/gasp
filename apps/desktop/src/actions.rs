@@ -10,6 +10,14 @@ use gpui::{
 };
 
 use crate::editor::{EditorEvent, EditorView};
+
+/// How often a drag held past the note's edge scrolls it: once a frame.
+const DRAG_SCROLL_TICK: std::time::Duration = std::time::Duration::from_millis(16);
+/// Pixels scrolled each frame for every pixel the pointer is past the
+/// edge, so a little past creeps and far past runs.
+const DRAG_SCROLL_RATE: f32 = 0.4;
+/// The fastest a held drag scrolls, in pixels a frame.
+const DRAG_SCROLL_MAX: Pixels = gpui::px(60.);
 use crate::element::EditorElement;
 use crate::keymap::{KEY_CONTEXT, RunCommand};
 use crate::line_layout::Hit;
@@ -106,6 +114,80 @@ impl EditorView {
         self.select(range.start, range.end, cx);
     }
 
+    /// The pointer moved, anywhere in the window, during a drag selection:
+    /// selects to it, and scrolls while it's past the note's edge.
+    pub(crate) fn drag_moved(
+        &mut self,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.is_selecting {
+            return;
+        }
+        let offset = self.offset_for_point(position, window);
+        self.extend_by_unit(offset, cx);
+        self.pointer_at = Some(position);
+        self.start_drag_scroll(window, cx);
+    }
+
+    /// How far the pointer is past the note's top (negative) or bottom
+    /// (positive): zero while it's over the note.
+    fn drag_overshoot(&self, y: Pixels) -> Pixels {
+        let Some(frame) = self.frame.as_ref() else {
+            return Pixels::ZERO;
+        };
+        let (top, bottom) = (frame.bounds.top(), frame.bounds.bottom());
+        if y < top {
+            y - top
+        } else if y > bottom {
+            y - bottom
+        } else {
+            Pixels::ZERO
+        }
+    }
+
+    /// Keeps a drag selection held past the note's edge scrolling, each
+    /// frame, until it comes back, lets go or reaches the end.
+    fn start_drag_scroll(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let past = self
+            .pointer_at
+            .is_some_and(|at| self.drag_overshoot(at.y) != Pixels::ZERO);
+        if !past || self.drag_scroll.is_some() {
+            return;
+        }
+        self.drag_scroll = Some(cx.spawn_in(window, async move |this, cx| {
+            loop {
+                cx.background_executor().timer(DRAG_SCROLL_TICK).await;
+                let going = this
+                    .update_in(cx, |view, window, cx| view.drag_scroll_tick(window, cx))
+                    .unwrap_or(false);
+                if !going {
+                    break;
+                }
+            }
+            this.update(cx, |view, _| view.drag_scroll = None).ok();
+        }));
+    }
+
+    /// One frame of a drag held past the edge: scrolls faster the further
+    /// past it the pointer is, and selects to the line now under it.
+    fn drag_scroll_tick(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let Some(at) = self.pointer_at.filter(|_| self.is_selecting) else {
+            return false;
+        };
+        let past = self.drag_overshoot(at.y);
+        if past == Pixels::ZERO {
+            return false;
+        }
+        let before = self.scroll_offset();
+        let step = (past * DRAG_SCROLL_RATE).clamp(-DRAG_SCROLL_MAX, DRAG_SCROLL_MAX);
+        self.scroll_by(step, cx);
+        let offset = self.offset_for_point(at, window);
+        self.extend_by_unit(offset, cx);
+        self.scroll_offset() != before
+    }
+
     /// Selects from the click's unit to the unit under `offset`, so a
     /// double-click drag grows word by word.
     fn extend_by_unit(&mut self, offset: usize, cx: &mut Context<Self>) {
@@ -147,19 +229,13 @@ impl EditorView {
         self.is_selecting = false;
     }
 
-    fn on_mouse_move(
-        &mut self,
-        event: &MouseMoveEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn on_mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+        // The editor's element follows a drag selection window-wide.
         if self.is_selecting {
-            let offset = self.offset_for_point(event.position, window);
-            self.extend_by_unit(offset, cx);
-        } else {
-            let over = self.hover_target_at_point(event.position);
-            self.hover_moved(over, event.modifiers.secondary(), cx);
+            return;
         }
+        let over = self.hover_target_at_point(event.position);
+        self.hover_moved(over, event.modifiers.secondary(), cx);
         self.pointer_at = Some(event.position);
         self.point_at(event.modifiers.secondary(), cx);
         self.hover_code(Some(event.position), cx);
