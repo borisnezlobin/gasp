@@ -31,6 +31,7 @@ impl SettingsView {
         match store::write_setting(&self.vault_root, &item.key, value.as_ref(), &item.default) {
             Ok(file) => {
                 self.file = file;
+                self.invalidate_layouts();
                 self.error = None;
                 let changed = self.setting_key_of(&item.key);
                 cx.emit(SettingsEvent::Changed(changed));
