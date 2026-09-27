@@ -28,6 +28,7 @@ pub fn modal_size(window: Size<Pixels>, style: &SettingsTheme) -> Size<Pixels> {
 
 impl Render for SettingsView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.follow_theme(cx);
         let style = self.style.clone();
         let size = modal_size(window.viewport_size(), &style);
         div()

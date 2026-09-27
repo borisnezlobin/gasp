@@ -663,6 +663,9 @@ impl VaultSearch {
 
 impl Render for VaultSearch {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // The theme can change while the panel is open.
+        self.ui = ui_theme(cx);
+        self.surface = PickerTheme::from_ui(&self.ui);
         let surface = self.surface.clone();
         let pending = self.pending_replace.clone();
         let message = self.message(cx);

@@ -275,11 +275,38 @@ impl Default for TemplateSettings {
 pub struct AppearanceSettings {
     /// The base text size in points. Theme font sizes scale from it.
     pub base_font_size: u32,
+    /// Light or dark, or whichever the system uses.
+    pub theme: ThemeChoice,
 }
 
 impl Default for AppearanceSettings {
     fn default() -> Self {
-        AppearanceSettings { base_font_size: 12 }
+        AppearanceSettings {
+            base_font_size: 12,
+            theme: ThemeChoice::MatchSystem,
+        }
+    }
+}
+
+/// Which palette the app uses. `MatchSystem` follows the system's light
+/// or dark appearance as it changes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum ThemeChoice {
+    Light,
+    Dark,
+    #[default]
+    MatchSystem,
+}
+
+impl ThemeChoice {
+    /// Whether the app is dark, given whether the system is.
+    pub fn is_dark(self, system_dark: bool) -> bool {
+        match self {
+            ThemeChoice::Light => false,
+            ThemeChoice::Dark => true,
+            ThemeChoice::MatchSystem => system_dark,
+        }
     }
 }
 
