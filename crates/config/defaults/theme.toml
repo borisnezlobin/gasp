@@ -34,6 +34,8 @@ conflict    = "#c62828"
 highlight   = "#fff59d"
 link        = "{color.accent}"
 code-background = "{color.gray-100}"
+# Lines a code block's fence picks out with {1,3-5}.
+code-highlight = "rgba(0, 0, 0, 0.055)"
 # The window around the note surfaces: tab bar, sidebar and gaps.
 app-background = "#f6f6f7"
 # Menus, pickers and dialogs, which float over the note.
@@ -166,6 +168,7 @@ divider-active = "rgba(255, 255, 255, 0.22)"
 drop-zone   = "rgba(255, 255, 255, 0.05)"
 drop-zone-ring = "rgba(255, 255, 255, 0.18)"
 card        = "#1f1e1b"
+code-highlight = "rgba(255, 255, 255, 0.06)"
 search-match = "rgba(234, 179, 8, 0.2)"
 active-search-match = "#6b5a17"
 

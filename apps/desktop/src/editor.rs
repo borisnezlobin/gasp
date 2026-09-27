@@ -99,6 +99,10 @@ pub struct EditorView {
     pub(crate) pipeline: Pipeline,
     /// Whether pasted text gets curly quotes, from the settings.
     pub(crate) curl_pasted_quotes: bool,
+    /// Whether code blocks number their lines unless a block says.
+    pub(crate) code_line_numbers: bool,
+    /// The copy button on the code block under the pointer.
+    pub(crate) code_copy: crate::code_copy::CodeCopy,
     clock: Instant,
 }
 
@@ -170,6 +174,8 @@ impl EditorView {
             suggest: SuggestState::default(),
             pipeline: Pipeline::builtin(),
             curl_pasted_quotes: config.settings.editor.curl_pasted_quotes,
+            code_line_numbers: config.settings.editor.code_line_numbers,
+            code_copy: crate::code_copy::CodeCopy::default(),
             clock: Instant::now(),
         }
     }
@@ -183,6 +189,7 @@ impl EditorView {
         self.symbols = config.settings.markdown.symbols.clone();
         self.reveal = reveal_settings(&self.symbols);
         self.apply_typing_settings(&config.settings.editor);
+        self.code_line_numbers = config.settings.editor.code_line_numbers;
         self.set_zoom(self.zoom, cx);
     }
 
@@ -591,6 +598,7 @@ impl EditorView {
             zoom: self.zoom,
             scale_factor: window.scale_factor(),
             marked: self.marked.clone(),
+            code_line_numbers: self.code_line_numbers,
         };
         let mut resources = LayoutResources {
             text_system: window.text_system(),

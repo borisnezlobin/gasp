@@ -5,6 +5,7 @@ pub mod actions;
 pub mod app;
 pub mod bench;
 pub mod cli;
+pub mod code_copy;
 pub mod commands;
 pub mod demo;
 pub mod editor;

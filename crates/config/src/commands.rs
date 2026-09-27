@@ -279,6 +279,7 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("note.delete", "Move note to trash", "Notes and navigation"),
     spec("note.import-image", "Insert image from file", "Editing"),
     spec("edit.paste-plain", "Paste as plain text", "Editing"),
+    spec("code.copy-block", "Copy code block", "Editing"),
     key_only("cursor.left", "Move left", "Cursor"),
     key_only("cursor.right", "Move right", "Cursor"),
     key_only("cursor.up", "Move up", "Cursor"),

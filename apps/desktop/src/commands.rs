@@ -29,7 +29,7 @@ const MOTIONS: [(&str, &str, Motion); 12] = [
     ("cursor.page-down", "select.page-down", Motion::PageDown),
 ];
 
-const HANDLERS: [(&str, Handler); 29] = [
+const HANDLERS: [(&str, Handler); 30] = [
     ("select.all", |view, _, cx| view.select_all(cx)),
     ("edit.delete-backward", |view, _, cx| {
         view.delete_backward(cx)
@@ -70,6 +70,9 @@ const HANDLERS: [(&str, Handler); 29] = [
     ("edit.cut", |view, _, cx| view.cut_selection_or_line(cx)),
     ("edit.paste", |view, _, cx| view.smart_paste(cx)),
     ("edit.paste-plain", |view, _, cx| view.paste_plain(cx)),
+    ("code.copy-block", |view, _, cx| {
+        view.copy_code_block_at_cursor(cx)
+    }),
     ("note.import-image", |view, window, cx| {
         view.import_image(window, cx)
     }),

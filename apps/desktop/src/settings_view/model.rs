@@ -119,6 +119,11 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Typing ( [ { or a backtick adds its closing half, and typing * or _ over a selection wraps it.",
     ),
     (
+        "editor.code-line-numbers",
+        "Number lines in code blocks",
+        "Show line numbers beside code. A block can still ask for them or turn them off with ln:true or ln:false after its language.",
+    ),
+    (
         "editor.curl-pasted-quotes",
         "Curl quotes in pasted text",
         "Give pasted text curly quotes too. Paste as plain text always keeps quotes as they are.",
@@ -375,6 +380,7 @@ pub const PAGES: &[PageSpec] = &[
                 setting("editor.curl-pasted-quotes"),
                 setting("editor.auto-pair"),
             ],
+            &[setting("editor.code-line-numbers")],
             &[
                 setting("markdown.symbols.mode"),
                 setting("markdown.symbols.scope"),
