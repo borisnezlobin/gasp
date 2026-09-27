@@ -8,12 +8,12 @@ This section is for an agent picking the project up with no earlier context. Eve
 
 ### Where things stand
 
-The plan is complete. No code exists yet, and the next step is Phase 0. This repo used to hold an abandoned Electron editor, which is still in the git history and should be ignored.
+The workspace, CI and the synthetic corpus exist, the Linux-runnable Phase 0 spikes have results in [the spike table](#phase-0-spikes), and most of the Phase 1 core is built and tested. [Phase 1](#phase-1-core) lists what's left. This repo used to hold an abandoned Electron editor, which is still in the git history and should be ignored.
 
 | Phase | Status |
 |---|---|
-| 0 Spikes | not started |
-| 1 Core | not started |
+| 0 Spikes | math, git, Typst PDF and GPUI run on Linux; the iPhone spikes need a macOS runner |
+| 1 Core | in progress |
 | 2 Desktop editor | not started |
 | 3 Sync and travel check | not started |
 | 4 Search and prose | not started |
@@ -50,9 +50,11 @@ Steps marked **[Mac]** need the owner's machine or a macOS runner.
 
 ### First tasks
 
+These three are done. They're kept here as a record of how the project started.
+
 1. **Workspace and CI.** Create the Cargo workspace from [Repository layout](#repository-layout) and a GitHub Actions workflow that builds, tests and lints on `ubuntu-latest`, `windows-latest` and `macos-latest`. It's done when an empty crate passes on all three.
 2. **Synthetic corpus.** Write a generator for a fake vault that uses every feature in [What your vault actually uses](#what-your-vault-actually-uses), in similar proportions. Math-heavy notes, callouts, footnotes, tables, tasks and raw HTML matter most. Every committed test fixture comes from this corpus.
-3. **Phase 0 spikes**, each on its own branch with a short result written into the spike table: what passed, the measured numbers, and the decision. The GPUI, math, Typst and git2 spikes can run on Linux and CI. The iPhone spikes run on a macOS runner.
+3. **Phase 0 spikes**, each ideally on its own branch with a short result written into the spike table: what passed, the measured numbers, and the decision. The GPUI, math, Typst and git2 spikes can run on Linux and CI. The iPhone spikes run on a macOS runner.
 
 ### Working rules
 
@@ -89,7 +91,7 @@ I measured this from `~/Documents/Obsidian/Vault` so the feature list is driven 
 |---|---:|---:|
 | Inline math `$…$` | 3,660 | 50 |
 | Block math `$$` delimiters | 748 | 28 |
-| Raw HTML tags (mostly `<br>` 326 and `<hr>` 312) | 370+ | 25 |
+| Raw HTML tags (mostly `<br>` 326 and `<hr>` 312) | 638+ | 25 |
 | Embeds `![[…]]` (mostly images) | 238 | 47 |
 | Task list items | 243 | 14 |
 | Table rows | 203 | 17 |
@@ -316,7 +318,7 @@ forall      → \forall ␣               math, instant, whole word, after space
 
 `●` marks a tab stop, and `{letter}`, `{digit}`, `{greek}` and `{word}` are named patterns. Raw regex is still allowed for the rare case that needs it. The snippet editor has a test box that shows the expansion while you type, and a "teach by example" mode: you type what you'd write and what it should become, and it proposes the snippet.
 
-Your 212 existing snippets are migrated automatically, and about 170 of them are plain triggers. Most of the 42 regex ones only use regex for "whole word followed by a space" (for example `/(?<![\\A-Za-z])forall $/`), and they convert to the `whole word, after space` options. The 3 JavaScript-function snippets and any regex the migrator can't express are listed for you to review.
+Your Latex Suite file has 212 snippets, and 7 of them are commented out. Of the 205 active ones, 163 are plain triggers, 41 use regex and 1 is a JavaScript function. Most of the regex ones only use regex for "whole word followed by a space" (for example `/(?<![\\A-Za-z])forall $/`), and they convert to the `whole word, after space` options. The migrator converts 202 to the readable format and keeps 2 as `regex:`, because `${MORE_SYMBOLS}` and the trig "add space" class have no named pattern. The JavaScript `iden(\d)` snippet is listed for you to review.
 
 Latex Suite's other features are rebuilt as well: auto-fraction, matrix shortcuts (Tab and Enter inside `pmatrix`, `cases`, `align` and friends), tab-out of brackets, auto-enlarged brackets, and the `mk`/`dm` math-block shortcuts.
 
@@ -467,6 +469,20 @@ These are small throwaway experiments on the riskiest assumptions, each with a f
 
 This covers the document model, transactions and undo, the parser with Obsidian extensions, the render planner, the config and rules engine, the command registry, the parity oracle, and the migrator for your `.obsidian` settings, hotkeys and snippets. It's done when the parser and render planner match the Obsidian fixtures for the synthetic corpus in CI, and for the real vault on the owner's Mac **[Mac]**.
 
+| Part | Where | State |
+|---|---|---|
+| Document, selections, transactions | `crates/core/src/document.rs`, `transaction/` | Done. A rope with byte offsets, and change sets that apply, invert, compose and map offsets, with property tests. |
+| Undo | `crates/core/src/history.rs` | Done. Typing groups into steps within 500 ms, commands get their own step, and remote edits rebase both stacks. |
+| Input pipeline | `crates/core/src/pipeline/`, `steps/` | Done except emoji. List continuation, auto-pair, snippets and replacements run as named steps with context filters. The emoji slot is an empty placeholder. |
+| Parser | `crates/core/src/syntax/` | Done. It uses pulldown-cmark plus Obsidian's extensions, keeps markup ranges apart from content, reparses only the changed blocks, and answers `context_at`. A 200 KB note parses in about 20 ms in full, and a one-character edit reparses in under 1 ms. |
+| Render planner | `crates/core/src/render/` | Done. It produces styled runs, hidden ranges and widgets per line for all three reveal modes and scopes. A 60-line viewport plans in about 55 µs. Heading folding isn't in the plan output yet. |
+| Footnotes | `crates/core/src/footnotes/`, `commands/footnote.rs` | Done. Every Footnotes Plus test is ported. |
+| Formatting commands | `crates/core/src/commands/format.rs` | Done for the eight toggles in the keymap. `format.link` isn't built yet. |
+| Config, rules, commands | `crates/config` | Done. Layered defaults, a settings schema, theme tokens, the layout tree, the rules engine, the command registry and the whole default keymap, with the keyboard-reachability check. |
+| Snippets and replacements | `crates/snippets` | Done. |
+| Migrator | `tools/migrate` | Done for Latex Suite, replacements, hotkeys and app settings, checked against `reference/obsidian`. Chronotyper removal needs the vault and comes later. |
+| Parity oracle | `tools/oracle` | Not started. Recording fixtures needs Obsidian **[Mac]**. |
+
 ### Phase 2: desktop editor
 
 This is the GPUI app with the file sidebar, tabs, quick switcher, command palette, live preview for every block type in your vault, replacements, emoji, snippets, footnotes, math, code blocks and images. It's done when you can use it as your daily editor on the Mac, and CI produces working Windows and Linux builds.
@@ -475,6 +491,8 @@ This is the GPUI app with the file sidebar, tabs, quick switcher, command palett
 
 This builds git sync, the conflict resolver and the setup flow, and replaces `vault-sync` on the Mac. It's done when you've installed the app on the Windows/Ubuntu laptop, synced the vault on both systems, and edited offline and merged. This is the checkpoint that has to pass before your next trip. The app is only for you for now, so desktop builds are signed for personal use and there's no store listing.
 
+The git engine is already in `crates/sync` from the libgit2 spike. It has clone, commit, fetch, merge and push on one branch, the line-by-line merge policy, local copies kept for binaries, device-only files, conflict hunks with all four resolutions, and the clock-driven scheduler. It's tested with two simulated devices against local bare repos. Token sign-in over HTTPS, keychain storage and the resolver UI are still to do.
+
 ### Phase 4: search and prose
 
 This covers search with OCR, sentence-length highlighting, word count, reading time and edit-time tracking. Grammar starts with the evaluation set described under [Grammar](#grammar), then the layers are built in order, and the model is picked from the scores.
@@ -482,6 +500,8 @@ This covers search with OCR, sentence-length highlighting, word count, reading t
 ### Phase 5: export
 
 This covers HTML export with one-step publish to your site, the one-time stylesheet rewrite and re-export on the site, and PDF export with a live preview. It's done when a new article and a re-exported old one both look right on the site, and a PDF matches your current output.
+
+PDF export already exists in `crates/export` from the Typst spike. HTML export, publishing and the live preview are still to do.
 
 ### Phase 6: MCP and headless modes
 
