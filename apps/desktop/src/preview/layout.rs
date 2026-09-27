@@ -31,6 +31,8 @@ pub struct LayoutContext<'a> {
     pub scale_factor: f32,
     /// The IME composition, in document offsets.
     pub marked: Option<Range<usize>>,
+    /// Whether code blocks number their lines unless a block says.
+    pub code_line_numbers: bool,
 }
 
 /// Caches and the shaper a layout draws on.
@@ -93,7 +95,13 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         context: &'a LayoutContext<'a>,
         resources: &'a mut LayoutResources<'b>,
     ) -> Self {
-        let frame = line_frame(plan, context.source, context.theme, context.column_width);
+        let frame = line_frame(
+            plan,
+            context.source,
+            context.theme,
+            context.column_width,
+            context.code_line_numbers,
+        );
         let code_spans = spans_for_line(plan, context.source, resources.code);
         Self {
             plan,

@@ -291,6 +291,10 @@ impl Render for Workspace {
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::on_run_command))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
+            .on_modifiers_changed(cx.listener(Self::on_modifiers_changed))
+            .capture_any_mouse_down(cx.listener(|workspace, event: &MouseDownEvent, _, cx| {
+                workspace.spend_shortcut_sheet(event.modifiers.modified(), cx)
+            }))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|workspace, _, _, cx| {
@@ -328,6 +332,7 @@ impl Render for Workspace {
                     .children(overlaid)
                     .children(self.render_left_edge(cx)),
             )
+            .child(crate::ui::focus_visible::pointer_watch())
             .child(render_status_bar(
                 self.status.as_ref(),
                 self.sync_indicator.clone(),
@@ -335,5 +340,6 @@ impl Render for Workspace {
             ))
             .children(self.menu.render_overlay(window, cx))
             .children(self.modal.render(&ui, cx))
+            .children(self.render_shortcut_sheet(cx))
     }
 }

@@ -288,6 +288,9 @@ pub struct Bar {
 #[derive(Clone, Debug, Default)]
 pub struct LineDecor {
     pub surfaces: Vec<Surface>,
+    /// Flat bands drawn over the surfaces behind this line alone, such as
+    /// a highlighted code line.
+    pub bands: Vec<Surface>,
     pub bars: Vec<Bar>,
     /// Pieces in the line's margin, such as code line numbers. Their tops
     /// are relative to the line's top.

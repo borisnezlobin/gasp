@@ -12,8 +12,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use gpui::{
-    App, AppContext, Context, Entity, EntityId, EventEmitter, ListAlignment, ListState,
-    SharedString, Subscription, Task, px,
+    App, AppContext, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
+    ListAlignment, ListState, SharedString, Subscription, Task, px,
 };
 
 use super::index::LinkIndex;
@@ -115,6 +115,8 @@ pub enum SidebarEvent {
     /// Show this view, as a header button asks.
     Show(SidebarView),
     Hide,
+    /// Escape: give the keyboard back to the editor.
+    Dismissed,
 }
 
 /// One row of the list the sidebar shows.
@@ -198,6 +200,9 @@ pub struct KnowledgeSidebar {
     show_unlinked: bool,
     unlinked: Unlinked,
     collapsed_tags: HashSet<String>,
+    pub(super) focus_handle: FocusHandle,
+    /// The row the keys act on while the sidebar has the keyboard.
+    pub(super) selected: Option<usize>,
     editor_events: Option<Subscription>,
     parse_task: Option<Task<()>>,
     mention_task: Option<Task<()>>,
@@ -205,6 +210,12 @@ pub struct KnowledgeSidebar {
 }
 
 impl EventEmitter<SidebarEvent> for KnowledgeSidebar {}
+
+impl Focusable for KnowledgeSidebar {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus_handle.clone()
+    }
+}
 
 impl KnowledgeSidebar {
     pub fn new(
@@ -225,6 +236,8 @@ impl KnowledgeSidebar {
             show_unlinked: false,
             unlinked: Unlinked::Idle,
             collapsed_tags: HashSet::new(),
+            focus_handle: cx.focus_handle(),
+            selected: None,
             editor_events: None,
             parse_task: None,
             mention_task: None,
@@ -459,6 +472,7 @@ impl KnowledgeSidebar {
             self.list.splice(0..self.rows.len(), rows.len());
         }
         self.rows = rows;
+        self.keep_selection();
         cx.notify();
     }
 

@@ -31,6 +31,9 @@ impl Workspace {
         if let EditorEvent::OpenLink(target) = event {
             return self.follow_link(target, editor, window, cx);
         }
+        if *event == EditorEvent::Edited {
+            self.count_edit(editor, window, cx);
+        }
         let (offset, line) = {
             let view = editor.read(cx);
             (view.cursor(), view.doc().line_of_offset(view.cursor()))
@@ -62,9 +65,15 @@ impl Workspace {
 
     /// Recomputes the status bar from the active editor.
     pub(crate) fn refresh_status(&mut self, cx: &mut Context<Self>) {
-        self.status = self
-            .active_editor(cx)
-            .map(|editor| StatusInfo::of_editor(editor.read(cx)));
+        let path = self.active_path(cx);
+        self.status = self.active_editor(cx).map(|editor| {
+            let editor = editor.read(cx);
+            let mut status = StatusInfo::of_editor(editor);
+            status.edited_seconds = path
+                .as_deref()
+                .map_or(0, |path| self.edit_seconds(path, editor));
+            status
+        });
         self.sync_tree_active(cx);
         cx.notify();
     }
@@ -220,6 +229,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         doc.update(cx, |doc, cx| doc.set_path(to.to_path_buf(), cx));
+        self.edit_time_moved(from, to, cx);
         for pane in self.panes.panes() {
             pane.update(cx, |pane, _| pane.history.rename(from, to));
         }

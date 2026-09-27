@@ -215,6 +215,9 @@ pub struct EditorSettings {
     /// Whether typing an opening bracket adds its closing one, and typing
     /// a mark such as `*` over a selection wraps it.
     pub auto_pair: bool,
+    /// Whether code blocks number their lines. A block's `ln:` option
+    /// overrides it either way.
+    pub code_line_numbers: bool,
 }
 
 impl Default for EditorSettings {
@@ -224,6 +227,7 @@ impl Default for EditorSettings {
             smart_quotes: true,
             curl_pasted_quotes: true,
             auto_pair: true,
+            code_line_numbers: false,
         }
     }
 }

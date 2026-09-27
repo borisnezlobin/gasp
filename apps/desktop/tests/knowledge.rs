@@ -9,10 +9,10 @@ use editor_desktop::actions::bind_keys;
 use editor_desktop::features;
 use editor_desktop::keymap::all_bindings;
 use editor_desktop::knowledge::sidebar::{Row, describe};
-use editor_desktop::knowledge::{KnowledgeSidebar, SidebarView, dates};
+use editor_desktop::knowledge::{KnowledgeSidebar, SidebarView, dates, is_actionable};
 use editor_desktop::vault_search::VaultSearch;
 use editor_desktop::workspace::{OpenIn, Workspace};
-use gpui::{Entity, Modifiers, TestAppContext, VisualTestContext};
+use gpui::{Entity, Focusable, Modifiers, TestAppContext, VisualTestContext};
 use tempfile::TempDir;
 
 fn vault_with(notes: &[(&str, &str)]) -> TempDir {
@@ -468,4 +468,69 @@ fn the_sidebar_says_what_to_do_without_a_note(cx: &mut TestAppContext) {
             .any(|row| matches!(row, Row::Heading { .. }))
     });
     assert!(!heading);
+}
+
+fn cursor(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> usize {
+    cx.read(|cx| {
+        workspace
+            .read(cx)
+            .active_editor(cx)
+            .unwrap()
+            .read(cx)
+            .cursor()
+    })
+}
+
+fn editor_focused(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> bool {
+    cx.update(|window, cx| {
+        let editor = workspace.read(cx).active_editor(cx).unwrap();
+        editor.focus_handle(cx).is_focused(window)
+    })
+}
+
+#[gpui::test]
+fn the_sidebar_is_driven_from_the_keyboard(cx: &mut TestAppContext) {
+    let vault = vault_with(&[("Target.md", TARGET)]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "Target.md");
+    press(cx, "sidebar.outline");
+    press(cx, "sidebar.right.focus");
+    let sidebar = sidebar(&workspace, cx);
+    // It starts on the heading the cursor is under.
+    assert_eq!(cx.read(|cx| sidebar.read(cx).selected()), Some(0));
+    assert!(!editor_focused(&workspace, cx));
+    cx.simulate_keystrokes("down");
+    assert_eq!(cx.read(|cx| sidebar.read(cx).selected()), Some(1));
+    // Past the end the selection stays put.
+    cx.simulate_keystrokes("down");
+    assert_eq!(cx.read(|cx| sidebar.read(cx).selected()), Some(1));
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(cursor(&workspace, cx), TARGET.find("## Part").unwrap());
+    assert!(editor_focused(&workspace, cx));
+    // Escape hands the keyboard back without doing anything.
+    press(cx, "sidebar.right.focus");
+    assert!(!editor_focused(&workspace, cx));
+    cx.simulate_keystrokes("up escape");
+    cx.run_until_parked();
+    assert!(editor_focused(&workspace, cx));
+    assert_eq!(cursor(&workspace, cx), TARGET.find("## Part").unwrap());
+}
+
+#[gpui::test]
+fn focusing_the_sidebar_opens_it_and_skips_rows_that_do_nothing(cx: &mut TestAppContext) {
+    let vault = linked_vault();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "Target.md");
+    assert!(!is_open(&workspace, cx));
+    press(cx, "sidebar.right.focus");
+    assert!(is_open(&workspace, cx));
+    let sidebar = sidebar(&workspace, cx);
+    let (selected, rows) = cx.read(|cx| {
+        let sidebar = sidebar.read(cx);
+        (sidebar.selected(), sidebar.rows().to_vec())
+    });
+    let selected = selected.expect("a row is selected");
+    assert!(is_actionable(&rows[selected]));
+    assert!(rows[..selected].iter().all(|row| !is_actionable(row)));
 }

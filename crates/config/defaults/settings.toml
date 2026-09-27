@@ -26,6 +26,7 @@ show-inline-title  = true
 smart-quotes       = true   # typed " and ' become “ ” and ‘ ’ outside code, math and links
 curl-pasted-quotes = true   # pasted text gets curly quotes too
 auto-pair          = true   # ( [ { and ` add their closing half; * _ ~ = wrap a selection
+code-line-numbers  = false  # number the lines of code blocks; a block's ln: overrides it
 
 [daily-notes]
 folder   = ""             # from the vault root; "" is the root

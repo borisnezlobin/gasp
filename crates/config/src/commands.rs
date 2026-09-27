@@ -206,6 +206,11 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
         "Toggle right sidebar",
         "Tabs and panels",
     ),
+    spec(
+        "sidebar.right.focus",
+        "Focus right sidebar",
+        "Tabs and panels",
+    ),
     spec("sidebar.backlinks", "Show backlinks", "Tabs and panels"),
     spec(
         "sidebar.outgoing-links",
@@ -285,6 +290,7 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("note.delete", "Move note to trash", "Notes and navigation"),
     spec("note.import-image", "Insert image from file", "Editing"),
     spec("edit.paste-plain", "Paste as plain text", "Editing"),
+    spec("code.copy-block", "Copy code block", "Editing"),
     key_only("cursor.left", "Move left", "Cursor"),
     key_only("cursor.right", "Move right", "Cursor"),
     key_only("cursor.up", "Move up", "Cursor"),

@@ -294,6 +294,12 @@ keys = "Mod+Shift+E"
 do   = "file-tree.focus"
 
 [[rule]]
+id   = "key.sidebar.right.focus"
+on   = "key"
+keys = "Mod+Shift+A"
+do   = "sidebar.right.focus"
+
+[[rule]]
 id   = "key.pane.focus-left"
 on   = "key"
 keys = "Mod+Alt+Left"

@@ -606,6 +606,77 @@ fn tables_render_as_a_grid_until_the_cursor_enters(cx: &mut TestAppContext) {
     assert!(shows_text_at(&visual(&view, cx, 0), 0));
 }
 
+const CODE: &str =
+    "text\n\n```rust {2} title:\"step.rs\"\nfn a() {}\nfn b() {}\nfn c() {}\n```\n\nend";
+
+#[gpui::test]
+fn code_blocks_pick_out_lines_and_number_them_when_asked(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, CODE);
+    place_cursor(&view, cx, CODE.len());
+    let bands = |cx: &mut VisualTestContext, line| visual(&view, cx, line).decor.bands.len();
+    assert_eq!(
+        (bands(cx, 3), bands(cx, 4), bands(cx, 5)),
+        (0, 1, 0),
+        "{{2}} picks out the second line"
+    );
+    let numbered = |cx: &mut VisualTestContext| !visual(&view, cx, 3).decor.gutter.is_empty();
+    assert!(!numbered(cx), "numbers are off by default");
+    view.update(cx, |view, cx| {
+        let mut config = editor_config::Config::defaults();
+        config.settings.editor.code_line_numbers = true;
+        view.apply_config(&config, cx);
+    });
+    cx.run_until_parked();
+    assert!(numbered(cx), "the setting numbers every block");
+    assert!(
+        visual(&view, cx, 6).decor.gutter.is_empty(),
+        "not the fence"
+    );
+}
+
+#[gpui::test]
+fn the_copy_button_shows_on_hover_and_copies_the_code(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, CODE);
+    place_cursor(&view, cx, 0);
+    assert!(view.read_with(cx, |view, _| view.copy_button()).is_none());
+    let inside = piece_center(&view, cx, 4, |piece| piece.is_text());
+    cx.simulate_mouse_move(inside, None, Modifiers::none());
+    cx.run_until_parked();
+    let button = view
+        .read_with(cx, |view, _| view.copy_button())
+        .expect("hovering a block shows its button");
+    assert!(!button.copied);
+    click(cx, button.bounds.center(), Modifiers::none());
+    let copied = cx.read_from_clipboard().and_then(|item| item.text());
+    assert_eq!(copied.as_deref(), Some("fn a() {}\nfn b() {}\nfn c() {}"));
+    assert!(
+        view.read_with(cx, |view, _| view.copy_button())
+            .unwrap()
+            .copied
+    );
+    assert_eq!(cursor(&view, cx), 0, "the click doesn't move the cursor");
+    cx.executor()
+        .advance_clock(editor_desktop::code_copy::COPIED_FOR * 2);
+    cx.run_until_parked();
+    assert!(
+        view.read_with(cx, |view, _| view.copied_code_block())
+            .is_none()
+    );
+}
+
+#[gpui::test]
+fn copy_code_block_copies_the_block_at_the_cursor(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, CODE);
+    place_cursor(&view, cx, CODE.find("fn b").unwrap());
+    cx.update(|window, cx| {
+        view.update(cx, |view, cx| {
+            view.run_command("code.copy-block", window, cx)
+        })
+    });
+    let copied = cx.read_from_clipboard().and_then(|item| item.text());
+    assert_eq!(copied.as_deref(), Some("fn a() {}\nfn b() {}\nfn c() {}"));
+}
+
 #[gpui::test]
 fn table_cells_show_rendered_math_on_the_text_baseline(cx: &mut TestAppContext) {
     let wide = "a+b+c+d+e+f+g+h+i+j";

@@ -50,6 +50,21 @@ const MOD_KEYS: [(&str, bool, KeyHandler); 7] = [
     ("c", true, |tree, _, cx| tree.copy_selected_path(cx)),
 ];
 
+/// What the tree's own keys do, for the sheet holding Mod shows. The
+/// arrows, Home, End and typing a name need no telling.
+pub const KEY_HINTS: [(&str, &str); 10] = [
+    ("Enter", "Open"),
+    ("Mod+Enter", "Open in a new tab"),
+    ("Mod+N", "New note here"),
+    ("Mod+Alt+N", "New folder here"),
+    ("F2", "Rename"),
+    ("Mod+Backspace", "Move to the trash"),
+    ("Mod+X", "Cut"),
+    ("Mod+V", "Paste"),
+    ("Mod+Alt+C", "Copy the path"),
+    ("Escape", "Back to the editor"),
+];
+
 /// Commands from the keymap the tree runs while it has focus.
 const COMMANDS: [(&str, KeyHandler); 4] = [
     ("link.follow", |tree, _, cx| tree.activate(true, cx)),
@@ -241,6 +256,27 @@ pub(super) fn next_match(labels: &[&str], from: Option<usize>, prefix: &str) -> 
 
 #[cfg(test)]
 mod tests {
+    use editor_config::keys::{Key, KeyChord, Modifiers};
+
+    /// Every hint names a key the tree really handles.
+    #[test]
+    fn hints_are_keys_the_tree_handles() {
+        for (text, label) in KEY_HINTS {
+            let chord = KeyChord::parse(text).unwrap();
+            let key = match chord.key {
+                Key::Char(ch) => ch.to_ascii_lowercase().to_string(),
+                other => other.to_string().to_lowercase(),
+            };
+            let handled = if chord.modifiers.contains(Modifiers::MOD) {
+                let alt = chord.modifiers.contains(Modifiers::ALT);
+                MOD_KEYS.iter().any(|(k, a, _)| *k == key && *a == alt)
+            } else {
+                PLAIN_KEYS.iter().any(|(k, _)| *k == key)
+            };
+            assert!(handled, "{label}: {text} isn't handled");
+        }
+    }
+
     use super::*;
 
     const LABELS: [&str; 5] = ["Daily", "Projects", "Notes", "Note 2", "plan"];

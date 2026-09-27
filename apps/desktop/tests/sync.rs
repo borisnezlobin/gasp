@@ -302,6 +302,55 @@ fn a_conflict_shows_a_banner_and_the_resolver_finishes_the_merge(cx: &mut TestAp
 }
 
 #[gpui::test]
+fn the_resolver_works_from_the_keyboard(cx: &mut TestAppContext) {
+    let base = "one\nshared a\ntwo\nthree\nfour\nshared b\nfive\n";
+    let world = World::seeded(&[("note.md", base)]);
+    let laptop = world.path("laptop");
+    drop(world.device("laptop"));
+    let phone = world.device("phone");
+    let phone_text = base
+        .replace("shared a", "phone a")
+        .replace("shared b", "phone b");
+    write(phone.root(), "note.md", &phone_text);
+    sync_device(&phone, "phone");
+    let laptop_text = base
+        .replace("shared a", "laptop a")
+        .replace("shared b", "laptop b");
+    write(&laptop, "note.md", &laptop_text);
+
+    let (workspace, cx) = open_workspace(cx, &laptop, Arc::default());
+    run(&workspace, cx, "sync.resolve-conflicts");
+    let resolver = cx
+        .read(|cx| workspace.read(cx).active_modal::<ConflictResolver>())
+        .expect("the resolver opens");
+    let current = |cx: &mut VisualTestContext| cx.read(|cx| resolver.read(cx).current());
+    assert_eq!(current(cx), (0, 0));
+    // Enter with places open goes to one instead of finishing.
+    cx.simulate_keystrokes("down");
+    assert_eq!(current(cx), (0, 1));
+    cx.simulate_keystrokes("2");
+    assert_eq!(current(cx), (0, 0), "on to the place still open");
+    cx.simulate_keystrokes("enter");
+    assert!(cx.read(|cx| !resolver.read(cx).is_complete()));
+    cx.simulate_keystrokes("3");
+    assert!(cx.read(|cx| resolver.read(cx).is_complete()));
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert!(cx.read(|cx| {
+        workspace
+            .read(cx)
+            .active_modal::<ConflictResolver>()
+            .is_none()
+    }));
+    let merged = world.remote_file("note.md").unwrap();
+    assert!(merged.contains("laptop a\nphone a\n"), "{merged}");
+    assert!(
+        merged.contains("phone b") && !merged.contains("laptop b"),
+        "{merged}"
+    );
+}
+
+#[gpui::test]
 fn a_vault_on_another_branch_is_left_alone(cx: &mut TestAppContext) {
     let world = World::seeded_on("main", &[("note.md", "on main\n")]);
     let old_tool = world.path("old-tool");

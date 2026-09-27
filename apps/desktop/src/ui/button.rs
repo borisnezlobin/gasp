@@ -106,7 +106,9 @@ impl RenderOnce for Button {
             .whitespace_nowrap()
             .text_color(text)
             .when_some(background, |button, color| button.bg(color))
-            .when(self.focused, |button| button.shadow(vec![ui.focus()]))
+            .when(super::focus_visible::ring(self.focused, cx), |button| {
+                button.shadow(vec![ui.focus()])
+            })
             .when(self.disabled, |button| button.opacity(0.4))
             .when(!self.disabled, |button| {
                 button.hover(move |style| style.bg(hover))

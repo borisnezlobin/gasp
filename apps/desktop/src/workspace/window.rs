@@ -264,6 +264,7 @@ impl Workspace {
     /// Saves notes and the device state.
     pub fn prepare_to_close(&mut self, cx: &mut Context<Self>) {
         self.save_for_close(cx);
+        self.save_edit_time_now();
         if let Err(error) = save_device(&self.vault, &self.device_state(cx)) {
             eprintln!("could not save the window state: {error}");
         }
@@ -272,6 +273,7 @@ impl Workspace {
     /// The window and open tabs as they are now.
     pub fn device_state(&self, cx: &App) -> DeviceSettings {
         let mut device = self.config.device.clone();
+        device.device_id = self.edit_time_device_id();
         if let Some(bounds) = self.window_bounds {
             device.window = window_state(bounds);
         }

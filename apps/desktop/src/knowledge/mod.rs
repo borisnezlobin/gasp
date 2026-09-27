@@ -15,6 +15,7 @@ pub mod mentions;
 pub mod parse;
 pub mod rename;
 pub mod sidebar;
+mod sidebar_keys;
 mod sidebar_render;
 pub mod templates;
 
@@ -23,13 +24,15 @@ use std::path::Path;
 use gpui::{AppContext, Context, Entity, Focusable, Window};
 
 pub use self::sidebar::{KnowledgeSidebar, SidebarEvent, SidebarView};
+pub use self::sidebar_keys::{KEY_HINTS, is_actionable};
 use crate::link_update::parent_dir;
 use crate::vault_search::VaultSearch;
 use crate::workspace::{OpenIn, Workspace};
 
 /// Commands this module gives a handler.
-pub const COMMANDS: [&str; 7] = [
+pub const COMMANDS: [&str; 8] = [
     "sidebar.right.toggle",
+    "sidebar.right.focus",
     "sidebar.backlinks",
     "sidebar.outgoing-links",
     "sidebar.outline",
@@ -52,6 +55,7 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<
         SidebarView::from_key(&workspace.right_panel().view_key).unwrap_or(SidebarView::Backlinks);
     let sidebar = cx.new(|cx| KnowledgeSidebar::new(&vault, index, view, cx));
     workspace.set_right_panel(sidebar.clone().into(), cx);
+    workspace.set_right_panel_focus(sidebar.focus_handle(cx));
     let events = cx.subscribe_in(&sidebar, window, on_sidebar_event);
     workspace.keep_subscription(events);
     // The workspace entity exists once it's built; follow it from then.
@@ -65,6 +69,14 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<
         let visible = !workspace.right_panel().is_visible();
         let view = toggle.read(cx).view();
         show_sidebar(workspace, visible.then_some(view), &toggle, cx);
+    });
+    let focus = sidebar.clone();
+    workspace.on_command("sidebar.right.focus", move |workspace, window, cx| {
+        if !workspace.right_panel().is_visible() {
+            let view = focus.read(cx).view();
+            show_sidebar(workspace, Some(view), &focus, cx);
+        }
+        focus.update(cx, |sidebar, cx| sidebar.focus(window, cx));
     });
     for view in SidebarView::ALL {
         let sidebar = sidebar.clone();
@@ -128,6 +140,7 @@ fn on_sidebar_event(
         }
         SidebarEvent::Show(view) => show_sidebar(workspace, Some(*view), sidebar, cx),
         SidebarEvent::Hide => show_sidebar(workspace, None, sidebar, cx),
+        SidebarEvent::Dismissed => workspace.focus_active(window, cx),
     }
 }
 

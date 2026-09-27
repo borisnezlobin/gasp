@@ -59,6 +59,7 @@ const KEYMAP: &[(&str, &str)] = &[
     ("Ctrl+Shift+Tab", "tab.previous"),
     ("Mod+\\", "sidebar.files.toggle"),
     ("Mod+Shift+E", "file-tree.focus"),
+    ("Mod+Shift+A", "sidebar.right.focus"),
     ("Mod+Alt+Left", "pane.focus-left"),
     ("Mod+Alt+Right", "pane.focus-right"),
     ("Mod+Alt+Up", "pane.focus-up"),

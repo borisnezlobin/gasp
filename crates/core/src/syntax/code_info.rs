@@ -1,4 +1,5 @@
-//! Parses a code fence's info string: language, `title:`, `ln:` and `hl:`.
+//! Parses a code fence's info string: language, `title:`, `ln:`, `hl:`
+//! and the `{1,3-5}` shorthand for highlighted lines.
 
 use super::kinds::CodeBlockInfo;
 
@@ -10,6 +11,13 @@ pub(crate) fn parse(info: &str) -> CodeBlockInfo {
     };
     let words = split_words(info);
     for (index, word) in words.iter().enumerate() {
+        if let Some((head, ranges)) = braced_ranges(word) {
+            result.highlighted_lines.extend(ranges);
+            if index == 0 && !head.is_empty() {
+                result.language = Some(head.to_owned());
+            }
+            continue;
+        }
         match word.split_once([':', '=']) {
             Some((key, value)) => apply_option(&mut result, key, unquote(value)),
             None if index == 0 => result.language = Some(word.clone()),
@@ -26,6 +34,14 @@ fn apply_option(result: &mut CodeBlockInfo, key: &str, value: &str) {
         "hl" => result.highlighted_lines = parse_line_ranges(value),
         _ => {}
     }
+}
+
+/// `{1,3-5}` as line ranges, with what comes before the brace (a
+/// language written `rust{1,3}`), or `None` for any other word.
+fn braced_ranges(word: &str) -> Option<(&str, Vec<(u32, u32)>)> {
+    let (head, braced) = word.split_at(word.find('{')?);
+    let inner = braced.strip_prefix('{')?.strip_suffix('}')?;
+    Some((head, parse_line_ranges(inner)))
 }
 
 fn parse_bool(value: &str) -> Option<bool> {
@@ -97,6 +113,20 @@ mod tests {
         assert_eq!(info.title.as_deref(), Some("my file.rs"));
         assert_eq!(info.line_numbers, Some(true));
         assert_eq!(info.highlighted_lines, vec![(2, 2), (4, 6)]);
+    }
+
+    #[test]
+    fn braces_highlight_lines() {
+        let info = parse(r#"rust {1,3-5} title:"step.rs""#);
+        assert_eq!(info.language.as_deref(), Some("rust"));
+        assert_eq!(info.highlighted_lines, vec![(1, 1), (3, 5)]);
+        assert_eq!(info.title.as_deref(), Some("step.rs"));
+        let info = parse("python{2-3}");
+        assert_eq!(info.language.as_deref(), Some("python"));
+        assert_eq!(info.highlighted_lines, vec![(2, 3)]);
+        let info = parse("{2}");
+        assert_eq!(info.language, None);
+        assert_eq!(info.highlighted_lines, vec![(2, 2)]);
     }
 
     #[test]

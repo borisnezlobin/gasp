@@ -17,6 +17,10 @@ pub struct DeviceSettings {
     pub panes: Option<PaneLayout>,
     /// The sidebar on the right: backlinks, outline and the rest.
     pub right_sidebar: RightSidebarState,
+    /// Names this device's edit-time file under `.editor/stats/`. Made
+    /// the first time the vault opens here.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub device_id: String,
 }
 
 /// Whether the right sidebar is open, what it shows and how wide it is.

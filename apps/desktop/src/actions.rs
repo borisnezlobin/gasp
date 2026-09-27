@@ -78,7 +78,7 @@ impl EditorView {
         if !self.read_only {
             window.focus(&self.focus_handle);
         }
-        if self.click_widget(event.position, cx) {
+        if self.click_copy_button(event.position, cx) || self.click_widget(event.position, cx) {
             return;
         }
         let offset = self.offset_for_point(event.position, window);
@@ -162,11 +162,15 @@ impl EditorView {
             self.hovered_task = hovered;
             cx.notify();
         }
+        self.hover_code(Some(event.position), cx);
     }
 
+    /// The pointer left the editor: link previews and code copy buttons
+    /// that follow it go away.
     fn on_hover_editor(&mut self, hovered: &bool, _: &mut Window, cx: &mut Context<Self>) {
         if !*hovered {
             self.hover_left(cx);
+            self.hover_code(None, cx);
         }
     }
 
