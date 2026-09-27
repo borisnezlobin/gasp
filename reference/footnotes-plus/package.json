@@ -1,0 +1,27 @@
+{
+  "name": "footnotes-plus",
+  "version": "0.1.0",
+  "description": "Insert, auto-number, renumber, and jump between footnotes in Obsidian.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "typecheck": "tsc -noEmit -skipLibCheck",
+    "test": "esbuild test/core.test.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/core.test.cjs && node node_modules/.cache/core.test.cjs"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "footnotes"
+  ],
+  "author": "Boris Nezlobin",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.20.2",
+    "obsidian": "latest",
+    "tslib": "^2.6.2",
+    "typescript": "^5.4.5"
+  }
+}

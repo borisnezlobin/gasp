@@ -1,0 +1,8 @@
+{
+  "shortSentenceColor": "#e3f2fd",
+  "mediumSentenceColor": "#fff3e0",
+  "longSentenceColor": "#ffebee",
+  "shortThreshold": 7,
+  "longThreshold": 18,
+  "defaultHighlightingEnabled": false
+}

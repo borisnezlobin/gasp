@@ -1,0 +1,22 @@
+{
+  "pageSize": "A4",
+  "marginTop": 18,
+  "marginBottom": 16,
+  "marginLeft": 12,
+  "marginRight": 12,
+  "showPageNumbers": true,
+  "printBackground": false,
+  "footnoteFontPt": 8.5,
+  "includeTitle": true,
+  "applyLedeStyles": false,
+  "dropCapLines": 3,
+  "applyParagraphStyles": true,
+  "professionalExport": true,
+  "professionalFontFamily": "Iowan Old Style",
+  "professionalFontSizePt": 12,
+  "professionalLineHeight": 2,
+  "professionalParagraphSpacingEm": 0,
+  "exportFolder": "",
+  "openAfterExport": true,
+  "debugDump": true
+}

@@ -36,11 +36,14 @@ You can reach these:
 - **[The owner's website](https://github.com/borisnezlobin/website)**. `scripts/publish-article.mjs` and `app/styles/` describe the current HTML export flow that Phase 5 replaces.
 - **Library docs and source** for GPUI, Typst, mitex, harper-core, Tantivy, git2, rquickjs and UniFFI.
 
+- **`reference/`** in this repo holds material copied from the owner's Mac:
+  - `reference/obsidian/` has the owner's Obsidian app settings, hotkeys and plugin settings, including all 212 Latex Suite snippets (`plugins/obsidian-latex-suite.json`) and the prettifier table. The migrator's tests run against these real files.
+  - `reference/footnotes-plus/` has the source and tests of the owner's Footnotes Plus plugin, which is the spec for [Footnotes](#footnotes).
+
 These stay out of reach:
 
-- **The notes vault and the private `borisnezlobin/notes` repo.** Never clone, read or push to it. Sync work uses local bare repos in tests, plus a throwaway repo the owner provides for network tests.
-- **The owner's Obsidian config**, including the 212 Latex Suite snippets and the prettifier table. Settings that matter are quoted in this plan. Build the migrator against Obsidian's documented file formats with synthetic fixtures, and the owner runs it on the Mac against the real `.obsidian` folder.
-- **`vault-sync` and Footnotes Plus.** Both exist only on the owner's Mac. Their behaviour is described in [Sync](#sync) and [Footnotes](#footnotes), and that description is the spec.
+- **The notes vault and the private `borisnezlobin/notes` repo.** Never clone, read or push to it, and never commit note content anywhere. Sync work uses local bare repos in tests, plus a throwaway repo the owner provides for network tests.
+- **`vault-sync`** exists only on the owner's Mac. Its behaviour is described in [Sync](#sync), and that description is the spec.
 - **Obsidian itself**, which the parity oracle drives. Try running it on a macOS GitHub Actions runner against the synthetic corpus. If that doesn't work, the owner runs the oracle locally.
 
 Steps marked **[Mac]** need the owner's machine or a macOS runner.
@@ -56,7 +59,7 @@ Steps marked **[Mac]** need the owner's machine or a macOS runner.
 - **Complexity.** A cyclomatic complexity limit of 15 per function is a hard requirement, treated like a failing test. Enforce it in CI with Clippy's `cognitive_complexity` lint (threshold 15, set to deny) plus a cyclomatic check using `rust-code-analysis-cli`, and use SwiftLint's `cyclomatic_complexity` rule at 15 on the iPhone app. Split functions, use early returns and lookup tables rather than raising the limit.
 - **Code style.** Names should explain the code. Comments are only for genuinely tricky logic.
 - **Files.** Don't write summary Markdown files or backup copies of files. Git is the history.
-- **Private data.** Never commit anything from the owner's notes. Fixtures recorded from the real vault stay on the Mac.
+- **Private data.** Never commit anything from the owner's notes. Fixtures recorded from the real vault stay on the Mac. The repo is private now but will be made public later, so never commit secrets, tokens, or absolute paths from the owner's machine either.
 - **Git.** Work on a branch per spike or phase and open a pull request to `master`. Never force-push `master`. End commit messages with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - **Decisions.** Anything in [Decisions](#decisions) or [Assumptions](#assumptions) is settled. If a spike shows one is wrong, say so in the pull request instead of silently changing course.
 - **UI.** The owner's design rules apply to every screen:
@@ -211,6 +214,20 @@ Each built-in feature is one step. You can disable, reorder, replace or add step
 
 When rules aren't enough, a TypeScript plugin uses the same commands, events and pipeline steps. Plugins run in an embedded QuickJS engine, which works on iOS (Apple doesn't allow apps to compile code at runtime). Each plugin declares the permissions it wants, such as network access or writing outside the current note, and the app shows those before enabling it. A plugin can also replace a whole component by pointing a layout slot at its own implementation.
 
+## Keyboard first
+
+Everything in the app can be done from the keyboard, and the mouse is optional. Concretely:
+
+- **Every action is a command** (see [Rules](#3-rules)), and every command appears in the command palette with its current shortcut next to it. A command with no shortcut can still be run from the palette, and you can bind a key to it from the palette.
+- **Every part of the UI can take focus.** You move focus between the editor, the file tree, search results, the outline and any panel with shortcuts. Inside each one, arrow keys move, Enter opens, and Escape goes back to the editor.
+- **Every list and dialog works the same way.** That covers the file tree, search results, the quick switcher, the emoji picker, the snippet and footnote pickers, the conflict resolver and the settings screen. Arrows move, Enter accepts, Escape closes, and typing filters. The conflict resolver has single keys for "this device", "other device" and "both".
+- **Mouse-only behaviour gets a keyboard twin.** For example, the hover-to-reveal file sidebar also has a toggle shortcut.
+- **Shortcuts are shown where the action lives:** in menus, in tooltips and in the palette. Holding `Mod` for a moment shows an overlay of the shortcuts available in the focused area.
+- **The iPhone uses the same keymap** when a hardware keyboard is attached.
+- **Defaults avoid OS-reserved shortcuts.** On macOS that includes `Cmd+H`, `Cmd+M`, `Cmd+Q`, `Cmd+Alt+H`, `` Cmd+` `` and `Cmd+Space`, and each platform has its own equivalents to avoid.
+
+Verification covers this too: a CI test walks every command in the registry and fails if one can't be reached from the keyboard.
+
 ## Features
 
 ### Editor
@@ -232,10 +249,11 @@ When rules aren't enough, a TypeScript plugin uses the same commands, events and
 
 ### Default keymap
 
-`Mod` is Cmd on macOS and Ctrl on Windows and Linux. Every binding is a rule, so each can be changed or removed. The first group is standard formatting, and the rest carries over the owner's current Obsidian hotkeys.
+`Mod` is Cmd on macOS and Ctrl on Windows and Linux. Every binding is a rule, so each can be changed or removed. Most defaults follow common editor conventions, and the owner's existing Obsidian hotkeys carry over, except for two. `Mod+P` now prints, so the command palette moves to `Mod+Shift+P`, which used to export a PDF. Export moves to `Mod+Shift+S`.
 
 | Keys | Command |
 |---|---|
+| **Formatting** | |
 | `Mod+B` | Bold (`**`) |
 | `Mod+I` | Italic (`*`) |
 | `Mod+U` | Underline (`<u>`) |
@@ -244,13 +262,34 @@ When rules aren't enough, a TypeScript plugin uses the same commands, events and
 | `Mod+Shift+X` | Strikethrough |
 | `Mod+Shift+H` | Highlight (`==`) |
 | `Mod+Shift+M` | Inline math |
-| `Mod+P` | Command palette |
-| `Mod+O` | Quick switcher |
-| `Mod+Shift+F` | Search |
-| `Mod+Shift+R` | Search and replace |
-| `Mod+J` | Toggle sentence-length highlighting |
+| `Mod+/` | Toggle `%%` comment |
+| `Mod+;` | Cycle Markdown symbols: always shown, revealed at cursor, always hidden |
 | `Alt+0` | Insert or jump to footnote |
-| `Mod+Shift+P` | Export PDF |
+| `Mod+J` | Toggle sentence-length highlighting |
+| **Find and search** | |
+| `Mod+F` | Find in note |
+| `Mod+G` and `Mod+Shift+G` | Next and previous match |
+| `Mod+Shift+R` | Find and replace in note |
+| `Mod+Shift+F` | Search all notes (replace across notes from the same panel) |
+| **Notes and navigation** | |
+| `Mod+O` | Quick switcher |
+| `Mod+Shift+P` | Command palette |
+| `Mod+N` | New note |
+| `Mod+Shift+O` | Jump to heading |
+| `Mod+Enter` | Follow link under cursor |
+| `Mod+[` and `Mod+]` | Back and forward |
+| **Tabs and panels** | |
+| `Mod+T` | New tab |
+| `Mod+W` | Close tab |
+| `Mod+Shift+T` | Reopen closed tab |
+| `Mod+1` to `Mod+9` | Go to tab |
+| `Ctrl+Tab` and `Ctrl+Shift+Tab` | Next and previous tab |
+| `Mod+\` | Toggle file sidebar |
+| `Mod+Shift+E` | Focus file tree |
+| `Mod+Alt+Left` and `Mod+Alt+Right` | Move focus between panes |
+| **App** | |
+| `Mod+P` | Print (opens the print preview, which can also save a PDF) |
+| `Mod+Shift+S` | Export (HTML or PDF, with publish to the site) |
 | `Mod+S` | Sync now |
 | `Mod+,` and `Mod+L` | Settings |
 | `Mod+Shift+N` | Open another vault |

@@ -1,0 +1,14 @@
+{
+  "accentColor": "#000000",
+  "theme": "moonstone",
+  "interfaceFontFamily": "Charter",
+  "textFontFamily": "Charter",
+  "monospaceFontFamily": "Courier New",
+  "enabledCssSnippets": [
+    "theme"
+  ],
+  "showRibbon": false,
+  "baseFontSize": 12,
+  "cssTheme": "Border",
+  "showViewHeader": true
+}
