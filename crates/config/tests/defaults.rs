@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use editor_config::commands::BUILTIN_COMMANDS;
+use editor_config::commands::{BUILTIN_COMMANDS, PLATFORM_COMMANDS};
 use editor_config::keys::KeyChord;
 use editor_config::layout::SlotContent;
 use editor_config::loader::DEFAULT_SETTINGS;
@@ -189,6 +189,7 @@ fn word_and_line_keys_follow_each_platform() {
         (Platform::Windows, "Ctrl+Y", "edit.redo"),
         (Platform::Linux, "Ctrl+C", "edit.copy"),
         (Platform::Macos, "Cmd+V", "edit.paste"),
+        (Platform::Macos, "Ctrl+Cmd+D", "edit.look-up"),
     ];
     for (platform, keys, command) in cases {
         let chord = KeyChord::parse_for(keys, platform).unwrap();
@@ -204,6 +205,7 @@ fn word_and_line_keys_follow_each_platform() {
             .keys_for("edit.delete-to-line-end", Platform::Linux)
             .contains(&apple_only)
     );
+    assert!(rules.keys_for("edit.look-up", Platform::Linux).is_empty());
 }
 
 #[test]
@@ -244,7 +246,7 @@ fn every_default_rule_names_a_registered_command() {
     let registry = CommandRegistry::<()>::with_builtins();
     for rule in RuleSet::defaults().rules() {
         assert!(
-            registry.contains(&rule.command),
+            registry.contains(&rule.command) || PLATFORM_COMMANDS.contains(&rule.command.as_str()),
             "{} isn't registered",
             rule.command
         );

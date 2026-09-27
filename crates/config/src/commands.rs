@@ -108,7 +108,16 @@ const fn key_only(id: &'static str, title: &'static str, category: &'static str)
     }
 }
 
-/// Every built-in command.
+/// The system dictionary's popover for the selection or the word at the
+/// caret, which only macOS has.
+const LOOK_UP: CommandSpec = spec("edit.look-up", "Look up", "Editing");
+
+/// Commands only some platforms have. The registry leaves them out
+/// elsewhere, but rules may still name them, as a vault's config goes
+/// from machine to machine.
+pub const PLATFORM_COMMANDS: &[&str] = &[LOOK_UP.id];
+
+/// Every built-in command on this platform.
 pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("format.bold", "Toggle bold", "Formatting"),
     spec("format.italic", "Toggle italic", "Formatting"),
@@ -295,6 +304,8 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     ),
     spec("note.import-image", "Insert image from file", "Editing"),
     spec("edit.paste-plain", "Paste as plain text", "Editing"),
+    #[cfg(target_os = "macos")]
+    LOOK_UP,
     spec("code.copy-block", "Copy code block", "Editing"),
     key_only("cursor.left", "Move left", "Cursor"),
     key_only("cursor.right", "Move right", "Cursor"),

@@ -430,6 +430,14 @@ on   = "key"
 keys = "Mod+Shift+V"
 do   = "edit.paste-plain"
 
+# macOS's dictionary popover, as in its own apps.
+[[rule]]
+id   = "key.macos.edit.look-up"
+on   = "key"
+keys = "Ctrl+Mod+D"
+do   = "edit.look-up"
+platform = "macos"
+
 # ---- Text editing. Where Apple and PC conventions differ, each gets its own rule. ----
 
 [[rule]]
