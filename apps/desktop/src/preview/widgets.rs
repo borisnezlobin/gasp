@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use editor_core::render::{StyleKey, WidgetKind};
 use editor_core::syntax::{CalloutKind, ConflictSide, Fold};
+use editor_math::fill_empty_arguments;
 use gpui::{Pixels, RenderImage, SharedString, px};
 
 use crate::icons::IconName;
@@ -446,9 +447,12 @@ impl LineLayouter<'_, '_> {
         let width = builder.limit() - left;
         let pieces = match kind {
             WidgetKind::HorizontalRule => self.rule(range, left, width),
-            WidgetKind::MathBlock { tex }
-            | WidgetKind::InlineMath { tex, .. }
-            | WidgetKind::MathPreview { tex, .. } => self.math_block(range, tex, left, width),
+            WidgetKind::MathBlock { tex } | WidgetKind::InlineMath { tex, .. } => {
+                self.math_block(range, tex, left, width)
+            }
+            WidgetKind::MathPreview { tex, .. } => {
+                self.math_block(range, &fill_empty_arguments(tex), left, width)
+            }
             WidgetKind::CodeBlock { title, .. } => self.code_header(range, title.as_deref(), left),
             WidgetKind::LinkCard(card) => self.link_card(range, card, left, width),
             WidgetKind::Table { alignments, rows } => self.table(
@@ -621,7 +625,8 @@ impl LineLayouter<'_, '_> {
                 continue;
             };
             let size = self.theme().body_font_size;
-            if let MathState::Ready(image) = self.math(tex, *display, size) {
+            let tex = fill_empty_arguments(tex);
+            if let MathState::Ready(image) = self.math(&tex, *display, size) {
                 overlays.push(Overlay {
                     anchor: range.start,
                     image: image.image.clone(),

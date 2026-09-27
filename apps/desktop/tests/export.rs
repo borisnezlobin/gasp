@@ -182,4 +182,18 @@ fn images_linked_from_the_vault_root_are_found() {
     );
     let pdf = export_ui::pdf_file(text, Some(&note), Some(vault.path())).unwrap();
     assert!(pdf.bytes.len() > 1000);
+
+    // Obsidian finds a bare file name anywhere in the vault.
+    let bare = "# Waves\n\n![[diagram.png]]\n";
+    let alone = export_ui::html_article(bare, Some(&note), None);
+    assert_eq!(alone.missing_images, ["diagram.png"]);
+    let found = export_ui::html_article(bare, Some(&note), Some(vault.path()));
+    assert!(
+        found.missing_images.is_empty(),
+        "{:?}",
+        found.missing_images
+    );
+    assert!(found.html.contains("data:image/png;base64,"));
+    let pdf = export_ui::pdf_file(bare, Some(&note), Some(vault.path())).unwrap();
+    assert!(pdf.bytes.len() > 1000);
 }

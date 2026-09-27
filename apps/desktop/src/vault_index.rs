@@ -273,6 +273,16 @@ impl VaultIndex {
         })
     }
 
+    /// The file an embed in a note in `note_dir` names, found as Obsidian
+    /// finds it: by path, else by file name anywhere in the vault, the
+    /// note's own folder first, then the shortest path. Attachments are in
+    /// the index with the notes, and the watcher keeps both current.
+    pub fn find_file(&self, note_dir: &Path, target: &str) -> Option<PathBuf> {
+        let dir = vault_relative(&self.root, note_dir).unwrap_or_default();
+        let found = self.links.resolve_embed(&dir, target.trim())?;
+        Some(self.root.join(found))
+    }
+
     /// Up to `limit` notes matching `query`, best first. File names rank
     /// above folders; an empty query lists notes by path.
     pub fn match_notes(&self, query: &str, limit: usize) -> Vec<NoteHit> {
@@ -595,5 +605,40 @@ mod tests {
         let position = |path: &str| index.notes().iter().position(|n| n.path == path).unwrap();
         assert!(index.name_is_shared(position("x/topic.md")));
         assert!(!index.name_is_shared(position("Other.md")));
+    }
+
+    #[test]
+    fn finds_attachments_anywhere_by_name() {
+        let root = Path::new("/vault");
+        let mut index = VaultIndex::with_notes(root, &[("notes/Note.md", "")]);
+        let file = |path: &str| IndexChange::Links(LinkChange::File(path.into()));
+        index.apply(vec![
+            file("assets/deep/pic.png"),
+            file("zz/pic.png"),
+            file("notes/own.png"),
+            file("other/own.png"),
+        ]);
+        let notes = root.join("notes");
+        assert_eq!(
+            index.find_file(&notes, "pic.png"),
+            Some(root.join("zz/pic.png")),
+            "the shortest path"
+        );
+        assert_eq!(
+            index.find_file(&notes, "OWN.png"),
+            Some(root.join("notes/own.png")),
+            "the note's own folder first, ignoring case"
+        );
+        assert_eq!(
+            index.find_file(&notes, "deep/pic.png"),
+            Some(root.join("assets/deep/pic.png"))
+        );
+        assert_eq!(index.find_file(root, "missing.png"), None);
+        index.apply(vec![IndexChange::Remove("zz/pic.png".into())]);
+        assert_eq!(
+            index.find_file(&notes, "pic.png"),
+            Some(root.join("assets/deep/pic.png")),
+            "the watcher's removals reach it"
+        );
     }
 }

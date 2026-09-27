@@ -78,10 +78,16 @@ pub struct SuggestState {
 impl EditorView {
     /// Gives the editor the vault's notes and tags to suggest from.
     pub fn set_vault_index(&mut self, index: Entity<VaultIndex>, cx: &mut Context<Self>) {
-        let observe = cx.observe(&index, |view, _, cx| view.refresh_suggestions(cx));
+        let observe = cx.observe(&index, |view, _, cx| {
+            view.refresh_suggestions(cx);
+            // An image that was missing may be in the vault now, or the
+            // first scan may have just found it.
+            view.retry_missing_images(cx);
+        });
         self.suggest.index = Some(index);
         self.suggest._observe_index = Some(observe);
         self.suggest.headings.clear();
+        self.retry_missing_images(cx);
     }
 
     /// The open suggestion list, if any.
