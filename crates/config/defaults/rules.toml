@@ -463,6 +463,24 @@ keys = "Shift+Tab"
 do   = "edit.outdent"
 
 [[rule]]
+id   = "key.edit.move-line-up"
+on   = "key"
+keys = "Alt+Up"
+do   = "edit.move-line-up"
+
+[[rule]]
+id   = "key.edit.move-line-down"
+on   = "key"
+keys = "Alt+Down"
+do   = "edit.move-line-down"
+
+[[rule]]
+id   = "key.edit.duplicate-line"
+on   = "key"
+keys = "Mod+Shift+D"
+do   = "edit.duplicate-line"
+
+[[rule]]
 id   = "key.select.all"
 on   = "key"
 keys = "Mod+A"
