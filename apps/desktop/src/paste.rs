@@ -362,15 +362,18 @@ impl EditorView {
         let selection = self.selected_range();
         if is_whole_line(&item) && selection.is_empty() {
             let line_start = motion::line_start(self.doc(), selection.start);
+            let text = self.curl_pasted(&text, line_start);
             let cursor = selection.start + text.len();
             self.apply_paste(line_start..line_start, &text, cursor, cx);
             return;
         }
         let selected = self.doc().slice(selection.clone());
+        let text = self.curl_pasted(&text, selection.start);
         self.paste_text_at(selection, &text_to_paste(&selected, &text), cx);
     }
 
-    /// `edit.paste-plain`: the clipboard's text, exactly.
+    /// `edit.paste-plain`: the clipboard's text, exactly, straight quotes
+    /// and all.
     pub(crate) fn paste_plain(&mut self, cx: &mut Context<Self>) {
         if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
             self.paste_text_at(self.selected_range(), &text, cx);

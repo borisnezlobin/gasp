@@ -36,6 +36,7 @@ pub mod switcher;
 pub mod text_input;
 pub mod text_offsets;
 pub mod theme;
+pub mod typing;
 pub mod ui;
 pub mod vault_index;
 pub mod vault_search;

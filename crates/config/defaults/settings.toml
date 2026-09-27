@@ -22,7 +22,9 @@ update-links-on-rename = true
 trash                  = "system"   # "system" | "vault" | "delete"
 
 [editor]
-show-inline-title = true
+show-inline-title  = true
+smart-quotes       = true   # typed " and ' become “ ” and ‘ ’ outside code, math and links
+curl-pasted-quotes = true   # pasted text gets curly quotes too
 
 [appearance]
 base-font-size = 12

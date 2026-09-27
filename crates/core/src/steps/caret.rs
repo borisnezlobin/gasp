@@ -64,6 +64,17 @@ impl LineAround {
         })
     }
 
+    /// Where an engine offset lands once the typed character is in the
+    /// document, with nothing selected.
+    pub(super) fn typed_offset(&self, engine_offset: usize) -> usize {
+        self.line_start + engine_offset
+    }
+
+    /// The caret once the typed character is in the document.
+    pub(super) fn caret_after_typing(&self) -> usize {
+        self.line_start + self.before.len()
+    }
+
     /// Engine offsets past the caret land on the typed character, which is not
     /// in the document yet, so they clamp to the end of the selection.
     pub(super) fn doc_offset(&self, engine_offset: usize) -> usize {

@@ -2,7 +2,7 @@
 //! through ordered, named steps before it becomes a [`Transaction`].
 //!
 //! ```text
-//! snippets → replacements → emoji → footnotes → list-continuation → auto-pair → apply
+//! snippets → replacements → smart-quotes → emoji → footnotes → list-continuation → auto-pair → apply
 //! ```
 //!
 //! A step can pass the request on unchanged, pass on a different request, or
@@ -13,6 +13,7 @@ mod apply;
 mod auto_pair;
 mod context;
 mod list;
+mod smart_quotes;
 
 use std::fmt;
 
@@ -22,6 +23,7 @@ pub use context::{
     ContextFilter, ContextProvider, ContextSet, FixedContext, InputContext, UnknownContext,
 };
 pub use list::ListContinuationStep;
+pub use smart_quotes::{CURL_COMMAND, CURLS_IN, SmartQuoteStep, curl_quotes, curly_quote};
 
 use crate::document::{Document, Selection};
 use crate::transaction::{ChangeSet, Origin, Transaction};
@@ -30,15 +32,17 @@ use crate::transaction::{ChangeSet, Origin, Transaction};
 pub mod step_names {
     pub const SNIPPETS: &str = "snippets";
     pub const REPLACEMENTS: &str = "replacements";
+    pub const SMART_QUOTES: &str = "smart-quotes";
     pub const EMOJI: &str = "emoji";
     pub const FOOTNOTES: &str = "footnotes";
     pub const LIST_CONTINUATION: &str = "list-continuation";
     pub const AUTO_PAIR: &str = "auto-pair";
     pub const APPLY: &str = "apply";
 
-    pub const DEFAULT_ORDER: [&str; 7] = [
+    pub const DEFAULT_ORDER: [&str; 8] = [
         SNIPPETS,
         REPLACEMENTS,
+        SMART_QUOTES,
         EMOJI,
         FOOTNOTES,
         LIST_CONTINUATION,
@@ -91,6 +95,10 @@ pub enum StepOutcome {
     Continue(EditRequest),
     /// Consume the request; this transaction is the result.
     Emit(Transaction),
+    /// Consume the request; apply it as typed, then this transaction as
+    /// its own undo step, so undo right after gives back what was typed.
+    /// The transaction applies to the document after the typing.
+    EmitAfterTyping(Transaction),
     /// Consume the request and do nothing.
     Cancel,
 }
@@ -207,6 +215,11 @@ impl Pipeline {
         let slots = vec![
             StepSlot::placeholder(SNIPPETS, ContextFilter::any()),
             StepSlot::placeholder(REPLACEMENTS, ContextFilter::except(&[Code, Math])),
+            StepSlot::new(
+                SMART_QUOTES,
+                Box::new(SmartQuoteStep),
+                ContextFilter::only(&CURLS_IN),
+            ),
             StepSlot::placeholder(EMOJI, ContextFilter::except(&[Code, Math, Link])),
             StepSlot::placeholder(FOOTNOTES, ContextFilter::except(&[Code, Math])),
             StepSlot::new(
@@ -346,7 +359,9 @@ impl Pipeline {
     }
 
     /// Runs a request through the steps. Returns the transaction to apply, or
-    /// `None` when a step cancelled it or no step produced one.
+    /// `None` when a step cancelled it or no step produced one. A curl that
+    /// would be its own undo step comes back composed with the typing; use
+    /// [`Pipeline::run_steps`] to keep them apart.
     pub fn run(
         &self,
         request: EditRequest,
@@ -355,6 +370,28 @@ impl Pipeline {
         contexts: &dyn ContextProvider,
         timestamp_ms: u64,
     ) -> Option<Transaction> {
+        let mut steps = self
+            .run_steps(request, doc, selection, contexts, timestamp_ms)
+            .into_iter();
+        let first = steps.next()?;
+        Some(steps.fold(first, |so_far, next| Transaction {
+            changes: so_far.changes.compose(&next.changes),
+            selection: next.selection,
+            meta: so_far.meta,
+        }))
+    }
+
+    /// Runs a request through the steps and returns the transactions to
+    /// apply in order, each its own undo step: none when a step cancelled
+    /// the request, two when a step changes what was just typed.
+    pub fn run_steps(
+        &self,
+        request: EditRequest,
+        doc: &Document,
+        selection: &Selection,
+        contexts: &dyn ContextProvider,
+        timestamp_ms: u64,
+    ) -> Vec<Transaction> {
         let cx = StepContext {
             doc,
             selection,
@@ -367,13 +404,17 @@ impl Pipeline {
             .iter()
             .filter_map(|slot| slot.runs_in(cx.context))
         {
+            let typed = request.clone();
             match step.run(request, &cx) {
                 StepOutcome::Continue(next) => request = next,
-                StepOutcome::Emit(transaction) => return Some(transaction),
-                StepOutcome::Cancel => return None,
+                StepOutcome::Emit(transaction) => return vec![transaction],
+                StepOutcome::EmitAfterTyping(after) => {
+                    return vec![apply::as_typed(typed, &cx), after];
+                }
+                StepOutcome::Cancel => return Vec::new(),
             }
         }
-        None
+        Vec::new()
     }
 }
 

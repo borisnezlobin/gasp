@@ -110,11 +110,12 @@ fn tag_trigger(before: &str, after: &str, line_start: usize) -> Option<Trigger> 
         .take_while(|&ch| is_tag_char(ch))
         .map(char::len_utf8)
         .sum();
-    let hash = before.len().checked_sub(body_len + 1)?;
-    if body_len == 0 || !before[hash..].starts_with('#') {
+    let head = before[..before.len() - body_len].strip_suffix('#')?;
+    let hash = head.len();
+    if body_len == 0 {
         return None;
     }
-    let opens_tag = before[..hash]
+    let opens_tag = head
         .chars()
         .next_back()
         .is_none_or(|previous| previous.is_whitespace() || "([{,;".contains(previous));
@@ -213,5 +214,8 @@ mod tests {
         assert_eq!(at("x#no|"), None);
         assert_eq!(at("#123|"), None);
         assert_eq!(at("## Heading|"), None);
+        assert_eq!(at("“i|"), None, "a wide character before the word");
+        assert_eq!(at("“#i|"), None, "a tag can't follow a quote");
+        assert_eq!(at("é #tag|").unwrap().replace, 104..107);
     }
 }

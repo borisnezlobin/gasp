@@ -1478,6 +1478,8 @@ pub struct SettingsTheme {
     pub text: Hsla,
     pub text_muted: Hsla,
     pub text_faint: Hsla,
+    /// How faint a row gets while another setting keeps it from applying.
+    pub inactive_opacity: f32,
     pub divider: Hsla,
     pub accent: Hsla,
     pub on_accent: Hsla,
@@ -1564,6 +1566,7 @@ impl SettingsTheme {
             text: read.color("color.text", 0x27272a),
             text_muted: read.color("color.text-muted", 0x52525b),
             text_faint: read.color("color.text-faint", 0xa1a1aa),
+            inactive_opacity: 0.4,
             divider: read.color("color.divider", 0xe4e4e7),
             accent: read.color("color.accent", 0x000000),
             on_accent: read.color("color.on-accent", 0xffffff),
