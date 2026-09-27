@@ -565,6 +565,46 @@ fn table_cells_set_each_style_in_its_own_font(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn sync_conflicts_show_two_labelled_versions(cx: &mut TestAppContext) {
+    let note = "a\n<<<<<<< this device\nmine\n=======\ntheirs\n>>>>>>> other device\nb\n\nend";
+    let (view, cx) = open(cx, note);
+    place_cursor(&view, cx, note.len());
+    let open_marker = visual(&view, cx, 1);
+    let pieces: Vec<&Piece> = open_marker.pieces().collect();
+    assert_eq!(pieces.len(), 1);
+    assert_eq!(
+        pieces[0].hit,
+        Hit::Widget,
+        "a label stands in for the marker"
+    );
+    let mine = visual(&view, cx, 2);
+    let theirs = visual(&view, cx, 4);
+    let plain = visual(&view, cx, 6);
+    assert!(mine.pieces().next().unwrap().x > plain.pieces().next().unwrap().x);
+    let group = |line: &VisualLine| line.decor.surfaces[0].group;
+    assert_ne!(
+        group(&mine),
+        group(&theirs),
+        "each version is its own block"
+    );
+    assert_eq!(group(&open_marker), group(&mine));
+    assert!(
+        visual(&view, cx, 5).is_collapsed(),
+        "the closing marker hides"
+    );
+    let text_height = |line: &VisualLine| line.rows[0].height;
+    assert_eq!(
+        text_height(&mine),
+        text_height(&plain),
+        "the separator doesn't make a heading"
+    );
+
+    let separator = note.find("=======").unwrap();
+    place_cursor(&view, cx, separator);
+    assert!(shows_text_at(&visual(&view, cx, 3), separator));
+}
+
+#[gpui::test]
 fn quotes_and_callouts_indent_their_text(cx: &mut TestAppContext) {
     let note = "plain\n> quoted\n> [!warning] Careful\n\nend";
     let (view, cx) = open(cx, note);

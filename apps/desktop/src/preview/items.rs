@@ -99,6 +99,7 @@ fn replacement_item(range: Range<usize>, kind: WidgetKind) -> Item {
         | WidgetKind::Checkbox { .. }
         | WidgetKind::ListBullet { .. }
         | WidgetKind::FootnoteSuperscript { .. }
+        | WidgetKind::ConflictLabel { .. }
         | WidgetKind::CalloutHeader { .. } => Item::Inline { range, kind },
         _ => Item::Block { range, kind },
     }

@@ -116,7 +116,9 @@ impl SyntaxTree {
         let Some(new_source) = new_text.get(region.new.clone()) else {
             return false;
         };
-        let risky_text = new_source.contains("%%") || new_source.contains("]:");
+        let risky_text = ["%%", "]:", "<<<<<<<", "=======", ">>>>>>>"]
+            .iter()
+            .any(|risky| new_source.contains(risky));
         let frontmatter = region.new.start == 0 && new_text.starts_with("---");
         let risky_blocks = self.blocks()[region.first..=region.last]
             .iter()
@@ -130,6 +132,7 @@ impl SyntaxTree {
             node.kind,
             NodeKind::Frontmatter
                 | NodeKind::CommentBlock
+                | NodeKind::Conflict
                 | NodeKind::FootnoteDefinition { .. }
                 | NodeKind::LinkDefinition { .. }
         );

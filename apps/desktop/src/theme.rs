@@ -10,7 +10,7 @@
 
 use editor_config::Config;
 use editor_config::theme::{Theme as Tokens, TokenValue};
-use editor_core::syntax::CalloutKind;
+use editor_core::syntax::{CalloutKind, ConflictSide};
 
 use crate::preview::code_highlight::CodeKind;
 use gpui::{
@@ -153,6 +153,10 @@ palette! {
     active_search_match = "color.active-search-match",
     knob = "color.knob",
     card = "color.card",
+    /// This device's version in a note's sync conflict.
+    this_device = "color.this-device",
+    /// The other device's version in a note's sync conflict.
+    other_device = "color.other-device",
 }
 
 /// Each callout type's colour from its `color.callout.<name>` token.
@@ -265,6 +269,8 @@ pub struct Theme {
     /// Opacity of a callout's tinted surface.
     pub callout_tint: f32,
     pub callout_colors: CalloutColors,
+    /// The labels of a sync conflict's versions, this device's first.
+    pub conflict_sides: [Hsla; 2],
     /// Find bar, vault search panel and export dialog.
     pub find_ui: FindUiTheme,
     /// The workspace shell around the editor: tabs, panes, sidebar, status bar.
@@ -500,6 +506,18 @@ impl Theme {
         color.a *= self.callout_tint;
         color
     }
+
+    /// The label colour of one version of a sync conflict.
+    pub fn conflict_color(&self, side: ConflictSide) -> Hsla {
+        self.conflict_sides[side as usize]
+    }
+
+    /// The tinted surface behind one version of a sync conflict.
+    pub fn conflict_surface(&self, side: ConflictSide) -> Hsla {
+        let mut color = self.conflict_color(side);
+        color.a *= self.callout_tint;
+        color
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -558,6 +576,7 @@ fn read_colors(palette: &Palette) -> Theme {
         active_search_match: p.active_search_match,
         callout_tint: p.callout_tint,
         callout_colors: p.callouts.clone(),
+        conflict_sides: [p.this_device, p.other_device],
         find_ui: FindUiTheme::from_palette(p),
         workspace: WorkspaceTheme::from_palette(p),
         ..zero_sizes()
@@ -631,6 +650,7 @@ fn zero_sizes() -> Theme {
         active_search_match: black,
         callout_tint: 0.,
         callout_colors: CalloutColors(Vec::new()),
+        conflict_sides: [black; 2],
     }
 }
 
