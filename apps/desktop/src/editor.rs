@@ -77,7 +77,11 @@ pub struct EditorView {
     pub(crate) images: ImageStore,
     /// Width of the text column in the last frame.
     pub(crate) column_width: Pixels,
+    /// How far the view is scrolled down, counting the header.
     pub(crate) scroll_y: Pixels,
+    /// Room above the first line for something that scrolls with the
+    /// text, such as the note's inline title.
+    pub(crate) header_height: Pixels,
     pub(crate) goal_x: Option<Pixels>,
     pub(crate) is_selecting: bool,
     pub(crate) click_unit: ClickUnit,
@@ -131,6 +135,7 @@ impl EditorView {
             images: ImageStore::new(image_dirs),
             column_width,
             scroll_y: px(0.),
+            header_height: px(0.),
             goal_x: None,
             is_selecting: false,
             click_unit: ClickUnit::Character,
@@ -218,6 +223,23 @@ impl EditorView {
     /// How far the view is scrolled down, in pixels.
     pub fn scroll_offset(&self) -> Pixels {
         self.scroll_y
+    }
+
+    pub fn header_height(&self) -> Pixels {
+        self.header_height
+    }
+
+    /// Leaves `height` above the first line, scrolled with the text.
+    pub fn set_header_height(&mut self, height: Pixels, cx: &mut Context<Self>) {
+        if height != self.header_height {
+            self.header_height = height;
+            cx.notify();
+        }
+    }
+
+    /// The furthest the view can scroll with `viewport` of room.
+    fn max_scroll(&self, viewport: Pixels) -> Pixels {
+        (self.header_height + self.metrics.total_height() - viewport).max(px(0.))
     }
 
     pub fn timings(&self) -> &Timings {
@@ -451,7 +473,7 @@ impl EditorView {
 
     /// Scrolls by `delta` and clamps to the document.
     pub fn scroll_by(&mut self, delta: Pixels, cx: &mut Context<Self>) {
-        let max_scroll = (self.metrics.total_height() - self.viewport_height()).max(px(0.));
+        let max_scroll = self.max_scroll(self.viewport_height());
         self.scroll_y = (self.scroll_y + delta).clamp(px(0.), max_scroll);
         cx.notify();
     }
@@ -547,12 +569,17 @@ impl EditorView {
             .map_or((px(0.), visual.height), |row| {
                 (visual.rows[row].top, visual.rows[row].bottom())
             });
-        let line_top = self.metrics.top_of(line);
+        let line_top = self.header_height + self.metrics.top_of(line);
         if line_top + row_top < self.scroll_y {
-            self.scroll_y = line_top + row_top;
+            // The first line brings the header back into view with it.
+            self.scroll_y = if line == 0 {
+                px(0.)
+            } else {
+                line_top + row_top
+            };
         } else if line_top + row_bottom > self.scroll_y + viewport {
             self.measure_above(line, viewport - row_bottom, window);
-            self.scroll_y = self.metrics.top_of(line) + row_bottom - viewport;
+            self.scroll_y = self.header_height + self.metrics.top_of(line) + row_bottom - viewport;
         }
     }
 
@@ -575,10 +602,10 @@ impl EditorView {
         let viewport = (bounds.size.height - padding * 2.).max(px(0.));
         self.math.begin_frame();
         self.apply_autoscroll(viewport, window);
-        let max_scroll = (self.metrics.total_height() - viewport).max(px(0.));
-        self.scroll_y = self.scroll_y.clamp(px(0.), max_scroll);
-        let (first, first_top) = self.metrics.line_at_y(self.scroll_y);
-        let mut top = bounds.top() + padding + first_top - self.scroll_y;
+        self.scroll_y = self.scroll_y.clamp(px(0.), self.max_scroll(viewport));
+        let text_scroll = self.scroll_y - self.header_height;
+        let (first, first_top) = self.metrics.line_at_y(text_scroll.max(px(0.)));
+        let mut top = bounds.top() + padding + first_top - text_scroll;
         let mut lines = Vec::new();
         let mut plans = Vec::new().into_iter();
         let mut line = first;
@@ -612,7 +639,7 @@ impl EditorView {
         let Some(frame) = self.frame.as_ref() else {
             return 0;
         };
-        let content_top = frame.bounds.top() + self.theme.text_padding;
+        let content_top = frame.bounds.top() + self.theme.text_padding + self.header_height;
         let inside = frame
             .lines
             .first()

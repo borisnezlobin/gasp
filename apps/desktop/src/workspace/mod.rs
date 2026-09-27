@@ -320,6 +320,8 @@ impl Workspace {
         let mut loader = editor_config::ConfigLoader::for_vault(&self.vault);
         loader.load_all();
         self.config = loader.config().clone();
+        self.left_panel
+            .apply_settings(&self.config.settings, &self.config.rules);
         let editors: Vec<Entity<EditorView>> = self
             .panes()
             .iter()

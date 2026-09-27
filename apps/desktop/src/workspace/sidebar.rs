@@ -70,6 +70,20 @@ impl LeftPanel {
         }
     }
 
+    /// Takes new settings and rules, as when the user changes them. The
+    /// panel stays shown or hidden unless its reveal mode changed.
+    pub fn apply_settings(&mut self, settings: &Settings, rules: &RuleSet) {
+        let files = &settings.sidebar.files;
+        if files.reveal != self.reveal {
+            self.pinned = files.reveal == SidebarReveal::Always;
+            self.revealed = false;
+        }
+        self.reveal = files.reveal;
+        self.mode = files.mode;
+        self.rules = RuleEngine::new(rules, Platform::current());
+        self.settings = SettingsIndex::new(settings);
+    }
+
     pub fn set_view(&mut self, view: AnyView, focus: Option<FocusHandle>) {
         self.view = Some(view);
         self.focus = focus;

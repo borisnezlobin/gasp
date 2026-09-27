@@ -7,9 +7,9 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use gpui::{
-    AnyElement, AnyView, App, Context, Entity, EventEmitter, FocusHandle, Focusable, MouseButton,
-    MouseDownEvent, ScrollHandle, ScrollWheelEvent, SharedString, Subscription, Window, div,
-    prelude::*,
+    AnyElement, AnyView, App, Context, Div, Entity, EventEmitter, FocusHandle, Focusable,
+    MouseButton, MouseDownEvent, ScrollHandle, ScrollWheelEvent, SharedString, Subscription,
+    Window, canvas, div, prelude::*, px,
 };
 
 use super::files::note_title;
@@ -350,10 +350,7 @@ impl Pane {
             })
             .min_w_0()
             .h_full()
-            .when(self.show_inline_title, |column| {
-                column.child(self.render_title(note, cx))
-            })
-            .child(div().flex_1().min_h_0().child(note.editor.clone()));
+            .child(self.render_note_body(note, cx));
         div()
             .id("pane-note")
             .flex()
@@ -365,6 +362,44 @@ impl Pane {
             .child(column)
             .child(gutter("pane-gutter-right"))
             .into_any_element()
+    }
+
+    /// The editor, with the inline title drawn in the room the editor
+    /// leaves above its first line, so the two scroll together.
+    fn render_note_body(&self, note: &NoteTab, cx: &mut Context<Self>) -> Div {
+        let body = div()
+            .relative()
+            .flex_1()
+            .min_h_0()
+            .overflow_hidden()
+            .child(note.editor.clone());
+        if !self.show_inline_title {
+            note.editor
+                .update(cx, |editor, cx| editor.set_header_height(px(0.), cx));
+            return body;
+        }
+        let scroll = note.editor.read(cx).scroll_offset();
+        let editor = note.editor.clone();
+        let measure = canvas(
+            move |bounds, _, cx| {
+                editor.update(cx, |editor, cx| {
+                    editor.set_header_height(bounds.size.height, cx)
+                })
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .size_full();
+        body.child(
+            div()
+                .id("note-title-header")
+                .absolute()
+                .left_0()
+                .right_0()
+                .top(-scroll)
+                .child(self.render_title(note, cx))
+                .child(measure),
+        )
     }
 
     /// A right-click on the note: the editor takes focus, keeping its
