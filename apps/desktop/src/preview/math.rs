@@ -323,4 +323,21 @@ pub(crate) mod tests {
         };
         assert!(image.width > px(0.) && image.baseline <= image.height);
     }
+
+    #[test]
+    fn equations_with_descenders_keep_their_depth() {
+        let mut store = MathStore::default();
+        let key = key("\\det(P) \\neq 0");
+        store.lookup(key.clone());
+        run_all(&mut store);
+        let MathState::Ready(image) = store.lookup(key) else {
+            panic!("the equation renders");
+        };
+        assert!(
+            image.baseline < image.height - px(1.),
+            "baseline {:?} of {:?}",
+            image.baseline,
+            image.height
+        );
+    }
 }

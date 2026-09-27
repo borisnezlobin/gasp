@@ -2,7 +2,6 @@
 
 use typst::introspection::Tag;
 use typst::layout::{Abs, Frame, FrameItem};
-use typst::math::EquationElem;
 use typst_layout::Page;
 
 use crate::MathError;
@@ -109,12 +108,18 @@ fn first_group_baseline(frame: &Frame) -> Option<Abs> {
 /// Inline equations are flattened into the paragraph line, but the tag that
 /// marks where the equation starts sits on the line's baseline.
 ///
+/// The element is matched by name: in the desktop build a type check
+/// (`is::<EquationElem>()`) never matched, for reasons not yet known, and
+/// every inline equation then sat on its bottom edge.
+///
 /// Typst sometimes wraps the line in a group (for example when the
 /// equation starts with an attachment or an operator such as `\det`), so
 /// the search goes into groups too, adding their offsets.
 fn equation_tag_baseline(frame: &Frame) -> Option<Abs> {
     frame.items().find_map(|(position, item)| match item {
-        FrameItem::Tag(Tag::Start(content, _)) if content.is::<EquationElem>() => Some(position.y),
+        FrameItem::Tag(Tag::Start(content, _)) if content.elem().name() == "equation" => {
+            Some(position.y)
+        }
         FrameItem::Group(group) => equation_tag_baseline(&group.frame).map(|y| position.y + y),
         _ => None,
     })
