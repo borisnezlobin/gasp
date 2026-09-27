@@ -1,7 +1,7 @@
 //! Watching the vault folder so the tree refreshes when files change
 //! outside it, such as after a sync.
 
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender, unbounded};
 use notify::event::ModifyKind;
@@ -18,19 +18,22 @@ pub struct VaultWatcher {
 /// change; the tree debounces them.
 pub fn watch(root: &Path) -> notify::Result<(VaultWatcher, UnboundedReceiver<()>)> {
     let (sender, receiver) = unbounded();
-    let prefix = root.to_path_buf();
+    // macOS reports events under the resolved path (`/private/var/…` for a
+    // vault opened as `/var/…`), so both spellings count as the vault.
+    let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let roots = [root.to_path_buf(), canonical];
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<Event>| {
-        forward(&prefix, event, &sender);
+        forward(&roots, event, &sender);
     })?;
     watcher.watch(root, RecursiveMode::Recursive)?;
     Ok((VaultWatcher { _watcher: watcher }, receiver))
 }
 
-fn forward(root: &Path, event: notify::Result<Event>, sender: &UnboundedSender<()>) {
+fn forward(roots: &[PathBuf], event: notify::Result<Event>, sender: &UnboundedSender<()>) {
     let Ok(event) = event else {
         return;
     };
-    if is_relevant(root, &event) {
+    if roots.iter().any(|root| is_relevant(root, &event)) {
         let _ = sender.unbounded_send(());
     }
 }
