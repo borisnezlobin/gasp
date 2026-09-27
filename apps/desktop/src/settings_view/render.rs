@@ -232,7 +232,13 @@ impl SettingsView {
     fn render_content(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let style = self.style.clone();
         let layout = self.layout();
-        let items: Rc<[PaneItem]> = pane_items(&layout).into();
+        let preview = self.render_preview(cx);
+        let mut items = pane_items(&layout);
+        // With the preview pinned above the list, the title goes with it.
+        if preview.is_some() {
+            items.retain(|item| *item != PaneItem::Title);
+        }
+        let items: Rc<[PaneItem]> = items.into();
         self.sync_list(&items);
         // Only the items in view are built each frame: the shortcuts page
         // has over a hundred rows.
@@ -253,7 +259,10 @@ impl SettingsView {
             .min_w_0()
             .h_full()
             .relative()
-            .child(pane)
+            .flex()
+            .flex_col()
+            .children(preview)
+            .child(div().flex_1().min_h_0().child(pane))
             .child(
                 div()
                     .absolute()
@@ -315,6 +324,36 @@ impl SettingsView {
             .when(last, |item| item.pb(style.content_padding_y))
             .child(element)
             .into_any_element()
+    }
+
+    /// The page title and the sample note, pinned above the Appearance
+    /// page's controls so a change shows while scrolling to the next one.
+    fn render_preview(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let preview = self.shown_preview()?.clone();
+        let style = &self.style;
+        let note = crate::ui::ui_theme(cx).note_background;
+        Some(
+            div()
+                .flex_none()
+                .px(style.content_padding_x)
+                .pt(style.content_padding_y)
+                .pb(style.gap_sm)
+                .child(self.render_title())
+                .child(
+                    div()
+                        .id("appearance-preview")
+                        .debug_selector(|| "appearance-preview".to_string())
+                        .w_full()
+                        .max_w(style.content_max_width)
+                        .h(style.preview_height)
+                        .overflow_hidden()
+                        .rounded(style.card_radius)
+                        .bg(note)
+                        .shadow(vec![style.outline(), style.lift()])
+                        .child(preview),
+                )
+                .into_any_element(),
+        )
     }
 
     fn render_title(&self) -> AnyElement {

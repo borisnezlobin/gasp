@@ -120,6 +120,14 @@ pub fn toggle_switch(
 /// The raised surface buttons, dropdowns and steppers share.
 fn raised(id: impl Into<ElementId>, style: &SettingsTheme) -> Stateful<Div> {
     let hover = style.hover;
+    raised_surface(id, style)
+        .cursor_pointer()
+        .hover(move |button| button.bg(hover))
+}
+
+/// A raised control's surface without its own hover, for one that holds
+/// buttons: each button shows its hover, not the whole control.
+fn raised_surface(id: impl Into<ElementId>, style: &SettingsTheme) -> Stateful<Div> {
     div()
         .id(id)
         .flex_none()
@@ -129,8 +137,6 @@ fn raised(id: impl Into<ElementId>, style: &SettingsTheme) -> Stateful<Div> {
         .rounded(style.radius)
         .bg(style.control_background)
         .shadow(vec![style.outline(), style.lift()])
-        .cursor_pointer()
-        .hover(move |button| button.bg(hover))
 }
 
 /// A compact button showing the current choice, with an up-down chevron.
@@ -334,8 +340,7 @@ pub fn stepper(
     focused: bool,
     style: &SettingsTheme,
 ) -> Stateful<Div> {
-    let stepper = raised(id, style)
-        .cursor_default()
+    let stepper = raised_surface(id, style)
         .child(minus)
         .child(
             div()

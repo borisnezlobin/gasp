@@ -223,3 +223,29 @@ fn escape_from_a_revealed_file_tree_hides_it_and_returns_to_the_note(cx: &mut Te
     });
     assert!(editor_focused, "the note has the keyboard again");
 }
+
+#[gpui::test]
+fn the_appearance_page_previews_a_change_as_it_is_made(cx: &mut TestAppContext) {
+    let vault = vault_with(&[("Note.md", "text")]);
+    let settings = vault.path().join(".editor/settings.toml");
+    std::fs::create_dir_all(settings.parent().unwrap()).unwrap();
+    std::fs::write(&settings, "[appearance]\nbase-font-size = 24\n").unwrap();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "Note.md");
+    press(cx, "settings.open");
+    let view = cx.read(|cx| workspace.read(cx).active_modal::<SettingsView>().unwrap());
+    // Typing outside a field searches, which lands on Appearance.
+    cx.simulate_input("font size");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("appearance-preview").is_some());
+    let body_size = |cx: &mut VisualTestContext| {
+        cx.read(|cx| {
+            let preview = view.read(cx).shown_preview().unwrap().clone();
+            preview.read(cx).theme().body_font_size
+        })
+    };
+    let before = body_size(cx);
+    view.update(cx, |view, cx| view.reset("appearance.base-font-size", cx));
+    cx.run_until_parked();
+    assert!(body_size(cx) < before, "the preview follows the change");
+}
