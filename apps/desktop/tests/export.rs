@@ -69,7 +69,7 @@ fn a_corpus_note_exports_to_pdf() {
     let text = std::fs::read_to_string(&note).unwrap();
     let out = tempfile::tempdir().unwrap();
     let destination = out.path().join("note.pdf");
-    let pages = export_ui::write_pdf(&text, Some(&note), &destination).unwrap();
+    let pages = export_ui::write_pdf(&text, Some(&note), None, &destination).unwrap();
     assert!(pages > 1);
     assert_pdf(&destination);
 }
@@ -157,4 +157,29 @@ fn the_html_choice_makes_an_article_to_copy_and_save(cx: &mut TestAppContext) {
     dialog.read_with(window, |dialog, _| {
         assert!(matches!(dialog.state(), ExportState::Saved(_)))
     });
+}
+
+#[test]
+fn images_linked_from_the_vault_root_are_found() {
+    let vault = tempfile::tempdir().unwrap();
+    let figures = vault.path().join("Figures");
+    std::fs::create_dir_all(&figures).unwrap();
+    let image = corpus_note()
+        .parent()
+        .unwrap()
+        .join("images/vector-159.png");
+    std::fs::copy(image, figures.join("Diagram.png")).unwrap();
+    let note = vault.path().join("Notes/Deep/Waves.md");
+    std::fs::create_dir_all(note.parent().unwrap()).unwrap();
+    let text = "# Waves\n\n![A diagram](Figures/Diagram.png)\n";
+    let alone = export_ui::html_article(text, Some(&note), None);
+    assert_eq!(alone.missing_images, ["Figures/Diagram.png"]);
+    let found = export_ui::html_article(text, Some(&note), Some(vault.path()));
+    assert!(
+        found.missing_images.is_empty(),
+        "{:?}",
+        found.missing_images
+    );
+    let pdf = export_ui::pdf_file(text, Some(&note), Some(vault.path())).unwrap();
+    assert!(pdf.bytes.len() > 1000);
 }

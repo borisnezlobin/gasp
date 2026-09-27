@@ -689,14 +689,18 @@ fn open_export(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     let Some((text, path)) = active_note(workspace, cx) else {
         return;
     };
-    workspace.toggle_modal(window, cx, |_, cx| ExportDialog::new(text, path, cx));
+    let vault = workspace.vault().to_path_buf();
+    workspace.toggle_modal(window, cx, |_, cx| {
+        ExportDialog::new(text, path, cx).with_vault_root(vault)
+    });
 }
 
 fn print_note(workspace: &mut Workspace, _: &mut Window, cx: &mut gpui::Context<Workspace>) {
     let Some((text, path)) = active_note(workspace, cx) else {
         return;
     };
-    let printing = export_ui::print(text, path, cx);
+    let vault = Some(workspace.vault().to_path_buf());
+    let printing = export_ui::print(text, path, vault, cx);
     cx.spawn(async move |_, _| {
         if let Err(error) = printing.await {
             eprintln!("could not print: {error}");
