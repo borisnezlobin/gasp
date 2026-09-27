@@ -36,6 +36,8 @@ const APP_SETTINGS: &[(&str, &str, &str, Convert)] = &[
     ),
 ];
 
+/// Sections starting with `theme:` go to the theme file, because fonts and
+/// colours are theme tokens rather than settings.
 const APPEARANCE_SETTINGS: &[(&str, &str, &str, Convert)] = &[
     (
         "baseFontSize",
@@ -43,21 +45,13 @@ const APPEARANCE_SETTINGS: &[(&str, &str, &str, Convert)] = &[
         "base-font-size",
         Convert::Integer,
     ),
-    ("textFontFamily", "appearance", "text-font", Convert::Text),
-    (
-        "interfaceFontFamily",
-        "appearance",
-        "interface-font",
-        Convert::Text,
-    ),
-    (
-        "monospaceFontFamily",
-        "appearance",
-        "monospace-font",
-        Convert::Text,
-    ),
-    ("accentColor", "appearance", "accent", Convert::Text),
+    ("textFontFamily", "theme:font", "text", Convert::Text),
+    ("interfaceFontFamily", "theme:font", "ui", Convert::Text),
+    ("monospaceFontFamily", "theme:font", "code", Convert::Text),
+    ("accentColor", "theme:color", "accent", Convert::Text),
 ];
+
+const THEME_PREFIX: &str = "theme:";
 
 /// Settings that are deliberately not imported, and why.
 const NOT_IMPORTED: &[(&str, &str)] = &[
@@ -85,7 +79,7 @@ const NOT_IMPORTED: &[(&str, &str)] = &[
     ),
 ];
 
-const SECTION_ORDER: [&str; 3] = ["files", "editor", "appearance"];
+const SECTION_ORDER: [&str; 5] = ["files", "editor", "appearance", "theme:color", "theme:font"];
 
 #[derive(Clone, Debug, Default)]
 pub struct SettingsMigration {
@@ -160,19 +154,54 @@ impl SettingsMigration {
             .push(format!("{file}: `{key}` wasn't imported: {reason}."));
     }
 
-    /// The fragment as TOML, grouped by section.
+    /// The settings fragment as TOML, grouped by section.
     pub fn to_toml(&self) -> String {
-        let mut out = String::from("# Settings imported from Obsidian by editor-migrate.\n");
-        let mut current: Option<&str> = None;
-        for (section, key, value) in &self.values {
-            if current != Some(section.as_str()) {
-                out.push_str(&format!("\n[{section}]\n"));
-                current = Some(section);
-            }
-            out.push_str(&format!("{key} = {value}\n"));
-        }
-        out
+        let values = self
+            .values
+            .iter()
+            .filter(|(section, ..)| !section.starts_with(THEME_PREFIX))
+            .map(|(section, key, value)| (section.as_str(), key, value));
+        render_sections(
+            "# Settings imported from Obsidian by editor-migrate.\n",
+            values,
+        )
     }
+
+    /// The theme tokens (fonts and accent colour) as TOML, or `None` when there are none.
+    pub fn theme_to_toml(&self) -> Option<String> {
+        let values: Vec<_> = self
+            .values
+            .iter()
+            .filter_map(|(section, key, value)| {
+                section
+                    .strip_prefix(THEME_PREFIX)
+                    .map(|section| (section, key, value))
+            })
+            .collect();
+        if values.is_empty() {
+            return None;
+        }
+        Some(render_sections(
+            "# Theme tokens imported from Obsidian by editor-migrate.\n",
+            values.into_iter(),
+        ))
+    }
+}
+
+fn render_sections<'a>(
+    header: &str,
+    values: impl Iterator<Item = (&'a str, &'a String, &'a String)>,
+) -> String {
+    let mut out = String::from(header);
+    let mut current: Option<&str> = None;
+    for (section, key, value) in values {
+        if current != Some(section) {
+            out.push_str(&format!("\n[{section}]\n"));
+            current = Some(section);
+        }
+        out.push_str(&format!("{key} = {value}\n"));
+    }
+    out
 }
 
 fn convert_value(value: &Value, convert: Convert) -> Option<String> {
@@ -214,7 +243,9 @@ mod tests {
             parsed["appearance"]["base-font-size"].as_integer(),
             Some(14)
         );
-        assert_eq!(parsed["appearance"]["accent"].as_str(), Some("#112233"));
+        assert!(parsed["appearance"].get("accent").is_none());
+        let theme: toml::Table = toml::from_str(&migration.theme_to_toml().unwrap()).unwrap();
+        assert_eq!(theme["color"]["accent"].as_str(), Some("#112233"));
         assert_eq!(migration.notes.len(), 2);
         assert!(migration.notes[1].contains("no equivalent"));
     }

@@ -204,16 +204,19 @@ fn app_settings_become_a_settings_fragment() {
         parsed["appearance"]["base-font-size"].as_integer(),
         Some(12)
     );
-    assert_eq!(parsed["appearance"]["text-font"].as_str(), Some("Charter"));
-    assert_eq!(
-        parsed["appearance"]["interface-font"].as_str(),
-        Some("Charter")
-    );
-    assert_eq!(
-        parsed["appearance"]["monospace-font"].as_str(),
-        Some("Courier New")
-    );
-    assert_eq!(parsed["appearance"]["accent"].as_str(), Some("#000000"));
+    let theme: toml::Table = toml::from_str(
+        &migration
+            .settings
+            .as_ref()
+            .unwrap()
+            .theme_to_toml()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(theme["font"]["text"].as_str(), Some("Charter"));
+    assert_eq!(theme["font"]["ui"].as_str(), Some("Charter"));
+    assert_eq!(theme["font"]["code"].as_str(), Some("Courier New"));
+    assert_eq!(theme["color"]["accent"].as_str(), Some("#000000"));
 }
 
 #[test]
@@ -229,6 +232,7 @@ fn output_is_deterministic() {
             "replacements.toml",
             "rules.toml",
             "settings.toml",
+            "theme.toml",
             "migration-report.txt"
         ]
     );
@@ -250,6 +254,7 @@ fn command_line_writes_every_file() {
         "replacements.toml",
         "rules.toml",
         "settings.toml",
+        "theme.toml",
         "migration-report.txt",
     ] {
         assert!(out.path().join(name).is_file(), "{name} is missing");
