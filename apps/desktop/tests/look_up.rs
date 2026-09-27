@@ -78,7 +78,9 @@ fn a_force_click_looks_up_the_word_under_it(cx: &mut TestAppContext) {
         "drawn from the word's left edge"
     );
     assert!(
-        caret.top() < found.baseline.y && found.baseline.y <= caret.bottom(),
+        // The test font has no descent, so the baseline can sit on the
+        // caret's bottom edge, give or take rounding.
+        caret.top() < found.baseline.y && found.baseline.y <= caret.bottom() + px(0.01),
         "the baseline {:?} is on the word's row {caret:?}",
         found.baseline.y
     );
