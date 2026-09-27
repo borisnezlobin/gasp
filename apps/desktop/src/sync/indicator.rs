@@ -364,6 +364,8 @@ fn capitalize(text: &str) -> String {
 
 impl Render for SyncIndicator {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // The theme can change while the popover is open.
+        self.style = super::resolver::resolved_style(cx);
         let phase = self.service.read(cx).phase();
         let root = div().id("sync-indicator").relative().flex_none();
         if matches!(phase, SyncPhase::Hidden | SyncPhase::Starting) {

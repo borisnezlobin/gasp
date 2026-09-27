@@ -7,11 +7,11 @@ use gpui::{Context, Entity, Window};
 use serde_json::Value;
 
 use super::config_files::{self, default_token};
-use super::model::{ACCENT_TOKEN, FontSlot, SettingItem, minimum_for, theme_number};
+use super::model::{FontSlot, SettingItem, minimum_for, theme_number};
 use super::store;
 use super::view::{ControlRow, SettingsEvent, SettingsView, add_field_key, theme_key};
 use crate::text_input::{TextInput, TextInputEvent};
-use crate::theme::{ACCENT_CHOICES, parse_color};
+use crate::theme::parse_color;
 
 impl SettingsView {
     /// Writes a value (or removes the key, for `None`) and reports it.
@@ -215,7 +215,7 @@ impl SettingsView {
             field.update(cx, |field, cx| field.set_text(&text, cx));
         }
         self.sync_remote_field(cx);
-        let accent = self.token(ACCENT_TOKEN).unwrap_or_default();
+        let accent = self.token(self.accent_token()).unwrap_or_default();
         self.hex_field.update(cx, |field, cx| {
             field.set_text(&accent, cx);
             field.set_invalid(false, cx);
@@ -359,14 +359,16 @@ impl SettingsView {
 
     /// Picks the next or previous accent swatch.
     pub(super) fn step_accent(&mut self, delta: isize, cx: &mut Context<Self>) {
-        let current = self.token(ACCENT_TOKEN).unwrap_or_default();
-        let index = ACCENT_CHOICES
+        let token = self.accent_token();
+        let choices = self.accent_choices();
+        let current = self.token(token).unwrap_or_default();
+        let index = choices
             .iter()
             .position(|choice| choice.eq_ignore_ascii_case(&current));
-        let last = ACCENT_CHOICES.len() as isize - 1;
+        let last = choices.len() as isize - 1;
         let next = index.map_or(0, |index| (index as isize + delta).clamp(0, last)) as usize;
         if Some(next) != index {
-            self.write_token(ACCENT_TOKEN, Some(ACCENT_CHOICES[next]), cx);
+            self.write_token(token, Some(choices[next]), cx);
         }
     }
 
@@ -397,18 +399,18 @@ impl SettingsView {
 
     fn commit_hex(&mut self, cx: &mut Context<Self>) {
         let text = self.hex_field.read(cx).text().trim().to_string();
-        let current = self.token(ACCENT_TOKEN).unwrap_or_default();
+        let current = self.token(self.accent_token()).unwrap_or_default();
         if text.eq_ignore_ascii_case(&current) {
             return;
         }
         if parse_color(&text).is_none() {
             self.error = Some((
-                theme_key(ACCENT_TOKEN),
+                theme_key(self.accent_token()),
                 format!("“{text}” isn't a colour. Try one like #2f5fd0."),
             ));
             cx.notify();
             return;
         }
-        self.write_token(ACCENT_TOKEN, Some(&text), cx);
+        self.write_token(self.accent_token(), Some(&text), cx);
     }
 }

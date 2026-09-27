@@ -2,6 +2,9 @@
 # A value like "{color.black}" refers to another token.
 
 [theme]
+# The mode the tokens outside [dark] describe. Tokens under [dark] replace
+# their namesakes while the app is dark: [dark.color] text = "#fff" is
+# color.text in dark mode. A vault's theme.toml can set either.
 mode = "light"
 
 [color]
@@ -31,6 +34,47 @@ conflict    = "#c62828"
 highlight   = "#fff59d"
 link        = "{color.accent}"
 code-background = "{color.gray-100}"
+# The window around the note surfaces: tab bar, sidebar and gaps.
+app-background = "#f6f6f7"
+# Menus, pickers and dialogs, which float over the note.
+popover     = "{color.white}"
+tooltip     = "#1f1f22"
+tooltip-text = "{color.white}"
+tooltip-hint = "{color.gray-400}"
+# Text that has to stand out from its neighbours, such as matched letters.
+text-strong = "#18181b"
+# Secondary text that still has to be read, such as a note's folder.
+text-detail = "#71717a"
+icon        = "#5f5f66"
+icon-strong = "{color.text-strong}"
+icon-disabled = "#c8c8ce"
+# Translucent fills for hover, selection and pressed rows and controls,
+# so they read on every surface.
+fill-faint  = "rgba(0, 0, 0, 0.035)"
+fill        = "rgba(0, 0, 0, 0.05)"
+fill-strong = "rgba(0, 0, 0, 0.07)"
+fill-pressed = "rgba(0, 0, 0, 0.1)"
+field       = "rgba(0, 0, 0, 0.06)"
+field-error = "#fce8e8"
+# Hairline rings drawn as shadows, around note surfaces and popovers.
+ring        = "rgba(0, 0, 0, 0.07)"
+popover-ring = "rgba(0, 0, 0, 0.08)"
+popover-shadow = "rgba(0, 0, 0, 0.16)"
+tab-shadow  = "rgba(0, 0, 0, 0.1)"
+backdrop    = "rgba(0, 0, 0, 0.12)"
+indent-guide = "rgba(0, 0, 0, 0.08)"
+drop-target = "rgba(0, 0, 0, 0.08)"
+divider-active = "rgba(0, 0, 0, 0.18)"
+drop-zone   = "rgba(0, 0, 0, 0.06)"
+drop-zone-ring = "rgba(0, 0, 0, 0.16)"
+drop-indicator = "{color.text}"
+# A find or search match; the current one takes the highlight colour.
+search-match = "rgba(250, 219, 56, 0.45)"
+active-search-match = "{color.highlight}"
+# A switch's knob.
+knob        = "{color.background}"
+# Grouped rows on the settings screen and the conflict resolver.
+card        = "{color.sidebar}"
 
 # Syntax colours in fenced code blocks: quiet, and readable on the code
 # background. Plain code keeps the text colour.
@@ -47,6 +91,116 @@ type     = "#26707a"
 short  = "#e3f2fd"
 medium = "#fff3e0"
 long   = "#ffebee"
+
+# Callout titles and icons; the callout's surface is this at
+# opacity.callout.
+[color.callout]
+# Obsidian's hues, darkened just enough that each title reads at 4.5:1 or
+# better on its own 10% tint.
+note     = "#0868d3"
+abstract = "#007876"
+info     = "#0868d3"
+todo     = "#0868d3"
+tip      = "#007876"
+success  = "#057e35"
+question = "#aa5400"
+warning  = "#aa5400"
+failure  = "#d1162d"
+danger   = "#d1162d"
+bug      = "#d1162d"
+example  = "#744dee"
+quote    = "#6b6b6b"
+custom   = "#0868d3"
+
+[opacity]
+callout = 0.1
+# A file tree entry that's been cut and waits to be pasted.
+cut     = 0.5
+
+# The dark palette: warm near-black surfaces that get lighter as they rise
+# (window, sidebar, note, code, popover, tooltip), off-white text, and an
+# accent that's light rather than black. Everything not set here keeps its
+# light value.
+[dark.theme]
+mode = "dark"
+
+[dark.color]
+gray-50     = "#201f1d"
+gray-100    = "#252421"
+gray-200    = "#312f2c"
+gray-400    = "#6f6b64"
+gray-600    = "#aaa59d"
+gray-800    = "#e2ded7"
+accent      = "#ebe7e0"
+on-accent   = "#1c1b19"
+background  = "#1c1b19"
+sidebar     = "#181715"
+selection   = "#3d3a35"
+hover       = "#262522"
+shadow      = "rgba(0, 0, 0, 0.45)"
+conflict    = "#ec6a5e"
+highlight   = "#4f4418"
+app-background = "#151412"
+popover     = "#262522"
+tooltip     = "#3b3934"
+tooltip-text = "#f2efea"
+tooltip-hint = "#aaa59d"
+text-strong = "#f7f5f1"
+text-detail = "#958f86"
+icon        = "#a29d94"
+icon-disabled = "#4d4a45"
+fill-faint  = "rgba(255, 255, 255, 0.035)"
+fill        = "rgba(255, 255, 255, 0.055)"
+fill-strong = "rgba(255, 255, 255, 0.08)"
+fill-pressed = "rgba(255, 255, 255, 0.12)"
+field       = "rgba(255, 255, 255, 0.06)"
+field-error = "#40211e"
+ring        = "rgba(255, 255, 255, 0.06)"
+popover-ring = "rgba(255, 255, 255, 0.09)"
+popover-shadow = "rgba(0, 0, 0, 0.5)"
+tab-shadow  = "rgba(0, 0, 0, 0.35)"
+backdrop    = "rgba(0, 0, 0, 0.4)"
+indent-guide = "rgba(255, 255, 255, 0.08)"
+drop-target = "rgba(255, 255, 255, 0.08)"
+divider-active = "rgba(255, 255, 255, 0.22)"
+drop-zone   = "rgba(255, 255, 255, 0.05)"
+drop-zone-ring = "rgba(255, 255, 255, 0.18)"
+card        = "#1f1e1b"
+search-match = "rgba(234, 179, 8, 0.2)"
+active-search-match = "#6b5a17"
+
+[dark.color.code]
+comment  = "#958f86"
+string   = "#a3c48e"
+number   = "#e2ab77"
+constant = "#e2ab77"
+keyword  = "#c9a3e2"
+function = "#92b6e4"
+type     = "#80c6ca"
+
+[dark.color.sentence]
+short  = "#1d2a36"
+medium = "#352b1b"
+long   = "#3b2023"
+
+[dark.color.callout]
+note     = "#5ea4f2"
+abstract = "#44cfcb"
+info     = "#5ea4f2"
+todo     = "#5ea4f2"
+tip      = "#44cfcb"
+success  = "#52c87e"
+question = "#f0a054"
+warning  = "#f0a054"
+failure  = "#f1707d"
+danger   = "#f1707d"
+bug      = "#f1707d"
+example  = "#a88ef8"
+quote    = "#a8a39b"
+custom   = "#5ea4f2"
+
+[dark.opacity]
+callout = 0.13
 
 [font]
 text = "Charter"

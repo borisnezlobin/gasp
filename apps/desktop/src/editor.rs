@@ -126,7 +126,7 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) -> Self {
         let span = crate::trace::span("editor-theme");
-        let mut base_theme = Theme::from_config(config);
+        let mut base_theme = Theme::from_config(config, crate::ui::is_dark(cx));
         base_theme.resolve_fonts(&crate::ui::installed_fonts(cx));
         drop(span);
         let span = crate::trace::span("editor-parse");
@@ -177,7 +177,7 @@ impl EditorView {
     /// Takes the theme and Markdown symbol settings from a loaded config,
     /// as when the config folder changes.
     pub fn apply_config(&mut self, config: &Config, cx: &mut Context<Self>) {
-        let mut theme = Theme::from_config(config);
+        let mut theme = Theme::from_config(config, crate::ui::is_dark(cx));
         theme.resolve_fonts(&crate::ui::installed_fonts(cx));
         self.base_theme = theme;
         self.symbols = config.settings.markdown.symbols.clone();

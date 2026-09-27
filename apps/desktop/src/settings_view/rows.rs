@@ -12,13 +12,11 @@ use super::controls::{
     toggle_switch,
 };
 use super::menu::MenuTarget;
-use super::model::{
-    ACCENT_TOKEN, FontSlot, SettingItem, ShortcutQuery, ShortcutRow, choice_label, map_names,
-};
+use super::model::{FontSlot, SettingItem, ShortcutQuery, ShortcutRow, choice_label, map_names};
 use super::view::{ControlRow, SettingsFocus, SettingsView, theme_key};
 use crate::icons::IconName;
 use crate::picker::shortcut::Shortcut;
-use crate::theme::{ACCENT_CHOICES, parse_color};
+use crate::theme::parse_color;
 use crate::ui::{Tooltip, keycap};
 
 impl SettingsView {
@@ -42,7 +40,7 @@ impl SettingsView {
     }
 
     /// The key an error from the last write is kept under, for each row.
-    fn error_key(row: &ControlRow) -> Option<String> {
+    fn error_key(&self, row: &ControlRow) -> Option<String> {
         match row {
             ControlRow::Setting(item) | ControlRow::MapAdd(item) | ControlRow::ListAdd(item) => {
                 Some(item.key.clone())
@@ -51,7 +49,7 @@ impl SettingsView {
             ControlRow::SyncAccount => Some(super::sync_page::TOKEN_KEY.to_string()),
             ControlRow::MapEntry { item, .. } => Some(item.key.clone()),
             ControlRow::Font(slot) => Some(theme_key(slot.token())),
-            ControlRow::Accent => Some(theme_key(ACCENT_TOKEN)),
+            ControlRow::Accent => Some(theme_key(self.accent_token())),
             ControlRow::Shortcut(shortcut) => Some(shortcut.id.clone()),
             _ => None,
         }
@@ -65,7 +63,7 @@ impl SettingsView {
         {
             return capture.rejection.clone();
         }
-        let key = Self::error_key(row)?;
+        let key = self.error_key(row)?;
         self.error
             .as_ref()
             .filter(|(failed, _)| *failed == key)
@@ -482,22 +480,21 @@ impl SettingsView {
 
     fn accent_control(&self, focused: bool, typing: bool, cx: &mut Context<Self>) -> AnyElement {
         let style = &self.style;
-        let current = self.token(ACCENT_TOKEN).unwrap_or_default();
-        let swatches = ACCENT_CHOICES.iter().map(|hex| {
+        let token = self.accent_token();
+        let current = self.token(token).unwrap_or_default();
+        let swatches = self.accent_choices().iter().map(|hex| {
             let color = parse_color(hex).unwrap_or(style.accent);
             let chosen = hex.eq_ignore_ascii_case(&current);
             let selector = format!("swatch-{hex}");
             swatch(SharedString::from(selector.clone()), color, chosen, style)
                 .debug_selector(|| selector)
                 .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
-                    view.write_token(ACCENT_TOKEN, Some(hex), cx)
+                    view.write_token(token, Some(hex), cx)
                 }))
         });
         let swatches: Vec<_> = swatches.collect();
-        let reset = self.is_token_changed(ACCENT_TOKEN).then(|| {
-            self.reset_button(ACCENT_TOKEN, cx, |view, cx| {
-                view.write_token(ACCENT_TOKEN, None, cx)
-            })
+        let reset = self.is_token_changed(token).then(|| {
+            self.reset_button(token, cx, move |view, cx| view.write_token(token, None, cx))
         });
         div()
             .flex()

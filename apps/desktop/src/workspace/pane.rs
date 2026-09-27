@@ -234,7 +234,7 @@ impl Pane {
             return None;
         }
         let ui = ui_theme(cx);
-        let style = crate::theme::SettingsTheme::default();
+        let style = crate::ui::settings_theme(cx);
         let resolve = crate::settings_view::controls::button(
             "sync-banner-resolve",
             "Resolve",
@@ -599,7 +599,7 @@ impl Render for Pane {
             .flex_1()
             .min_h_0()
             .min_w_0()
-            .bg(self.theme.background)
+            .bg(ui.note_background)
             .rounded(ui.surface_radius)
             .shadow(ui.surface_shadows())
             .child(self.render_note_header(cx))
