@@ -61,10 +61,32 @@ fn add_block_markup(node: &mut Node, text: &str) -> bool {
         }
         NodeKind::Frontmatter => add_frontmatter(node, text),
         NodeKind::CommentBlock => add_comment_block(node, text),
+        NodeKind::Conflict => add_conflict_markers(node, text),
         NodeKind::Html(_) => node.add_markup(MarkupKind::HtmlTag, node.range.clone()),
         _ => return false,
     }
     true
+}
+
+/// The opening, separator and closing lines of a sync conflict: its
+/// first line, the first `=======` after it and its last line.
+fn add_conflict_markers(node: &mut Node, text: &str) {
+    let lines: Vec<Range<usize>> = super::segments::lines_from(text, node.range.start)
+        .take_while(|(start, _)| *start < node.range.end)
+        .map(|(start, line)| start..start + line.len())
+        .collect();
+    let (Some(open), Some(close)) = (lines.first(), lines.last()) else {
+        return;
+    };
+    let separator = lines
+        .iter()
+        .skip(1)
+        .find(|line| &text[(*line).clone()] == super::segments::SEPARATOR);
+    node.add_markup(MarkupKind::ConflictMarker, open.clone());
+    if let Some(separator) = separator.filter(|separator| *separator != close) {
+        node.add_markup(MarkupKind::ConflictMarker, separator.clone());
+    }
+    node.add_markup(MarkupKind::ConflictMarker, close.clone());
 }
 
 fn add_reference_markup(node: &mut Node, text: &str, children_end: Option<usize>) {

@@ -33,11 +33,18 @@ impl Estimator<'_> {
     /// A guess at a line's height before it has been laid out.
     pub fn estimate(&self, text: &str) -> Pixels {
         let theme = self.theme;
-        let font_size = theme.font_size(heading_level(text));
-        let line_height = theme.line_height(font_size);
+        let level = heading_level(text);
+        let font_size = theme.font_size(level);
+        let (line_height, space_above) = match level {
+            0 => (theme.line_height(font_size), px(0.)),
+            _ => (
+                font_size * theme.heading_line_height_factor,
+                font_size * theme.heading_space_above,
+            ),
+        };
         let text_width = font_size * AVERAGE_CHARACTER_WIDTH * text.len() as f32;
         let rows = (text_width / self.column_width.max(px(1.))).ceil().max(1.);
-        line_height * rows
+        line_height * rows + space_above
     }
 }
 
