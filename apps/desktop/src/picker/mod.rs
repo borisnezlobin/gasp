@@ -334,8 +334,11 @@ impl<D: PickerDelegate> Picker<D> {
 
 impl<D: PickerDelegate> Render for Picker<D> {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // The theme can change while the picker is open.
+        let ui = crate::ui::ui_theme(cx);
+        self.theme = PickerTheme::from_ui(&ui);
         let theme = self.theme.clone();
-        crate::ui::dialog(&crate::ui::ui_theme(cx))
+        crate::ui::dialog(&ui)
             .key_context(PICKER_CONTEXT)
             .on_action(cx.listener(Self::on_select_next))
             .on_action(cx.listener(Self::on_select_previous))

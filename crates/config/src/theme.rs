@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
 
 use toml::{Table, Value};
 
@@ -107,8 +108,16 @@ impl TokenSet {
         self.0.extend(overlay.0);
     }
 
-    /// Resolves every reference. Fails on unknown names, bad values or loops.
+    /// Resolves every reference, for both modes. Fails on unknown names,
+    /// bad values or loops in either.
     pub fn resolve(&self) -> Result<Theme, ThemeError> {
+        let dark = self.dark_tokens().resolve_one()?;
+        let mut light = self.resolve_one()?;
+        light.dark = Some(Arc::new(dark));
+        Ok(light)
+    }
+
+    fn resolve_one(&self) -> Result<Theme, ThemeError> {
         let mut resolver = Resolver {
             raw: &self.0,
             done: BTreeMap::new(),
@@ -119,17 +128,44 @@ impl TokenSet {
         }
         Ok(Theme {
             tokens: resolver.done,
+            dark: None,
         })
     }
+
+    /// The tokens in dark mode: each `dark.<name>` replaces `<name>`, so
+    /// references such as `{color.gray-800}` follow the dark values.
+    fn dark_tokens(&self) -> TokenSet {
+        let mut dark = self.clone();
+        for (name, value) in &self.0 {
+            if let Some(base) = name.strip_prefix(DARK_PREFIX) {
+                dark.0.insert(base.to_string(), value.clone());
+            }
+        }
+        dark
+    }
 }
+
+/// Tokens under this prefix replace their namesakes in dark mode.
+pub const DARK_PREFIX: &str = "dark.";
 
 /// A fully resolved theme.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Theme {
     tokens: BTreeMap<String, TokenValue>,
+    /// The same tokens resolved for dark mode.
+    dark: Option<Arc<Theme>>,
 }
 
 impl Theme {
+    /// The tokens for light or dark mode. A theme built by hand, with no
+    /// dark variant, is the same in both.
+    pub fn for_mode(&self, dark: bool) -> &Theme {
+        match (&self.dark, dark) {
+            (Some(variant), true) => variant,
+            _ => self,
+        }
+    }
+
     pub fn get(&self, name: &str) -> Option<&TokenValue> {
         self.tokens.get(name)
     }
@@ -239,6 +275,29 @@ mod tests {
 
     fn tokens(text: &str) -> TokenSet {
         TokenSet::from_table(&toml::from_str(text).unwrap())
+    }
+
+    #[test]
+    fn dark_tokens_replace_their_namesakes() {
+        let theme = tokens(
+            "[color]\ngray = \"#eee\"\ntext = \"{color.gray}\"\nlink = \"#00f\"\n\
+             [dark.color]\ngray = \"#222\"\n",
+        )
+        .resolve()
+        .unwrap();
+        assert_eq!(theme.text("color.text"), Some("#eee"));
+        assert_eq!(theme.for_mode(false).text("color.text"), Some("#eee"));
+        let dark = theme.for_mode(true);
+        assert_eq!(dark.text("color.text"), Some("#222"));
+        assert_eq!(dark.text("color.link"), Some("#00f"));
+    }
+
+    #[test]
+    fn errors_in_dark_tokens_fail_the_theme() {
+        let error = tokens("[color]\na = \"#000\"\n[dark.color]\na = \"{color.nope}\"\n")
+            .resolve()
+            .unwrap_err();
+        assert!(matches!(error, ThemeError::UnknownReference { .. }));
     }
 
     #[test]
