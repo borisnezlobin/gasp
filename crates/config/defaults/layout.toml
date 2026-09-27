@@ -1,0 +1,40 @@
+# Built-in layout. Each slot either holds one component or arranges child slots.
+# There is no ribbon.
+
+root = "window"
+
+[slot.window]
+direction = "column"
+children  = ["toolbar", "body", "status-bar"]
+
+[slot.body]
+direction = "row"
+children  = ["left-sidebar", "center", "right-sidebar"]
+
+[slot.center]
+direction = "column"
+children  = ["tab-bar", "editor"]
+
+[slot.toolbar]
+component = "toolbar"
+size      = "size.toolbar-height"
+
+[slot.left-sidebar]
+component = "file-tree"
+size      = "size.sidebar-width"
+
+[slot.tab-bar]
+component = "tab-bar"
+size      = "size.tab-height"
+
+[slot.editor]
+component = "editor"
+
+[slot.right-sidebar]
+component = "outline"
+size      = "size.sidebar-width"
+visible   = false
+
+[slot.status-bar]
+component = "status-bar"
+size      = "size.status-height"

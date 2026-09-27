@@ -1,0 +1,321 @@
+# Built-in rules. A vault's .editor/rules.toml can add rules, replace one by
+# giving the same id, or remove one with `delete = true`.
+
+# ---- Default keymap. Mod is Cmd on macOS and iOS, Ctrl elsewhere. ----
+
+# Formatting
+
+[[rule]]
+id   = "key.format.bold"
+on   = "key"
+keys = "Mod+B"
+do   = "format.bold"
+
+[[rule]]
+id   = "key.format.italic"
+on   = "key"
+keys = "Mod+I"
+do   = "format.italic"
+
+[[rule]]
+id   = "key.format.underline"
+on   = "key"
+keys = "Mod+U"
+do   = "format.underline"
+
+[[rule]]
+id   = "key.format.link"
+on   = "key"
+keys = "Mod+K"
+do   = "format.link"
+
+[[rule]]
+id   = "key.format.code"
+on   = "key"
+keys = "Mod+E"
+do   = "format.code"
+
+[[rule]]
+id   = "key.format.strikethrough"
+on   = "key"
+keys = "Mod+Shift+X"
+do   = "format.strikethrough"
+
+[[rule]]
+id   = "key.format.highlight"
+on   = "key"
+keys = "Mod+Shift+H"
+do   = "format.highlight"
+
+[[rule]]
+id   = "key.format.math-inline"
+on   = "key"
+keys = "Mod+Shift+M"
+do   = "format.math-inline"
+
+[[rule]]
+id   = "key.format.comment"
+on   = "key"
+keys = "Mod+/"
+do   = "format.comment"
+
+[[rule]]
+id   = "key.markdown.cycle-symbols"
+on   = "key"
+keys = "Mod+;"
+do   = "markdown.cycle-symbols"
+
+[[rule]]
+id   = "key.footnote.insert-or-jump"
+on   = "key"
+keys = "Alt+0"
+do   = "footnote.insert-or-jump"
+
+[[rule]]
+id   = "key.prose.toggle-sentence-highlighting"
+on   = "key"
+keys = "Mod+J"
+do   = "prose.toggle-sentence-highlighting"
+
+# Find and search
+
+[[rule]]
+id   = "key.find.open"
+on   = "key"
+keys = "Mod+F"
+do   = "find.open"
+
+[[rule]]
+id   = "key.find.next"
+on   = "key"
+keys = "Mod+G"
+do   = "find.next"
+
+[[rule]]
+id   = "key.find.previous"
+on   = "key"
+keys = "Mod+Shift+G"
+do   = "find.previous"
+
+[[rule]]
+id   = "key.find.replace"
+on   = "key"
+keys = "Mod+Shift+R"
+do   = "find.replace"
+
+[[rule]]
+id   = "key.search.open"
+on   = "key"
+keys = "Mod+Shift+F"
+do   = "search.open"
+
+# Notes and navigation
+
+[[rule]]
+id   = "key.switcher.open"
+on   = "key"
+keys = "Mod+O"
+do   = "switcher.open"
+
+[[rule]]
+id   = "key.palette.open"
+on   = "key"
+keys = "Mod+Shift+P"
+do   = "palette.open"
+
+[[rule]]
+id   = "key.note.new"
+on   = "key"
+keys = "Mod+N"
+do   = "note.new"
+
+[[rule]]
+id   = "key.outline.jump-to-heading"
+on   = "key"
+keys = "Mod+Shift+O"
+do   = "outline.jump-to-heading"
+
+[[rule]]
+id   = "key.link.follow"
+on   = "key"
+keys = "Mod+Enter"
+do   = "link.follow"
+
+[[rule]]
+id   = "key.history.back"
+on   = "key"
+keys = "Mod+["
+do   = "history.back"
+
+[[rule]]
+id   = "key.history.forward"
+on   = "key"
+keys = "Mod+]"
+do   = "history.forward"
+
+# Tabs and panels
+
+[[rule]]
+id   = "key.tab.new"
+on   = "key"
+keys = "Mod+T"
+do   = "tab.new"
+
+[[rule]]
+id   = "key.tab.close"
+on   = "key"
+keys = "Mod+W"
+do   = "tab.close"
+
+[[rule]]
+id   = "key.tab.reopen"
+on   = "key"
+keys = "Mod+Shift+T"
+do   = "tab.reopen"
+
+[[rule]]
+id   = "key.tab.go-1"
+on   = "key"
+keys = "Mod+1"
+do   = "tab.go-1"
+
+[[rule]]
+id   = "key.tab.go-2"
+on   = "key"
+keys = "Mod+2"
+do   = "tab.go-2"
+
+[[rule]]
+id   = "key.tab.go-3"
+on   = "key"
+keys = "Mod+3"
+do   = "tab.go-3"
+
+[[rule]]
+id   = "key.tab.go-4"
+on   = "key"
+keys = "Mod+4"
+do   = "tab.go-4"
+
+[[rule]]
+id   = "key.tab.go-5"
+on   = "key"
+keys = "Mod+5"
+do   = "tab.go-5"
+
+[[rule]]
+id   = "key.tab.go-6"
+on   = "key"
+keys = "Mod+6"
+do   = "tab.go-6"
+
+[[rule]]
+id   = "key.tab.go-7"
+on   = "key"
+keys = "Mod+7"
+do   = "tab.go-7"
+
+[[rule]]
+id   = "key.tab.go-8"
+on   = "key"
+keys = "Mod+8"
+do   = "tab.go-8"
+
+[[rule]]
+id   = "key.tab.go-9"
+on   = "key"
+keys = "Mod+9"
+do   = "tab.go-9"
+
+[[rule]]
+id   = "key.tab.next"
+on   = "key"
+keys = "Ctrl+Tab"
+do   = "tab.next"
+
+[[rule]]
+id   = "key.tab.previous"
+on   = "key"
+keys = "Ctrl+Shift+Tab"
+do   = "tab.previous"
+
+[[rule]]
+id   = "key.sidebar.files.toggle"
+on   = "key"
+keys = "Mod+\\"
+do   = "sidebar.files.toggle"
+
+[[rule]]
+id   = "key.file-tree.focus"
+on   = "key"
+keys = "Mod+Shift+E"
+do   = "file-tree.focus"
+
+[[rule]]
+id   = "key.pane.focus-left"
+on   = "key"
+keys = "Mod+Alt+Left"
+do   = "pane.focus-left"
+
+[[rule]]
+id   = "key.pane.focus-right"
+on   = "key"
+keys = "Mod+Alt+Right"
+do   = "pane.focus-right"
+
+# App
+
+[[rule]]
+id   = "key.app.print"
+on   = "key"
+keys = "Mod+P"
+do   = "app.print"
+
+[[rule]]
+id   = "key.app.export"
+on   = "key"
+keys = "Mod+Shift+S"
+do   = "app.export"
+
+[[rule]]
+id   = "key.sync.now"
+on   = "key"
+keys = "Mod+S"
+do   = "sync.now"
+
+[[rule]]
+id   = "key.settings.open"
+on   = "key"
+keys = "Mod+,"
+do   = "settings.open"
+
+[[rule]]
+id   = "key.settings.open.alt"
+on   = "key"
+keys = "Mod+L"
+do   = "settings.open"
+
+[[rule]]
+id   = "key.vault.open"
+on   = "key"
+keys = "Mod+Shift+N"
+do   = "vault.open"
+
+# ---- Hover-to-reveal file sidebar (Mod+\ is its keyboard twin). ----
+
+[[rule]]
+id       = "hover.sidebar.files.show"
+on       = "pointer.enter"
+at       = "window.left-edge"
+if       = { "sidebar.files.reveal" = "hover" }
+do       = "sidebar.files.show"
+platform = "desktop"
+
+[[rule]]
+id       = "hover.sidebar.files.hide"
+on       = "pointer.leave"
+at       = "sidebar.files"
+after    = "300ms"
+if       = { "sidebar.files.reveal" = "hover" }
+do       = "sidebar.files.hide"
+platform = "desktop"
