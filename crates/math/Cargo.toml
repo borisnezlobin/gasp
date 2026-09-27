@@ -7,6 +7,15 @@ license.workspace = true
 publish = false
 
 [dependencies]
+mitex = "0.2.4"
+typst = "0.15.1"
+typst-svg = "0.15.1"
+typst-layout = "0.15.1"
+typst-assets = { version = "0.15.1", features = ["fonts"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+mitex-spec-gen = "0.2.4"
+mitex-spec = "0.2.4"
