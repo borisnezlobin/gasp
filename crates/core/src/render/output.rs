@@ -20,6 +20,9 @@ pub enum StyleKey {
     Comment,
     FootnoteRef,
     MathSource,
+    /// A bracket in shown math source, by nesting depth: 0, 1 or 2, then
+    /// 0 again.
+    MathBracket(u8),
     Html,
     Frontmatter,
     /// A property's name in the frontmatter.
@@ -39,11 +42,14 @@ const HEADING_NAMES: [&str; 6] = [
     "heading-6",
 ];
 
+const BRACKET_NAMES: [&str; 3] = ["math-bracket-1", "math-bracket-2", "math-bracket-3"];
+
 impl StyleKey {
     /// The theme token name for this style.
     pub fn name(self) -> &'static str {
         match self {
             Self::Heading(level) => HEADING_NAMES[usize::from(level.clamp(1, 6)) - 1],
+            Self::MathBracket(depth) => BRACKET_NAMES[usize::from(depth % 3)],
             other => other.plain_name(),
         }
     }

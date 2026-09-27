@@ -419,6 +419,8 @@ impl Workspace {
         let mut loader = editor_config::ConfigLoader::for_vault(&self.vault);
         loader.load_all();
         self.config = loader.config().clone();
+        let snippets = self.config.typing.snippets.engine.clone();
+        cx.background_spawn(async move { snippets.warm() }).detach();
         self.left_panel
             .apply_settings(&self.config.settings, &self.config.rules);
         self.apply_theme(cx);

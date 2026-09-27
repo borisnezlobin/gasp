@@ -2,7 +2,7 @@
 
 use editor_snippets::InputContext as SnippetContext;
 
-use crate::document::{Document, SelectionRange};
+use crate::document::SelectionRange;
 use crate::pipeline::{EditRequest, InputContext, StepContext};
 
 /// The key that reached a typing step.
@@ -93,10 +93,4 @@ pub(super) fn snippet_context(context: InputContext) -> SnippetContext {
         InputContext::Html => SnippetContext::Html,
         InputContext::Comment => SnippetContext::Comment,
     }
-}
-
-/// Whether math at `offset` is a `$$` block: an odd number of `$$` before it.
-pub(super) fn in_block_math(doc: &Document, offset: usize) -> bool {
-    let text = doc.slice(0..offset);
-    text.matches("$$").count() % 2 == 1
 }

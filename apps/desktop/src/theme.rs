@@ -166,6 +166,11 @@ palette! {
     diff_removed = "color.diff-removed",
     knob = "color.knob",
     card = "color.card",
+    /// A tab stop a snippet left, still to be visited.
+    tab_stop = "color.tab-stop",
+    math_bracket_1 = "color.math.bracket-1",
+    math_bracket_2 = "color.math.bracket-2",
+    math_bracket_3 = "color.math.bracket-3",
     /// This device's version in a note's sync conflict.
     this_device = "color.this-device",
     /// The other device's version in a note's sync conflict.
@@ -249,6 +254,8 @@ pub struct Theme {
     pub cursor_width: Pixels,
     /// Extra width that shows a selected line break.
     pub newline_selection_width: Pixels,
+    /// How wide the mark on an empty tab stop is.
+    pub tab_stop_width: Pixels,
     /// Room at each end of inline code, inside its fill.
     pub inline_code_padding: Pixels,
     pub composition_underline_thickness: Pixels,
@@ -310,6 +317,10 @@ pub struct Theme {
     pub shadow: Hsla,
     pub search_match: Hsla,
     pub active_search_match: Hsla,
+    /// The mark on a tab stop still to be visited.
+    pub tab_stop: Hsla,
+    /// Brackets in math source, by nesting depth.
+    pub math_brackets: [Hsla; 3],
     /// Tints behind short, medium and long sentences, in that order.
     pub sentence: [Hsla; 3],
     /// Wavy underlines under a misspelling and a mechanical problem.
@@ -430,6 +441,7 @@ impl Theme {
             image_corner_radius: space("radius.sm", 4.),
             cursor_width: px(2.),
             newline_selection_width: space("space.sm", 4.) * 1.5,
+            tab_stop_width: space("space.sm", 4.) * 1.5,
             inline_code_padding: space("space.xs", 2.) * 1.5,
             composition_underline_thickness: px(1.),
             problem_underline_thickness: px(1.5),
@@ -466,7 +478,7 @@ impl Theme {
         scaled
     }
 
-    fn sizes_mut(&mut self) -> [&mut Pixels; 36] {
+    fn sizes_mut(&mut self) -> [&mut Pixels; 37] {
         [
             &mut self.body_font_size,
             &mut self.title_font_size,
@@ -487,6 +499,7 @@ impl Theme {
             &mut self.image_corner_radius,
             &mut self.cursor_width,
             &mut self.newline_selection_width,
+            &mut self.tab_stop_width,
             &mut self.inline_code_padding,
             &mut self.composition_underline_thickness,
             &mut self.problem_underline_thickness,
@@ -653,6 +666,8 @@ fn read_colors(palette: &Palette) -> Theme {
         shadow: p.shadow,
         search_match: p.search_match,
         active_search_match: p.active_search_match,
+        tab_stop: p.tab_stop,
+        math_brackets: [p.math_bracket_1, p.math_bracket_2, p.math_bracket_3],
         sentence: [p.sentence_short, p.sentence_medium, p.sentence_long],
         flag_spelling: p.flag_spelling,
         flag_mechanical: p.flag_mechanical,
@@ -703,6 +718,7 @@ fn zero_sizes() -> Theme {
         image_corner_radius: zero,
         cursor_width: zero,
         newline_selection_width: zero,
+        tab_stop_width: zero,
         inline_code_padding: zero,
         composition_underline_thickness: zero,
         problem_underline_thickness: zero,
@@ -747,6 +763,8 @@ fn zero_sizes() -> Theme {
         shadow: black,
         search_match: black,
         active_search_match: black,
+        tab_stop: black,
+        math_brackets: [black; 3],
         sentence: [black; 3],
         flag_spelling: black,
         flag_mechanical: black,

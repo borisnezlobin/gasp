@@ -1,6 +1,7 @@
 //! The custom GPUI element that lays out and paints the editor's visible
 //! lines, and records how long that takes.
 
+use std::ops::Range;
 use std::time::Instant;
 
 use gpui::{
@@ -219,15 +220,42 @@ impl EditorView {
             return Vec::new();
         };
         let visible = first.visual.start..last.visual.end();
-        self.highlights
+        let shows =
+            |range: &&Range<usize>| range.start <= visible.end && range.end >= visible.start;
+        let mut rects: Vec<_> = self
+            .highlights
             .iter()
             .flat_map(|(kind, ranges)| {
                 ranges
                     .iter()
-                    .filter(|range| range.start <= visible.end && range.end >= visible.start)
+                    .filter(shows)
                     .flat_map(|range| frame.range_rects(range, &self.theme))
                     .map(move |rect| (*kind, rect))
             })
+            .collect();
+        let stops = self.pending_tab_stops();
+        let stops = stops
+            .iter()
+            .filter(shows)
+            .flat_map(|range| self.tab_stop_rects(frame, range));
+        rects.extend(stops.map(|rect| (HighlightKind::TabStop, rect)));
+        rects
+    }
+
+    /// The mark on a tab stop: its text's background, or a small block
+    /// where an empty stop waits.
+    fn tab_stop_rects(&self, frame: &FrameLayout, range: &Range<usize>) -> Vec<Bounds<Pixels>> {
+        if !range.is_empty() {
+            return frame.range_rects(range, &self.theme);
+        }
+        let width = self.theme.tab_stop_width;
+        frame
+            .caret_bounds(range.start, &self.theme)
+            .map(|caret| Bounds {
+                origin: point(caret.left() - width / 2., caret.top()),
+                size: size(width, caret.size.height),
+            })
+            .into_iter()
             .collect()
     }
 }
@@ -249,6 +277,7 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
                 paint_problem_underline(*rect, theme, window);
                 continue;
             }
+            HighlightKind::TabStop => theme.tab_stop,
         };
         window.paint_quad(fill(*rect, color).corner_radii(theme.radius_sm / 2.));
     }

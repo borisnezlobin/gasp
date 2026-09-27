@@ -43,6 +43,32 @@ fn replaceable_syntax(node: &Node, text: &str) -> Option<SyntaxKind> {
     Some(kind)
 }
 
+/// A span for each bracket in `source`, which starts at `offset`, styled
+/// by its depth. `\\{` and `\\}` count as brackets; a closing bracket takes
+/// the colour of the one it closes.
+fn bracket_spans(source: &str, offset: usize) -> Vec<(Range<usize>, StyleKey)> {
+    let mut spans = Vec::new();
+    let mut depth: u8 = 0;
+    let mut escaped = false;
+    for (at, c) in source.char_indices() {
+        let start = offset + if escaped { at - 1 } else { at };
+        let end = offset + at + 1;
+        match c {
+            '(' | '[' | '{' => {
+                spans.push((start..end, StyleKey::MathBracket(depth % 3)));
+                depth = depth.wrapping_add(1);
+            }
+            ')' | ']' | '}' => {
+                depth = depth.saturating_sub(1);
+                spans.push((start..end, StyleKey::MathBracket(depth % 3)));
+            }
+            _ => {}
+        }
+        escaped = c == '\\' && !escaped;
+    }
+    spans
+}
+
 fn node_style(kind: &NodeKind) -> Option<StyleKey> {
     let style = match kind {
         NodeKind::Strong => StyleKey::Strong,
@@ -103,6 +129,9 @@ impl<'a> Planner<'a> {
             self.revealed_extras(id);
         }
         self.add_node_styles(id);
+        if self.revealer.settings.bracket_colours {
+            self.bracket_colours(id);
+        }
         if self.node(id).kind == NodeKind::Frontmatter {
             self.frontmatter_properties(id);
         }
@@ -199,6 +228,19 @@ impl<'a> Planner<'a> {
                 .unwrap_or_default(),
         };
         self.effects.spans.extend(spans);
+    }
+
+    /// Colours the brackets in shown math source by nesting depth.
+    fn bracket_colours(&mut self, id: NodeId) {
+        let node = self.node(id);
+        if !matches!(node.kind, NodeKind::Math { .. } | NodeKind::MathBlock) {
+            return;
+        }
+        let text = self.revealer.text;
+        for range in &node.content {
+            let spans = bracket_spans(&text[range.clone()], range.start);
+            self.effects.spans.extend(spans);
+        }
     }
 
     fn add_line_styles(&mut self, id: NodeId) {
@@ -429,4 +471,35 @@ fn property_key(line: &str) -> Option<(usize, usize)> {
 /// for input.
 fn is_empty_math(node: &Node) -> bool {
     matches!(node.kind, NodeKind::Math { .. }) && node.content.is_empty()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_pair_of_brackets_shares_a_colour() {
+        let spans = bracket_spans("\\frac{(a)}{\\{b\\}}", 10);
+        let depths: Vec<(usize, u8)> = spans
+            .iter()
+            .map(|(range, style)| match style {
+                StyleKey::MathBracket(depth) => (range.start - 10, *depth),
+                _ => unreachable!(),
+            })
+            .collect();
+        assert_eq!(
+            depths,
+            vec![
+                (5, 0),
+                (6, 1),
+                (8, 1),
+                (9, 0),
+                (10, 0),
+                (11, 1),
+                (14, 1),
+                (16, 0)
+            ]
+        );
+        assert_eq!(spans[5].0, 21..23, "an escaped brace takes its backslash");
+    }
 }

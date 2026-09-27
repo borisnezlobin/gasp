@@ -146,6 +146,8 @@ pub struct Options {
     pub on_selection: bool,
     /// Higher runs first. Ties go to the longer match, then to the earlier snippet.
     pub priority: i32,
+    /// Switched off: kept in the file, but never fires.
+    pub off: bool,
 }
 
 impl Options {
