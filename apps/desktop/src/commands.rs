@@ -1,8 +1,8 @@
 //! The commands the editor view runs, looked up by id.
 
 use editor_core::commands::{
-    FootnoteCommand, Format, duplicate_lines, indent, insert_link, insert_or_jump_footnote,
-    move_lines_down, move_lines_up, outdent, toggle_format, toggle_tasks,
+    FootnoteCommand, Format, duplicate_lines, insert_link, insert_or_jump_footnote,
+    move_lines_down, move_lines_up, toggle_format, toggle_tasks,
 };
 use editor_core::footnotes::FootnoteSettings;
 use editor_core::motion;
@@ -50,8 +50,8 @@ const HANDLERS: [(&str, Handler); 33] = [
         view.delete_or(motion::to_line_end, cx)
     }),
     ("edit.newline", |view, _, cx| view.newline(cx)),
-    ("edit.indent", |view, _, cx| view.run_edit(indent, cx)),
-    ("edit.outdent", |view, _, cx| view.run_edit(outdent, cx)),
+    ("edit.indent", |view, _, cx| view.tab(cx)),
+    ("edit.outdent", |view, _, cx| view.back_tab(cx)),
     ("edit.move-line-up", |view, _, cx| {
         view.run_edit(move_lines_up, cx)
     }),

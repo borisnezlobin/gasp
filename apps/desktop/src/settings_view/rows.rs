@@ -22,6 +22,9 @@ use crate::ui::{Tooltip, keycap};
 impl SettingsView {
     /// Title, description and notes for a row.
     pub(super) fn row_text(&self, row: &ControlRow) -> AnyElement {
+        if let Some(text) = self.typing_row_text(row) {
+            return text;
+        }
         let description = match row {
             ControlRow::Shortcut(shortcut) => self.shortcut_default(shortcut),
             _ => {
@@ -40,6 +43,8 @@ impl SettingsView {
             }
             ControlRow::SyncRemote => Some(super::sync_page::REMOTE_FIELD.to_string()),
             ControlRow::SyncAccount => Some(super::sync_page::TOKEN_KEY.to_string()),
+            ControlRow::SnippetsFile => Some(super::snippets_page::SNIPPETS_KEY.to_string()),
+            ControlRow::Replacement(_) => Some(super::snippets_page::REPLACEMENTS_KEY.to_string()),
             ControlRow::MapEntry { item, .. } => Some(item.key.clone()),
             ControlRow::Font(slot) => Some(theme_key(slot.token())),
             ControlRow::Accent => Some(theme_key(self.accent_token())),
@@ -145,6 +150,18 @@ impl SettingsView {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
+        if row.is_typing_row() {
+            return self.typing_row_control(row, focused, cx).map(|control| {
+                let note = self
+                    .row_error(row)
+                    .map(|message| control_note(message, &self.style));
+                div()
+                    .relative()
+                    .child(control)
+                    .children(note)
+                    .into_any_element()
+            });
+        }
         let control = match row {
             ControlRow::Setting(item) => self.setting_control(index, item, focused, cx),
             ControlRow::MapAdd(map) => self.map_add_control(index, map, row, focused, cx),
@@ -155,7 +172,12 @@ impl SettingsView {
                 self.accent_control(focused && !typing, typing, cx)
             }
             ControlRow::Vault => self.vault_control(focused, cx),
-            ControlRow::Version => return None,
+            // The Snippets page's rows are drawn above.
+            ControlRow::Version
+            | ControlRow::SnippetsFile
+            | ControlRow::Snippet(_)
+            | ControlRow::SnippetEditor
+            | ControlRow::Replacement(_) => return None,
             ControlRow::Shortcut(shortcut) => self.shortcut_control(shortcut, focused, cx),
             ControlRow::SyncRemote => return self.remote_control(row, focused),
             ControlRow::SyncAccount => self.account_control(focused, cx),

@@ -1,0 +1,272 @@
+# The built-in snippets, which follow Latex Suite's defaults.
+# A vault's .editor/snippets.txt replaces this list; the settings screen
+# starts it from a copy of these.
+
+# Math mode
+mk              → $●$                                   text, instant
+dm              → $$⏎●⏎$$                               text, instant, whole word
+beg             → \begin{●1}⏎●2⏎\end{●1}                math, instant
+reals           → \mathbb{R}                            math, instant
+complex         → \mathbb{C}                            math, instant
+zee             → \mathbb{Z}                            math, instant
+rationals       → \mathbb{Q}                            math, instant
+forall          → \forall␣                              math, instant, whole word, after space
+exists          → \exists␣                              math, instant, whole word, after space
+in              → \in␣                                  math, instant, whole word, after space
+notin           → \notin␣                               math, instant, whole word, after space
+and             → \land␣                                math, instant, whole word, after space
+or              → \lor␣                                 math, instant, whole word, after space
+cong            → \simeq␣                               math, instant, whole word, after space
+
+# Greek letters
+@a              → \alpha                                math, instant
+@b              → \beta                                 math, instant
+@g              → \gamma                                math, instant
+@G              → \Gamma                                math, instant
+@d              → \delta                                math, instant
+@D              → \Delta                                math, instant
+@e              → \epsilon                              math, instant
+:e              → \varepsilon                           math, instant
+@z              → \zeta                                 math, instant
+@t              → \theta                                math, instant
+@T              → \Theta                                math, instant
+:t              → \vartheta                             math, instant
+@i              → \iota                                 math, instant
+@k              → \kappa                                math, instant
+@l              → \lambda                               math, instant
+@L              → \Lambda                               math, instant
+@s              → \sigma                                math, instant
+@S              → \Sigma                                math, instant
+@u              → \upsilon                              math, instant
+@U              → \Upsilon                              math, instant
+@o              → \omega                                math, instant
+@O              → \Omega                                math, instant
+ome             → \omega                                math, instant
+Ome             → \Omega                                math, instant
+
+# Text environment
+text            → \text{●}●                             math, instant
+"               → \text{●}●                             math, instant
+
+# Basic operations
+sr              → ^{2}                                  math, instant
+cb              → ^{3}                                  math, instant
+rd              → ^{●}●                                 math, instant
+_               → _{●}●                                 math, instant
+sts             → _\text{●}                             math, instant
+sq              → \sqrt{ ● }●                           math, instant
+//              → \frac{●}{●}●                          math, instant
+ee              → e^{ ● }●                              math, instant
+invs            → ^{-1}                                 math, instant
+# Auto letter subscript
+{letter}{digit} → {letter}_{{digit}}                    math, instant, priority -1
+exp             → \exp                                  math, instant, not after \
+log             → \log                                  math, instant, not after \
+ln              → \ln                                   math, instant, not after \
+conj            → ^{*}                                  math, instant
+Re              → \mathrm{Re}                           math, instant
+Im              → \mathrm{Im}                           math, instant
+bf              → \mathbf{●}                            math, instant
+rm              → \mathrm{●}●                           math, instant
+
+# Linear algebra
+det             → \det                                  math, instant, not after \
+trace           → \mathrm{Tr}                           math, instant
+
+# More operations
+{letter}hat     → \hat{{letter}}                        math, instant
+{letter}bar     → \bar{{letter}}                        math, instant
+{letter}dot     → \dot{{letter}}                        math, instant, priority -1
+{letter}ddot    → \ddot{{letter}}                       math, instant, priority 1
+{letter}tilde   → \tilde{{letter}}                      math, instant
+{letter}und     → \underline{{letter}}                  math, instant
+vec             → \vec{●}●                              math, instant
+{letter},.      → \mathbf{{letter}}                     math, instant
+{letter}.,      → \mathbf{{letter}}                     math, instant
+\{greek},.      → \boldsymbol{\{greek}}                 math, instant
+\{greek}.,      → \boldsymbol{\{greek}}                 math, instant
+hat             → \hat{●}●                              math, instant
+bar             → \bar{●}●                              math, instant
+dot             → \dot{●}●                              math, instant, priority -1
+ddot            → \ddot{●}●                             math, instant
+cdot            → \cdot                                 math, instant
+tilde           → \tilde{●}●                            math, instant
+und             → \underline{●}●                        math, instant
+[^\\]vec        → \vec{●}●                              math, instant
+
+# More auto letter subscript
+{letter}_{digit}{digit} → {letter}_{{digit1}{digit2}}           math, instant
+\hat{{letter}}{digit} → \hat{{letter}}_{{digit}}              math, instant
+\vec{{letter}}{digit} → \vec{{letter}}_{{digit}}              math, instant
+\mathbf{{letter}}{digit} → \mathbf{{letter}}_{{digit}}           math, instant
+xnn             → x_{n}                                 math, instant
+\xii            → x_{i}                                 math, instant, priority 1
+xjj             → x_{j}                                 math, instant
+xp1             → x_{n+1}                               math, instant
+ynn             → y_{n}                                 math, instant
+yii             → y_{i}                                 math, instant
+yjj             → y_{j}                                 math, instant
+
+# Symbols
+ooo             → \infty                                math, instant
+sum             → \sum                                  math, instant
+prod            → \prod                                 math, instant
+\sum            → \sum_{●{i}=●{1}}^{●{N}} ●             math
+\prod           → \prod_{●{i}=●{1}}^{●{N}} ●            math
+lim             → \lim_{ ●{n} \to ●{\infty} } ●         math, instant
++-              → \pm                                   math, instant
+-+              → \mp                                   math, instant
+...             → \dots                                 math, instant
+nabl            → \nabla                                math, instant
+del             → \nabla                                math, instant
+xx              → \times                                math, instant
+**              → \cdot                                 math, instant
+para            → \parallel                             math, instant
+===             → \equiv                                math, instant
+!=              → \neq                                  math, instant
+>=              → \geq                                  math, instant
+<=              → \leq                                  math, instant
+>>              → \gg                                   math, instant
+<<              → \ll                                   math, instant
+simm            → \sim                                  math, instant
+sim=            → \simeq                                math, instant
+prop            → \propto                               math, instant
+<->             → \leftrightarrow␣                      math, instant
+->              → \to                                   math, instant
+!>              → \mapsto                               math, instant
+=>              → \implies                              math, instant
+=<              → \impliedby                            math, instant
+and             → \cap                                  math, instant
+orr             → \cup                                  math, instant
+inn             → \in                                   math, instant
+notin           → \not\in                               math, instant
+\\\             → \setminus                             math, instant
+sub=            → \subseteq                             math, instant
+sup=            → \supseteq                             math, instant
+eset            → \emptyset                             math, instant
+set             → \{ ● \}●                              math, instant
+e\xi␣sts        → \exists                               math, instant, priority 1
+LL              → \mathcal{L}                           math, instant
+HH              → \mathcal{H}                           math, instant
+CC              → \mathbb{C}                            math, instant
+RR              → \mathbb{R}                            math, instant
+ZZ              → \mathbb{Z}                            math, instant
+NN              → \mathbb{N}                            math, instant
+
+# Handle spaces and backslashes
+# Add backslash before Greek letters
+{greek}         → \{greek}                              math, instant, not after \
+# Add backslash before symbols
+{symbol}        → \{symbol}                             math, instant, not after \
+
+# Insert space after Greek letters and symbols
+regex:\\({greek}|{symbol}|leq|geq|neq|gg|ll|equiv|sim|propto|rightarrow|leftarrow|Rightarrow|Leftarrow|leftrightarrow|to|mapsto|cap|cup|in|sum|prod|exp|ln|log|det|dots|vdots|ddots|pm|mp|int|iint|iiint|oint)([A-Za-z]) → \{group1} {group2}                    math, instant
+\{greek}␣sr     → \{greek}^{2}                          math, instant
+\{symbol}␣sr    → \{symbol}^{2}                         math, instant
+\{greek}␣cb     → \{greek}^{3}                          math, instant
+\{symbol}␣cb    → \{symbol}^{3}                         math, instant
+\{greek}␣rd     → \{greek}^{●}●                         math, instant
+\{symbol}␣rd    → \{symbol}^{●}●                        math, instant
+\{greek}␣hat    → \hat{\{greek}}                        math, instant
+\{symbol}␣hat   → \hat{\{symbol}}                       math, instant
+\{greek}␣dot    → \dot{\{greek}}                        math, instant
+\{symbol}␣dot   → \dot{\{symbol}}                       math, instant
+\{greek}␣bar    → \bar{\{greek}}                        math, instant
+\{symbol}␣bar   → \bar{\{symbol}}                       math, instant
+\{greek}␣vec    → \vec{\{greek}}                        math, instant
+\{symbol}␣vec   → \vec{\{symbol}}                       math, instant
+\{greek}␣tilde  → \tilde{\{greek}}                      math, instant
+\{symbol}␣tilde → \tilde{\{symbol}}                     math, instant
+\{greek}␣und    → \underline{\{greek}}                  math, instant
+\{symbol}␣und   → \underline{\{symbol}}                 math, instant
+
+# Derivatives and integrals
+par             → \frac{ \partial ●{y} }{ \partial ●{x} } ●  math
+pa{letter}{letter} → \frac{ \partial {letter1} }{ \partial {letter2} }␣  math
+ddt             → \frac{d}{dt}␣                         math, instant
+int             → \int                                  math, instant, not after \, priority -1
+\int            → \int ● \, d●{x} ●                     math
+dint            → \int_{●{0}}^{●{1}} ● \, d●{x} ●       math, instant
+oint            → \oint                                 math, instant
+iint            → \iint                                 math, instant
+iiint           → \iiint                                math, instant
+oinf            → \int_{0}^{\infty} ● \, d●{x} ●        math, instant
+infi            → \int_{-\infty}^{\infty} ● \, d●{x} ●  math, instant
+
+# Trigonometry
+# Add backslash before trig funcs
+arcsin          → \arcsin                               math, instant, not after \
+sin             → \sin                                  math, instant, not after \
+arccos          → \arccos                               math, instant, not after \
+cos             → \cos                                  math, instant, not after \
+arctan          → \arctan                               math, instant, not after \
+tan             → \tan                                  math, instant, not after \
+csc             → \csc                                  math, instant, not after \
+sec             → \sec                                  math, instant, not after \
+cot             → \cot                                  math, instant, not after \
+# Add space after trig funcs. Skips letter h to allow sinh, cosh, etc.
+regex:\\(arcsin|sin|arccos|cos|arctan|tan|csc|sec|cot)([A-Za-gi-z]) → \{group1} {group2}                    math, instant
+# Add space after hyperbolic trig funcs
+\sinh{letter}   → \sinh {letter}                        math, instant
+\cosh{letter}   → \cosh {letter}                        math, instant
+\tanh{letter}   → \tanh {letter}                        math, instant
+\coth{letter}   → \coth {letter}                        math, instant
+
+# Visual operations
+U               → \underbrace{ {selection} }_{ ● }      math, instant, on selection
+O               → \overbrace{ {selection} }^{ ● }       math, instant, on selection
+B               → \underset{ ● }{ {selection} }         math, instant, on selection
+C               → \cancel{ {selection} }                math, instant, on selection
+K               → \cancelto{ ● }{ {selection} }         math, instant, on selection
+S               → \sqrt{ {selection} }                  math, instant, on selection
+
+# Physics
+kbt             → k_{B}T                                math, instant
+msun            → M_{\odot}                             math, instant
+
+# Chemistry
+pu              → \pu{ ● }                              math, instant
+cee             → \ce{ ● }                              math, instant
+he4             → {}^{4}_{2}He␣                         math, instant
+he3             → {}^{3}_{2}He␣                         math, instant
+iso             → {}^{●{4}}_{●{2}}●{He}                 math, instant
+
+# Environments
+pmat            → \begin{pmatrix}⏎●⏎\end{pmatrix}       block math, instant
+bmat            → \begin{bmatrix}⏎●⏎\end{bmatrix}       block math, instant
+Bmat            → \begin{Bmatrix}⏎●⏎\end{Bmatrix}       block math, instant
+vmat            → \begin{vmatrix}⏎●⏎\end{vmatrix}       block math, instant
+Vmat            → \begin{Vmatrix}⏎●⏎\end{Vmatrix}       block math, instant
+matrix          → \begin{matrix}⏎●⏎\end{matrix}         block math, instant
+pmat            → \begin{pmatrix}●\end{pmatrix}         inline math, instant
+bmat            → \begin{bmatrix}●\end{bmatrix}         inline math, instant
+Bmat            → \begin{Bmatrix}●\end{Bmatrix}         inline math, instant
+vmat            → \begin{vmatrix}●\end{vmatrix}         inline math, instant
+Vmat            → \begin{Vmatrix}●\end{Vmatrix}         inline math, instant
+matrix          → \begin{matrix}●\end{matrix}           inline math, instant
+cases           → \begin{cases}⏎●⏎\end{cases}           math, instant
+align           → \begin{align}⏎●⏎\end{align}           math, instant
+array           → \begin{array}⏎●⏎\end{array}           math, instant
+
+# Brackets
+avg             → \langle ● \rangle ●                   math, instant
+norm            → \lvert ● \rvert ●                     math, instant, priority 1
+Norm            → \lVert ● \rVert ●                     math, instant, priority 1
+ceil            → \lceil ● \rceil ●                     math, instant
+floor           → \lfloor ● \rfloor ●                   math, instant
+mod             → |●|●                                  math, instant
+(               → ({selection})                         math, instant, on selection
+[               → [{selection}]                         math, instant, on selection
+{               → {{selection}}                         math, instant, on selection
+(               → (●)●                                  math, instant
+{               → {●}●                                  math, instant
+[               → [●]●                                  math, instant
+lr(             → \left( ● \right) ●                    math, instant
+lr{             → \left\{ ● \right\} ●                  math, instant
+lr[             → \left[ ● \right] ●                    math, instant
+lr|             → \left| ● \right| ●                    math, instant
+lra             → \left< ● \right> ●                    math, instant
+
+# Misc
+# Taylor expansion
+tayl            → ●1{f}(●2{x} + ●3{h}) = ●1{f}(●2{x}) + ●1{f}'(●2{x})●3{h} + ●1{f}''(●2{x}) \frac{●3{h}^{2}}{2!} + \dots●4  math, instant

@@ -159,6 +159,41 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Give pasted text curly quotes too. Paste as plain text always keeps quotes as they are.",
     ),
     (
+        "editor.snippets",
+        "Expand snippets",
+        "Typing a snippet's trigger, such as mk in text or // in math, puts its expansion in its place.",
+    ),
+    (
+        "editor.replacements",
+        "Replace as you type",
+        "Turn -- into an em dash, -> into an arrow and the rest of the replacements below, outside code and math.",
+    ),
+    (
+        "math.auto-fraction",
+        "Make fractions with a slash",
+        "In math, typing / after a term puts it over a fraction bar, with the cursor in the denominator.",
+    ),
+    (
+        "math.matrix-shortcuts",
+        "Fill in matrices with Tab and Enter",
+        "Inside pmatrix, cases, align and the like, Tab adds a column and Enter starts a new row.",
+    ),
+    (
+        "math.tab-out",
+        "Tab out of brackets",
+        "In math, Tab jumps past the next closing bracket, and at the end of the math, out of it.",
+    ),
+    (
+        "math.enlarge-brackets",
+        "Grow brackets around big operators",
+        "After a snippet expands, brackets around a sum, integral or fraction become \\left( and \\right).",
+    ),
+    (
+        "math.bracket-colours",
+        "Colour matching brackets",
+        "While math shows its source, both halves of a bracket pair share a colour.",
+    ),
+    (
         "appearance.theme",
         "Theme",
         "Light or dark. Match system follows your computer as it switches.",
@@ -272,6 +307,7 @@ pub enum Page {
     Files,
     DailyNotes,
     Prose,
+    Snippets,
 }
 
 /// A theme font the Appearance page edits.
@@ -495,10 +531,30 @@ pub const PAGES: &[PageSpec] = &[
             ],
         ],
     },
+    PageSpec {
+        page: Page::Snippets,
+        id: SNIPPETS_SECTION,
+        title: "Snippets and replacements",
+        icon: IconName::Function,
+        group: "Writing",
+        cards: &[
+            &[setting("editor.snippets"), setting("editor.replacements")],
+            &[
+                setting("math.auto-fraction"),
+                setting("math.matrix-shortcuts"),
+                setting("math.tab-out"),
+                setting("math.enlarge-brackets"),
+                setting("math.bracket-colours"),
+            ],
+        ],
+    },
 ];
 
 /// The id of the Daily notes and templates page.
 pub const DAILY_NOTES_SECTION: &str = "daily-notes";
+
+/// The id of the Snippets and replacements page.
+pub const SNIPPETS_SECTION: &str = "snippets";
 
 /// The id of the Sync page.
 pub const SYNC_SECTION: &str = "sync";
@@ -525,6 +581,7 @@ fn fallback_page(key: &str) -> Page {
         "prose" => Page::Prose,
         "daily-notes" | "templates" => Page::DailyNotes,
         "sync" => Page::Sync,
+        "math" => Page::Snippets,
         _ => Page::General,
     }
 }

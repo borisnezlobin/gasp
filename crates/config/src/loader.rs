@@ -18,6 +18,7 @@ use crate::merge::deep_merge;
 use crate::rules::RuleSet;
 use crate::settings::Settings;
 use crate::theme::{Theme, TokenSet};
+use crate::typing::{TypingTables, build_replacements, build_snippets};
 
 /// The config folder's name inside a vault.
 pub const CONFIG_DIR: &str = ".editor";
@@ -34,6 +35,8 @@ pub enum ConfigFile {
     Layout,
     Rules,
     Device,
+    Snippets,
+    Replacements,
 }
 
 const FILES: &[(ConfigFile, &str, bool)] = &[
@@ -42,15 +45,19 @@ const FILES: &[(ConfigFile, &str, bool)] = &[
     (ConfigFile::Layout, "layout.toml", true),
     (ConfigFile::Rules, "rules.toml", true),
     (ConfigFile::Device, "device.toml", false),
+    (ConfigFile::Snippets, "snippets.txt", true),
+    (ConfigFile::Replacements, "replacements.toml", true),
 ];
 
 impl ConfigFile {
-    pub const ALL: [ConfigFile; 5] = [
+    pub const ALL: [ConfigFile; 7] = [
         ConfigFile::Settings,
         ConfigFile::Theme,
         ConfigFile::Layout,
         ConfigFile::Rules,
         ConfigFile::Device,
+        ConfigFile::Snippets,
+        ConfigFile::Replacements,
     ];
 
     pub fn file_name(self) -> &'static str {
@@ -85,6 +92,8 @@ pub struct Config {
     pub layout: LayoutNode,
     pub rules: RuleSet,
     pub device: DeviceSettings,
+    /// Snippets and replacements.
+    pub typing: TypingTables,
 }
 
 /// The built-in config, parsed once: every editor and config load starts
@@ -106,6 +115,7 @@ impl Config {
                 .expect("built-in layout is valid"),
             rules: RuleSet::defaults(),
             device: DeviceSettings::default(),
+            typing: TypingTables::default(),
         }
     }
 }
@@ -114,7 +124,7 @@ fn built_or_default<T: Default>(built: Result<(T, Vec<Diagnostic>), Vec<Diagnost
     built.map(|(value, _)| value).unwrap_or_default()
 }
 
-type Built<T> = Result<(T, Vec<Diagnostic>), Vec<Diagnostic>>;
+pub(crate) type Built<T> = Result<(T, Vec<Diagnostic>), Vec<Diagnostic>>;
 
 fn parse_table(file: &str, text: &str) -> Result<Table, Vec<Diagnostic>> {
     toml::from_str(text).map_err(|error| vec![Diagnostic::from_toml(file, text, &error)])
@@ -260,6 +270,13 @@ impl ConfigLoader {
                 store(build_rules(name, user, &known), &mut self.config.rules)
             }
             ConfigFile::Device => store(build_device(name, user), &mut self.config.device),
+            ConfigFile::Snippets => {
+                store(build_snippets(name, user), &mut self.config.typing.snippets)
+            }
+            ConfigFile::Replacements => store(
+                build_replacements(name, user),
+                &mut self.config.typing.replacements,
+            ),
         }
     }
 }
