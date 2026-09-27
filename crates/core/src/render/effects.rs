@@ -289,25 +289,56 @@ impl<'a> Planner<'a> {
         let (text, tree) = (self.revealer.text, self.revealer.tree);
         let revealed = self.revealer.revealed(id, SyntaxKind::Frontmatter, None);
         let lines = self.lines_of(&node.range);
+        let mut tags = false;
         for line in lines.start + 1..lines.end.saturating_sub(1) {
             let range = tree.lines().line_range(text, line);
             let key = property_key(&text[range.clone()]);
             if let Some((name, _)) = key {
+                tags = TAG_KEYS.contains(&&text[range.start..range.start + name]);
                 let name = range.start..range.start + name;
                 self.effects.spans.push((name, StyleKey::FrontmatterKey));
             }
             if revealed {
                 continue;
             }
-            if let Some((name, value)) = key {
-                self.effects
-                    .hidden
-                    .push(range.start + name..range.start + value);
-            }
+            let value = match key {
+                Some((name, value)) => {
+                    let colon = range.start + name..range.start + value;
+                    self.effects.hidden.push(colon);
+                    range.start + value..range.end
+                }
+                None => range.clone(),
+            };
+            self.property_chips(value, key.is_some(), tags);
             let style = LineStyle::Property {
                 keyed: key.is_some(),
             };
             self.effects.line_styles.push((line..line + 1, style));
+        }
+    }
+
+    /// A list value, `[physics, review]` after a name or `- physics` on a
+    /// line of its own, reads as chips: brackets, commas, dashes and
+    /// quotes hide, and each item gets a fill. Tags are drawn as tags.
+    fn property_chips(&mut self, value: Range<usize>, keyed: bool, tags: bool) {
+        let text = &self.revealer.text[value.clone()];
+        let chips = match keyed {
+            true => flow_list_chips(text),
+            false => block_item_chip(text),
+        };
+        let Some(items) = chips else {
+            return;
+        };
+        let shift = |range: Range<usize>| value.start + range.start..value.start + range.end;
+        let gaps = gaps_between(&items, text.len());
+        self.effects.hidden.extend(gaps.into_iter().map(shift));
+        for item in items {
+            self.effects
+                .spans
+                .push((shift(item.clone()), StyleKey::PropertyChip));
+            if tags {
+                self.effects.spans.push((shift(item), StyleKey::Tag));
+            }
         }
     }
 
@@ -411,6 +442,70 @@ fn simple_line_style(kind: &NodeKind) -> Option<LineStyle> {
 /// Where a top-level YAML key on `line` ends and its value starts: `name:`
 /// followed by a space or the line's end. Indented lines, list items and
 /// comments have none.
+/// Properties whose values are tags.
+const TAG_KEYS: [&str; 2] = ["tags", "tag"];
+
+/// The items of a list value, as ranges of it. Everything else hides.
+type Chips = Vec<Range<usize>>;
+
+/// The items of a one-line list value, `[a, "b c"]`, when it is one.
+fn flow_list_chips(value: &str) -> Option<Chips> {
+    let inner = value.strip_prefix('[')?.strip_suffix(']')?;
+    let mut items = Vec::new();
+    let mut at = 1;
+    for part in inner.split(',') {
+        let trimmed = part.trim();
+        if !trimmed.is_empty() {
+            let start = at + part.len() - part.trim_start().len();
+            let item = unquoted(value, start..start + trimmed.len());
+            if !item.is_empty() {
+                items.push(item);
+            }
+        }
+        at += part.len() + 1;
+    }
+    (!items.is_empty()).then_some(items)
+}
+
+/// The item of a block list line, `  - a`, when the line is one.
+fn block_item_chip(line: &str) -> Option<Chips> {
+    let rest = line.trim_start().strip_prefix("- ")?;
+    let item = rest.trim();
+    if item.is_empty() || item.starts_with(['[', '{']) {
+        return None;
+    }
+    let start = line.len() - rest.trim_start().len();
+    let item = unquoted(line, start..start + item.len());
+    (!item.is_empty()).then(|| vec![item])
+}
+
+/// `range` without the quotes around it, when it has a matching pair.
+fn unquoted(value: &str, range: Range<usize>) -> Range<usize> {
+    let bytes = &value.as_bytes()[range.clone()];
+    let quoted =
+        bytes.len() >= 2 && matches!(bytes[0], b'"' | b'\'') && bytes[0] == bytes[bytes.len() - 1];
+    match quoted {
+        true => range.start + 1..range.end - 1,
+        false => range,
+    }
+}
+
+/// Everything in `0..len` that isn't one of `items`, which are in order.
+fn gaps_between(items: &[Range<usize>], len: usize) -> Vec<Range<usize>> {
+    let mut gaps = Vec::new();
+    let mut at = 0;
+    for item in items {
+        if item.start > at {
+            gaps.push(at..item.start);
+        }
+        at = item.end;
+    }
+    if len > at {
+        gaps.push(at..len);
+    }
+    gaps
+}
+
 fn property_key(line: &str) -> Option<(usize, usize)> {
     let first = line.chars().next()?;
     if first.is_whitespace() || matches!(first, '-' | '#' | '[' | '{') {

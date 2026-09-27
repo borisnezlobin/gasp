@@ -137,7 +137,10 @@ impl Workspace {
         let config = &self.config;
         let editor = doc.update(cx, |doc, cx| doc.new_editor(config, cx));
         let index = self.vault_index().clone();
-        editor.update(cx, |editor, cx| editor.set_vault_index(index, cx));
+        editor.update(cx, |editor, cx| {
+            editor.set_vault_index(index, cx);
+            editor.place_cursor_after_frontmatter(cx);
+        });
         drop(span);
         let title_text = note_title(path);
         let title = cx.new(|cx| {

@@ -10,7 +10,7 @@
 use std::ops::Range;
 
 use super::kinds::NodeKind;
-use super::tree::{LineIndex, Node, NodeId, SyntaxTree};
+use super::tree::{Node, NodeId, SyntaxTree};
 
 /// A text change: the bytes in `old` were replaced by `new_len` bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -49,9 +49,12 @@ impl SyntaxTree {
         let Some(region) = self.region_for(new_text, edit) else {
             return false;
         };
-        let lines = LineIndex::new(new_text);
-        let context = self.definitions_outside(new_text, &region);
-        let Some(raw) = super::build::build_region(new_text, region.new.clone(), &context) else {
+        let lines = self.lines.edited(new_text, edit);
+        let context = self
+            .definitions
+            .0
+            .get_or_init(|| self.definitions_outside(new_text, &region));
+        let Some(raw) = super::build::build_region(new_text, region.new.clone(), context) else {
             return false;
         };
         let nodes = super::process(raw, new_text, &lines);
@@ -144,10 +147,12 @@ impl SyntaxTree {
     }
 
     /// Link and footnote definitions outside the region, as Markdown to
-    /// parse after it so references inside the region still resolve.
+    /// parse after it so references inside the region still resolve. A
+    /// region with definitions is never reparsed alone, so these are all
+    /// the document's definitions, and they stay so through such edits.
     fn definitions_outside(&self, new_text: &str, region: &Region) -> String {
         let mut context = String::from("\n\n");
-        for node in &self.nodes {
+        for node in self.definition_candidates() {
             let outside = node.range.end <= region.old.start || node.range.start >= region.old.end;
             if !outside {
                 continue;
@@ -165,6 +170,23 @@ impl SyntaxTree {
             }
         }
         context
+    }
+
+    /// Nodes that are or may hold link and footnote definitions, in
+    /// document order: blocks, descending only into blocks that hold
+    /// other blocks, so the inlines of a long note are never visited.
+    fn definition_candidates(&self) -> Vec<&Node> {
+        let mut found = Vec::new();
+        let mut stack: Vec<NodeId> = self.blocks().iter().rev().copied().collect();
+        while let Some(id) = stack.pop() {
+            let node = self.node(id);
+            found.push(node);
+            if holds_blocks(&node.kind) {
+                let blocks = node.children.iter().rev().copied();
+                stack.extend(blocks.filter(|&child| self.node(child).kind.is_block()));
+            }
+        }
+        found
     }
 
     /// The unchanged blocks at the region's edges must parse as before.
@@ -221,6 +243,19 @@ impl SyntaxTree {
     }
 }
 
+/// Whether a node's children can be blocks, and so definitions.
+fn holds_blocks(kind: &NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::BlockQuote
+            | NodeKind::Callout(_)
+            | NodeKind::List { .. }
+            | NodeKind::ListItem { .. }
+            | NodeKind::FootnoteDefinition { .. }
+            | NodeKind::Conflict
+    )
+}
+
 fn shift(offset: usize, delta: isize) -> usize {
     (offset as isize + delta) as usize
 }
@@ -252,6 +287,9 @@ fn shift_node(node: &mut Node, delta: isize, id_shift: isize) {
         .iter_mut()
         .for_each(|m| move_range(&mut m.range));
     node.content.iter_mut().for_each(move_range);
+    if id_shift == 0 {
+        return;
+    }
     node.children
         .iter_mut()
         .for_each(|id| id.0 = shift(id.0, id_shift));

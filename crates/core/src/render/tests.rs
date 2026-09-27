@@ -1126,7 +1126,7 @@ fn frontmatter_reads_as_properties_away_from_the_cursor() {
             "[frontmatter] ~collapsed~",
             "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:title}{frontmatter:Waves}",
             "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:tags}",
-            "[frontmatter property { keyed: false }] {frontmatter:  - physics}",
+            "[frontmatter property { keyed: false }] {tag,frontmatter,property-chip:physics}",
             "[frontmatter] ~collapsed~",
             "",
             "",
@@ -1139,6 +1139,36 @@ fn frontmatter_reads_as_properties_away_from_the_cursor() {
             "[frontmatter] {frontmatter,markup-dimmed:---}",
             "[frontmatter] {frontmatter,frontmatter-key:title}{frontmatter:: Waves}",
             "[frontmatter] {frontmatter,markup-dimmed:---}",
+        ],
+    );
+}
+
+#[test]
+fn list_properties_read_as_chips() {
+    check(
+        "---\naliases: [Waves, \"Wave packets\"]\ntags: [physics]\nnote: [not closed\n---\n\n‸",
+        &element(),
+        &[
+            "[frontmatter] ~collapsed~",
+            "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:aliases}{frontmatter,property-chip:Waves}{frontmatter,property-chip:Wave packets}",
+            "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:tags}{tag,frontmatter,property-chip:physics}",
+            "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:note}{frontmatter:[not closed}",
+            "[frontmatter] ~collapsed~",
+            "",
+            "",
+        ],
+    );
+    check(
+        "---\naliases:\n  - Waves\n  - \"\"\n---\n\n‸",
+        &element(),
+        &[
+            "[frontmatter] ~collapsed~",
+            "[frontmatter property { keyed: true }] {frontmatter,frontmatter-key:aliases}",
+            "[frontmatter property { keyed: false }] {frontmatter,property-chip:Waves}",
+            "[frontmatter property { keyed: false }] {frontmatter:  - \"\"}",
+            "[frontmatter] ~collapsed~",
+            "",
+            "",
         ],
     );
 }

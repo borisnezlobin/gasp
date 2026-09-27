@@ -36,8 +36,9 @@ pub struct Background {
     /// Bytes of the shaped text.
     pub range: Range<usize>,
     pub color: Hsla,
-    /// Inline code gets room at its ends, which layout leaves for it.
-    pub padded: bool,
+    /// Room inside the fill at each end, which layout leaves clear:
+    /// inline code and property chips have some, other fills none.
+    pub padding: Pixels,
 }
 
 impl TextPiece {
