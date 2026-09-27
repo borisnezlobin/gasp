@@ -554,6 +554,15 @@ impl Theme {
         self.code_font_family = pick(&self.code_font_family, MONO_FALLBACKS);
     }
 
+    /// The body, interface and code font families.
+    pub fn font_families(&self) -> [SharedString; 3] {
+        [
+            self.body_font_family.clone(),
+            self.ui_font_family.clone(),
+            self.code_font_family.clone(),
+        ]
+    }
+
     /// Font size for a line, by heading level (0 means body text).
     pub fn font_size(&self, heading_level: u8) -> Pixels {
         match heading_level {
@@ -2388,6 +2397,8 @@ pub struct SettingsTheme {
     pub menu_width: Pixels,
     pub menu_max_height: Pixels,
     pub menu_offset: Pixels,
+    /// The room a menu keeps from the window's edges.
+    pub menu_margin: Pixels,
     pub ring_width: Pixels,
     /// Rings need a little blur to be drawn at all.
     pub ring_blur: Pixels,
@@ -2501,6 +2512,7 @@ impl SettingsTheme {
             menu_width: px(260.),
             menu_max_height: px(320.),
             menu_offset: space("space.sm", 4.),
+            menu_margin: space("space.lg", 12.),
             ring_width: px(1.),
             ring_blur: px(0.5),
             shadow_blur: px(12.),

@@ -1,8 +1,13 @@
 //! The dropdown menu a choice or font row opens: arrows move, Enter picks,
 //! Escape closes, and a font menu filters as you type.
 
+use std::cell::Cell;
+
 use editor_config::schema::SettingKind;
-use gpui::{AppContext, Context, Entity, Focusable, ScrollHandle, Subscription, Window};
+use gpui::{
+    AppContext, Context, Entity, Focusable, ScrollStrategy, Subscription, UniformListScrollHandle,
+    Window,
+};
 
 use super::config_files::default_token;
 use super::model::{
@@ -32,7 +37,11 @@ pub struct OpenMenu {
     pub highlighted: usize,
     /// The filter field, for font menus.
     pub filter: Option<Entity<TextInput>>,
-    pub scroll: ScrollHandle,
+    /// The options' list, which builds only the options in view.
+    pub scroll: UniformListScrollHandle,
+    /// How many options the frame last drawn built: only those in view,
+    /// so a long font list opens and filters quickly.
+    pub built: Cell<usize>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -93,18 +102,11 @@ impl SettingsView {
         let Some(target) = self.rows().get(index).and_then(Self::menu_target) else {
             return;
         };
+        if matches!(target, MenuTarget::Font(_)) {
+            crate::trace::presented(window, "font-menu-open");
+        }
         let current = self.menu_value(&target);
-        let options = match &target {
-            MenuTarget::Choice(item) => match &item.kind {
-                SettingKind::Choice(options) => options.clone(),
-                _ => Vec::new(),
-            },
-            MenuTarget::Font(slot) => {
-                let built_in = default_token(slot.token()).unwrap_or_default();
-                font_choices(&self.font_names, &current, &built_in)
-            }
-            MenuTarget::MapAdd(map) => self.names_to_add(&map.key),
-        };
+        let options = self.menu_choices(&target, &current);
         let highlighted = options.iter().position(|o| *o == current).unwrap_or(0);
         let (filter, subscriptions) = match target {
             MenuTarget::Font(_) => self.menu_filter(window, cx),
@@ -117,11 +119,69 @@ impl SettingsView {
             options,
             highlighted,
             filter,
-            scroll: ScrollHandle::new(),
+            scroll: UniformListScrollHandle::new(),
+            built: Cell::new(0),
             _subscriptions: subscriptions,
         });
-        self.scroll_menu();
+        self.scroll_menu(ScrollStrategy::Center);
         cx.notify();
+    }
+
+    /// Every option a menu offers, given the value it has now.
+    fn menu_choices(&self, target: &MenuTarget, current: &str) -> Vec<String> {
+        match target {
+            MenuTarget::Choice(item) => match &item.kind {
+                SettingKind::Choice(options) => options.clone(),
+                _ => Vec::new(),
+            },
+            MenuTarget::Font(slot) => {
+                let built_in = default_token(slot.token()).unwrap_or_default();
+                let names = self.font_names.as_deref().unwrap_or_default();
+                font_choices(names, current, &built_in)
+            }
+            MenuTarget::MapAdd(map) => self.names_to_add(&map.key),
+        }
+    }
+
+    /// How many options the open menu built in the frame last drawn.
+    pub fn menu_rows_built(&self) -> usize {
+        self.menu.as_ref().map_or(0, |menu| menu.built.get())
+    }
+
+    /// Whether the open menu is a font menu still waiting for the fonts.
+    pub fn menu_loading(&self) -> bool {
+        self.font_names.is_none()
+            && self
+                .menu
+                .as_ref()
+                .is_some_and(|menu| matches!(menu.target, MenuTarget::Font(_)))
+    }
+
+    /// Fills an open font menu with the font names, as when they arrive
+    /// after it opened, keeping its filter and highlighted option.
+    pub(super) fn refill_font_menu(&mut self, cx: &mut Context<Self>) {
+        let Some(target) = self.menu.as_ref().map(|menu| menu.target.clone()) else {
+            return;
+        };
+        if !matches!(target, MenuTarget::Font(_)) {
+            return;
+        }
+        let options = self.menu_choices(&target, &self.menu_value(&target));
+        let Some(menu) = self.menu.as_mut() else {
+            return;
+        };
+        let query = menu
+            .filter
+            .as_ref()
+            .map(|field| field.read(cx).text().to_string())
+            .unwrap_or_default();
+        let highlighted = menu.shown.get(menu.highlighted).cloned();
+        menu.shown = filter_fonts(&options, &query);
+        menu.options = options;
+        menu.highlighted = highlighted
+            .and_then(|option| menu.shown.iter().position(|shown| *shown == option))
+            .unwrap_or(0);
+        self.scroll_menu(ScrollStrategy::Center);
     }
 
     /// The fixed names of map setting `map_key` it doesn't have yet.
@@ -169,7 +229,7 @@ impl SettingsView {
                     menu.shown = filter_fonts(&menu.options, &query);
                     menu.highlighted = 0;
                 }
-                self.scroll_menu();
+                self.scroll_menu(ScrollStrategy::Top);
                 cx.notify();
             }
             TextInputEvent::Submitted => self.pick_highlighted(window, cx),
@@ -192,13 +252,22 @@ impl SettingsView {
         };
         let last = menu.shown.len().saturating_sub(1) as isize;
         menu.highlighted = (menu.highlighted as isize + delta).clamp(0, last) as usize;
-        self.scroll_menu();
+        // Moving down brings the option in at the bottom edge, and up at
+        // the top, so the list scrolls no further than it must.
+        let edge = if delta > 0 {
+            ScrollStrategy::Bottom
+        } else {
+            ScrollStrategy::Top
+        };
+        self.scroll_menu(edge);
         cx.notify();
     }
 
-    fn scroll_menu(&self) {
+    /// Scrolls the highlighted option into view, placed by `strategy`
+    /// when it's out of view.
+    fn scroll_menu(&self, strategy: ScrollStrategy) {
         if let Some(menu) = &self.menu {
-            menu.scroll.scroll_to_item(menu.highlighted);
+            menu.scroll.scroll_to_item(menu.highlighted, strategy);
         }
     }
 

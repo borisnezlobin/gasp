@@ -50,26 +50,80 @@ struct ThemeGlobal {
 
 impl Global for ThemeGlobal {}
 
+/// The installed font families, once they've been listed.
 struct FontNames(Arc<[String]>);
 
 impl Global for FontNames {}
 
-/// The installed font families. Listing them walks every font the
-/// platform knows, so it happens once and every theme shares the list.
-pub fn installed_fonts(cx: &mut App) -> Arc<[String]> {
-    if let Some(names) = cx.try_global::<FontNames>() {
-        return names.0.clone();
+/// Set once listing the fonts has started, so it starts only once.
+struct FontsLoading;
+
+impl Global for FontsLoading {}
+
+/// The installed font families, or `None` until they've been listed.
+/// Listing walks every font the platform knows (a fifth of a second on
+/// a Mac with many fonts), so it happens once, off the main thread and
+/// after the first frame: see [`load_installed_fonts`]. Until then a
+/// font is drawn by the family it names.
+pub fn installed_fonts(cx: &App) -> Option<Arc<[String]>> {
+    cx.try_global::<FontNames>().map(|names| names.0.clone())
+}
+
+/// Lists the installed fonts on a background thread once the first
+/// frame is on screen, then puts them in effect with
+/// [`set_installed_fonts`]. Asking again does nothing.
+pub fn load_installed_fonts(cx: &mut App) {
+    if cx.has_global::<FontsLoading>() || cx.has_global::<FontNames>() {
+        return;
     }
-    let _span = crate::trace::span("font-names");
-    let names: Arc<[String]> = cx.text_system().all_font_names().into();
-    cx.set_global(FontNames(names.clone()));
-    names
+    cx.set_global(FontsLoading);
+    if crate::first_frame::is_waiting() {
+        crate::first_frame::defer(list_fonts);
+    } else {
+        list_fonts(cx);
+    }
+}
+
+fn list_fonts(cx: &mut App) {
+    let text_system = cx.text_system().clone();
+    let listing = cx.background_executor().spawn(async move {
+        let _span = crate::trace::span("font-names");
+        text_system.all_font_names()
+    });
+    cx.spawn(async move |cx| {
+        let names = listing.await;
+        cx.update(|cx| set_installed_fonts(names, cx)).ok();
+    })
+    .detach();
+}
+
+/// Puts the installed font `names` in effect: the theme swaps in a
+/// fallback for any font it names that isn't among them, every window
+/// redraws, and views following [`observe_installed_fonts`] hear of it.
+/// Tests call it to have the fonts arrive late.
+pub fn set_installed_fonts(names: Vec<String>, cx: &mut App) {
+    let _span = crate::trace::span("font-names-apply");
+    cx.set_global(FontNames(names.into()));
+    if let Some(theme) = cx.try_global::<ThemeGlobal>() {
+        let (tokens, dark) = (theme.tokens.clone(), theme.dark);
+        let theme = ThemeGlobal::build(&tokens, dark, cx);
+        cx.set_global(theme);
+    }
+    cx.refresh_windows();
+}
+
+/// Calls `f` when the installed fonts arrive.
+pub fn observe_installed_fonts<V: 'static>(
+    cx: &mut gpui::Context<V>,
+    f: impl FnMut(&mut V, &mut gpui::Context<V>) + 'static,
+) -> gpui::Subscription {
+    cx.observe_global::<FontNames>(f)
 }
 
 impl ThemeGlobal {
     /// The component tokens for `tokens`, which are already for one mode.
     fn build(tokens: &Tokens, dark: bool, cx: &mut App) -> ThemeGlobal {
-        let installed = installed_fonts(cx);
+        let installed = installed_fonts(cx).unwrap_or_default();
         let palette = Palette::from_tokens(tokens);
         let ui = UiTheme::themed(&palette, &installed);
         let input = InputTheme {
