@@ -152,7 +152,7 @@ impl Launcher {
                     .flex()
                     .flex_none()
                     .max_w(gpui::relative(0.7))
-                    .child(truncated(SharedString::from(note_title(path))).grow()),
+                    .child(truncated(SharedString::from(note_title(path)))),
             )
             .children(self.folder_label(path).map(|folder| {
                 div()
