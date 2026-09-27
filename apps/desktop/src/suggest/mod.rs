@@ -281,19 +281,19 @@ impl EditorView {
 impl EditorView {
     /// The popover for the open list, placed under the start of the query
     /// with its labels lined up with the typed text, or above the line
-    /// when there's no room below. `None` when the query is off screen.
+    /// when there's no room below in the note. `None` when the query is off screen.
     pub(crate) fn suggestion_popover(
         &self,
         frame: &FrameLayout,
-        window: &Window,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let open = self.suggest.open.as_ref()?;
         let caret = frame.caret_bounds(open.trigger.anchor(), &self.theme)?;
         let theme = crate::ui::ui_theme(cx);
         let height = list_height(open.items.len(), &theme);
-        let fits_below =
-            caret.bottom() + theme.suggestion_gap + height <= window.viewport_size().height;
+        // Below the line when it fits inside the note, so it never covers
+        // the status bar; above it otherwise.
+        let fits_below = caret.bottom() + theme.suggestion_gap + height <= frame.bounds.bottom();
         let x = caret.left() - theme.menu_padding - theme.menu_row_padding_x;
         let (corner, y) = if fits_below {
             (Corner::TopLeft, caret.bottom() + theme.suggestion_gap)

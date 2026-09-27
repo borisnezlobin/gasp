@@ -91,7 +91,7 @@ impl Element for EditorElement {
                 .collect();
             let caret = frame.caret_bounds(view.cursor(), &view.theme);
             if view.focus_handle.is_focused(window)
-                && let Some(mut popover) = view.suggestion_popover(&frame, window, cx)
+                && let Some(mut popover) = view.suggestion_popover(&frame, cx)
             {
                 popover.layout_as_root(AvailableSpace::min_size(), window, cx);
                 window.defer_draw(popover, window.element_offset(), SUGGESTION_LAYER);

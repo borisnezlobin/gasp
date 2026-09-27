@@ -1354,6 +1354,9 @@ pub struct UiTheme {
     pub menu_shadow_offset: Pixels,
     pub menu_ring: Hsla,
     /// How matched characters stand out in a suggestion.
+    /// Matched characters in a suggestion: heavier, and a shade darker,
+    /// which GPUI needs to keep a weight change within one line.
+    pub match_text: Hsla,
     pub match_weight: FontWeight,
     /// Suggestion rows shown at once; the list scrolls past them.
     pub suggestion_rows: usize,
@@ -1500,6 +1503,7 @@ impl Default for UiTheme {
             menu_shadow_blur: px(24.),
             menu_shadow_offset: px(8.),
             menu_ring: hsla(0., 0., 0., 0.08),
+            match_text: rgb(0x000000).into(),
             match_weight: FontWeight::BOLD,
             suggestion_rows: 8,
             suggestion_gap: px(4.),
