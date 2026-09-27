@@ -123,7 +123,7 @@ impl Element for Truncated {
         // The full width, always: a flex row shrinks it when there's no
         // room, down to nothing, and prepaint cuts the text to fit.
         let layout_id = window.request_measured_layout(layout, move |known, _, _, _| Size {
-            width: known.width.unwrap_or(full_width),
+            width: known.width.unwrap_or(full_width.ceil()),
             height: line_height,
         });
         let state = TruncatedLayout {
@@ -146,7 +146,9 @@ impl Element for Truncated {
     ) -> Self::PrepaintState {
         let text_system = window.text_system().clone();
         let line = text_system.shape_line(self.text.clone(), layout.font_size, &layout.runs, None);
-        if line.width <= bounds.size.width.ceil() {
+        // Layout rounds to whole pixels, so a line that fits can come out a
+        // fraction wider than its bounds; that fraction is never cut.
+        if line.width <= bounds.size.width + px(1.) {
             return Some(line);
         }
         let mut runs = layout.runs.clone();
