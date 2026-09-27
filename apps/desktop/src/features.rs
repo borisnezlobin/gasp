@@ -171,7 +171,14 @@ fn open_note(
 ) {
     if let Err(error) = workspace.open_path(path, open_in, window, cx) {
         eprintln!("could not open {}: {error}", path.display());
+        return;
     }
+    // A picker that opened the note closes after this and hands focus back
+    // to what had it, which may be the tab the note just replaced. Focus
+    // the note once that's done.
+    cx.defer_in(window, |workspace, window, cx| {
+        workspace.focus_active(window, cx)
+    });
 }
 
 // ---- Command palette ----

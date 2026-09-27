@@ -163,6 +163,15 @@ impl TextInput {
         self
     }
 
+    /// Sets the size of the title style's text, as the note's settings
+    /// and zoom make it.
+    pub fn set_title_font_size(&mut self, size: Pixels, cx: &mut Context<Self>) {
+        if self.theme.title_font_size != size {
+            self.theme.title_font_size = size;
+            cx.notify();
+        }
+    }
+
     pub fn with_style(mut self, style: TextInputStyle) -> Self {
         self.style = style;
         self

@@ -382,7 +382,12 @@ impl Pane {
                 .update(cx, |editor, cx| editor.set_header_height(px(0.), cx));
             return body;
         }
-        let scroll = note.editor.read(cx).scroll_offset();
+        let (scroll, title_size) = {
+            let editor = note.editor.read(cx);
+            (editor.scroll_offset(), editor.theme().title_font_size)
+        };
+        note.title
+            .update(cx, |title, cx| title.set_title_font_size(title_size, cx));
         let editor = note.editor.clone();
         let measure = canvas(
             move |bounds, _, cx| {

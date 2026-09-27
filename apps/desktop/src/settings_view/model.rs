@@ -216,6 +216,14 @@ pub const PAGES: &[PageSpec] = &[
                 RowSpec::Font(FontSlot::Code),
                 setting("appearance.base-font-size"),
             ],
+            &[
+                setting("theme.font.line-height.body"),
+                setting("theme.size.editor-max-width"),
+                setting("theme.font.scale.title"),
+                setting("theme.font.scale.h1"),
+                setting("theme.font.scale.h2"),
+                setting("theme.font.line-height.code"),
+            ],
             &[RowSpec::Accent],
         ],
     },
@@ -316,6 +324,108 @@ pub fn minimum_for(key: &str) -> i64 {
         .iter()
         .find(|(known, _)| *known == key)
         .map_or(0, |(_, minimum)| *minimum)
+}
+
+/// A number in the theme that the screen edits like a setting, under the
+/// key `theme.<token>`.
+pub struct ThemeNumber {
+    pub token: &'static str,
+    pub title: &'static str,
+    pub description: &'static str,
+    /// How far one press of − or + moves it.
+    pub step: f64,
+    pub min: f64,
+    pub max: f64,
+}
+
+pub const THEME_NUMBERS: &[ThemeNumber] = &[
+    ThemeNumber {
+        token: "font.line-height.body",
+        title: "Line height",
+        description: "Space from one line of a note to the next, as a multiple of the text size.",
+        step: 0.05,
+        min: 1.,
+        max: 3.,
+    },
+    ThemeNumber {
+        token: "size.editor-max-width",
+        title: "Readable line length",
+        description: "How wide the text column grows, in pixels, while readable line length is on.",
+        step: 20.,
+        min: 320.,
+        max: 2000.,
+    },
+    ThemeNumber {
+        token: "font.scale.title",
+        title: "Title size",
+        description: "The note's title above its text, as a multiple of the text size.",
+        step: 0.1,
+        min: 1.,
+        max: 4.,
+    },
+    ThemeNumber {
+        token: "font.scale.h1",
+        title: "Heading 1 size",
+        description: "As a multiple of the text size.",
+        step: 0.05,
+        min: 0.5,
+        max: 4.,
+    },
+    ThemeNumber {
+        token: "font.scale.h2",
+        title: "Heading 2 size",
+        description: "As a multiple of the text size.",
+        step: 0.05,
+        min: 0.5,
+        max: 4.,
+    },
+    ThemeNumber {
+        token: "font.line-height.code",
+        title: "Code line height",
+        description: "Line spacing inside code blocks, as a multiple of the code size.",
+        step: 0.05,
+        min: 1.,
+        max: 3.,
+    },
+];
+
+/// The theme number a setting key names, if it names one.
+pub fn theme_number(key: &str) -> Option<&'static ThemeNumber> {
+    let token = key.strip_prefix("theme.")?;
+    THEME_NUMBERS.iter().find(|number| number.token == token)
+}
+
+impl ThemeNumber {
+    /// `value` moved by `steps` steps, kept in range and rounded to the
+    /// step so repeated presses don't gather float error.
+    pub fn stepped(&self, value: f64, steps: i64) -> f64 {
+        let moved = value + steps as f64 * self.step;
+        self.clamp((moved / self.step).round() * self.step)
+    }
+
+    pub fn clamp(&self, value: f64) -> f64 {
+        let rounded = (value * 100.).round() / 100.;
+        rounded.clamp(self.min, self.max)
+    }
+
+    fn item(&self, default: Option<f64>) -> SettingItem {
+        SettingItem {
+            key: format!("theme.{}", self.token),
+            title: self.title.to_string(),
+            description: self.description.to_string(),
+            kind: SettingKind::Number,
+            default: default.map_or(Value::Null, Value::from),
+        }
+    }
+}
+
+/// A setting item for each theme number, with the built-in value from
+/// `default_of`.
+pub fn theme_number_items(default_of: impl Fn(&str) -> Option<f64>) -> Vec<SettingItem> {
+    THEME_NUMBERS
+        .iter()
+        .map(|number| number.item(default_of(number.token)))
+        .collect()
 }
 
 /// One setting as the screen shows it.
@@ -681,7 +791,8 @@ mod tests {
             assert_eq!(count, 1, "{} is placed {count} times", item.key);
         }
         for key in &placed {
-            let known = setting_descriptors().iter().any(|d| d.key == *key);
+            let known =
+                setting_descriptors().iter().any(|d| d.key == *key) || theme_number(key).is_some();
             assert!(known, "{key} isn't a setting");
         }
     }
@@ -795,6 +906,21 @@ mod tests {
         assert_eq!(filter_fonts(&choices, "noto mono"), ["Noto Sans Mono"]);
         assert_eq!(filter_fonts(&choices, "  "), choices);
         assert!(filter_fonts(&choices, "zzz").is_empty());
+    }
+
+    #[test]
+    fn theme_numbers_step_cleanly_and_stay_in_range() {
+        let line_height = theme_number("theme.font.line-height.body").unwrap();
+        assert_eq!(line_height.stepped(1.6, 1), 1.65);
+        assert_eq!(line_height.stepped(1.6, 3), 1.75);
+        assert_eq!(line_height.stepped(1.0, -1), 1.0);
+        let width = theme_number("theme.size.editor-max-width").unwrap();
+        assert_eq!(width.stepped(720., 1), 740.);
+        assert!(theme_number("font.line-height.body").is_none());
+        let defaults =
+            theme_number_items(|token| (token == "font.line-height.body").then_some(1.6));
+        assert_eq!(defaults.len(), THEME_NUMBERS.len());
+        assert_eq!(defaults[0].default, Value::from(1.6));
     }
 
     #[test]

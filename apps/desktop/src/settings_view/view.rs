@@ -19,7 +19,8 @@ use super::config_files;
 use super::menu::OpenMenu;
 use super::model::{
     ACCENT_DESCRIPTION, ACCENT_TITLE, FontSlot, PAGES, Page, PageSpec, RowSpec, SettingItem,
-    ShortcutRow, map_name_label, map_names, page_cards, setting_items, shortcut_rows, words_match,
+    ShortcutRow, map_name_label, map_names, page_cards, setting_items, shortcut_rows,
+    theme_number_items, words_match,
 };
 use super::store::{SettingsFile, settings_path};
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
@@ -227,7 +228,10 @@ impl SettingsView {
             file: SettingsFile::load(&settings_path(&vault_root)).unwrap_or_default(),
             vault_root,
             style: SettingsTheme::default(),
-            items: setting_items(),
+            items: setting_items()
+                .into_iter()
+                .chain(theme_number_items(config_files::default_number))
+                .collect(),
             shortcuts: shortcut_rows(rules, Platform::current()),
             rules: rules.clone(),
             tokens,

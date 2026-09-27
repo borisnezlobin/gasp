@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use editor_config::commands::BUILTIN_COMMANDS;
 use editor_config::loader::{CONFIG_DIR, build_rules, build_theme};
-use editor_config::theme::Theme as Tokens;
+use editor_config::theme::{Theme as Tokens, TokenValue};
 use editor_config::{Config, RuleSet};
 use serde_json::Value;
 use toml_edit::{ArrayOfTables, DocumentMut, Item, Table, value};
@@ -53,14 +53,42 @@ pub fn write_theme_token(
     name: &str,
     new_value: Option<&str>,
 ) -> Result<Tokens, String> {
+    let default = default_token(name);
+    let kept = new_value.filter(|text| !default.as_deref().is_some_and(|d| same_token(d, text)));
+    write_theme_value(vault_root, name, kept.map(|text| Value::from(text.trim())))
+}
+
+/// The built-in value of a number token.
+pub fn default_number(name: &str) -> Option<f64> {
+    Config::defaults()
+        .theme
+        .get(name)
+        .and_then(TokenValue::as_f64)
+}
+
+/// Writes one number token: `None`, or the built-in value, removes it.
+pub fn write_theme_number(
+    vault_root: &Path,
+    name: &str,
+    new_value: Option<f64>,
+) -> Result<Tokens, String> {
+    let default = default_number(name);
+    let kept = new_value.filter(|n| default.is_none_or(|d| (d - n).abs() > f64::EPSILON));
+    write_theme_value(vault_root, name, kept.map(Value::from))
+}
+
+/// Sets or, for `None`, removes one token in the vault's theme file, and
+/// returns the theme that results if it's valid.
+fn write_theme_value(
+    vault_root: &Path,
+    name: &str,
+    new_value: Option<Value>,
+) -> Result<Tokens, String> {
     let path = theme_path(vault_root);
     let mut file = SettingsFile::load(&path)?;
-    let default = default_token(name);
     match new_value {
-        Some(text) if !default.as_deref().is_some_and(|d| same_token(d, text)) => {
-            file.set(name, &Value::from(text.trim()))?;
-        }
-        _ => {
+        Some(value) => file.set(name, &value)?,
+        None => {
             file.remove(name);
         }
     }

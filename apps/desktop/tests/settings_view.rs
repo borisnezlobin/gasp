@@ -623,6 +623,38 @@ fn map_entries_can_be_added_and_removed(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn line_height_and_width_step_and_write_the_theme(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let root = dir.path();
+    let (view, cx, recorded) = open(cx, root);
+    go_to_section(&view, "Appearance", cx);
+    go_to_row(
+        &view,
+        cx,
+        |row| matches!(row, ControlRow::Setting(item) if item.key == "theme.font.line-height.body"),
+    );
+    cx.simulate_keystrokes("right right");
+    assert!(
+        read_config(root, "theme.toml").contains("body = 1.7"),
+        "{}",
+        read_config(root, "theme.toml")
+    );
+    assert_eq!(
+        recorded.borrow().changed.last().unwrap(),
+        "theme.font.line-height.body"
+    );
+    cx.simulate_keystrokes("down right");
+    assert!(read_config(root, "theme.toml").contains("editor-max-width = 740"));
+    // Delete puts the built-in value back.
+    cx.simulate_keystrokes("up delete");
+    assert!(!read_config(root, "theme.toml").contains("body ="));
+    assert_eq!(
+        value(&view, "theme.font.line-height.body", cx),
+        Value::from(1.6)
+    );
+}
+
+#[gpui::test]
 fn reload_picks_up_outside_edits(cx: &mut TestAppContext) {
     let dir = vault(None);
     let root = dir.path();
