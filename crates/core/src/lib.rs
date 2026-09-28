@@ -11,4 +11,5 @@ pub mod pipeline;
 pub mod render;
 pub mod steps;
 pub mod syntax;
+pub mod table;
 pub mod transaction;

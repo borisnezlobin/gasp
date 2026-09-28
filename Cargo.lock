@@ -2978,6 +2978,7 @@ dependencies = [
  "pulldown-cmark",
  "regex",
  "ropey",
+ "unicode-width",
 ]
 
 [[package]]
