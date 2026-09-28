@@ -80,6 +80,7 @@ pub fn read_bytes(vault: &Vault, path: &str) -> Vec<u8> {
 }
 
 /// Commit, fetch, merge and push, as one device would after going online.
+/// A conflict doesn't stop the push: the files it's about wait on their own.
 pub fn sync(vault: &Vault, who: &str) -> MergeOutcome {
     let author = author(who);
     vault
@@ -87,10 +88,18 @@ pub fn sync(vault: &Vault, who: &str) -> MergeOutcome {
         .expect("commit");
     vault.fetch().expect("fetch");
     let outcome = vault.merge(&author).expect("merge");
-    if !matches!(outcome, MergeOutcome::Conflicts(_)) {
-        vault.push().expect("push");
-    }
+    vault.push().expect("push");
     outcome
+}
+
+/// The message of the newest commit on the remote's `branch`.
+pub fn remote_head_message(world: &World, branch: &str) -> String {
+    let repo = Repository::open_bare(&world.remote_url).expect("open bare");
+    let commit = repo
+        .find_reference(&format!("refs/heads/{branch}"))
+        .and_then(|reference| reference.peel_to_commit())
+        .expect("branch head");
+    commit.message().unwrap_or_default().to_owned()
 }
 
 /// A note of `count` numbered lines.

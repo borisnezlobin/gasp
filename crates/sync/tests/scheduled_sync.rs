@@ -3,7 +3,7 @@ mod common;
 use std::time::Duration;
 
 use common::{World, author, write};
-use editor_sync::{MergeOutcome, Scheduler, SyncEventKind, SyncStatus, SyncStep, drive, run_step};
+use editor_sync::{Scheduler, SyncEventKind, SyncStatus, SyncStep, drive, run_step};
 
 const MESSAGE: &str = "Automatic sync";
 
@@ -124,8 +124,8 @@ fn unreachable_remote_during_a_scheduled_sync_reports_offline() {
 }
 
 #[test]
-fn scheduled_sync_stops_at_a_conflict_and_resumes_after_resolution() {
-    let world = World::seeded(&[("note.md", b"shared line\n")]);
+fn scheduled_sync_keeps_syncing_other_notes_while_a_conflict_waits() {
+    let world = World::seeded(&[("note.md", b"shared line\n"), ("other.md", b"other\n")]);
     let laptop = world.device("laptop");
     let phone = world.device("phone");
     write(&laptop, "note.md", b"laptop line\n");
@@ -137,17 +137,24 @@ fn scheduled_sync_stops_at_a_conflict_and_resumes_after_resolution() {
     scheduler.edited(secs(0));
     let status = drive(&phone, &mut scheduler, secs(60), &who, MESSAGE);
     assert_eq!(status, SyncStatus::Conflict { files: 1 });
+    assert!(!phone.is_merging());
 
-    let MergeOutcome::Conflicts(files) = phone.merge(&who).unwrap() else {
-        panic!("merge should still be paused");
-    };
-    phone
-        .resolve(&files[0], &[editor_sync::Resolution::Both], &who)
-        .unwrap()
-        .expect("merge commit");
-    scheduler.conflicts_resolved(secs(70));
+    write(&phone, "other.md", b"other, edited offline\n");
+    scheduler.edited(secs(70));
+    let status = drive(&phone, &mut scheduler, secs(130), &who, MESSAGE);
+    assert_eq!(status, SyncStatus::Conflict { files: 1 });
     assert_eq!(
-        drive(&phone, &mut scheduler, secs(70), &who, MESSAGE),
+        world.remote_file("master", "other.md").unwrap(),
+        b"other, edited offline\n"
+    );
+
+    let files = phone.conflicts().unwrap();
+    phone
+        .resolve(&files[0], &[editor_sync::Resolution::Both])
+        .unwrap();
+    scheduler.conflicts_resolved(secs(140));
+    assert_eq!(
+        drive(&phone, &mut scheduler, secs(140), &who, MESSAGE),
         SyncStatus::Synced
     );
     assert_eq!(

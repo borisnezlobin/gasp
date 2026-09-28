@@ -156,8 +156,11 @@ pub fn explanation(phase: &SyncPhase) -> Option<String> {
         SyncPhase::SignIn { has_token: false } => {
             "Your notes repository needs a GitHub token to sync. Paste one in sync settings.".to_owned()
         }
+        SyncPhase::Conflict { files: 1 } => {
+            "This device and another one changed the same lines of this note. Your other notes keep syncing. Pick which version to keep, and this note syncs too.".to_owned()
+        }
         SyncPhase::Conflict { .. } => {
-            "Both devices changed the same lines. Pick which version to keep, and sync carries on.".to_owned()
+            "This device and another one changed the same lines of these notes. Your other notes keep syncing. Pick which version to keep, and these notes sync too.".to_owned()
         }
         SyncPhase::Failed { kind, message } => failure_explanation(*kind, message),
         _ => return None,
