@@ -26,6 +26,9 @@ pub(crate) struct Effects {
 pub(crate) struct Planner<'a> {
     pub revealer: Revealer<'a>,
     pub effects: Effects,
+    /// The text of the lines being planned, so a long table plans only
+    /// its rows among them.
+    pub span: Range<usize>,
 }
 
 /// The syntax kind that decides whether a node is replaced by a widget.

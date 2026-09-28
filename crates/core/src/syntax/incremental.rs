@@ -40,7 +40,7 @@ impl SyntaxTree {
     /// Updates the tree for `new_text`, which is the old text with `edit`
     /// applied. Gives the same tree as [`super::parse`] on `new_text`.
     pub fn edit(&mut self, new_text: &str, edit: &Edit) {
-        if !self.splice_reparse(new_text, edit) {
+        if !self.reparse_table_row(new_text, edit) && !self.splice_reparse(new_text, edit) {
             *self = super::parse(new_text);
         }
     }

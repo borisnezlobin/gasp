@@ -59,7 +59,11 @@ impl EditorView {
         if marks.fills.is_empty() {
             return marks;
         }
-        let block = self.cell_block();
+        let block = self
+            .table_edit
+            .block_selected
+            .then(|| self.cell_block())
+            .flatten();
         marks.block = block
             .as_ref()
             .map(|block| self.cell_block_rects(frame, block));
@@ -74,7 +78,6 @@ impl EditorView {
 
     /// The caret's cell, when the caret is in a grid table on screen.
     fn caret_cell_rect(&self, frame: &FrameLayout) -> Option<Bounds<Pixels>> {
-        self.caret_cell()?;
         let placed = frame.line_containing(self.cursor())?;
         let grid = placed.visual.grid.as_ref()?;
         let cell = grid.cell_for_offset(self.cursor() - placed.visual.start)?;

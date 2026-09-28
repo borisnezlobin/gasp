@@ -1282,3 +1282,58 @@ fn nested_mismatched_and_unsafe_html() {
         ],
     );
 }
+
+/// Bits typed into a table's cells: plain text, inline markup, escaped
+/// and bare pipes, and things that could end the table.
+const CELL_FRAGMENTS: &[&str] = &[
+    "x", "word ", " ", "**", "*", "`", "$", "\\|", "|", "[[w]]", "[l](u)", "#", "- ", "> ", "---",
+    "%%", "[^1]", "<b>", "\\", "",
+];
+
+/// Types and deletes at random inside the cells of a table in a note
+/// and checks each edit leaves the tree a full parse would give.
+#[test]
+fn edits_inside_table_rows_match_a_full_parse() {
+    let mut rng = Lcg(7);
+    let table = "| a | **b** | c |\n|:--|:-:|--:|\n| 1 | `x\\|y` | [[w]] |\n| 2 | $z$ | [l][ref] |\n| 3 | four | five |";
+    for _ in 0..60 {
+        let text = format!("Intro para.\n\n{table}\n\nAfter **it**.\n\n[ref]: http://r\n");
+        let mut tree = parse(&text);
+        let mut current = text.clone();
+        for _ in 0..10 {
+            let rows: Vec<usize> = current
+                .match_indices("\n|")
+                .map(|(at, _)| at + 1)
+                .filter(|&at| !current[at..].starts_with("|:--"))
+                .collect();
+            let Some(&line) = rows.get(rng.next(rows.len().max(1))) else {
+                break;
+            };
+            let line_end = line + current[line..].find('\n').unwrap_or(current.len() - line);
+            let start = line + rng.next(line_end - line + 1);
+            let start = (0..=start)
+                .rev()
+                .find(|&at| current.is_char_boundary(at))
+                .unwrap();
+            let end = (start + rng.next(4)).min(line_end);
+            let end = (end..=current.len())
+                .find(|&at| current.is_char_boundary(at))
+                .unwrap();
+            let inserted = CELL_FRAGMENTS[rng.next(CELL_FRAGMENTS.len())];
+            let new_text = format!("{}{inserted}{}", &current[..start], &current[end..]);
+            let edit = Edit {
+                old: start..end,
+                new_len: inserted.len(),
+            };
+            tree.edit(&new_text, &edit);
+            let expected = parse(&new_text);
+            assert!(
+                tree == expected,
+                "a row reparse differs after {edit:?}\n--- text ---\n{new_text}\n--- got ---\n{}\n--- expected ---\n{}",
+                dump_tree(&tree, &new_text),
+                dump_tree(&expected, &new_text)
+            );
+            current = new_text;
+        }
+    }
+}
