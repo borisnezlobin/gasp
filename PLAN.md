@@ -265,7 +265,7 @@ Verification covers this too: a CI test walks every command in the registry and 
 
 ### Default keymap
 
-`Mod` is Cmd on macOS and Ctrl on Windows and Linux. Every binding is a rule, so each can be changed or removed. Most defaults follow common editor conventions, and the owner's existing Obsidian hotkeys carry over, except for two. `Mod+P` now prints, so the command palette moves to `Mod+Shift+P`, which used to export a PDF. Export moves to `Mod+Shift+S`.
+`Mod` is Cmd on macOS and Ctrl on Windows and Linux. Every binding is a rule, so each can be changed or removed. Most defaults follow common editor conventions, and the owner's existing Obsidian hotkeys carry over, except for two. `Mod+P` opens the command palette, as in most editors, and printing moves to `Mod+Shift+P`, which used to export a PDF. Export moves to `Mod+Shift+S`.
 
 | Keys | Command |
 |---|---|
@@ -289,7 +289,7 @@ Verification covers this too: a CI test walks every command in the registry and 
 | `Mod+Shift+F` | Search all notes (replace across notes from the same panel) |
 | **Notes and navigation** | |
 | `Mod+O` | Quick switcher |
-| `Mod+Shift+P` | Command palette |
+| `Mod+P` | Command palette |
 | `Mod+N` | New note |
 | `Mod+Shift+O` | Jump to heading |
 | `Mod+Enter` | Follow link under cursor |
@@ -307,7 +307,7 @@ Verification covers this too: a CI test walks every command in the registry and 
 | `Mod+Alt+Shift` with an arrow | Move the tab to the pane that way, splitting one off if there's none |
 | `Mod+Alt+W` | Close pane |
 | **App** | |
-| `Mod+P` | Print (opens the print preview, which can also save a PDF) |
+| `Mod+Shift+P` | Print (opens the print preview, which can also save a PDF) |
 | `Mod+Shift+S` | Export (HTML or PDF, with publish to the site) |
 | `Mod+S` | Sync now |
 | `Mod+,` and `Mod+L` | Settings |

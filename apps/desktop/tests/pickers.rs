@@ -224,7 +224,7 @@ fn no_match_leaves_nothing_to_confirm(cx: &mut TestAppContext) {
 #[gpui::test]
 fn workspace_keys_still_reach_the_workspace(cx: &mut TestAppContext) {
     let opened = palette(cx, &[]);
-    opened.cx.simulate_keystrokes("secondary-shift-p");
+    opened.cx.simulate_keystrokes("secondary-p");
     let commands = opened
         .host
         .read_with(opened.cx, |host, _| host.commands.clone());

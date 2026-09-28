@@ -120,7 +120,7 @@ do   = "switcher.open"
 [[rule]]
 id   = "key.palette.open"
 on   = "key"
-keys = "Mod+Shift+P"
+keys = "Mod+P"
 do   = "palette.open"
 
 [[rule]]
@@ -358,7 +358,7 @@ do   = "pane.close"
 [[rule]]
 id   = "key.app.print"
 on   = "key"
-keys = "Mod+P"
+keys = "Mod+Shift+P"
 do   = "app.print"
 
 [[rule]]
