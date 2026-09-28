@@ -52,8 +52,8 @@ impl EditorView {
         }
     }
 
-    /// Escape closes the suggestion list; otherwise it goes on to the
-    /// workspace.
+    /// Escape closes the suggestion list, or leaves a table; otherwise it
+    /// goes on to the workspace.
     fn on_key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         let keystroke = &event.keystroke;
         if keystroke.key != "escape" || keystroke.modifiers.modified() {
@@ -62,7 +62,8 @@ impl EditorView {
         let previewing = self.hover.open.is_some();
         self.close_preview(cx);
         let offered = self.dismiss_card_offer(cx);
-        if self.dismiss_suggestions(cx) || previewing || offered {
+        let done = self.dismiss_suggestions(cx) || previewing || offered;
+        if done || !self.read_only && self.escape_table(cx) {
             cx.stop_propagation();
         }
     }
@@ -88,6 +89,7 @@ impl EditorView {
         }
         let secondary = event.modifiers.secondary();
         if self.click_copy_button(event.position, cx)
+            || (!self.read_only && self.press_table_handle(event.position, cx))
             || self.click_widget(event.position, secondary, cx)
         {
             return;
@@ -115,13 +117,17 @@ impl EditorView {
     }
 
     /// The pointer moved, anywhere in the window, during a drag selection:
-    /// selects to it, and scrolls while it's past the note's edge.
+    /// selects to it, and scrolls while it's past the note's edge. With a
+    /// table's handle held, it drags the handle's row or column.
     pub(crate) fn drag_moved(
         &mut self,
         position: Point<Pixels>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.table_edit.drag.is_some() {
+            return self.drag_table_handle(position, cx);
+        }
         if !self.is_selecting {
             return;
         }
@@ -225,19 +231,26 @@ impl EditorView {
         true
     }
 
-    fn on_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
+    fn on_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
         self.is_selecting = false;
+        self.release_table_handle(cx);
     }
 
     fn on_mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
-        // The editor's element follows a drag selection window-wide.
-        if self.is_selecting {
+        // The editor's element follows a drag selection, and a table
+        // handle's drag, window-wide.
+        if self.is_selecting || self.table_edit.drag.is_some() {
             return;
         }
+        let on_handle = self.hover_table_handles(Some(event.position), cx);
         let over = self.hover_target_at_point(event.position);
         self.hover_moved(over, event.modifiers.secondary(), cx);
         self.pointer_at = Some(event.position);
         self.point_at(event.modifiers.secondary(), cx);
+        if on_handle && self.pointer_cursor != CursorStyle::OpenHand {
+            self.pointer_cursor = CursorStyle::OpenHand;
+            cx.notify();
+        }
         self.hover_code(Some(event.position), cx);
     }
 
@@ -283,6 +296,7 @@ impl EditorView {
         if !*hovered {
             self.hover_left(cx);
             self.hover_code(None, cx);
+            self.hover_table_handles(None, cx);
             self.pointer_at = None;
             self.point_at(false, cx);
         }

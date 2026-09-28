@@ -432,6 +432,7 @@ impl EditorView {
     pub(crate) fn clear_preview_cache(&mut self) {
         self.hover.cache.clear();
         self.line_cache.clear();
+        self.tables.clear();
     }
 }
 

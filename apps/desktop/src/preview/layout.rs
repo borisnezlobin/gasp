@@ -3,7 +3,7 @@
 
 use std::ops::Range;
 
-use editor_core::render::{LinePlan, LineStyle, StyleKey, WidgetKind};
+use editor_core::render::{LinePlan, LineStyle, RevealSettings, StyleKey, WidgetKind};
 use editor_core::syntax::Alignment;
 use gpui::{Font, Pixels, TextRun, WindowTextSystem, px};
 
@@ -16,6 +16,7 @@ use crate::preview::decor::{LineFrame, line_frame};
 use crate::preview::items::{Item, LineItems, line_items, line_tone};
 use crate::preview::math::MathStore;
 use crate::preview::source::Source;
+use crate::preview::table::TableStore;
 use crate::preview::wrap::{Chunk, Extent, RowBuilder, Shaper};
 use crate::styling::{LineTone, fill_padding, run_baseline_shift, run_font_size, text_run};
 use crate::theme::Theme;
@@ -34,6 +35,10 @@ pub struct LayoutContext<'a> {
     pub marked: Option<Range<usize>>,
     /// Whether code blocks number their lines unless a block says.
     pub code_line_numbers: bool,
+    /// What the lines were planned with, for planning a table's other
+    /// rows to measure its columns.
+    pub reveal: &'a RevealSettings,
+    pub selections: &'a [Range<usize>],
 }
 
 /// Caches and the shaper a layout draws on.
@@ -42,6 +47,7 @@ pub struct LayoutResources<'a> {
     pub images: &'a mut ImageStore,
     pub math: &'a mut MathStore,
     pub code: &'a mut CodeHighlighter,
+    pub tables: &'a mut TableStore,
 }
 
 /// Lays out a planned line.
@@ -82,22 +88,25 @@ pub fn layout_framed(
         rows: Vec::new(),
         decor: Default::default(),
         overlays: Vec::new(),
+        grid: None,
     };
     if plan.collapsed {
         return line;
     }
     let mut layouter = LineLayouter::new(plan, frame, code_spans, context, resources);
     let items = line_items(plan);
-    let mut builder = layouter.row_builder();
-    layouter.place_items(&items, &mut builder);
-    layouter.place_below(&items, &mut builder);
-    let mut rows = builder.finish();
-    if let Some(alignment) = line_alignment(plan) {
-        let limit = context.column_width - layouter.frame.right;
-        align_rows(&mut rows, alignment, limit);
-    }
-    assign_ranges(&mut rows, layouter.text);
-    let bottom = rows.last().map_or(px(0.), VisualRow::bottom);
+    let rows = match &plan.table_row {
+        Some(row) => {
+            let (rows, grid) = layouter.table_row(row, &items);
+            line.grid = Some(grid);
+            rows
+        }
+        None => layouter.flow(&items),
+    };
+    let bottom = match &line.grid {
+        Some(grid) => grid.height,
+        None => rows.last().map_or(px(0.), VisualRow::bottom),
+    };
     layouter.number_line(&rows);
     line.overlays = layouter.overlays(&items);
     line.height = bottom + layouter.frame.pad_bottom;
@@ -119,7 +128,7 @@ pub(super) struct LineLayouter<'a, 'b> {
 }
 
 impl<'a, 'b> LineLayouter<'a, 'b> {
-    fn new(
+    pub(super) fn new(
         plan: &'a LinePlan,
         frame: LineFrame,
         code_spans: Option<LineSpans>,
@@ -168,13 +177,28 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         }
     }
 
+    /// Sets the line's items in rows that wrap at the column's edge, with
+    /// the rows of widgets below it after them.
+    fn flow(&mut self, items: &LineItems) -> Vec<VisualRow> {
+        let mut builder = self.row_builder();
+        self.place_items(items, &mut builder);
+        self.place_below(items, &mut builder);
+        let mut rows = builder.finish();
+        if let Some(alignment) = line_alignment(self.plan) {
+            let limit = self.context.column_width - self.frame.right;
+            align_rows(&mut rows, alignment, limit);
+        }
+        assign_ranges(&mut rows, 0..self.text.len(), self.text);
+        rows
+    }
+
     pub(super) fn line_font(&self) -> Font {
         let run = text_run(1, &[], &self.tone, false, self.theme());
         run.font
     }
 
     /// How far the font itself reaches above and below the baseline.
-    fn glyph_extent(&self, font: &Font, font_size: Pixels) -> Extent {
+    pub(super) fn glyph_extent(&self, font: &Font, font_size: Pixels) -> Extent {
         let text_system = self.resources.text_system;
         let font_id = text_system.resolve_font(font);
         Extent {
@@ -255,7 +279,12 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         self.shaper().shape(" ", self.font_size(), &[run]).width
     }
 
-    fn place_item(&mut self, items: &[Item], index: usize, builder: &mut RowBuilder) -> usize {
+    pub(super) fn place_item(
+        &mut self,
+        items: &[Item],
+        index: usize,
+        builder: &mut RowBuilder,
+    ) -> usize {
         match &items[index] {
             Item::Text { .. } => {
                 let (chunk, next) = self.collect_chunk(items, index);
@@ -504,10 +533,11 @@ fn indent_columns(text: &str, tab_columns: usize) -> (usize, usize) {
     (columns, bytes)
 }
 
-/// Gives each caret row the offsets it covers: from where the previous one
-/// ended to where the next one's first piece starts. A click past a
-/// wrapped row's end lands before the space the wrap broke at.
-fn assign_ranges(rows: &mut [VisualRow], text: &str) {
+/// Gives each caret row the offsets of `span` it covers: from where the
+/// previous one ended to where the next one's first piece starts. A
+/// click past a wrapped row's end lands before the space the wrap broke
+/// at.
+pub(super) fn assign_ranges(rows: &mut [VisualRow], span: Range<usize>, text: &str) {
     let caret_rows: Vec<usize> = (0..rows.len())
         .filter(|&index| rows[index].is_caret_row())
         .collect();
@@ -521,14 +551,14 @@ fn assign_ranges(rows: &mut [VisualRow], text: &str) {
                 .min()
         })
         .collect();
-    let mut start = 0;
+    let mut start = span.start;
     for (position, &index) in caret_rows.iter().enumerate() {
         let next_start = first_starts[position + 1..]
             .iter()
             .flatten()
             .next()
             .copied();
-        let end = next_start.unwrap_or(text.len()).max(start);
+        let end = next_start.unwrap_or(span.end).max(start);
         let wrapped = next_start.is_some() && rows[index].kind == RowKind::Text;
         let before_space = wrapped && text[..end].ends_with([' ', '\t']) && end > start;
         rows[index].range = start..end;

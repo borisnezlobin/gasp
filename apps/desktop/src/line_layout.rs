@@ -326,6 +326,65 @@ pub struct LineDecor {
     pub margin_top: Pixels,
 }
 
+/// A table row laid out as a row of its table's grid: where each cell
+/// is and which of the line's rows hold its text. The rows of different
+/// cells sit side by side, so finding a point or an offset goes through
+/// the cells first.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GridLine {
+    /// The row's place in the table: 0 is the header.
+    pub index: usize,
+    /// How many rows the table has, header included.
+    pub count: usize,
+    pub cells: Vec<GridCell>,
+    /// The table's left edge and width, from the text column's left.
+    pub left: Pixels,
+    pub width: Pixels,
+    /// How tall the row is, its tallest cell and the padding around it.
+    pub height: Pixels,
+}
+
+/// One cell of a [`GridLine`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct GridCell {
+    /// Left edge and width, from the text column's left.
+    pub x: Pixels,
+    pub width: Pixels,
+    /// The indices of the line's rows the cell's text is set in.
+    pub rows: Range<usize>,
+    /// The cell's text relative to the line; `None` for a cell a short
+    /// row leaves out.
+    pub range: Option<Range<usize>>,
+}
+
+impl GridLine {
+    /// The cell whose text holds `offset`, ends included, else the one
+    /// nearest it.
+    pub fn cell_for_offset(&self, offset: usize) -> Option<&GridCell> {
+        let with_text = || self.cells.iter().filter(|cell| cell.range.is_some());
+        let distance = |cell: &&GridCell| {
+            let range = cell.range.clone().unwrap_or_default();
+            range.start.saturating_sub(offset) + offset.saturating_sub(range.end)
+        };
+        with_text().min_by_key(distance)
+    }
+
+    /// The cell under `x`, else the nearest to it.
+    pub fn cell_at_x(&self, x: Pixels) -> Option<&GridCell> {
+        self.cells
+            .iter()
+            .find(|cell| x < cell.x + cell.width)
+            .or(self.cells.last())
+    }
+
+    /// The column under `x`, if the table reaches there.
+    pub fn column_at_x(&self, x: Pixels) -> Option<usize> {
+        self.cells
+            .iter()
+            .position(|cell| cell.x <= x && x < cell.x + cell.width)
+    }
+}
+
 /// One source line, laid out.
 #[derive(Clone, Debug)]
 pub struct VisualLine {
@@ -338,6 +397,8 @@ pub struct VisualLine {
     pub rows: Vec<VisualRow>,
     pub decor: LineDecor,
     pub overlays: Vec<Overlay>,
+    /// Where the cells are, when the line is a row of a table's grid.
+    pub grid: Option<GridLine>,
 }
 
 impl VisualLine {
@@ -371,8 +432,17 @@ impl VisualLine {
     }
 
     /// The row an offset's caret is drawn in. At a soft wrap the caret
-    /// goes to the start of the next row.
+    /// goes to the start of the next row; in a grid row, to a row of the
+    /// cell holding the offset.
     pub fn row_for_offset(&self, offset: usize) -> Option<usize> {
+        if let Some(grid) = &self.grid {
+            let rows = grid.cell_for_offset(offset)?.rows.clone();
+            let mut within = rows.clone().filter(|&index| {
+                let range = &self.rows[index].range;
+                range.start <= offset && offset < range.end
+            });
+            return within.next().or(rows.last());
+        }
         let mut last = None;
         for (index, row) in self.caret_rows() {
             if row.range.start <= offset && offset < row.range.end {
@@ -403,9 +473,25 @@ impl VisualLine {
         Some(index)
     }
 
+    /// The row under a point in a grid row: the cell under `x`, then its
+    /// row at `y`, clamped to its first and last.
+    fn grid_row_at(&self, grid: &GridLine, x: Pixels, y: Pixels) -> Option<usize> {
+        let cell = grid.cell_at_x(x).filter(|cell| cell.range.is_some());
+        let cell = cell.or_else(|| grid.cells.iter().rev().find(|cell| cell.range.is_some()))?;
+        cell.rows
+            .clone()
+            .find(|&index| y < self.rows[index].bottom())
+            .or(cell.rows.clone().last())
+    }
+
     /// The offset under a point relative to the line's top-left. Points on
     /// a row below the source map to the end of the row above it.
     pub fn offset_for_point(&self, x: Pixels, y: Pixels) -> usize {
+        if let Some(grid) = &self.grid {
+            return self
+                .grid_row_at(grid, x, y)
+                .map_or(0, |index| self.rows[index].offset_for_x(x));
+        }
         let Some(index) = self.row_at_y(y) else {
             return 0;
         };
@@ -419,7 +505,11 @@ impl VisualLine {
     /// The piece under a point relative to the line's top-left. In a
     /// block, where pieces stack, the one drawn last wins.
     pub fn piece_at_point(&self, x: Pixels, y: Pixels) -> Option<&Piece> {
-        let row = &self.rows[self.row_at_y(y)?];
+        let index = match &self.grid {
+            Some(grid) => self.grid_row_at(grid, x, y)?,
+            None => self.row_at_y(y)?,
+        };
+        let row = &self.rows[index];
         let inside = y >= row.top && y < row.bottom();
         if !inside {
             return None;
@@ -476,6 +566,7 @@ mod tests {
             rows,
             decor: LineDecor::default(),
             overlays: Vec::new(),
+            grid: None,
         }
     }
 
@@ -513,5 +604,43 @@ mod tests {
         assert_eq!(row.offset_for_x(px(1.)), 2);
         assert!(row.piece_at(px(35.)).is_none());
         assert_eq!(row.piece_at(px(45.)).unwrap().range, 8..12);
+    }
+
+    #[test]
+    fn grid_rows_find_offsets_and_points_by_cell() {
+        // Two cells side by side: 2..5 at x 10, and 8..9 at x 60, the
+        // second one wrapped over two rows.
+        let mut line = line(vec![
+            row(RowKind::Text, 0., 2..5, vec![widget(2..5, 10., 30.)]),
+            row(RowKind::Text, 0., 8..8, vec![]),
+            row(RowKind::Text, 10., 8..9, vec![widget(8..9, 60., 10.)]),
+        ]);
+        let cell = |x: f32, rows: Range<usize>, range: Range<usize>| GridCell {
+            x: px(x),
+            width: px(50.),
+            rows,
+            range: Some(range),
+        };
+        line.grid = Some(GridLine {
+            index: 1,
+            count: 2,
+            cells: vec![cell(0., 0..1, 2..5), cell(50., 1..3, 8..9)],
+            left: px(0.),
+            width: px(100.),
+            height: px(20.),
+        });
+        assert_eq!(line.row_for_offset(5), Some(0), "a cell's end is its own");
+        assert_eq!(line.row_for_offset(9), Some(2));
+        assert_eq!(
+            line.row_for_offset(6),
+            Some(0),
+            "between cells is the nearer"
+        );
+        assert_eq!(line.offset_for_point(px(99.), px(15.)), 9);
+        assert_eq!(line.offset_for_point(px(1.), px(15.)), 2);
+        assert_eq!(line.piece_at_point(px(65.), px(15.)).unwrap().range, 8..9);
+        let grid = line.grid.as_ref().unwrap();
+        assert_eq!(grid.column_at_x(px(55.)), Some(1));
+        assert_eq!(grid.column_at_x(px(120.)), None);
     }
 }

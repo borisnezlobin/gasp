@@ -174,6 +174,17 @@ impl FrameLayout {
         Some((placed, piece))
     }
 
+    /// Whether a window position is over a table drawn as a grid.
+    pub fn grid_at(&self, position: Point<Pixels>) -> bool {
+        self.lines.iter().any(|placed| {
+            let over_line = placed.top <= position.y && position.y < placed.bottom();
+            placed.visual.grid.as_ref().is_some_and(|grid| {
+                let x = position.x - self.text_left;
+                over_line && grid.left <= x && x < grid.left + grid.width
+            })
+        })
+    }
+
     /// Where the text column ends.
     pub fn text_right(&self) -> Pixels {
         self.text_left + self.column_width.max(px(0.))

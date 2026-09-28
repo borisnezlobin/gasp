@@ -360,6 +360,104 @@ pub struct Theme {
     pub find_ui: FindUiTheme,
     /// The workspace shell around the editor: tabs, panes, sidebar, status bar.
     pub workspace: WorkspaceTheme,
+    /// Tables drawn as grids, and the table editor's marks.
+    pub table: TableTheme,
+}
+
+/// How a table drawn as a grid looks: its cells, header and rules, and
+/// the table editor's marks — the ring on the cell being edited, the drag
+/// handles and what a drag shows.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TableTheme {
+    /// Room between a cell's edges and its text.
+    pub cell_padding_x: Pixels,
+    pub cell_padding_y: Pixels,
+    /// The fill behind the header row.
+    pub header_fill: Hsla,
+    /// The line under each row.
+    pub rule: Hsla,
+    pub rule_thickness: Pixels,
+    /// The ring around the cell the caret is in: the focus ring's colour,
+    /// so it reads as where the keyboard is without shouting.
+    pub active_ring: Hsla,
+    pub ring_width: Pixels,
+    /// Selected cells, and a row or column picked by its handle.
+    pub selection: Hsla,
+    /// The handle beside a row or above a column: its side, its gap from
+    /// the table, and its corner.
+    pub handle_size: Pixels,
+    pub handle_gap: Pixels,
+    pub handle_radius: Pixels,
+    /// The handle's dots, at rest and under the pointer.
+    pub handle_icon: Hsla,
+    pub handle_icon_hover: Hsla,
+    /// The fill behind a handle under the pointer or being dragged.
+    pub handle_fill: Hsla,
+    /// How long a handle takes to fade in once its row or column is
+    /// under the pointer.
+    pub handle_fade: std::time::Duration,
+    /// The line between rows or columns where a drag would drop.
+    pub drop_indicator: Hsla,
+    pub drop_indicator_width: Pixels,
+    /// A row or column being dragged: lifted off the page on a raised
+    /// fill with a shadow, a little faded.
+    pub drag_fill: Hsla,
+    pub drag_shadow: Hsla,
+    pub drag_shadow_blur: Pixels,
+    pub drag_opacity: f32,
+    /// How far the pointer moves on a handle before a press becomes a
+    /// drag.
+    pub drag_threshold: Pixels,
+}
+
+impl TableTheme {
+    fn from_palette(p: &Palette) -> Self {
+        Self {
+            cell_padding_x: px(8.),
+            cell_padding_y: px(4.),
+            header_fill: p.surface,
+            rule: p.divider,
+            rule_thickness: px(1.),
+            active_ring: p.focus(),
+            ring_width: px(2.),
+            selection: p.selection,
+            handle_size: px(16.),
+            handle_gap: px(4.),
+            handle_radius: px(4.),
+            handle_icon: p.text_faint,
+            handle_icon_hover: p.text_muted,
+            handle_fill: p.fill,
+            handle_fade: std::time::Duration::from_millis(120),
+            drop_indicator: p.accent,
+            drop_indicator_width: px(2.),
+            drag_fill: p.popover,
+            drag_shadow: p.shadow,
+            drag_shadow_blur: px(12.),
+            drag_opacity: 0.85,
+            drag_threshold: px(4.),
+        }
+    }
+
+    fn scaled(&self, zoom: f32) -> Self {
+        Self {
+            cell_padding_x: self.cell_padding_x * zoom,
+            cell_padding_y: self.cell_padding_y * zoom,
+            rule_thickness: self.rule_thickness * zoom,
+            ring_width: self.ring_width * zoom,
+            handle_size: self.handle_size * zoom,
+            handle_gap: self.handle_gap * zoom,
+            handle_radius: self.handle_radius * zoom,
+            drop_indicator_width: self.drop_indicator_width * zoom,
+            drag_shadow_blur: self.drag_shadow_blur * zoom,
+            ..self.clone()
+        }
+    }
+}
+
+impl Default for TableTheme {
+    fn default() -> Self {
+        Self::from_palette(Palette::builtin())
+    }
 }
 
 /// One colour per callout type.
@@ -507,6 +605,7 @@ impl Theme {
         for size in &mut scaled.heading_font_sizes {
             *size *= zoom;
         }
+        scaled.table = self.table.scaled(zoom);
         scaled
     }
 
@@ -724,6 +823,7 @@ fn read_colors(palette: &Palette) -> Theme {
         conflict_sides: [p.this_device, p.other_device],
         find_ui: FindUiTheme::from_palette(p),
         workspace: WorkspaceTheme::from_palette(p),
+        table: TableTheme::from_palette(p),
         ..zero_sizes()
     }
 }
@@ -734,6 +834,7 @@ fn zero_sizes() -> Theme {
     Theme {
         find_ui: FindUiTheme::default(),
         workspace: WorkspaceTheme::default(),
+        table: TableTheme::default(),
         body_font_family: SharedString::default(),
         ui_font_family: SharedString::default(),
         code_font_family: SharedString::default(),

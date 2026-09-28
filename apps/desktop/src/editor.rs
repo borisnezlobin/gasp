@@ -34,6 +34,7 @@ use crate::preview::layout::{frame_for, layout_framed};
 use crate::preview::math::{MathStore, RenderFn};
 use crate::preview::reveal::reveal_settings;
 use crate::preview::source::{Source, SourceChange};
+use crate::preview::table::{TableStore, table_columns};
 use crate::stats::Timings;
 use crate::suggest::SuggestState;
 use crate::theme::Theme;
@@ -164,6 +165,11 @@ pub struct EditorView {
     pub(crate) prose: crate::prose::ProseState,
     /// Lines laid out in earlier frames, reused while they're unchanged.
     pub(crate) line_cache: LineCache,
+    /// Tables' measured rows and columns.
+    pub(crate) tables: TableStore,
+    /// The table editor: the cell being edited, the table edited as
+    /// Markdown, handles, and row and column drags.
+    pub(crate) table_edit: crate::table_edit::TableEditing,
     clock: Instant,
     /// Waits for the installed fonts, while they're still being listed.
     _fonts: Option<gpui::Subscription>,
@@ -270,6 +276,8 @@ impl EditorView {
             code_copy: crate::code_copy::CodeCopy::default(),
             prose: crate::prose::ProseState::from_settings(&config.settings.prose),
             line_cache: LineCache::default(),
+            tables: TableStore::default(),
+            table_edit: Default::default(),
             clock: Instant::now(),
             _fonts: None,
         };
@@ -444,6 +452,7 @@ impl EditorView {
             .apply(transaction)
             .expect("a selection-only transaction always applies");
         self.drop_stale_tab_stops();
+        self.tables.forget_columns();
         self.autoscroll = true;
         // A place kept at the top gives way once the reader moves.
         if !self.read_only {
@@ -451,6 +460,7 @@ impl EditorView {
         }
         self.refresh_suggestions(cx);
         self.keep_card_offer(cx);
+        self.caret_moved_in_tables(cx);
         cx.emit(EditorEvent::SelectionChanged);
         cx.notify();
     }
@@ -553,6 +563,7 @@ impl EditorView {
             .expect("ranges are clamped to character boundaries");
         let change = self.source.replace(range, text);
         self.source_changed(change);
+        self.typed_in_table();
         self.marked = None;
         self.goal_x = None;
         self.autoscroll = true;
@@ -579,9 +590,13 @@ impl EditorView {
             [edit] => Some(edit.clone()),
             _ => None,
         };
+        let typed = transaction.meta.origin == Origin::Input && !transaction.changes.is_empty();
         let phase = crate::keytrace::span("state-apply");
         if self.state.apply(transaction).is_err() {
             return;
+        }
+        if typed {
+            self.typed_in_table();
         }
         drop(phase);
         self.goal_x = None;
@@ -625,9 +640,13 @@ impl EditorView {
         around: impl FnOnce(&Document, usize) -> Range<usize>,
         cx: &mut Context<Self>,
     ) {
+        if self.cell_block().is_some() {
+            return self.clear_cell_block(cx);
+        }
         let mut range = self.selected_range();
         if range.is_empty() {
-            range = around(self.state.doc(), range.start);
+            // In a table's cell, deleting stops at the cell's edge.
+            range = self.clamp_to_cell(around(self.state.doc(), range.start));
         }
         if !range.is_empty() {
             self.replace(range, "", cx);
@@ -654,6 +673,7 @@ impl EditorView {
     fn after_history_step(&mut self, cx: &mut Context<Self>) {
         // Undo can take a snippet's text away from under its stops.
         self.tab_stops = None;
+        self.forget_table_typing();
         if let Some(change) = self.source.sync(self.state.doc()) {
             self.source_changed(change);
         }
@@ -669,12 +689,29 @@ impl EditorView {
         self.refresh_suggestions(cx);
         self.keep_card_offer(cx);
         self.schedule_footnote_checks(cx);
+        self.caret_moved_in_tables(cx);
         cx.emit(EditorEvent::Edited);
         cx.notify();
     }
 
+    /// Applies a tidy-up as part of the last undo step, such as padding a
+    /// table's columns once typing in it is done.
+    pub(crate) fn apply_tidy(&mut self, transaction: Transaction, cx: &mut Context<Self>) {
+        let edit = match transaction.changes.edits() {
+            [edit] => edit.clone(),
+            _ => return,
+        };
+        if self.state.apply_into_last(transaction).is_err() {
+            return;
+        }
+        let change = self.source.replace(edit.range, &edit.insert);
+        self.source_changed(change);
+        self.after_edit(cx);
+    }
+
     /// Re-estimates the changed lines and moves fold overrides.
     fn source_changed(&mut self, change: SourceChange) {
+        self.tables.forget_columns();
         let estimator = Estimator {
             theme: &self.theme,
             column_width: self.column_width,
@@ -803,6 +840,7 @@ impl EditorView {
         };
         self.metrics = LineMetrics::build(&self.source, &estimator);
         self.line_cache.clear();
+        self.tables.clear();
         self.autoscroll = true;
     }
 
@@ -818,18 +856,38 @@ impl EditorView {
         (bounds.left() + (bounds.size.width - width) / 2., width)
     }
 
+    /// The selections lines are planned with: none in an editor without
+    /// the keyboard, so it reads as a preview.
+    pub(crate) fn planned_selections(&self) -> Vec<Range<usize>> {
+        match self.reveals_at_cursor {
+            true => self.selected_ranges(),
+            false => Vec::new(),
+        }
+    }
+
+    /// The reveal settings lines are planned with: the table being edited
+    /// as Markdown shows its source.
+    pub(crate) fn planned_reveal(&self) -> std::borrow::Cow<'_, RevealSettings> {
+        match self.table_edit.source_table(self.cursor()) {
+            Some(at) => {
+                let mut reveal = self.reveal.clone();
+                reveal.source_table = Some(at);
+                std::borrow::Cow::Owned(reveal)
+            }
+            None => std::borrow::Cow::Borrowed(&self.reveal),
+        }
+    }
+
     /// Plans `lines` for the current selection and settings. An editor
     /// without the keyboard plans as if nothing were selected.
     pub(crate) fn plan(&self, lines: Range<usize>) -> Vec<LinePlan> {
-        let selections = match self.reveals_at_cursor {
-            true => self.selected_ranges(),
-            false => Vec::new(),
-        };
+        let selections = self.planned_selections();
+        let reveal = self.planned_reveal();
         let input = RenderInput {
             text: self.source.text(),
             tree: self.source.tree(),
             selections: &selections,
-            settings: &self.reveal,
+            settings: &reveal,
         };
         let mut plans = plan_lines(&input, lines).lines;
         self.folds
@@ -870,6 +928,11 @@ impl EditorView {
     /// Lays out a planned line against the current column, or takes it
     /// from the line cache when nothing it depends on changed.
     pub(crate) fn layout_plan(&mut self, plan: &LinePlan, window: &Window) -> VisualLine {
+        let selections = self.planned_selections();
+        let reveal = match self.planned_reveal() {
+            std::borrow::Cow::Borrowed(_) => None,
+            std::borrow::Cow::Owned(reveal) => Some(reveal),
+        };
         let context = LayoutContext {
             source: &self.source,
             theme: &self.theme,
@@ -878,12 +941,15 @@ impl EditorView {
             scale_factor: window.scale_factor(),
             marked: self.marked.clone(),
             code_line_numbers: self.code_line_numbers,
+            reveal: reveal.as_ref().unwrap_or(&self.reveal),
+            selections: &selections,
         };
         let mut resources = LayoutResources {
             text_system: window.text_system(),
             images: &mut self.images,
             math: &mut self.math,
             code: &mut self.code,
+            tables: &mut self.tables,
         };
         let cache = &mut self.line_cache;
         cache.begin_frame(LayoutEpoch {
@@ -902,7 +968,9 @@ impl EditorView {
         let frame = frame_for(plan, &context);
         let spans = spans_for_line(plan, context.source, resources.code);
         let text = &context.source.text()[plan.range.clone()];
-        let Some(key) = LineCache::key(plan, text, &frame, spans.as_ref()) else {
+        let columns = table_columns(plan, &frame, &context, &mut resources);
+        let Some(key) = LineCache::key(plan, text, &frame, spans.as_ref(), columns.as_deref())
+        else {
             return layout_framed(plan, frame, spans, &context, &mut resources);
         };
         if let Some(visual) = cache.get(&key, plan, text, &frame) {
@@ -982,6 +1050,7 @@ impl EditorView {
         let viewport = (bounds.size.height - padding * 2.).max(px(0.));
         self.math.begin_frame();
         self.code.begin_frame();
+        self.tables.forget_columns();
         let scrolled_from = self.scroll_y;
         match self.pinned_top {
             Some(offset) => {

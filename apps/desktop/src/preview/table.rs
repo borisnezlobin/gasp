@@ -1,400 +1,436 @@
-//! A table drawn as an aligned grid while the cursor is outside it.
+//! Tables drawn as grids. Each row of a table is its own source line laid
+//! out as a row of cells, so the caret, selection and hit testing work in
+//! a cell as they do in a paragraph; the delimiter row's line takes no
+//! space.
 //!
-//! Each cell is planned on its own with every symbol hidden, then set as
-//! a row of fragments: text shaped at its own size (inline code is
-//! smaller) and rendered equations, all sharing one baseline, as inline
-//! math does in a paragraph.
+//! Every row of a table sets its cells in the same columns, sized from
+//! all its rows' cells. [`TableStore`] keeps each row's measured cells
+//! until the row changes, so typing in a cell measures only its row, and
+//! the columns once a frame.
 
+use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::ops::Range;
 use std::sync::Arc;
 
 use editor_core::render::{
-    LinePlan, RenderInput, RevealMode, RevealSettings, StyleKey, WidgetKind, plan_lines,
+    LinePlan, RenderInput, RevealSettings, StyleKey, TableRowPlan, plan_lines,
 };
-use editor_core::syntax::{Alignment, SyntaxKind};
-use gpui::{Hsla, Pixels, TextRun, px};
+use editor_core::syntax::{Alignment, NodeKind};
+use editor_core::table::table_node_at;
+use gpui::{Pixels, px};
 
-use crate::line_layout::{Background, Hit, Piece, PieceContent, VisualRow};
-use crate::preview::items::{Item, line_items};
-use crate::preview::layout::{LineLayouter, chunk_padding, take_backgrounds};
-use crate::preview::math::{MathImage, MathState};
-use crate::preview::wrap::{Chunk, Extent, RowBuilder, widest_word};
-use crate::styling::{LineTone, run_font_size, text_run};
+use crate::line_layout::{GridCell, GridLine, PieceContent, VisualRow};
+use crate::preview::decor::LineFrame;
+use crate::preview::items::{Item, LineItems, line_items};
+use crate::preview::layout::{LayoutContext, LayoutResources, LineLayouter, assign_ranges};
+use crate::preview::wrap::{RowBuilder, widest_word};
 
-/// The planner's description of a table.
-pub struct TableSpec<'a> {
-    pub alignments: &'a [Alignment],
-    /// Cell content ranges in document offsets, header row first.
-    pub rows: &'a [Vec<Range<usize>>],
+/// Rows measured before the store starts over; far more than a screen.
+const ROW_LIMIT: usize = 4096;
+
+/// Where a table's columns go.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Columns {
+    /// Each column's left edge, from the table's.
+    pub lefts: Vec<Pixels>,
+    pub widths: Vec<Pixels>,
 }
 
-/// Something set in a cell: text that may wrap, or an equation that
-/// never does.
-enum Part {
-    Text { chunk: Chunk, padding: Pixels },
-    Math(Arc<MathImage>),
-}
+impl Columns {
+    fn from_widths(widths: Vec<Pixels>) -> Self {
+        let mut left = px(0.);
+        let lefts = widths
+            .iter()
+            .map(|width| {
+                let at = left;
+                left += *width;
+                at
+            })
+            .collect();
+        Self { lefts, widths }
+    }
 
-/// A cell's parts, how wide they are on one line, and the narrowest the
-/// cell can get: its widest word or equation.
-#[derive(Default)]
-struct Cell {
-    parts: Vec<Part>,
-    width: Pixels,
-    min_width: Pixels,
-}
+    pub fn width(&self) -> Pixels {
+        self.widths.iter().fold(px(0.), |sum, width| sum + *width)
+    }
 
-impl Cell {
-    fn push(&mut self, part: Part, width: Pixels, min_width: Pixels) {
-        self.parts.push(part);
-        self.width += width;
-        self.min_width = self.min_width.max(min_width);
+    /// Hashes the columns, for the line cache: a row laid out against
+    /// other columns is laid out again.
+    pub fn hash_into(&self, hasher: &mut DefaultHasher) {
+        for width in &self.widths {
+            f32::from(*width).to_bits().hash(hasher);
+        }
     }
 }
 
-/// A cell set within its column: its rows, and how far its first row's
-/// baseline is from its top, so cells in a table row share a baseline.
+/// How wide a row's cells want to be: on one line, and the narrowest
+/// each can wrap to (its widest word or equation). Padding not included.
+#[derive(Clone, Debug, Default)]
+struct RowWidths {
+    cells: Vec<(Pixels, Pixels)>,
+}
+
+/// What every measured row was measured against.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Measured {
+    zoom: f32,
+    scale_factor: f32,
+    reveal: Option<RevealSettings>,
+}
+
+/// Measured rows and this frame's columns.
+#[derive(Default)]
+pub struct TableStore {
+    measured: Measured,
+    rows: HashMap<u64, Arc<RowWidths>>,
+    /// Columns worked out since the text or selection last changed, by
+    /// where their table starts.
+    columns: HashMap<usize, Arc<Columns>>,
+}
+
+impl TableStore {
+    /// Forgets everything, as when the theme changes.
+    pub fn clear(&mut self) {
+        self.rows.clear();
+        self.columns.clear();
+    }
+
+    /// Forgets the columns worked out, as the text or the selection
+    /// changed. Measured rows stay: they know what they depend on.
+    pub fn forget_columns(&mut self) {
+        self.columns.clear();
+    }
+
+    /// The columns worked out for the table starting at `start`, if they
+    /// still hold.
+    pub fn columns(&self, start: usize) -> Option<Arc<Columns>> {
+        self.columns.get(&start).cloned()
+    }
+
+    /// Starts over when what rows are measured against changed.
+    fn check(&mut self, context: &LayoutContext<'_>) {
+        let stale = self.measured.zoom != context.zoom
+            || self.measured.scale_factor != context.scale_factor
+            || self.measured.reveal.as_ref() != Some(context.reveal);
+        if stale {
+            self.clear();
+            self.measured = Measured {
+                zoom: context.zoom,
+                scale_factor: context.scale_factor,
+                reveal: Some(context.reveal.clone()),
+            };
+        }
+    }
+}
+
+/// The columns of the table `plan` is a row of, for the line cache's key:
+/// worked out now if this frame hasn't yet.
+pub fn table_columns(
+    plan: &LinePlan,
+    frame: &LineFrame,
+    context: &LayoutContext<'_>,
+    resources: &mut LayoutResources<'_>,
+) -> Option<Arc<Columns>> {
+    let row = plan.table_row.as_ref()?;
+    let mut layouter = LineLayouter::new(plan, frame.clone(), None, context, resources);
+    Some(layouter.columns(row))
+}
+
+/// A cell's rows before they're placed in its row: how far the first
+/// one's baseline is from its top, so the cells of a row share one.
 struct SetCell {
     rows: Vec<VisualRow>,
     ascent: Pixels,
-    height: Pixels,
-}
-
-/// Text waiting to be shaped: consecutive runs at one size.
-#[derive(Default)]
-struct PendingText {
-    text: String,
-    runs: Vec<TextRun>,
-    backgrounds: Vec<Background>,
-    font_size: Option<Pixels>,
 }
 
 impl LineLayouter<'_, '_> {
-    pub(super) fn table(
+    /// Lays out a table row: each cell's text set in its column, wrapping
+    /// within it, the cells sharing the first line's baseline.
+    pub(super) fn table_row(
         &mut self,
-        range: &Range<usize>,
-        spec: &TableSpec<'_>,
-        left: Pixels,
-        width: Pixels,
-    ) -> Vec<Piece> {
-        let theme = self.theme();
-        let pad_x = theme.space_md;
-        let pad_y = theme.space_xs * 2.;
-        let strut = self.strut(&self.body_font(), self.font_size(), self.line_height());
-        let cells = self.cells(spec);
-        let columns = column_widths(&cells, pad_x, width);
-        let table_width = columns.iter().fold(px(0.), |sum, column| sum + *column);
-        let mut pieces = Vec::new();
-        let mut top = px(0.);
-        for (row_index, row) in cells.into_iter().enumerate() {
-            let set: Vec<SetCell> = row
-                .into_iter()
-                .enumerate()
-                .map(|(column, cell)| {
-                    let room = columns.get(column).copied().unwrap_or(px(0.)) - pad_x * 2.;
-                    self.set_cell(cell, room, strut)
-                })
-                .collect();
-            let ascent = set.iter().fold(px(0.), |most, cell| most.max(cell.ascent));
-            let content_height = set.iter().fold(px(0.), |most, cell| {
-                most.max(ascent - cell.ascent + cell.height)
-            });
-            let row_height = content_height + pad_y * 2.;
-            if row_index == 0 {
-                pieces.push(quad(
-                    range,
-                    left,
-                    top,
-                    table_width,
-                    row_height,
-                    theme.surface,
-                ));
-            }
-            let mut x = left;
-            for (column, cell) in set.into_iter().enumerate() {
-                let column_width = columns.get(column).copied().unwrap_or(px(0.));
-                let alignment = spec
-                    .alignments
+        row: &TableRowPlan,
+        items: &LineItems,
+    ) -> (Vec<VisualRow>, GridLine) {
+        let columns = self.columns(row);
+        let look = &self.theme().table;
+        let (pad_x, pad_y) = (look.cell_padding_x, look.cell_padding_y);
+        let top = self.frame.pad_top + self.frame.decor.margin_top;
+        let left = self.frame.left;
+        let line_start = self.plan.range.start;
+        let set: Vec<(Option<Range<usize>>, SetCell)> = (0..columns.widths.len())
+            .map(|column| {
+                let range = row
+                    .cells
                     .get(column)
-                    .copied()
-                    .unwrap_or(Alignment::None);
-                let cell_top = top + pad_y + ascent - cell.ascent;
-                let room = column_width - pad_x * 2.;
-                pieces.extend(cell_pieces(
-                    range,
-                    cell,
-                    (x + pad_x, cell_top),
-                    room,
-                    alignment,
-                ));
-                x += column_width;
-            }
-            top += row_height;
-            let rule = theme.rule_thickness;
-            pieces.push(quad(
-                range,
-                left,
-                top - rule,
-                table_width,
-                rule,
-                theme.divider,
-            ));
-        }
-        pieces
-    }
-
-    /// Sets a cell's parts in rows no wider than `room`, breaking text
-    /// between words.
-    fn set_cell(&self, cell: Cell, room: Pixels, strut: Extent) -> SetCell {
-        let mut builder = RowBuilder::new(px(0.), room, px(0.), strut);
-        for part in cell.parts {
-            match part {
-                Part::Text { chunk, padding } => {
-                    builder.advance(padding);
-                    builder.push_chunk(&chunk, &self.shaper());
-                    builder.advance(padding);
-                }
-                Part::Math(image) => {
-                    let extent = Extent {
-                        ascent: image.baseline,
-                        descent: image.height - image.baseline,
-                    };
-                    let piece = Piece {
-                        range: 0..0,
-                        x: px(0.),
-                        top: px(0.),
-                        width: image.width,
-                        height: image.height,
-                        content: PieceContent::Image {
-                            image: image.image.clone(),
-                            radius: px(0.),
-                        },
-                        hit: Hit::Widget,
-                    };
-                    builder.push_atomic(piece, extent);
-                }
-            }
-        }
-        let rows = builder.finish();
-        let ascent = rows
-            .first()
-            .map_or(strut.ascent, |row| row.caret_top + strut.ascent);
-        let height = rows.last().map_or(px(0.), VisualRow::bottom);
-        SetCell {
-            rows,
-            ascent,
-            height,
-        }
-    }
-
-    fn body_font(&self) -> gpui::Font {
-        text_run(1, &[], &self.tone, false, self.theme()).font
-    }
-
-    /// Every cell's contents, planned with inline markup hidden so the
-    /// table's source shows nowhere.
-    fn cells(&mut self, spec: &TableSpec<'_>) -> Vec<Vec<Cell>> {
-        let plans = self.cell_plans(spec);
-        let items: Vec<(Range<usize>, Vec<Item>)> = plans
-            .iter()
-            .map(|plan| (plan.range.clone(), line_items(plan).items))
-            .collect();
-        spec.rows
-            .iter()
-            .enumerate()
-            .map(|(index, row)| {
-                row.iter()
-                    .map(|cell| {
-                        let line = items.iter().find(|(line, _)| line.contains(&cell.start));
-                        match line {
-                            Some((line, items)) => self.cell(line.start, items, cell, index == 0),
-                            None => Cell::default(),
-                        }
-                    })
-                    .collect()
+                    .map(|cell| cell.start - line_start..cell.end - line_start);
+                let x = left + columns.lefts[column] + pad_x;
+                let room = columns.widths[column] - pad_x * 2.;
+                let alignment = row.alignments.get(column).copied();
+                let header = row.index == 0;
+                let cell = self.set_cell(items, range.clone(), (x, room), alignment, header);
+                (range, cell)
             })
-            .collect()
-    }
-
-    fn cell_plans(&self, spec: &TableSpec<'_>) -> Vec<LinePlan> {
-        let source = self.context.source;
-        let cells = spec.rows.iter().flatten();
-        let (Some(first), Some(last)) = (
-            cells.clone().map(|cell| cell.start).min(),
-            cells.map(|cell| cell.end).max(),
-        ) else {
-            return Vec::new();
+            .collect();
+        let ascent = set
+            .iter()
+            .fold(px(0.), |most, (_, cell)| most.max(cell.ascent));
+        let mut rows = Vec::new();
+        let mut cells = Vec::with_capacity(set.len());
+        let mut bottom = top + pad_y + self.line_height();
+        for (column, (range, cell)) in set.into_iter().enumerate() {
+            let shift = top + pad_y + ascent - cell.ascent;
+            let first = rows.len();
+            for mut visual in cell.rows {
+                visual.top += shift;
+                bottom = bottom.max(visual.bottom());
+                rows.push(visual);
+            }
+            cells.push(GridCell {
+                x: left + columns.lefts[column],
+                width: columns.widths[column],
+                rows: first..rows.len(),
+                range,
+            });
+        }
+        let grid = GridLine {
+            index: row.index,
+            count: row.count,
+            cells,
+            left,
+            width: columns.width(),
+            height: bottom + pad_y,
         };
-        let settings = RevealSettings::new(RevealMode::AlwaysHidden)
-            .with_override(SyntaxKind::Table, RevealMode::AlwaysShown);
-        plan_lines(
-            &RenderInput {
-                text: source.text(),
-                tree: source.tree(),
-                selections: &[],
-                settings: &settings,
-            },
-            source.line_of(first)..source.line_of(last) + 1,
-        )
-        .lines
+        (rows, grid)
     }
 
-    /// Lays out one cell from its line's items. `line_start` is the
-    /// document offset the items are relative to.
-    fn cell(
+    /// Sets a cell's text in rows `room` wide from `x`, aligned in them.
+    /// A cell a short row leaves out has no rows.
+    fn set_cell(
         &mut self,
-        line_start: usize,
+        items: &LineItems,
+        range: Option<Range<usize>>,
+        (x, room): (Pixels, Pixels),
+        alignment: Option<Alignment>,
+        header: bool,
+    ) -> SetCell {
+        let font = self.line_font();
+        let strut = self.strut(&font, self.font_size(), self.line_height());
+        let caret = self.glyph_extent(&font, self.font_size());
+        let Some(range) = range else {
+            return SetCell {
+                rows: Vec::new(),
+                ascent: strut.ascent,
+            };
+        };
+        let mut builder = RowBuilder::new(x, x + room, px(0.), strut).with_caret(caret);
+        self.place_cell(&items.items, &range, header, &mut builder);
+        let mut rows = builder.finish();
+        assign_ranges(&mut rows, range, self.text);
+        for row in &mut rows {
+            let shift = aligned(alignment, room, row.right() - x);
+            row.left += shift;
+            for piece in &mut row.pieces {
+                piece.x += shift;
+            }
+        }
+        let ascent = rows.first().map_or(strut.ascent, |row| {
+            row.caret_top + caret.ascent.min(strut.ascent)
+        });
+        SetCell { rows, ascent }
+    }
+
+    /// Places the items inside a cell's text, bold in the header.
+    fn place_cell(
+        &mut self,
         items: &[Item],
         cell: &Range<usize>,
         header: bool,
-    ) -> Cell {
-        let text = self.context.source.text();
-        let cell = cell.start - line_start..cell.end - line_start;
-        let mut result = Cell::default();
-        let mut pending = PendingText::default();
-        for item in items {
-            match item {
-                Item::Text { range, styles } => {
-                    let clipped = range.start.max(cell.start)..range.end.min(cell.end);
-                    if clipped.is_empty() {
-                        continue;
-                    }
-                    let mut styles = styles.clone();
-                    if header {
-                        styles.push(StyleKey::Strong);
-                    }
-                    let absolute = clipped.start + line_start..clipped.end + line_start;
-                    self.push_text(&mut result, &mut pending, &text[absolute], &styles, None);
-                }
-                Item::Inline {
-                    range,
-                    kind: WidgetKind::InlineMath { tex, .. },
-                } if cell.contains(&range.start) => {
-                    self.flush(&mut result, &mut pending);
-                    self.cell_math(&mut result, &mut pending, tex);
-                }
-                _ => {}
-            }
-        }
-        self.flush(&mut result, &mut pending);
-        result
-    }
-
-    /// Adds text to the pending fragment, shaping what came before first
-    /// if the size or font changes. The main text shapes one font per
-    /// chunk too: a line shaped with several fonts comes out in the first
-    /// one on Linux.
-    fn push_text(
-        &self,
-        cell: &mut Cell,
-        pending: &mut PendingText,
-        text: &str,
-        styles: &[StyleKey],
-        color: Option<Hsla>,
+        builder: &mut RowBuilder,
     ) {
-        let font_size = run_font_size(styles, &LineTone::PLAIN, self.theme());
-        let mut run = text_run(text.len(), styles, &LineTone::PLAIN, false, self.theme());
-        if let Some(color) = color {
-            run.color = color;
+        let items = cell_items(items, cell, header);
+        let mut index = 0;
+        while index < items.len() {
+            index = self.place_item(&items, index, builder);
         }
-        let same_font = pending.runs.last().is_none_or(|last| last.font == run.font);
-        if pending.font_size.is_some_and(|size| size != font_size) || !same_font {
-            self.flush(cell, pending);
-        }
-        pending.font_size = Some(font_size);
-        let mut runs = [run];
-        take_backgrounds(
-            &mut runs,
-            pending.text.len(),
-            crate::styling::fill_padding(styles, self.theme()),
-            &mut pending.backgrounds,
-        );
-        pending.text.push_str(text);
-        pending.runs.extend(runs);
     }
 
-    fn flush(&self, cell: &mut Cell, pending: &mut PendingText) {
-        let pending = std::mem::take(pending);
-        let Some(font_size) = pending.font_size.filter(|_| !pending.text.is_empty()) else {
-            return;
-        };
-        let text = pending.text.replace('\t', " ");
-        let shaped = self.shaper().shape(&text, font_size, &pending.runs);
-        let padding = chunk_padding(&pending.backgrounds);
-        let width = shaped.width + padding * 2.;
-        let min_width = widest_word(&shaped, &text) + padding * 2.;
-        let chunk = Chunk {
-            range: 0..text.len(),
-            text,
-            font_size,
-            line_height: font_size * self.theme().line_height_factor,
-            baseline_shift: px(0.),
-            runs: pending.runs,
-            backgrounds: pending.backgrounds,
-        };
-        cell.push(Part::Text { chunk, padding }, width, min_width);
-    }
-
-    /// An equation in a cell: rendered when ready, its source until then,
-    /// in the error colour when it can't render.
-    fn cell_math(&mut self, cell: &mut Cell, pending: &mut PendingText, tex: &str) {
-        let source = |layouter: &Self, cell: &mut Cell, pending: &mut PendingText, color| {
-            let styles = [StyleKey::MathSource];
-            layouter.push_text(cell, pending, tex, &styles, color);
-            layouter.flush(cell, pending);
-        };
-        match self.math(tex, false, self.font_size()) {
-            MathState::Ready(image) => {
-                let width = image.width;
-                cell.push(Part::Math(image), width, width);
+    /// The table's columns: from this frame's, or worked out from every
+    /// row's measured cells.
+    pub(super) fn columns(&mut self, row: &TableRowPlan) -> Arc<Columns> {
+        self.resources.tables.check(self.context);
+        if let Some(columns) = self.resources.tables.columns(row.table_start) {
+            return columns;
+        }
+        let tree = self.context.source.tree();
+        let lines: Vec<usize> = table_node_at(tree, row.table_start)
+            .filter(|&id| matches!(tree.node(id).kind, NodeKind::Table { .. }))
+            .map(|id| {
+                let rows = &tree.node(id).children;
+                rows.iter()
+                    .map(|&row| tree.lines().line_of(tree.node(row).range.start))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut natural: Vec<Pixels> = Vec::new();
+        let mut least: Vec<Pixels> = Vec::new();
+        for (index, line) in lines.into_iter().enumerate() {
+            let widths = self.row_widths(line, index == 0);
+            for (column, (one_line, narrowest)) in widths.cells.iter().enumerate() {
+                if natural.len() <= column {
+                    natural.push(px(0.));
+                    least.push(px(0.));
+                }
+                natural[column] = natural[column].max(*one_line);
+                least[column] = least[column].max(*narrowest);
             }
-            MathState::Pending => source(self, cell, pending, None),
-            MathState::Failed(_) => source(self, cell, pending, Some(self.theme().error)),
         }
+        let padding = self.theme().table.cell_padding_x * 2.;
+        let padded = |widths: Vec<Pixels>| -> Vec<Pixels> {
+            widths.into_iter().map(|width| width + padding).collect()
+        };
+        let available = self.context.column_width - self.frame.right - self.frame.left;
+        let widths = fit_widths(&padded(natural), &padded(least), available);
+        let columns = Arc::new(Columns::from_widths(widths));
+        self.resources
+            .tables
+            .columns
+            .insert(row.table_start, columns.clone());
+        columns
+    }
+
+    /// A row's measured cells: kept from before when the row's text and
+    /// what's selected in it are the same, else planned and measured now.
+    fn row_widths(&mut self, line: usize, header: bool) -> Arc<RowWidths> {
+        let source = self.context.source;
+        let range = source.line_range(line);
+        let key = row_key(&source.text()[range.clone()], header, &range, self.context);
+        if let Some(widths) = self.resources.tables.rows.get(&key) {
+            return widths.clone();
+        }
+        let input = RenderInput {
+            text: source.text(),
+            tree: source.tree(),
+            selections: self.context.selections,
+            settings: self.context.reveal,
+        };
+        let Some(plan) = plan_lines(&input, line..line + 1).lines.pop() else {
+            return Arc::default();
+        };
+        let widths = Arc::new(self.measure_row(&plan, header));
+        let settled = plan
+            .widgets
+            .iter()
+            .all(|widget| crate::line_cache::is_settled(&widget.kind));
+        let store = &mut self.resources.tables;
+        if settled {
+            if store.rows.len() >= ROW_LIMIT {
+                store.rows.clear();
+            }
+            store.rows.insert(key, widths.clone());
+        }
+        widths
+    }
+
+    /// Measures each cell of a planned row, laying it out on one line.
+    fn measure_row(&mut self, plan: &LinePlan, header: bool) -> RowWidths {
+        let Some(row) = &plan.table_row else {
+            return RowWidths::default();
+        };
+        let frame = self.frame.clone();
+        let mut layouter = LineLayouter::new(plan, frame, None, self.context, self.resources);
+        let items = line_items(plan);
+        let cells = row
+            .cells
+            .iter()
+            .map(|cell| {
+                let relative = cell.start - plan.range.start..cell.end - plan.range.start;
+                layouter.measure_cell(&items.items, &relative, header)
+            })
+            .collect();
+        RowWidths { cells }
+    }
+
+    /// A cell's width on one line, and its widest word or equation.
+    fn measure_cell(
+        &mut self,
+        items: &[Item],
+        cell: &Range<usize>,
+        header: bool,
+    ) -> (Pixels, Pixels) {
+        let font = self.line_font();
+        let strut = self.strut(&font, self.font_size(), self.line_height());
+        let mut builder = RowBuilder::new(px(0.), UNBOUNDED, px(0.), strut);
+        self.place_cell(items, cell, header, &mut builder);
+        let rows = builder.finish();
+        let natural = rows.iter().map(VisualRow::right).fold(px(0.), Pixels::max);
+        let least = rows
+            .iter()
+            .flat_map(|row| row.pieces.iter())
+            .map(|piece| match &piece.content {
+                PieceContent::Text(text) => widest_word(&text.shaped, &text.shaped.text),
+                _ => piece.width,
+            })
+            .fold(px(0.), Pixels::max);
+        (natural, least)
     }
 }
 
-fn quad(
-    range: &Range<usize>,
-    x: Pixels,
-    top: Pixels,
-    width: Pixels,
-    height: Pixels,
-    color: Hsla,
-) -> Piece {
-    Piece {
-        range: range.clone(),
-        x,
-        top,
-        width,
-        height,
-        content: PieceContent::Quad {
-            color,
-            radius: px(0.),
-        },
-        hit: Hit::Widget,
+/// Room for a cell being measured on one line.
+const UNBOUNDED: Pixels = px(1.0e6);
+
+/// What a row's measurement depends on besides the frame's: its text,
+/// whether it's the header, and the selections and composition in it,
+/// which reveal markup.
+fn row_key(text: &str, header: bool, line: &Range<usize>, context: &LayoutContext<'_>) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    text.hash(&mut hasher);
+    header.hash(&mut hasher);
+    let relative = |range: &Range<usize>| {
+        let touches = range.start <= line.end && range.end >= line.start;
+        touches.then(|| {
+            (
+                range.start.saturating_sub(line.start),
+                range.end.saturating_sub(line.start),
+            )
+        })
+    };
+    for selection in context.selections {
+        relative(selection).hash(&mut hasher);
     }
+    context.marked.as_ref().and_then(relative).hash(&mut hasher);
+    hasher.finish()
+}
+
+/// The items inside a cell's text, clipped to it; the header's text is
+/// bold.
+fn cell_items(items: &[Item], cell: &Range<usize>, header: bool) -> Vec<Item> {
+    let inside = |range: &Range<usize>| cell.start <= range.start && range.end <= cell.end;
+    items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Text { range, styles } => {
+                let clipped = range.start.max(cell.start)..range.end.min(cell.end);
+                let mut styles = styles.clone();
+                if header && !styles.contains(&StyleKey::Strong) {
+                    styles.push(StyleKey::Strong);
+                }
+                (clipped.start < clipped.end).then_some(Item::Text {
+                    range: clipped,
+                    styles,
+                })
+            }
+            Item::Inline { range, .. } | Item::Break { range } if inside(range) => {
+                Some(item.clone())
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// Column widths: each column's widest cell when the table fits. When
 /// it doesn't, every column keeps room for its longest word or equation
 /// and the rest of the width goes to the columns that have more to wrap.
-fn column_widths(rows: &[Vec<Cell>], padding: Pixels, available: Pixels) -> Vec<Pixels> {
-    let count = rows.iter().map(Vec::len).max().unwrap_or(0);
-    let widest = |column: usize, width: fn(&Cell) -> Pixels| {
-        rows.iter()
-            .filter_map(|row| row.get(column))
-            .map(width)
-            .fold(px(0.), Pixels::max)
-            + padding * 2.
-    };
-    let natural: Vec<Pixels> = (0..count).map(|c| widest(c, |cell| cell.width)).collect();
-    let least: Vec<Pixels> = (0..count)
-        .map(|c| widest(c, |cell| cell.min_width))
-        .collect();
-    fit_widths(&natural, &least, available)
-}
-
 fn fit_widths(natural: &[Pixels], least: &[Pixels], available: Pixels) -> Vec<Pixels> {
     let sum = |widths: &[Pixels]| widths.iter().fold(px(0.), |sum, width| sum + *width);
     if sum(natural) <= available {
@@ -438,36 +474,15 @@ fn narrow_columns(natural: &[Pixels], available: Pixels) -> (Vec<bool>, Pixels) 
     }
 }
 
-fn aligned(alignment: Alignment, room: Pixels, width: Pixels) -> Pixels {
+/// How far a row `width` wide moves right to sit in `room` as its column
+/// aligns.
+fn aligned(alignment: Option<Alignment>, room: Pixels, width: Pixels) -> Pixels {
     let spare = (room - width).max(px(0.));
     match alignment {
-        Alignment::Center => spare / 2.,
-        Alignment::Right => spare,
-        Alignment::Left | Alignment::None => px(0.),
+        Some(Alignment::Center) => spare / 2.,
+        Some(Alignment::Right) => spare,
+        _ => px(0.),
     }
-}
-
-/// A set cell's pieces, each row aligned within `room` from its top
-/// left corner. They all stand for the table's source.
-fn cell_pieces(
-    range: &Range<usize>,
-    cell: SetCell,
-    (x, top): (Pixels, Pixels),
-    room: Pixels,
-    alignment: Alignment,
-) -> impl Iterator<Item = Piece> {
-    let range = range.clone();
-    cell.rows.into_iter().flat_map(move |row| {
-        let offset = aligned(alignment, room, row.right());
-        let range = range.clone();
-        row.pieces.into_iter().map(move |mut piece| {
-            piece.x += x + offset;
-            piece.top += top + row.top;
-            piece.range = range.clone();
-            piece.hit = Hit::Widget;
-            piece
-        })
-    })
 }
 
 #[cfg(test)]
@@ -476,10 +491,11 @@ mod tests {
 
     #[test]
     fn alignment_places_cells_within_their_column() {
-        assert_eq!(aligned(Alignment::Right, px(100.), px(40.)), px(60.));
-        assert_eq!(aligned(Alignment::Center, px(100.), px(40.)), px(30.));
-        assert_eq!(aligned(Alignment::Left, px(100.), px(40.)), px(0.));
-        assert_eq!(aligned(Alignment::Right, px(10.), px(40.)), px(0.));
+        let at = |alignment| aligned(Some(alignment), px(100.), px(40.));
+        assert_eq!(at(Alignment::Right), px(60.));
+        assert_eq!(at(Alignment::Center), px(30.));
+        assert_eq!(at(Alignment::Left), px(0.));
+        assert_eq!(aligned(Some(Alignment::Right), px(10.), px(40.)), px(0.));
     }
 
     #[test]
@@ -494,5 +510,12 @@ mod tests {
         let least = [px(100.), px(100.)];
         assert_eq!(fit_widths(&natural, &least, px(500.)), [px(200.), px(300.)]);
         assert_eq!(fit_widths(&natural, &least, px(150.)), least.to_vec());
+    }
+
+    #[test]
+    fn columns_sit_side_by_side() {
+        let columns = Columns::from_widths(vec![px(10.), px(20.), px(5.)]);
+        assert_eq!(columns.lefts, [px(0.), px(10.), px(30.)]);
+        assert_eq!(columns.width(), px(35.));
     }
 }

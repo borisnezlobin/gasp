@@ -1,5 +1,7 @@
 //! Moving the cursor by character, word, visual row, page and note. Up,
-//! down, Home and End follow soft-wrapped rows, not source lines.
+//! down, Home and End follow soft-wrapped rows, not source lines. In a
+//! table drawn as a grid, Up and Down move through a cell's rows, then to
+//! the cell above or below in the same column.
 
 use editor_core::motion;
 use gpui::{Context, Pixels, Window, px};
@@ -126,7 +128,7 @@ impl EditorView {
         let goal_x = self.goal_column(window);
         let mut position = self.cursor_row(window);
         for _ in 0..delta.unsigned_abs() {
-            match self.adjacent_row(position, delta > 0, window) {
+            match self.adjacent_row(position, delta > 0, goal_x, window) {
                 Some(next) => position = next,
                 None => {
                     let edge = if delta < 0 { 0 } else { self.doc().len() };
@@ -144,24 +146,17 @@ impl EditorView {
         self.goal_x = Some(goal_x);
     }
 
-    /// The caret row above or below, skipping collapsed lines.
+    /// The caret row above or below, skipping collapsed lines. Going
+    /// into a table row, it's a row of the cell under `goal_x`.
     fn adjacent_row(
         &mut self,
         from: RowPosition,
         down: bool,
+        goal_x: Pixels,
         window: &mut Window,
     ) -> Option<RowPosition> {
         let visual = self.visual_line(from.line, window);
-        let rows = caret_row_indices(&visual);
-        let at = rows.iter().position(|&row| row == from.row);
-        let within = at.and_then(|at| {
-            if down {
-                rows.get(at + 1)
-            } else {
-                at.checked_sub(1).and_then(|previous| rows.get(previous))
-            }
-        });
-        if let Some(&row) = within {
+        if let Some(row) = row_beside(&visual, from.row, down) {
             return Some(RowPosition {
                 line: from.line,
                 row,
@@ -175,9 +170,7 @@ impl EditorView {
                 line.checked_sub(1)?
             };
             let visual = self.visual_line(line, window);
-            let rows = caret_row_indices(&visual);
-            let row = if down { rows.first() } else { rows.last() };
-            if let Some(&row) = row {
+            if let Some(row) = entry_row(&visual, down, goal_x) {
                 return Some(RowPosition { line, row });
             }
         }
@@ -193,6 +186,47 @@ impl EditorView {
     }
 }
 
-fn caret_row_indices(visual: &VisualLine) -> Vec<usize> {
-    visual.caret_rows().map(|(index, _)| index).collect()
+/// The caret rows a move within a line goes through: a grid row's
+/// cell's own rows, or all of them.
+fn caret_row_indices(visual: &VisualLine, row: usize) -> Vec<usize> {
+    let cell = visual
+        .grid
+        .as_ref()
+        .and_then(|grid| grid.cells.iter().find(|cell| cell.rows.contains(&row)));
+    match cell {
+        Some(cell) => cell.rows.clone().collect(),
+        None => visual.caret_rows().map(|(index, _)| index).collect(),
+    }
+}
+
+/// The caret row above or below `row` in its line, if there's one.
+fn row_beside(visual: &VisualLine, row: usize, down: bool) -> Option<usize> {
+    let rows = caret_row_indices(visual, row);
+    let at = rows.iter().position(|&candidate| candidate == row)?;
+    match down {
+        true => rows.get(at + 1).copied(),
+        false => at
+            .checked_sub(1)
+            .and_then(|previous| rows.get(previous).copied()),
+    }
+}
+
+/// The row a move from above (or below) lands on in a line: its first
+/// (or last) caret row, or in a grid row the first (or last) row of the
+/// cell under `goal_x`.
+fn entry_row(visual: &VisualLine, down: bool, goal_x: Pixels) -> Option<usize> {
+    let rows: Vec<usize> = match &visual.grid {
+        Some(grid) => grid
+            .cell_at_x(goal_x)
+            .filter(|cell| cell.range.is_some())
+            .or_else(|| grid.cells.iter().find(|cell| cell.range.is_some()))?
+            .rows
+            .clone()
+            .collect(),
+        None => visual.caret_rows().map(|(index, _)| index).collect(),
+    };
+    match down {
+        true => rows.first().copied(),
+        false => rows.last().copied(),
+    }
 }
