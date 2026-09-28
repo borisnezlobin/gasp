@@ -857,9 +857,10 @@ impl EditorView {
     }
 
     /// The selections lines are planned with: none in an editor without
-    /// the keyboard, so it reads as a preview.
+    /// the keyboard, so it reads as a preview, or while several cells of
+    /// a table are selected, so they read as cells.
     pub(crate) fn planned_selections(&self) -> Vec<Range<usize>> {
-        match self.reveals_at_cursor {
+        match self.reveals_at_cursor && !self.table_edit.block_selected {
             true => self.selected_ranges(),
             false => Vec::new(),
         }

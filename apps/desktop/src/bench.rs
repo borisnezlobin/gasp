@@ -27,6 +27,9 @@ pub struct BenchConfig {
     /// Type math at the end of a math block's first line, to measure
     /// snippets and the math helpers.
     pub in_math: bool,
+    /// Type in the first body cell of the first table after the middle,
+    /// to measure the table grid.
+    pub in_table: bool,
     /// Whether sentence tints and grammar flags are on, to measure what
     /// they cost.
     pub prose: bool,
@@ -40,6 +43,7 @@ impl Default for BenchConfig {
             scroll_pages: 100,
             in_code: false,
             in_math: false,
+            in_table: false,
             prose: true,
         }
     }
@@ -166,6 +170,12 @@ impl EditorView {
         };
         let start = fence
             .and_then(|fence| self.block_line_after(middle, fence))
+            .or_else(|| {
+                config
+                    .in_table
+                    .then(|| self.table_cell_after(middle))
+                    .flatten()
+            })
             .unwrap_or(middle);
         self.move_to(start, false, cx);
         self.bench = Some(bench);
@@ -180,6 +190,16 @@ impl EditorView {
         let fence = offset + text[offset..].find(fence)? + 1;
         let first = self.doc().line_of_offset(fence) + 1;
         Some(self.doc().line_end(first))
+    }
+
+    /// The end of the first body cell's text in the first table after
+    /// `offset`.
+    fn table_cell_after(&self, offset: usize) -> Option<usize> {
+        let text = self.source.text();
+        let row = offset + text[offset..].find("\n|")? + 1;
+        let table = editor_core::table::Table::at(text, self.source.tree(), row)?;
+        let cell = editor_core::table::CellPos::new(1, 0);
+        table.content(text, cell).map(|content| content.end)
     }
 
     pub(crate) fn schedule_bench_step(view: &Entity<Self>, window: &mut Window, cx: &mut App) {
@@ -253,6 +273,7 @@ mod tests {
             scroll_pages: 1,
             in_code: false,
             in_math: false,
+            in_table: false,
             prose: true,
         });
         let steps: Vec<BenchStep> = (0..5).map(|_| bench.next_step()).collect();

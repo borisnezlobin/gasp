@@ -116,10 +116,11 @@ impl Element for EditorElement {
             if tables.animating {
                 window.request_animation_frame();
             }
-            // Cells selected across are drawn whole, not as text.
-            let selection = match &tables.block {
-                Some(block) => block.clone(),
-                None => selection,
+            // Cells selected across are drawn whole, not as text, and
+            // without a caret.
+            let (selection, caret) = match &tables.block {
+                Some(block) => (block.clone(), None),
+                None => (selection, caret),
             };
             drop(phase);
             let phase = crate::keytrace::span("prose");
@@ -774,6 +775,7 @@ fn paint_table_drag(
     cx: &mut App,
 ) {
     let look = &context.theme.table;
+    window.paint_quad(fill(drag.source, look.drag_source_veil));
     window.paint_shadows(
         drag.card,
         Corners::all(context.theme.radius_sm),

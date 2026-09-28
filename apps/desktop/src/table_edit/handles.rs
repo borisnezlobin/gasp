@@ -357,7 +357,7 @@ impl EditorView {
         let (Some(from), Some(to)) = (table.content(text, first), table.content(text, last)) else {
             return;
         };
-        self.select_cells(from.start, to.end, cx);
+        self.select(from.start, to.end, cx);
     }
 
     /// The offset a table menu opened at `position` acts on: in the first

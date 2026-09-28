@@ -26,6 +26,8 @@ pub struct HandleMark {
 pub struct DragMark {
     /// The raised card under the copy.
     pub card: Bounds<Pixels>,
+    /// The row's or column's own place, veiled while it's away.
+    pub source: Bounds<Pixels>,
     /// The row's line, or the column's cells, moved with the pointer.
     pub lines: Vec<PlacedLine>,
     /// The line between rows or columns where it would drop.
@@ -136,55 +138,51 @@ impl EditorView {
         let drag = self.table_edit.drag.as_ref()?;
         let to = drag.to?;
         let table = tables.iter().find(|table| table.start == drag.table)?;
-        let lines: Vec<&PlacedLine> = frame
-            .lines
-            .iter()
-            .filter(|placed| {
-                table.rows.iter().any(|row| row.1 == placed.top) && placed.visual.grid.is_some()
-            })
-            .collect();
+        let lines = frame.lines.iter().filter(|placed| {
+            table.rows.iter().any(|row| row.1 == placed.top) && placed.visual.grid.is_some()
+        });
         let width = self.theme.table.drop_indicator_width;
-        match drag.picked {
+        let (source, lines, indicator) = match drag.picked {
             Picked::Row(row) => {
                 let placed = lines
-                    .iter()
+                    .into_iter()
                     .find(|placed| placed.visual.grid.as_ref().is_some_and(|g| g.index == row))?;
-                let mut lifted = (*placed).clone();
+                let mut lifted = placed.clone();
                 lifted.top += drag.at.y - drag.from.y;
-                let card = Bounds::new(
-                    point(table.left, lifted.top),
+                let source = Bounds::new(
+                    point(table.left, placed.top),
                     size(table.width, placed.visual.height),
                 );
-                let indicator = (to != row)
-                    .then(|| row_indicator(table, row, to, width))
-                    .flatten();
-                Some(DragMark {
-                    card,
-                    lines: vec![lifted],
-                    indicator,
-                })
+                let indicator = (to != row).then(|| row_indicator(table, row, to, width));
+                (source, vec![lifted], indicator.flatten())
             }
             Picked::Column(column) => {
                 let dx = drag.at.x - drag.from.x;
                 let (x, column_width) = *table.columns.get(column)?;
                 let lifted = lines
-                    .iter()
                     .filter_map(|placed| column_copy(placed, column, dx))
                     .collect();
-                let card = Bounds::from_corners(
-                    point(x + dx, table.top()),
-                    point(x + dx + column_width, table.bottom()),
+                let source = Bounds::from_corners(
+                    point(x, table.top()),
+                    point(x + column_width, table.bottom()),
                 );
-                let indicator = (to != column)
-                    .then(|| column_indicator(table, column, to, width))
-                    .flatten();
-                Some(DragMark {
-                    card,
-                    lines: lifted,
-                    indicator,
-                })
+                let indicator = (to != column).then(|| column_indicator(table, column, to, width));
+                (source, lifted, indicator.flatten())
             }
-        }
+        };
+        let offset = match drag.picked {
+            Picked::Row(_) => point(Pixels::ZERO, drag.at.y - drag.from.y),
+            Picked::Column(_) => point(drag.at.x - drag.from.x, Pixels::ZERO),
+        };
+        Some(DragMark {
+            card: Bounds {
+                origin: source.origin + offset,
+                ..source
+            },
+            source,
+            lines,
+            indicator,
+        })
     }
 }
 
