@@ -6,7 +6,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use editor_config::loader::{CONFIG_DIR, build_settings};
+use crate::loader::{CONFIG_DIR, build_settings};
 use serde_json::Value;
 use toml_edit::{DocumentMut, Item, Table, TableLike};
 
@@ -221,7 +221,7 @@ pub fn write_setting(
 }
 
 /// Writes through a temporary file so a crash can't leave half a file.
-pub(super) fn save(path: &Path, text: &str) -> io::Result<()> {
+pub fn save(path: &Path, text: &str) -> io::Result<()> {
     if let Some(folder) = path.parent() {
         fs::create_dir_all(folder)?;
     }

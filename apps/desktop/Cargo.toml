@@ -27,6 +27,8 @@ editor-prose = { path = "../../crates/prose" }
 similar = "2.7"
 editor-export = { path = "../../crates/export" }
 editor-sync = { path = "../../crates/sync" }
+editor-search = { path = "../../crates/search" }
+editor-vault = { path = "../../crates/vault" }
 gpui = "=0.2.2"
 image = "0.25"
 unicode-normalization = "0.1.25"

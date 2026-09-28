@@ -1,7 +1,7 @@
 //! Reading the vault for the link index: the first build, spread over
 //! the machine's cores, and re-reading the paths the watcher says
 //! changed. Both run off the main thread; the workspace's
-//! [`crate::vault_index::VaultIndex`] applies what they find.
+//! app's vault index applies what they find.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -72,7 +72,7 @@ pub fn build_index(root: &Path) -> LinkIndex {
 }
 
 /// Every visible file under `folder`: files that aren't notes, then notes.
-pub(crate) fn scan(root: &Path, folder: &Path) -> (Vec<String>, Vec<String>) {
+pub fn scan(root: &Path, folder: &Path) -> (Vec<String>, Vec<String>) {
     let mut files = Vec::new();
     let mut notes = Vec::new();
     let mut pending = vec![folder.to_path_buf()];
@@ -98,13 +98,13 @@ pub(crate) fn scan(root: &Path, folder: &Path) -> (Vec<String>, Vec<String>) {
 }
 
 /// Reads and parses `notes` on as many threads as there are cores.
-pub(crate) fn read_notes(root: &Path, notes: Vec<String>) -> Vec<(String, Arc<str>, ParsedNote)> {
+pub fn read_notes(root: &Path, notes: Vec<String>) -> Vec<(String, Arc<str>, ParsedNote)> {
     in_parallel(notes, |path| read_note(root, path))
 }
 
 /// `work` on every path, spread over the machine's cores, keeping what
 /// it returns.
-pub(crate) fn in_parallel<T: Send>(
+pub fn in_parallel<T: Send>(
     paths: Vec<String>,
     work: impl Fn(String) -> Option<T> + Sync,
 ) -> Vec<T> {
@@ -130,7 +130,7 @@ pub(crate) fn in_parallel<T: Send>(
     })
 }
 
-pub(crate) fn read_note(root: &Path, path: String) -> Option<(String, Arc<str>, ParsedNote)> {
+pub fn read_note(root: &Path, path: String) -> Option<(String, Arc<str>, ParsedNote)> {
     let text = std::fs::read_to_string(root.join(&path)).ok()?;
     let parsed = parse_note(&text);
     Some((path, Arc::from(text), parsed))

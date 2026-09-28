@@ -10,7 +10,6 @@
 //! [`SettingsRequest`]. Escape and the close button emit `DismissEvent`.
 
 mod capture;
-pub mod config_files;
 pub mod controls;
 mod edit;
 mod keys;
@@ -23,10 +22,10 @@ pub mod snippet_editor;
 pub mod snippet_look;
 mod snippet_rows;
 pub mod snippets_page;
-pub mod store;
 mod sync_page;
 mod view;
 
+pub use editor_config::{config_files, store};
 pub use menu::MenuTarget;
 pub use model::{FontSlot, Page};
 pub use render::modal_size;

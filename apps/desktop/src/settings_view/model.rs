@@ -891,20 +891,7 @@ pub fn filter_fonts(choices: &[String], query: &str) -> Vec<String> {
 
 // ---- Keyboard shortcuts ----
 
-/// The id of the rule a shortcut added from the settings screen or the
-/// palette gets. A second one for the same command adds `~2`, and so on.
-pub fn user_rule_id(command: &str) -> String {
-    format!("user.key.{command}")
-}
-
-/// Whether a rule id is one the user added for `command`.
-pub fn is_user_rule(id: &str, command: &str) -> bool {
-    let base = user_rule_id(command);
-    id == base
-        || id
-            .strip_prefix(&base)
-            .is_some_and(|rest| rest.starts_with('~'))
-}
+pub use editor_config::config_files::{is_user_rule, user_rule_id};
 
 /// One key that runs a command.
 #[derive(Clone, Debug, PartialEq, Eq)]

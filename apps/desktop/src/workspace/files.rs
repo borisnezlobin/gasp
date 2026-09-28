@@ -1,8 +1,9 @@
 //! Reading and writing notes on disk: atomic saves, line endings, note
 //! names and finding the vault a note belongs to.
 
-use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+
+pub use editor_vault::files::atomic_write;
 
 /// The extension every note has.
 pub const NOTE_EXTENSION: &str = "md";
@@ -52,29 +53,6 @@ impl LineEnding {
         }
         out
     }
-}
-
-/// Writes `contents` to a temporary file next to `path`, then renames it
-/// over `path`, so a crash never leaves half a note.
-pub fn atomic_write(path: &Path, contents: &str) -> io::Result<()> {
-    let dir = path
-        .parent()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "a note needs a folder"))?;
-    let name = path
-        .file_name()
-        .map_or_else(Default::default, |name| name.to_string_lossy().into_owned());
-    let temp = dir.join(format!(".{name}.{}.tmp", std::process::id()));
-    let result = write_and_sync(&temp, contents).and_then(|()| std::fs::rename(&temp, path));
-    if result.is_err() {
-        let _ = std::fs::remove_file(&temp);
-    }
-    result
-}
-
-fn write_and_sync(path: &Path, contents: &str) -> io::Result<()> {
-    let mut file = std::fs::File::create(path)?;
-    file.write_all(contents.as_bytes())?;
-    file.sync_all()
 }
 
 /// Whether `path` names a note.
@@ -240,17 +218,6 @@ mod tests {
             unique_untitled(dir.path()),
             dir.path().join("Untitled 2.md")
         );
-    }
-
-    #[test]
-    fn atomic_write_replaces_the_file_and_leaves_no_temp() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("a.md");
-        std::fs::write(&path, "old").unwrap();
-        atomic_write(&path, "new").unwrap();
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "new");
-        let names: Vec<_> = std::fs::read_dir(dir.path()).unwrap().collect();
-        assert_eq!(names.len(), 1);
     }
 
     #[test]

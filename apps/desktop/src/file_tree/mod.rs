@@ -5,16 +5,17 @@
 //! [`FileTreeEvent`] and never touches tabs or editors itself.
 
 mod autoscroll;
-mod entries;
 mod keys;
 mod menu;
 mod model;
-pub mod ops;
 mod render;
 mod view;
 mod watch;
 
 use std::path::PathBuf;
+
+use editor_vault::entries;
+pub use editor_vault::ops;
 
 pub use entries::{Entry, EntryKind, SortOrder, display_name, natural_cmp};
 pub use keys::KEY_HINTS;

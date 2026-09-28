@@ -6,6 +6,7 @@
 //! `replacements.toml`, which replace the built-in snippets and replacements.
 
 pub mod commands;
+pub mod config_files;
 pub mod device;
 pub mod diagnostics;
 pub mod keymap;
@@ -17,6 +18,7 @@ pub mod platform;
 pub mod rules;
 pub mod schema;
 pub mod settings;
+pub mod store;
 pub mod theme;
 pub mod typing;
 pub mod watcher;

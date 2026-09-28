@@ -7,9 +7,8 @@
 
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use editor_config::loader::CONFIG_DIR;
 use editor_snippets::{
     FileLine, InputContext, ReplacementFire, Replacements, Scope, Snippet, SnippetFile,
     format_expansion, format_trigger,
@@ -21,8 +20,8 @@ use super::snippet_look::SnippetLook;
 use super::store;
 use super::view::{ControlRow, PaneLayout, SettingsEvent, SettingsView};
 
-pub const SNIPPETS_FILE: &str = "snippets.txt";
-pub const REPLACEMENTS_FILE: &str = "replacements.toml";
+pub use editor_config::config_files::{REPLACEMENTS_FILE, SNIPPETS_FILE};
+use editor_config::config_files::{replacements_path, snippets_path};
 
 /// The key a snippet change is reported and its errors kept under.
 pub const SNIPPETS_KEY: &str = "snippets";
@@ -34,14 +33,6 @@ const UNGROUPED: &str = "Snippets";
 
 /// The heading new snippets go under.
 const ADDED_GROUP: &str = "Added in settings";
-
-fn snippets_path(vault_root: &Path) -> PathBuf {
-    vault_root.join(CONFIG_DIR).join(SNIPPETS_FILE)
-}
-
-fn replacements_path(vault_root: &Path) -> PathBuf {
-    vault_root.join(CONFIG_DIR).join(REPLACEMENTS_FILE)
-}
 
 /// The snippets and replacements the page lists.
 #[derive(Clone, Debug, Default)]
