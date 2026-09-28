@@ -10,7 +10,7 @@ use editor_core::table::{CellPos, Table, TableOp};
 use gpui::{Bounds, Context, Pixels, Point, point, size};
 
 use crate::editor::EditorView;
-use crate::frame::FrameLayout;
+use crate::frame::{FrameLayout, PlacedLine};
 
 /// A row of a table, by its place (the header is 0), or a column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,7 +34,7 @@ pub struct HandleHover {
 
 /// A handle pressed, and where its row or column would drop once the
 /// press became a drag.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Drag {
     pub table: usize,
     pub picked: Picked,
@@ -43,6 +43,20 @@ pub struct Drag {
     /// Where it drops: the place it takes. `None` until the pointer has
     /// moved far enough to make the press a drag.
     pub to: Option<usize>,
+    /// Whether dropping at `to` would move it: not onto its own place,
+    /// and not the header into the body.
+    pub moves: bool,
+    /// A dragged row's line as it was when pressed, to lift under the
+    /// pointer even once the note has scrolled it away.
+    pub lifted: Option<PlacedLine>,
+}
+
+impl Drag {
+    /// Where the lifted row's top goes: under the pointer, as far above
+    /// it as the row's top was above the press.
+    pub fn lifted_top(&self, pressed_top: Pixels) -> Pixels {
+        self.at.y - (self.from.y - pressed_top)
+    }
 }
 
 /// A grid table's rows and columns on screen, in window coordinates.
@@ -128,6 +142,17 @@ pub fn column_handle(
         point(x + (width - side) / 2., top - gap - side),
         size(side, side),
     ))
+}
+
+/// Whether `placed` is row `row` of the table spanning `table`.
+fn row_line(placed: &PlacedLine, table: &std::ops::Range<usize>, row: usize) -> bool {
+    let in_table = table.contains(&placed.visual.start);
+    in_table
+        && placed
+            .visual
+            .grid
+            .as_ref()
+            .is_some_and(|grid| grid.index == row)
 }
 
 /// The grid tables in a frame, each from its run of grid rows.
@@ -269,6 +294,8 @@ impl EditorView {
             from: position,
             at: position,
             to: None,
+            moves: false,
+            lifted: None,
         });
         self.pointer_cursor = gpui::CursorStyle::ClosedHand;
         cx.notify();
@@ -293,12 +320,76 @@ impl EditorView {
         let Some(table) = screen.iter().find(|table| table.start == drag.table) else {
             return;
         };
-        drag.to = Some(match drag.picked {
+        let to = match drag.picked {
             // Nothing goes above the header.
             Picked::Row(_) => table.row_at_y(position.y).unwrap_or(1).max(1),
             Picked::Column(_) => table.column_at_x(position.x),
-        });
+        };
+        drag.to = Some(to);
+        let (start, picked, lifted) = (drag.table, drag.picked, drag.lifted.is_some());
+        let moves = self.drop_moves(start, picked, to);
+        // The row's line from the last frame, drawn since the press with
+        // nothing revealed in it.
+        let lifted = match picked {
+            Picked::Row(row) if !lifted => self.row_line_on_screen(start, row),
+            _ => None,
+        };
+        if let Some(drag) = self.table_edit.drag.as_mut() {
+            drag.moves = moves;
+            drag.lifted = drag.lifted.take().or(lifted);
+        }
         cx.notify();
+    }
+
+    /// Row `row` of the table starting at `start`, as the last frame laid
+    /// it out.
+    fn row_line_on_screen(&self, start: usize, row: usize) -> Option<PlacedLine> {
+        let table = self.grid_table(start)?.range.clone();
+        let frame = self.frame.as_ref()?;
+        frame
+            .lines
+            .iter()
+            .find(|placed| row_line(placed, &table, row))
+            .cloned()
+    }
+
+    /// Where the row or column `picked` starts, and the move dropping it
+    /// at `to` makes, when that moves it at all.
+    fn drop_op(&self, start: usize, picked: Picked, to: usize) -> Option<(usize, TableOp)> {
+        let table = self.grid_table(start)?;
+        let first = match picked {
+            Picked::Row(row) => CellPos::new(row, 0),
+            Picked::Column(column) => CellPos::new(0, column),
+        };
+        let at = table.content(self.source.text(), first)?.start;
+        let op = match picked {
+            Picked::Row(_) => TableOp::MoveRow { to },
+            Picked::Column(_) => TableOp::MoveColumn { to },
+        };
+        op.applies(&table, table.cell_at(at)?).then_some((at, op))
+    }
+
+    fn drop_moves(&self, start: usize, picked: Picked, to: usize) -> bool {
+        self.drop_op(start, picked, to).is_some()
+    }
+
+    /// Whether a row or column is held by its handle, and if so whether
+    /// dropping it where the pointer is would move it, which is when the
+    /// line showing where it'd go is drawn.
+    pub fn table_drag_moves(&self) -> Option<bool> {
+        self.table_edit.drag.as_ref().map(|drag| drag.moves)
+    }
+
+    /// Escape during a drag: the row or column goes back where it was,
+    /// with nothing changed. Answers whether a drag was held.
+    pub(crate) fn cancel_table_drag(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.table_edit.drag.take().is_none() {
+            return false;
+        }
+        self.table_edit.hover = None;
+        self.pointer_cursor = gpui::CursorStyle::IBeam;
+        cx.notify();
+        true
     }
 
     /// Lets go of a handle: a drag moves its row or column, a click
@@ -307,33 +398,16 @@ impl EditorView {
         let Some(drag) = self.table_edit.drag.take() else {
             return;
         };
-        let Some(table) = self.grid_table(drag.table) else {
-            cx.notify();
+        cx.notify();
+        let Some(to) = drag.to else {
+            if let Some(table) = self.grid_table(drag.table) {
+                self.pick(&table, drag.picked, cx);
+            }
             return;
         };
-        let text = self.source.text();
-        let first = match drag.picked {
-            Picked::Row(row) => CellPos::new(row, 0),
-            Picked::Column(column) => CellPos::new(0, column),
-        };
-        let Some(at) = table.content(text, first).map(|content| content.start) else {
+        // Dropped where it was, or where it can't go: nothing changes.
+        let Some((at, op)) = self.drop_op(drag.table, drag.picked, to) else {
             return;
-        };
-        let op = match (drag.picked, drag.to) {
-            (Picked::Row(_), Some(to)) => TableOp::MoveRow { to },
-            (Picked::Column(_), Some(to)) => TableOp::MoveColumn { to },
-            (picked, None) => return self.pick(&table, picked, cx),
-        };
-        let Some(first) = table.cell_at(at) else {
-            return;
-        };
-        if !op.applies(&table, first) {
-            cx.notify();
-            return;
-        }
-        let to = match op {
-            TableOp::MoveRow { to } | TableOp::MoveColumn { to } => to,
-            _ => 0,
         };
         self.run_table_op_at(op, at, cx);
         // The moved row or column stays selected where it landed.

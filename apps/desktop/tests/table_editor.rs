@@ -10,7 +10,7 @@ use editor_desktop::actions::bind_keys;
 use editor_desktop::keymap::{RunCommand, editor_bindings};
 use editor_desktop::table_edit::handles::{column_handle, row_handle};
 use editor_desktop::table_edit::menu::table_items;
-use editor_desktop::ui::{DropdownMenu, MenuItem};
+use editor_desktop::ui::{DropdownMenu, MenuEntry, MenuItem};
 use gpui::{
     AppContext, Entity, Focusable, Modifiers, MouseButton, Pixels, Point, TestAppContext,
     VisualTestContext, point, px,
@@ -259,32 +259,56 @@ fn menu_items_act_on_the_clicked_cell_and_grey_out_where_they_dont_apply(cx: &mu
     let (view, cx) = open(cx, NOTE);
     let name = NOTE.find("name").unwrap();
     let items = cx.update(|_, cx| table_items(&view, name, cx));
-    let disabled = |label: &str| {
-        items
-            .iter()
-            .find_map(|item| match item {
-                MenuItem::Entry(entry) if entry.label == label => Some(entry.disabled),
-                _ => None,
-            })
-            .unwrap_or_else(|| panic!("no {label} item"))
+    let top: Vec<_> = items.iter().filter_map(MenuItem::label).collect();
+    assert_eq!(
+        top,
+        [
+            "Insert row above",
+            "Insert row below",
+            "Insert column left",
+            "Insert column right",
+            "Row",
+            "Column",
+            "Table",
+        ],
+        "only the insertions sit at the top; the rest are in submenus"
+    );
+    let disabled = |path: &[&str]| {
+        entry_at(&items, path)
+            .unwrap_or_else(|| panic!("no {path:?} item"))
+            .disabled
     };
     assert!(
-        disabled("Insert row above"),
+        disabled(&["Insert row above"]),
         "nothing goes above the header"
     );
-    assert!(disabled("Delete row"), "the header can't be deleted");
     assert!(
-        disabled("Move row down"),
+        disabled(&["Row", "Delete row"]),
+        "the header can't be deleted"
+    );
+    assert!(
+        disabled(&["Row", "Move down"]),
         "the header can't move below the body"
     );
-    assert!(disabled("Move column left"), "the first column is leftmost");
-    assert!(!disabled("Move column right"));
-    assert!(!disabled("Insert row below"));
+    assert!(
+        disabled(&["Column", "Move left"]),
+        "the first column is leftmost"
+    );
+    assert!(!disabled(&["Column", "Move right"]));
+    assert!(!disabled(&["Column", "Align", "Right"]));
+    assert!(!disabled(&["Column", "Sort", "A→Z"]));
+    assert!(!disabled(&["Table", "Copy as Markdown"]));
+    assert!(!disabled(&["Table", "Delete table"]));
+    assert!(!disabled(&["Insert row below"]));
     let fig = NOTE.find("fig").unwrap();
     let items = cx.update(|_, cx| table_items(&view, fig, cx));
     let menu = cx.update(|_, cx| cx.new(|cx| DropdownMenu::new(items, cx)));
     menu.update_in(cx, |menu, window, cx| {
-        assert!(menu.choose("Move row up", window, cx));
+        assert!(menu.choose("Row", window, cx));
+    });
+    let row = menu.read_with(cx, |menu, _| menu.submenu()).unwrap();
+    row.update_in(cx, |menu, window, cx| {
+        assert!(menu.choose("Move up", window, cx));
     });
     cx.run_until_parked();
     assert!(
@@ -292,6 +316,16 @@ fn menu_items_act_on_the_clicked_cell_and_grey_out_where_they_dont_apply(cx: &mu
         "{}",
         text(&view, cx)
     );
+}
+
+/// The entry at `path` through the menu's submenus.
+fn entry_at<'a>(items: &'a [MenuItem], path: &[&str]) -> Option<&'a MenuEntry> {
+    let (first, rest) = path.split_first()?;
+    items.iter().find_map(|item| match item {
+        MenuItem::Entry(entry) if rest.is_empty() && entry.label == *first => Some(entry),
+        MenuItem::Submenu { label, items, .. } if label == first => entry_at(items, rest),
+        _ => None,
+    })
 }
 
 #[gpui::test]
@@ -433,6 +467,106 @@ fn shift_and_arrows_select_whole_cells_that_copy_as_tab_separated_text(cx: &mut 
     press(cx, "edit.delete-backward");
     assert!(
         text(&view, cx).contains("| name | n   |\n| ---- | --- |\n|      |     |\n|      |     |"),
+        "{}",
+        text(&view, cx)
+    );
+}
+
+/// Presses at `from` and moves, still held, past the drag threshold to
+/// `to`.
+fn hold_and_move(cx: &mut VisualTestContext, from: Point<Pixels>, to: Point<Pixels>) {
+    cx.simulate_mouse_move(from, None, Modifiers::none());
+    cx.simulate_mouse_down(from, MouseButton::Left, Modifiers::none());
+    let mid = point((from.x + to.x) / 2., (from.y + to.y) / 2.);
+    cx.simulate_mouse_move(mid, MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(to, MouseButton::Left, Modifiers::none());
+    cx.run_until_parked();
+}
+
+/// Row `row`'s handle, and a point in the middle of row `over`.
+fn row_handle_and_row(
+    view: &Entity<EditorView>,
+    cx: &mut VisualTestContext,
+    row: usize,
+    over: usize,
+) -> (Point<Pixels>, Point<Pixels>) {
+    view.read_with(cx, |view, _| {
+        let table = view.tables_on_screen().pop().unwrap();
+        let look = &view.theme().table;
+        let handle = row_handle(&table, row, look.handle_size, look.handle_gap).unwrap();
+        let (top, bottom) = table.row(over).unwrap();
+        let y = top + (bottom - top) / 2.;
+        (handle.center(), point(table.left + px(10.), y))
+    })
+}
+
+#[gpui::test]
+fn dropping_a_row_on_its_own_place_changes_nothing(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, NOTE);
+    let (handle, own) = row_handle_and_row(&view, cx, 2, 2);
+    // Down past the threshold, then back into its own row.
+    let below = point(own.x, own.y + px(6.));
+    hold_and_move(cx, handle, below);
+    cx.simulate_mouse_move(own, MouseButton::Left, Modifiers::none());
+    let moves = view.read_with(cx, |view, _| view.table_drag_moves());
+    assert_eq!(moves, Some(false), "no drop line over its own place");
+    cx.simulate_mouse_up(own, MouseButton::Left, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(text(&view, cx), NOTE, "and dropping there makes no edit");
+    let (handle, above) = row_handle_and_row(&view, cx, 2, 1);
+    hold_and_move(cx, handle, above);
+    let moves = view.read_with(cx, |view, _| view.table_drag_moves());
+    assert_eq!(moves, Some(true), "a line shows where it would move");
+}
+
+#[gpui::test]
+fn escape_puts_a_dragged_row_back(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, NOTE);
+    let (handle, target) = row_handle_and_row(&view, cx, 2, 1);
+    hold_and_move(cx, handle, target);
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    let held = view.read_with(cx, |view, _| view.table_drag_moves());
+    assert_eq!(held, None, "the drag is over");
+    cx.simulate_mouse_up(target, MouseButton::Left, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(text(&view, cx), NOTE, "and the row is where it was");
+}
+
+#[gpui::test]
+fn dragging_a_row_to_the_notes_bottom_scrolls_it(cx: &mut TestAppContext) {
+    let filler = "line\n\n".repeat(80);
+    let note = format!("{NOTE}\n\n{filler}end");
+    let (view, cx) = open(cx, &note);
+    let (handle, _) = row_handle_and_row(&view, cx, 2, 2);
+    let bottom = view.read_with(cx, |view, _| view.frame().unwrap().bounds.bottom());
+    hold_and_move(cx, handle, point(handle.x + px(20.), bottom - px(2.)));
+    let before = view.read_with(cx, |view, _| view.scroll_offset());
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(200));
+    cx.run_until_parked();
+    let after = view.read_with(cx, |view, _| view.scroll_offset());
+    assert!(after > before, "scrolled from {before:?} to {after:?}");
+}
+
+#[gpui::test]
+fn a_line_pasted_into_a_cell_stays_in_the_cell(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, NOTE);
+    // Copy with nothing selected takes the whole line, break and all.
+    place_cursor(&view, cx, 2);
+    press(cx, "edit.copy");
+    let pear = NOTE.find("pear").unwrap();
+    place_cursor(&view, cx, pear + 4);
+    press(cx, "edit.paste");
+    assert!(
+        text(&view, cx).contains("| pearintro | 10 |\n| fig | 2 |"),
+        "{}",
+        text(&view, cx)
+    );
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("one | two\nthree\n".into()));
+    press(cx, "edit.paste");
+    assert!(
+        text(&view, cx).contains("| pearintroone \\| two three | 10 |\n| fig | 2 |"),
         "{}",
         text(&view, cx)
     );

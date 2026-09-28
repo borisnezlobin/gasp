@@ -253,6 +253,18 @@ fn parse_alignment(cell: &str) -> Alignment {
     }
 }
 
+/// Text pasted into a cell as one line of it: each line trimmed, blank
+/// ones dropped and the rest joined by spaces, pipes escaped. A copied
+/// line's own line break goes with it rather than becoming a space.
+pub fn cell_paste_text(pasted: &str) -> String {
+    let lines: Vec<&str> = pasted
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    cell_text(&lines.join(" "))
+}
+
 /// Text typed into a cell as the cell can hold it: a pipe is escaped so it
 /// doesn't split the cell, and a line break, which would end the row,
 /// becomes a space.

@@ -360,7 +360,10 @@ impl EditorView {
             return;
         };
         let selection = self.selected_range();
-        if is_whole_line(&item) && selection.is_empty() {
+        // A whole line goes above the caret's line, except into a cell,
+        // where it's flattened into the cell like any pasted lines.
+        let in_cell = self.grid_table(selection.start).is_some();
+        if is_whole_line(&item) && selection.is_empty() && !in_cell {
             let line_start = motion::line_start(self.doc(), selection.start);
             let text = self.curl_pasted(&text, line_start);
             let cursor = selection.start + text.len();
@@ -403,7 +406,7 @@ impl EditorView {
         // Pasting over several cells empties them and pastes into the
         // first; in a cell, pipes are escaped and line breaks are spaces.
         let over_cells = self.cell_block().is_some();
-        let typed = self.cell_typing(text, cx);
+        let typed = self.cell_pasting(text, cx);
         let range = if over_cells {
             self.selected_range()
         } else {

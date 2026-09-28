@@ -226,6 +226,17 @@ fn typed_pipes_are_escaped_and_line_breaks_become_spaces() {
 }
 
 #[test]
+fn pasted_lines_flatten_to_one() {
+    // A line copied whole brings its line break, which goes.
+    assert_eq!(cell_paste_text("| a | b |\n"), "\\| a \\| b \\|");
+    assert_eq!(
+        cell_paste_text("  first\r\n\n  second  \nthird\n\n"),
+        "first second third"
+    );
+    assert_eq!(cell_paste_text("\n"), "");
+}
+
+#[test]
 fn tables_in_quotes_keep_their_markers() {
     let text = "> | ^a | b |\n> |---|---|\n> | 1 | 2 |";
     assert_eq!(

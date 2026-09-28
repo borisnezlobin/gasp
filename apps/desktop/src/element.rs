@@ -101,7 +101,10 @@ impl Element for EditorElement {
         let _span = crate::trace::span("editor-prepaint");
         let _phase = crate::keytrace::span("(total) prepaint");
         self.view.update(cx, |view, cx| {
-            view.reveals_at_cursor = !view.read_only && view.focus_handle.is_focused(window);
+            // A table's drag shows no revealed markup, only the cells.
+            view.reveals_at_cursor = !view.read_only
+                && view.focus_handle.is_focused(window)
+                && view.table_edit.drag.is_none();
             let mut frame = view.layout_frame(bounds, window);
             let phase = crate::keytrace::span("selection-and-highlights");
             frame.highlights = view.highlight_rects(&frame);
@@ -117,9 +120,10 @@ impl Element for EditorElement {
                 window.request_animation_frame();
             }
             // Cells selected across are drawn whole, not as text, and
-            // without a caret.
+            // without a caret; a table's drag hides the caret too.
             let (selection, caret) = match &tables.block {
                 Some(block) => (block.clone(), None),
+                None if tables.drag.is_some() => (selection, None),
                 None => (selection, caret),
             };
             drop(phase);
@@ -766,8 +770,9 @@ fn paint_table_handles(marks: &TableMarks, theme: &Theme, window: &mut Window, c
     }
 }
 
-/// A row or column being dragged: lifted on a raised card with a shadow,
-/// its text a little faded, and the line where it would drop.
+/// A row or column being dragged: the line where it would drop, then
+/// over it an opaque card on the note's own fill, raised with a shadow,
+/// holding the row or column with its text a little faded.
 fn paint_table_drag(
     drag: &DragMark,
     context: &PaintContext<'_>,
@@ -775,10 +780,17 @@ fn paint_table_drag(
     cx: &mut App,
 ) {
     let look = &context.theme.table;
-    window.paint_quad(fill(drag.source, look.drag_source_veil));
+    let radius = context.theme.radius_sm;
+    if let Some(source) = drag.source {
+        window.paint_quad(fill(source, look.drag_source_veil));
+    }
+    if let Some(indicator) = drag.indicator {
+        let round = indicator.size.height.min(indicator.size.width) / 2.;
+        window.paint_quad(fill(indicator, look.drop_indicator).corner_radii(round));
+    }
     window.paint_shadows(
         drag.card,
-        Corners::all(context.theme.radius_sm),
+        Corners::all(radius),
         &[BoxShadow {
             color: look.drag_shadow,
             offset: point(px(0.), look.drag_shadow_blur / 4.),
@@ -786,21 +798,24 @@ fn paint_table_drag(
             spread_radius: px(0.),
         }],
     );
-    window.paint_quad(fill(drag.card, look.drag_fill).corner_radii(context.theme.radius_sm));
+    window.paint_quad(quad(
+        drag.card,
+        radius,
+        look.drag_fill,
+        px(1.),
+        look.drag_ring,
+        BorderStyle::default(),
+    ));
     for placed in &drag.lines {
         paint_line(placed, context, window, cx);
     }
+    // The fade is the card's own fill laid thinly over its text, so the
+    // card stays opaque.
     let veil = Hsla {
         a: 1. - look.drag_opacity,
         ..look.drag_fill
     };
-    window.paint_quad(fill(drag.card, veil).corner_radii(context.theme.radius_sm));
-    if let Some(indicator) = drag.indicator {
-        window.paint_quad(
-            fill(indicator, look.drop_indicator)
-                .corner_radii(indicator.size.height.min(indicator.size.width) / 2.),
-        );
-    }
+    window.paint_quad(fill(drag.card, veil).corner_radii(radius));
 }
 
 /// Math previews float above the row they point at, over earlier lines.
