@@ -229,6 +229,16 @@ pub struct Theme {
     pub small_font_size: Pixels,
     /// Code size as a multiple of the surrounding text size.
     pub code_scale: f32,
+    /// Superscript and subscript size, as a multiple of the text around
+    /// them: footnote numbers, `<sup>` and `<sub>`.
+    pub script_scale: f32,
+    /// How far a superscript's baseline rises and a subscript's drops, in
+    /// ems of the text around it.
+    pub superscript_rise: f32,
+    pub subscript_drop: f32,
+    /// The least contrast ratio a colour written in a note keeps against
+    /// what is behind it; one with less is lightened or darkened.
+    pub note_color_contrast: f32,
     /// Line height as a multiple of the font size.
     pub line_height_factor: f32,
     pub code_line_height_factor: f32,
@@ -318,6 +328,10 @@ pub struct Theme {
     pub link_underline: Hsla,
     pub tag_background: Hsla,
     pub highlight: Hsla,
+    /// `<kbd>` text in a note: a key cap's fill and glyphs, as shortcuts
+    /// are drawn everywhere else.
+    pub keycap_fill: Hsla,
+    pub keycap_text: Hsla,
     pub divider: Hsla,
     pub error: Hsla,
     pub shadow: Hsla,
@@ -431,6 +445,10 @@ impl Theme {
             ],
             small_font_size: scale("font.scale.small", 0.875),
             code_scale: read.number("font.scale.code", 0.95),
+            script_scale: 0.7,
+            superscript_rise: 0.4,
+            subscript_drop: 0.2,
+            note_color_contrast: 3.,
             line_height_factor: read.number("font.line-height.body", 1.6),
             code_line_height_factor: read.number("font.line-height.code", 1.45),
             heading_line_height_factor: read.number("font.heading.line-height", 1.3),
@@ -687,6 +705,8 @@ fn read_colors(palette: &Palette) -> Theme {
         link_underline: p.link_underline,
         tag_background: p.hover,
         highlight: p.highlight,
+        keycap_fill: keycap_colors(p.text).0,
+        keycap_text: keycap_colors(p.text).1,
         divider: p.divider,
         error: p.conflict,
         shadow: p.shadow,
@@ -725,6 +745,10 @@ fn zero_sizes() -> Theme {
         heading_font_sizes: [zero; 6],
         small_font_size: zero,
         code_scale: 1.,
+        script_scale: 1.,
+        superscript_rise: 0.,
+        subscript_drop: 0.,
+        note_color_contrast: 1.,
         line_height_factor: 1.,
         code_line_height_factor: 1.,
         heading_line_height_factor: 1.,
@@ -789,6 +813,8 @@ fn zero_sizes() -> Theme {
         link_underline: black,
         tag_background: black,
         highlight: black,
+        keycap_fill: black,
+        keycap_text: black,
         divider: black,
         error: black,
         shadow: black,
@@ -1648,6 +1674,19 @@ const KEYCAP_FILL_ALPHA: f32 = 0.075;
 /// How much of the text colour a keycap's glyphs take.
 const KEYCAP_GLYPH_ALPHA: f32 = 0.82;
 
+/// A key cap's fill and glyph colours on a surface whose text is `text`.
+pub fn keycap_colors(text: Hsla) -> (Hsla, Hsla) {
+    let fill = Hsla {
+        a: text.a * KEYCAP_FILL_ALPHA,
+        ..text
+    };
+    let glyph = Hsla {
+        a: text.a * KEYCAP_GLYPH_ALPHA,
+        ..text
+    };
+    (fill, glyph)
+}
+
 /// A shortcut drawn as a flat chip, the same wherever one appears: the
 /// settings screen, the palette, menus, tooltips and the help dialog.
 /// The fill and glyphs are the surface's text colour at low and high
@@ -1689,14 +1728,7 @@ impl Default for KeycapTheme {
 impl KeycapTheme {
     /// The chip recoloured for a surface whose text is `text`.
     pub fn on_text(mut self, text: Hsla) -> KeycapTheme {
-        self.fill = Hsla {
-            a: text.a * KEYCAP_FILL_ALPHA,
-            ..text
-        };
-        self.glyph = Hsla {
-            a: text.a * KEYCAP_GLYPH_ALPHA,
-            ..text
-        };
+        (self.fill, self.glyph) = keycap_colors(text);
         self
     }
 

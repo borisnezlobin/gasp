@@ -4,6 +4,7 @@
 
 mod assemble;
 mod effects;
+mod html;
 mod output;
 mod reveal;
 mod settings;

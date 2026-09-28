@@ -2,6 +2,7 @@
 
 use std::ops::Range;
 
+use crate::syntax::html_attribute as attribute;
 use crate::syntax::{ConflictSide, HtmlKind, Markup, MarkupKind, Node, NodeId, NodeKind};
 
 use super::output::WidgetKind;
@@ -115,32 +116,12 @@ fn parse_size(value: &str) -> Option<(u32, Option<u32>)> {
 
 fn html_image(tag: &str) -> WidgetKind {
     WidgetKind::Image {
-        target: attribute(tag, "src").unwrap_or_default(),
-        alt: attribute(tag, "alt").unwrap_or_default(),
+        target: attribute(tag, "src").unwrap_or_default().to_owned(),
+        alt: attribute(tag, "alt").unwrap_or_default().to_owned(),
         width: attribute(tag, "width").and_then(|w| w.parse().ok()),
         height: attribute(tag, "height").and_then(|h| h.parse().ok()),
         embed: false,
     }
-}
-
-/// The value of `name="…"`, `name='…'` or `name=bare` in a tag.
-fn attribute(tag: &str, name: &str) -> Option<String> {
-    let lower = tag.to_ascii_lowercase();
-    let pattern = format!("{name}=");
-    let at = lower
-        .match_indices(&pattern)
-        .map(|(at, _)| at)
-        .find(|&at| at > 0 && tag.as_bytes()[at - 1].is_ascii_whitespace())?;
-    let value = &tag[at + pattern.len()..];
-    let quote = value.chars().next()?;
-    let unquoted = if quote == '"' || quote == '\'' {
-        value[1..].split(quote).next()?
-    } else {
-        value
-            .split(|c: char| c.is_whitespace() || c == '>' || c == '/')
-            .next()?
-    };
-    Some(unquoted.to_owned())
 }
 
 /// The TeX source of a math node, without quote markers of enclosing
@@ -317,9 +298,9 @@ mod tests {
     #[test]
     fn html_attributes_are_read() {
         let tag = r#"<img src="a b.png" width=300 alt='cat'>"#;
-        assert_eq!(attribute(tag, "src").as_deref(), Some("a b.png"));
-        assert_eq!(attribute(tag, "width").as_deref(), Some("300"));
-        assert_eq!(attribute(tag, "alt").as_deref(), Some("cat"));
+        assert_eq!(attribute(tag, "src"), Some("a b.png"));
+        assert_eq!(attribute(tag, "width"), Some("300"));
+        assert_eq!(attribute(tag, "alt"), Some("cat"));
         assert_eq!(attribute(tag, "height"), None);
     }
 

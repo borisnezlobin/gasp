@@ -1020,3 +1020,99 @@ fn image_width(view: &Entity<EditorView>, cx: &mut VisualTestContext, line: usiz
         .expect("the image is drawn")
         .width
 }
+
+/// The text pieces on `line` that stand for the source offsets of
+/// `needle` in `text`.
+fn text_piece_for(line: &VisualLine, text: &str, needle: &str) -> Piece {
+    let at = text.find(needle).unwrap() - line.start;
+    line.pieces()
+        .find(|piece| piece.is_text() && piece.range.contains(&at))
+        .unwrap_or_else(|| panic!("no text piece for {needle:?}"))
+        .clone()
+}
+
+fn shaped(piece: &Piece) -> &gpui::ShapedLine {
+    match &piece.content {
+        PieceContent::Text(text) => &text.shaped,
+        _ => panic!("not text"),
+    }
+}
+
+/// The owner's styled HTML, with synthetic text.
+const STYLED_HTML: &str = "plain <span style=\"color:red; background-color: #ff0\">abc</span> \
+<span style=”font-size: 2em”>big</span> <b>bold</b> x<sup>up</sup> <kbd>Ctrl</kbd>\n\n\
+<p style=\"text-align: center;\">Mid</p>\n\n<center>Also mid</center>\n\n\
+<div style=\"text-align: right\">\nRight\n</div>\n\nend";
+
+#[gpui::test]
+fn styled_html_is_laid_out_with_its_styles(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, STYLED_HTML);
+    place_cursor(&view, cx, STYLED_HTML.len());
+    let text = STYLED_HTML;
+    let line = visual(&view, cx, 0);
+    let theme = view.read_with(cx, |view, _| view.theme().clone());
+    for tag in ["<span", "</span>", "<b>", "<sup>", "<kbd>"] {
+        let at = text.find(tag).unwrap();
+        assert!(!shows_text_at(&line, at), "{tag} is hidden");
+    }
+    let plain = text_piece_for(&line, text, "plain");
+    let abc = text_piece_for(&line, text, "abc");
+    let fills: Vec<_> = match &abc.content {
+        PieceContent::Text(piece) => piece.backgrounds.iter().map(|b| b.color).collect(),
+        _ => Vec::new(),
+    };
+    let yellow: gpui::Hsla = gpui::rgb(0xffff00).into();
+    assert!(fills.contains(&yellow), "the note's fill: {fills:?}");
+    let big = text_piece_for(&line, text, "big");
+    assert_eq!(shaped(&big).font_size, shaped(&plain).font_size * 2.);
+    let up = text_piece_for(&line, text, "up<");
+    assert!(shaped(&up).font_size < shaped(&plain).font_size);
+    let baseline = |piece: &Piece| piece.top + shaped(piece).ascent;
+    assert!(baseline(&up) < baseline(&plain), "a superscript is raised");
+    // The test platform shapes every font as one and keeps run colours
+    // private, so weight and colour are checked on the runs themselves in
+    // `styling`'s tests.
+    let key = text_piece_for(&line, text, "Ctrl");
+    let key_fills: Vec<_> = match &key.content {
+        PieceContent::Text(piece) => piece.backgrounds.iter().map(|b| b.color).collect(),
+        _ => Vec::new(),
+    };
+    assert!(key_fills.contains(&theme.keycap_fill), "a key is a key cap");
+
+    let column = view.read_with(cx, |view, _| view.frame().unwrap().column_width);
+    let centred = text_piece_for(&visual(&view, cx, 2), text, "Mid");
+    let gap_left = centred.x;
+    let gap_right = column - centred.right();
+    assert!(
+        (gap_left - gap_right).abs() < px(2.),
+        "{gap_left:?} {gap_right:?}"
+    );
+    assert!(gap_left > px(50.));
+    let also = text_piece_for(&visual(&view, cx, 4), text, "Also mid");
+    assert!((also.x - (column - also.right())).abs() < px(2.));
+    let right = text_piece_for(&visual(&view, cx, 7), text, "Right");
+    assert!(
+        (column - right.right()).abs() < px(2.),
+        "{:?}",
+        right.right()
+    );
+    let end = text_piece_for(&visual(&view, cx, 10), text, "end");
+    assert!(end.x < px(1.), "plain lines stay left");
+}
+
+#[gpui::test]
+fn styled_html_reveals_its_tags_at_the_cursor(cx: &mut TestAppContext) {
+    let note = "a <span style=\"color:red;\">abc</span> b";
+    let (view, cx) = open(cx, note);
+    let inside = note.find("abc").unwrap() + 1;
+    place_cursor(&view, cx, inside);
+    let line = visual(&view, cx, 0);
+    assert!(shows_text_at(&line, note.find("<span").unwrap()));
+    assert!(shows_text_at(&line, note.find("</span>").unwrap()));
+    cx.simulate_input("Z");
+    cx.run_until_parked();
+    assert_eq!(
+        text(&view, cx),
+        "a <span style=\"color:red;\">aZbc</span> b"
+    );
+}

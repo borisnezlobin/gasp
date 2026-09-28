@@ -328,6 +328,7 @@ impl LineLayouter<'_, '_> {
             text,
             font_size,
             line_height: font_size * self.theme().line_height_factor,
+            baseline_shift: px(0.),
             runs: pending.runs,
             backgrounds: pending.backgrounds,
         };

@@ -840,7 +840,13 @@ fn html_block_tags_hide() {
     check(
         "<div align=\"center\">\ncentered\n</div>\n\nz‸",
         &element(),
-        &["~collapsed~", "centered", "~collapsed~", "", "z"],
+        &[
+            "[align(center)] ~collapsed~",
+            "[align(center)] centered",
+            "[align(center)] ~collapsed~",
+            "",
+            "z",
+        ],
     );
 }
 
@@ -1194,4 +1200,155 @@ fn link_embed_blocks_become_cards_away_from_the_cursor() {
 fn embed_blocks_without_a_url_stay_code() {
     let away = render("```embed\ntitle: \"x\"\n```\n\n‸", &element());
     assert!(!away.contains("linkcard"), "{away}");
+}
+
+#[test]
+fn styled_html_hides_its_tags_and_styles_its_text() {
+    check(
+        "<span style=\"color:red;\">abc</span> <b>b</b> <i>i</i> <a href=\"https://example.com\">site</a>\n\n<span style=”color:red;”>curly</span>\n\nz‸",
+        &element(),
+        &[
+            "{html-color:abc} {strong:b} {emphasis:i} {link:site}",
+            "",
+            "{html-color:curly}",
+            "",
+            "z",
+        ],
+    );
+}
+
+#[test]
+fn html_tags_show_around_the_cursor() {
+    check(
+        "<span style=\"color:red;\">a‸bc</span> <b>b</b>",
+        &element(),
+        &[
+            "{html,markup-dimmed:<span style=\"color:red;\">}{html-color:abc}{html,markup-dimmed:</span>} {strong:b}",
+        ],
+    );
+}
+
+#[test]
+fn html_blocks_align_their_lines() {
+    check(
+        "<p style=\"text-align: center;\">Mid</p>\n\n<center>Also</center>\n\n<div style=\"text-align: right\">\nRight\n</div>\n\nz‸",
+        &element(),
+        &[
+            "[align(center)] Mid",
+            "",
+            "[align(center)] Also",
+            "",
+            "[align(right)] ~collapsed~",
+            "[align(right)] Right",
+            "[align(right)] ~collapsed~",
+            "",
+            "z",
+        ],
+    );
+}
+
+#[test]
+fn inline_html_elements_and_nesting() {
+    check(
+        "<sup>up</sup><sub>down</sub> <kbd>Ctrl</kbd> <mark>m</mark> <s>s</s> <span style=\"color:red\"><b>x</b></span> <b>unclosed\n\nz‸",
+        &element(),
+        &[
+            "{superscript:up}{subscript:down} {kbd:Ctrl} {highlight:m} {strikethrough:s} {strong,html-color:x} unclosed",
+            "",
+            "z",
+        ],
+    );
+}
+
+#[test]
+fn html_style_keys_carry_their_values() {
+    let text = "<span style=\"font-size:2em; background-color: #ff0\"><span style=\"font-size:50%; color: rgb(0,0,255)\">x</span></span> <span style=\"font-size:99px\">y</span>";
+    let tree = syntax::parse(text);
+    let plan = plan(&RenderInput {
+        text,
+        tree: &tree,
+        selections: &[],
+        settings: &element(),
+    });
+    let styles_at = |needle: &str| {
+        let at = text.find(needle).unwrap();
+        let run = plan.lines[0]
+            .runs
+            .iter()
+            .find(|run| run.range.contains(&at))
+            .unwrap();
+        run.styles.clone()
+    };
+    let x = styles_at("x<");
+    assert!(x.contains(&StyleKey::FontScale {
+        depth: 1,
+        percent: 100
+    }));
+    assert!(x.contains(&StyleKey::TextColor {
+        depth: 1,
+        rgba: 0x0000ffff
+    }));
+    assert!(x.contains(&StyleKey::TextBackground {
+        depth: 0,
+        rgba: 0xffff00ff
+    }));
+    assert!(styles_at("y<").contains(&StyleKey::FontScale {
+        depth: 0,
+        percent: 300
+    }));
+}
+
+#[test]
+fn the_styled_html_fixture_renders_its_subset() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/html/Styled HTML.md");
+    let text = std::fs::read_to_string(path).unwrap();
+    let tree = syntax::parse(&text);
+    let plan = plan(&RenderInput {
+        text: &text,
+        tree: &tree,
+        selections: &[],
+        settings: &element(),
+    });
+    check_plan_invariants(&text, &plan);
+    let styles_at = |needle: &str| -> Vec<StyleKey> {
+        let at = text.find(needle).unwrap();
+        plan.lines
+            .iter()
+            .flat_map(|line| &line.runs)
+            .find(|run| run.range.contains(&at))
+            .map(|run| run.styles.clone())
+            .unwrap_or_default()
+    };
+    let has_color = |needle: &str| {
+        styles_at(needle)
+            .iter()
+            .any(|style| matches!(style, StyleKey::TextColor { .. }))
+    };
+    assert!(has_color("red word"));
+    assert!(has_color("still red"));
+    assert!(has_color("navy and larger"));
+    assert!(has_color("only\nthe colour"));
+    assert!(styles_at("bold on a").contains(&StyleKey::Strong));
+    assert!(styles_at("Ctrl").contains(&StyleKey::Kbd));
+    assert!(styles_at("a link").contains(&StyleKey::Link));
+    assert!(!styles_at("not a link").contains(&StyleKey::Link));
+    assert!(styles_at("After the unclosed").is_empty());
+    let aligned = |needle: &str| {
+        let line = tree.lines().line_of(text.find(needle).unwrap());
+        plan.lines[line]
+            .line_styles
+            .iter()
+            .find_map(|style| match style {
+                LineStyle::Align(align) => Some(*align),
+                _ => None,
+            })
+    };
+    assert_eq!(
+        aligned("A centred paragraph"),
+        Some(syntax::Alignment::Center)
+    );
+    assert_eq!(aligned("A centre element"), Some(syntax::Alignment::Center));
+    assert_eq!(aligned("Right-aligned"), Some(syntax::Alignment::Right));
+    assert_eq!(aligned("After the unclosed"), None);
 }

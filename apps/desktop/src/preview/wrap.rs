@@ -70,6 +70,9 @@ pub struct Chunk {
     pub text: String,
     pub font_size: Pixels,
     pub line_height: Pixels,
+    /// How far the text's baseline sits above the row's, as for `<sup>`;
+    /// negative is below.
+    pub baseline_shift: Pixels,
     pub runs: Vec<TextRun>,
     /// Fills behind parts of the text, painted by the editor rather than
     /// as run backgrounds.
@@ -142,6 +145,7 @@ impl Chunk {
             text: self.text[range].to_owned(),
             font_size: self.font_size,
             line_height: self.line_height,
+            baseline_shift: self.baseline_shift,
             runs: own,
             backgrounds,
         }
@@ -383,7 +387,9 @@ impl RowBuilder {
     }
 
     fn place_text(&mut self, chunk: &Chunk, text: TextPiece) {
-        let extent = Extent::of_text(&text.shaped, chunk.line_height);
+        let mut extent = Extent::of_text(&text.shaped, chunk.line_height);
+        extent.ascent += chunk.baseline_shift;
+        extent.descent -= chunk.baseline_shift;
         let start = chunk.range.start + text.slice.start;
         let width = text.x_for_index(text.slice.len());
         let piece = Piece {
