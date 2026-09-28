@@ -125,7 +125,7 @@ impl SnapshotStore {
             .unwrap_or_default()
             .as_millis();
         let path = dir.join(format!("{millis}.{SNAPSHOT_EXTENSION}"));
-        crate::workspace::files::atomic_write(&path, text)?;
+        crate::files::atomic_write(&path, text)?;
         Ok(true)
     }
 

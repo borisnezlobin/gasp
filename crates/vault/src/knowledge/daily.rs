@@ -9,7 +9,7 @@ use jiff::civil::DateTime;
 
 use super::dates;
 use super::templates::{TemplateContext, fill};
-use crate::workspace::files::atomic_write;
+use crate::files::atomic_write;
 
 /// Where the daily note for `now` lives.
 pub fn daily_note_path(vault: &Path, settings: &DailyNoteSettings, now: DateTime) -> PathBuf {
@@ -45,7 +45,7 @@ pub fn ensure_daily_note(
     let text = match template_path(vault, &daily.template) {
         Some(template) => {
             let context = TemplateContext {
-                title: crate::workspace::files::note_title(&path),
+                title: super::note_title(&path),
                 now,
                 date_format: templates.date_format.clone(),
                 time_format: templates.time_format.clone(),

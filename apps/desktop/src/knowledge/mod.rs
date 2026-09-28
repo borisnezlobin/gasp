@@ -6,8 +6,6 @@
 //! the sidebar in its right panel, and the commands.
 
 pub mod bench;
-pub mod daily;
-pub mod dates;
 pub mod edit;
 pub mod rename;
 pub mod sidebar;
@@ -17,6 +15,7 @@ pub mod templates;
 
 use std::path::Path;
 
+pub use editor_vault::knowledge::{daily, dates};
 pub use editor_vault::{build, index, mentions, parse};
 use gpui::{AppContext, Context, Entity, Focusable, Window};
 
