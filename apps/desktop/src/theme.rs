@@ -1814,6 +1814,9 @@ pub struct UiTheme {
     /// narrowest the card gets so its buttons fit.
     pub flag_card_width: Pixels,
     pub flag_card_min_width: Pixels,
+    /// How wide a flag's card may grow to keep its buttons on one row;
+    /// its message still wraps at `flag_card_width`.
+    pub flag_card_max_width: Pixels,
     /// One line of interface text, for measuring a wrapped message.
     pub text_line_height: Pixels,
     /// How long the pointer rests on a link before its preview opens.
@@ -2033,6 +2036,7 @@ impl UiTheme {
             hover_footnote_width: px(360.),
             flag_card_width: px(320.),
             flag_card_min_width: px(220.),
+            flag_card_max_width: px(440.),
             text_line_height: px(20.),
             hover_preview_delay: std::time::Duration::from_millis(350),
             hover_preview_grace: std::time::Duration::from_millis(250),
