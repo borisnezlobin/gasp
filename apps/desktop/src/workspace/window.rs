@@ -206,6 +206,10 @@ fn window_options(device: &DeviceSettings, cx: &App) -> WindowOptions {
     WindowOptions {
         window_bounds: Some(bounds),
         titlebar: Some(titlebar()),
+        // The tab bar sits where the hidden title bar was, and a movable
+        // window moves from there whatever is pressed, tabs included. Its
+        // empty space moves the window itself (`window_drag`).
+        is_movable: !cfg!(target_os = "macos"),
         ..Default::default()
     }
 }

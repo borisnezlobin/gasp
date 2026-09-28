@@ -1,6 +1,8 @@
-//! AppKit's half of moving the window: GPUI's view stops saying a press
-//! on it can move the window, and a press on the tab bar's empty space
-//! hands the current event to `performWindowDragWithEvent:`.
+//! AppKit's half of moving the window. The window is made unmovable (its
+//! tab bar sits in the title bar's place, where a movable window moves
+//! from any press) and GPUI's view says a press can't move it; a press on
+//! the tab bar's empty space hands the current event to
+//! `performWindowDragWithEvent:`, with the window movable just for that.
 //!
 //! Messages go through `Message::send_message` rather than `msg_send!`,
 //! whose expansion tests a `cargo-clippy` feature this crate doesn't have.
@@ -9,7 +11,7 @@
 
 use std::any::Any;
 
-use objc::runtime::{BOOL, Class, Imp, NO, Object, Sel, class_addMethod};
+use objc::runtime::{BOOL, Class, Imp, NO, Object, Sel, YES, class_addMethod};
 use objc::{Message, MessageArguments};
 
 /// GPUI's view class, registered when the app starts.
@@ -61,7 +63,11 @@ pub fn drag_window(view: usize) {
         if event.is_null() || window.is_null() {
             return;
         }
+        // The window isn't movable, so tabs drag instead of it; it's made
+        // movable just while the drag starts, then put back.
+        let _: () = send(window, "setMovable:", (YES,));
         let _: () = send(window, "performWindowDragWithEvent:", (event,));
+        let _: () = send(window, "setMovable:", (NO,));
     }
 }
 
