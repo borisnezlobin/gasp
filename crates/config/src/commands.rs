@@ -128,6 +128,7 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("format.highlight", "Toggle highlight", "Formatting"),
     spec("format.math-inline", "Toggle inline math", "Formatting"),
     spec("format.comment", "Toggle comment", "Formatting"),
+    spec("format.callout", "Insert callout", "Formatting"),
     spec(
         "markdown.cycle-symbols",
         "Cycle Markdown symbols",

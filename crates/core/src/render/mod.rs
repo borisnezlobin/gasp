@@ -9,6 +9,7 @@ mod html;
 mod output;
 mod reveal;
 mod settings;
+mod symbols;
 mod widgets;
 
 #[cfg(test)]
@@ -23,6 +24,7 @@ pub use output::{
     WidgetKind,
 };
 pub use settings::{RevealMode, RevealScope, RevealSettings};
+pub use symbols::reveal_settings;
 
 use effects::{Effects, Planner};
 use reveal::Revealer;

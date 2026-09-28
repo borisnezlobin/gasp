@@ -1,16 +1,18 @@
-//! Editing commands the keymap binds: formatting toggles, links, indenting
-//! and footnotes.
+//! Editing commands the keymap binds: formatting toggles, links, callouts,
+//! indenting and footnotes.
 //!
 //! Each command reads the document and selection and returns a
 //! [`Transaction`] tagged with the command's id, so it becomes its own undo
 //! step. Returning `None` means there is nothing to do.
 
+mod callout;
 mod footnote;
 mod format;
 mod indent;
 mod lines;
 mod link;
 
+pub use callout::insert_callout;
 pub use footnote::{FootnoteCommand, insert_or_jump_footnote};
 pub use format::{Format, toggle_format};
 pub use indent::{indent, outdent};
