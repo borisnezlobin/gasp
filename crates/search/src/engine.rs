@@ -392,7 +392,7 @@ fn search_note(note: &Note, query: &str) -> Option<NoteResult> {
 }
 
 /// Groups matches by line, one hit per line, up to [`MAX_HITS_PER_NOTE`].
-pub(super) fn line_hits(text: &str, matches: &[Range<usize>]) -> Vec<LineHit> {
+pub fn line_hits(text: &str, matches: &[Range<usize>]) -> Vec<LineHit> {
     let mut hits: Vec<LineHit> = Vec::new();
     let mut line_number = 0;
     let mut line_start = 0;

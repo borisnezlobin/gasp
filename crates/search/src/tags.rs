@@ -40,7 +40,7 @@ pub fn search_tagged(
         if generation.load(Ordering::Relaxed) != current {
             return Vec::new();
         }
-        let path = crate::file_tree::ops::slash_path(&note.path);
+        let path = slash_path(&note.path);
         if tagged.contains(&path) {
             let matches = tag_matches(&note.text, tag);
             results.push(NoteResult {
@@ -53,6 +53,14 @@ pub fn search_tagged(
     }
     results.sort_by(|a, b| a.path.cmp(&b.path));
     results
+}
+
+/// A relative path with `/` separators, as the link index keys notes.
+fn slash_path(path: &std::path::Path) -> String {
+    path.components()
+        .map(|part| part.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 /// Where `tag` is written in `text`: each `#tag` (or a tag nested under

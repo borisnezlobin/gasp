@@ -2965,6 +2965,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "toml 0.8.23",
+ "toml_edit 0.22.27",
 ]
 
 [[package]]
@@ -2999,8 +3000,10 @@ dependencies = [
  "editor-math",
  "editor-migrate",
  "editor-prose",
+ "editor-search",
  "editor-snippets",
  "editor-sync",
+ "editor-vault",
  "emojis",
  "env_logger",
  "futures",
@@ -3095,6 +3098,10 @@ dependencies = [
 [[package]]
 name = "editor-search"
 version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "unicode-normalization",
+]
 
 [[package]]
 name = "editor-snippets"
@@ -3114,6 +3121,15 @@ dependencies = [
  "similar",
  "tempfile",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "editor-vault"
+version = "0.1.0"
+dependencies = [
+ "editor-config",
+ "tempfile",
+ "trash",
 ]
 
 [[package]]

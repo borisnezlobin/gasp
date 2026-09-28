@@ -1,0 +1,17 @@
+[package]
+name = "editor-vault"
+description = "The vault on disk without a UI: the link index, links that follow moved notes, file operations and atomic writes."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+editor-config = { path = "../config" }
+trash = "5"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

@@ -289,7 +289,7 @@ impl FileIndex {
 }
 
 /// The paths a link could mean: as written, and with `.md` added.
-pub(crate) fn candidate_forms(target: &str) -> Vec<String> {
+pub fn candidate_forms(target: &str) -> Vec<String> {
     let mut forms = vec![target.to_string()];
     if !target.to_lowercase().ends_with(NOTE_EXTENSION) {
         forms.push(format!("{target}{NOTE_EXTENSION}"));
@@ -303,7 +303,7 @@ fn has_note_extension(written: &str, resolved: &str) -> bool {
         || !resolved.to_lowercase().ends_with(NOTE_EXTENSION)
 }
 
-pub(crate) fn strip_note_extension(path: &str) -> &str {
+pub fn strip_note_extension(path: &str) -> &str {
     let cut = path.len().saturating_sub(NOTE_EXTENSION.len());
     match path.get(cut..) {
         Some(tail) if tail.eq_ignore_ascii_case(NOTE_EXTENSION) => &path[..cut],
@@ -323,15 +323,15 @@ fn needles_for(path: &str) -> Vec<String> {
     needles
 }
 
-pub(crate) fn file_name(path: &str) -> &str {
+pub fn file_name(path: &str) -> &str {
     path.rsplit('/').next().unwrap_or(path)
 }
 
-pub(crate) fn parent_dir(path: &str) -> &str {
+pub fn parent_dir(path: &str) -> &str {
     path.rsplit_once('/').map_or("", |(dir, _)| dir)
 }
 
-pub(crate) fn join(dir: &str, path: &str) -> String {
+pub fn join(dir: &str, path: &str) -> String {
     if dir.is_empty() {
         path.to_string()
     } else {
@@ -340,7 +340,7 @@ pub(crate) fn join(dir: &str, path: &str) -> String {
 }
 
 /// Resolves `.` and `..`. `None` when the path climbs out of the vault.
-pub(crate) fn normalize(path: &str) -> Option<String> {
+pub fn normalize(path: &str) -> Option<String> {
     let mut parts: Vec<&str> = Vec::new();
     for part in path.split('/') {
         match part {
@@ -370,17 +370,17 @@ fn relative_path(from: &str, to: &str) -> String {
 }
 
 /// A Markdown link destination split into the parts a rewrite keeps.
-pub(crate) struct Destination {
+pub struct Destination {
     /// The decoded path, without the fragment.
-    pub(crate) path: String,
-    pub(crate) fragment: String,
+    pub path: String,
+    pub fragment: String,
     angle_brackets: bool,
     /// Whether characters other than spaces were percent-encoded.
     fully_encoded: bool,
 }
 
 impl Destination {
-    pub(crate) fn parse(raw: &str) -> Option<Destination> {
+    pub fn parse(raw: &str) -> Option<Destination> {
         let angle_brackets = raw.starts_with('<') && raw.ends_with('>') && raw.len() >= 2;
         let inner = if angle_brackets {
             &raw[1..raw.len() - 1]
@@ -492,7 +492,7 @@ fn wikilink_target_len(body: &str) -> usize {
 }
 
 /// The byte ranges of every Markdown link destination, after `](`.
-pub(crate) fn find_markdown_destinations(text: &str) -> Vec<Range<usize>> {
+pub fn find_markdown_destinations(text: &str) -> Vec<Range<usize>> {
     let mut found = Vec::new();
     let mut from = 0;
     while let Some(at) = text[from..].find("](").map(|at| at + from) {
@@ -528,7 +528,7 @@ fn destination_len(rest: &str) -> Option<usize> {
 }
 
 /// Byte ranges of fenced code blocks and inline code spans.
-pub(crate) fn code_ranges(text: &str) -> Vec<Range<usize>> {
+pub fn code_ranges(text: &str) -> Vec<Range<usize>> {
     let fences = fenced_blocks(text);
     let mut ranges = fences.clone();
     let mut start = 0;

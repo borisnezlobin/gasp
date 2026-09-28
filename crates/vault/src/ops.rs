@@ -263,7 +263,7 @@ pub fn update_links_after_move(
             continue;
         };
         if let Some(updated) = updater.rewrite(note, &text) {
-            fs::write(&path, updated)?;
+            crate::files::atomic_write(&path, &updated)?;
             changed.push(PathBuf::from(now));
         }
     }

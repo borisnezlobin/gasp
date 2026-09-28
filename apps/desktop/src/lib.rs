@@ -28,7 +28,7 @@ pub mod knowledge;
 pub mod line_cache;
 pub mod line_layout;
 pub mod link_cards;
-pub mod link_update;
+pub use editor_vault::link_update;
 pub mod look_up;
 pub mod metrics;
 pub mod navigation;

@@ -6,18 +6,42 @@
 
 use std::path::{Path, PathBuf};
 
-use editor_config::commands::{BUILTIN_COMMANDS, PLATFORM_COMMANDS};
-use editor_config::loader::{CONFIG_DIR, build_rules, build_theme};
-use editor_config::theme::{Theme as Tokens, TokenValue};
-use editor_config::{Config, RuleSet};
+use crate::commands::{BUILTIN_COMMANDS, PLATFORM_COMMANDS};
+use crate::loader::{CONFIG_DIR, build_rules, build_theme};
+use crate::theme::{Theme as Tokens, TokenValue};
+use crate::{Config, RuleSet};
 use serde_json::Value;
 use toml_edit::{ArrayOfTables, DocumentMut, Item, Table, value};
 
-use super::model::{is_user_rule, user_rule_id};
-use super::store::{SettingsFile, save};
+use crate::store::{SettingsFile, save};
 
 pub const THEME_FILE: &str = "theme.toml";
 pub const RULES_FILE: &str = "rules.toml";
+pub const SNIPPETS_FILE: &str = "snippets.txt";
+pub const REPLACEMENTS_FILE: &str = "replacements.toml";
+
+/// The id of the rule a shortcut added from the settings screen or the
+/// palette gets. A second one for the same command adds `~2`, and so on.
+pub fn user_rule_id(command: &str) -> String {
+    format!("user.key.{command}")
+}
+
+/// Whether a rule id is one the user added for `command`.
+pub fn is_user_rule(id: &str, command: &str) -> bool {
+    let base = user_rule_id(command);
+    id == base
+        || id
+            .strip_prefix(&base)
+            .is_some_and(|rest| rest.starts_with('~'))
+}
+
+pub fn snippets_path(vault_root: &Path) -> PathBuf {
+    vault_root.join(CONFIG_DIR).join(SNIPPETS_FILE)
+}
+
+pub fn replacements_path(vault_root: &Path) -> PathBuf {
+    vault_root.join(CONFIG_DIR).join(REPLACEMENTS_FILE)
+}
 
 pub fn theme_path(vault_root: &Path) -> PathBuf {
     vault_root.join(CONFIG_DIR).join(THEME_FILE)
@@ -281,8 +305,8 @@ fn remove_rules_where(doc: &mut DocumentMut, remove: impl Fn(&str) -> bool) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
-    use editor_config::Platform;
-    use editor_config::keys::KeyChord;
+    use crate::Platform;
+    use crate::keys::KeyChord;
     use std::fs;
 
     const THEME: &str = "\
