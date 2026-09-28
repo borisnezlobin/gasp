@@ -464,6 +464,8 @@ Every feature ships as a package with three parts: a plain-language spec, the co
   | Memory with your vault open | under 100 MB |
 
   These are targets we set, not measurements yet. The spikes and the first builds will show whether they're realistic.
+
+  Idle CPU is measured by `scripts/idle-cpu.sh`, which CI runs after the layout bench: an untouched window must draw no frames and stay under 1.5% CPU. It measures 0.6% on Linux; the owner measured 0.9% on macOS (Obsidian: 1.7%). What's left isn't the app's work: GPUI 0.2.2 keeps a loop running at the display's refresh rate while a window is visible (a `CVDisplayLink` on macOS, a timer on X11), and each tick asks whether the window needs drawing. Reaching 0% means patching GPUI so the loop stops after a few frames with nothing to draw and restarts when anything invalidates the window. That's a fork of GPUI's platform code; the macOS half can only be proven on a Mac, and a mistake there leaves a window that doesn't redraw, so it waits for a run on the owner's machine.
 - **Code quality.** Clippy with a cyclomatic complexity limit of 15, and SwiftLint with the same limit on the iPhone app. A complexity failure blocks a merge like a failing test.
 
 ## Phases

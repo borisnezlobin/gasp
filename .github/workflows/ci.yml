@@ -72,6 +72,12 @@ jobs:
         run: |
           xvfb-run -a -s "-screen 0 1280x1024x24" sh -c \
             'openbox & sleep 1; target/release/editor --bench-layout fixtures/corpus'
+      # An idle window draws nothing and stays under the CPU limit.
+      - name: Check idle CPU
+        timeout-minutes: 2
+        run: |
+          xvfb-run -a -s "-screen 0 1280x1024x24" sh -c \
+            'openbox & sleep 1; scripts/idle-cpu.sh target/release/editor fixtures/corpus'
 
   lint:
     name: Format and complexity
