@@ -85,6 +85,28 @@ fn edits_to_adjacent_lines_merge_without_a_conflict() {
 }
 
 #[test]
+fn appends_at_the_end_on_both_devices_keep_both_lines() {
+    let (world, laptop, phone, base) = two_devices_with_note(4);
+    write(
+        &laptop,
+        NOTE,
+        format!("{base}Laptop appended.\n").as_bytes(),
+    );
+    write(&phone, NOTE, format!("{base}Phone appended.\n").as_bytes());
+    sync(&laptop, "laptop");
+    assert!(matches!(sync(&phone, "phone"), MergeOutcome::Merged { .. }));
+    sync(&laptop, "laptop");
+
+    let phone_view = format!("{base}Phone appended.\nLaptop appended.\n");
+    assert_eq!(read(&phone, NOTE), phone_view);
+    assert_eq!(read(&laptop, NOTE), phone_view);
+    assert_eq!(
+        world.remote_file("master", NOTE).unwrap(),
+        phone_view.as_bytes()
+    );
+}
+
+#[test]
 fn edits_to_different_notes_and_new_notes_merge() {
     let world = World::seeded(&[("a.md", b"a\n"), ("b.md", b"b\n")]);
     let laptop = world.device("laptop");

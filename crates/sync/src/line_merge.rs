@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::ops::Range;
 
 use similar::{Algorithm, DiffTag, capture_diff_slices};
@@ -36,13 +37,25 @@ struct Chunk {
 
 /// Merges `this_device` and `other_device`, both edited from `base`, line by line.
 ///
-/// Changes to different lines merge automatically. Changes to the same
-/// lines, or two insertions at the same place, conflict unless identical.
+/// Changes to different lines merge automatically. When both sides only
+/// insert lines at the same place, both insertions are kept, this device's
+/// first, with the lines they start or end with in common kept once.
+/// Changes to the same lines conflict unless identical.
+///
+/// A missing newline at the end of a file doesn't count as a change to its
+/// last line, so two devices appending to a note saved without one still
+/// merge cleanly.
 pub fn merge_lines(base: &str, this_device: &str, other_device: &str) -> LineMerge {
+    let endings = OpenEndings::of(base, this_device, other_device);
+    let (base, this_device, other_device) = (
+        close_last_line(base),
+        close_last_line(this_device),
+        close_last_line(other_device),
+    );
     let texts = SideTexts {
-        base: split_lines(base),
-        this_device: split_lines(this_device),
-        other_device: split_lines(other_device),
+        base: split_lines(&base),
+        this_device: split_lines(&this_device),
+        other_device: split_lines(&other_device),
     };
     let mut regions = changed_regions(&texts.base, &texts.this_device, Side::ThisDevice);
     regions.extend(changed_regions(
@@ -52,11 +65,69 @@ pub fn merge_lines(base: &str, this_device: &str, other_device: &str) -> LineMer
     ));
     regions.sort_by_key(|region| (region.base.start, region.base.end));
     let chunks = group_overlapping(regions);
-    let segments = texts.assemble(&chunks);
+    let mut segments = texts.assemble(&chunks);
+    endings.reopen_last_line(&mut segments);
     match segments.as_slice() {
         [] => LineMerge::Clean(String::new()),
         [Segment::Clean(text)] => LineMerge::Clean(text.clone()),
         _ => LineMerge::Conflicted(segments),
+    }
+}
+
+/// Whether each version's last line lacks a newline.
+struct OpenEndings {
+    base: bool,
+    this_device: bool,
+    other_device: bool,
+}
+
+impl OpenEndings {
+    fn of(base: &str, this_device: &str, other_device: &str) -> Self {
+        Self {
+            base: ends_open(base),
+            this_device: ends_open(this_device),
+            other_device: ends_open(other_device),
+        }
+    }
+
+    /// Whether the merged text ends open: a side that changed the ending wins.
+    fn merged(&self) -> bool {
+        if self.this_device == self.base {
+            self.other_device
+        } else {
+            self.this_device
+        }
+    }
+
+    /// Takes back the newlines [`close_last_line`] added.
+    fn reopen_last_line(&self, segments: &mut [Segment]) {
+        match segments.last_mut() {
+            Some(Segment::Clean(text)) => drop_added_newline(text, self.merged()),
+            Some(Segment::Conflict(hunk)) => {
+                drop_added_newline(&mut hunk.base, self.base);
+                drop_added_newline(&mut hunk.this_device, self.this_device);
+                drop_added_newline(&mut hunk.other_device, self.other_device);
+            }
+            None => {}
+        }
+    }
+}
+
+fn ends_open(text: &str) -> bool {
+    !text.is_empty() && !text.ends_with('\n')
+}
+
+fn close_last_line(text: &str) -> Cow<'_, str> {
+    if ends_open(text) {
+        Cow::Owned(format!("{text}\n"))
+    } else {
+        Cow::Borrowed(text)
+    }
+}
+
+fn drop_added_newline(text: &mut String, was_open: bool) {
+    if was_open && text.ends_with('\n') {
+        text.pop();
     }
 }
 
@@ -167,14 +238,14 @@ impl SideTexts<'_> {
     ) {
         let this_text = &self.this_device[this_lines.clone()];
         let other_text = &self.other_device[other_lines.clone()];
-        let first_side = chunk.regions[0].side;
-        let one_side_only = chunk.regions.iter().all(|region| region.side == first_side);
-        if one_side_only {
-            let lines = match first_side {
+        if let Some(side) = chunk.only_side() {
+            let lines = match side {
                 Side::ThisDevice => this_lines,
                 Side::OtherDevice => other_lines,
             };
-            output.push_clean(&self.lines_of(first_side)[lines]);
+            output.push_clean(&self.lines_of(side)[lines]);
+        } else if chunk.base.is_empty() {
+            push_both_insertions(output, this_text, other_text);
         } else if this_text == other_text {
             output.push_clean(this_text);
         } else {
@@ -188,6 +259,42 @@ impl SideTexts<'_> {
             });
         }
     }
+}
+
+impl Chunk {
+    /// The side that made every change in the chunk, if only one did.
+    fn only_side(&self) -> Option<Side> {
+        let first = self.regions[0].side;
+        self.regions
+            .iter()
+            .all(|region| region.side == first)
+            .then_some(first)
+    }
+}
+
+/// Both sides inserted lines at the same place and changed nothing there:
+/// this device's lines, then the other device's, with the lines both start
+/// or end with kept once. Identical insertions come out once.
+fn push_both_insertions(output: &mut SegmentBuilder, this_lines: &[&str], other_lines: &[&str]) {
+    let leading = shared_leading_lines(this_lines, other_lines);
+    let (this_rest, other_rest) = (&this_lines[leading..], &other_lines[leading..]);
+    let trailing = shared_trailing_lines(this_rest, other_rest);
+    output.push_clean(&this_lines[..leading]);
+    output.push_clean(&this_rest[..this_rest.len() - trailing]);
+    output.push_clean(&other_rest[..other_rest.len() - trailing]);
+    output.push_clean(&this_rest[this_rest.len() - trailing..]);
+}
+
+fn shared_leading_lines(a: &[&str], b: &[&str]) -> usize {
+    a.iter().zip(b).take_while(|(a, b)| a == b).count()
+}
+
+fn shared_trailing_lines(a: &[&str], b: &[&str]) -> usize {
+    a.iter()
+        .rev()
+        .zip(b.iter().rev())
+        .take_while(|(a, b)| a == b)
+        .count()
 }
 
 #[derive(Default)]
@@ -310,21 +417,96 @@ mod tests {
     }
 
     #[test]
-    fn insertions_at_the_same_point_conflict() {
-        let merge = merge_lines("a\n", "a\nfrom laptop\n", "a\nfrom phone\n");
-        let hunks = conflicts(&merge);
-        assert_eq!(hunks.len(), 1);
-        assert_eq!(hunks[0].base, "");
-        assert_eq!(hunks[0].base_lines, 1..1);
+    fn appends_at_the_end_keep_both_with_this_device_first() {
+        let this = format!("{BASE}from laptop\n");
+        let other = format!("{BASE}from phone\nand more\n");
+        assert_eq!(
+            merge_lines(BASE, &this, &other),
+            LineMerge::Clean(format!("{BASE}from laptop\nfrom phone\nand more\n"))
+        );
     }
 
     #[test]
-    fn add_add_with_no_base_conflicts_unless_equal() {
+    fn appends_to_a_note_without_a_final_newline_keep_both() {
+        let base = "# Lemma\nproof";
+        let merge = merge_lines(base, "# Lemma\nproof\nlaptop", "# Lemma\nproof\nphone");
+        assert_eq!(
+            merge,
+            LineMerge::Clean("# Lemma\nproof\nlaptop\nphone".into())
+        );
+    }
+
+    #[test]
+    fn a_side_that_adds_the_final_newline_keeps_it() {
+        let merge = merge_lines("a", "a\nlaptop\n", "a\nphone");
+        assert_eq!(merge, LineMerge::Clean("a\nlaptop\nphone\n".into()));
+    }
+
+    #[test]
+    fn insertions_at_the_same_point_mid_file_keep_both() {
+        let this = "one\ntwo\nlaptop 1\nlaptop 2\nthree\nfour\nfive\n";
+        let other = "one\ntwo\nphone\nthree\nfour\nfive\n";
+        assert_eq!(
+            merge_lines(BASE, this, other),
+            LineMerge::Clean("one\ntwo\nlaptop 1\nlaptop 2\nphone\nthree\nfour\nfive\n".into())
+        );
+    }
+
+    #[test]
+    fn identical_insertions_are_kept_once() {
+        let both = "one\ntwo\nsame\nthree\nfour\nfive\n";
+        assert_eq!(merge_lines(BASE, both, both), LineMerge::Clean(both.into()));
+    }
+
+    #[test]
+    fn lines_both_insertions_share_at_either_end_are_kept_once() {
+        let this = format!("{BASE}## Log\nlaptop\n---\n");
+        let other = format!("{BASE}## Log\nphone\n---\n");
+        assert_eq!(
+            merge_lines(BASE, &this, &other),
+            LineMerge::Clean(format!("{BASE}## Log\nlaptop\nphone\n---\n"))
+        );
+    }
+
+    #[test]
+    fn an_insertion_inside_lines_the_other_side_rewrote_conflicts() {
+        let this = "one\ntwo\ninserted\nthree\nfour\nfive\n";
+        let other = "one\nTWO AND THREE\nfour\nfive\n";
+        let merge = merge_lines(BASE, this, other);
+        let hunks = conflicts(&merge);
+        assert_eq!(hunks.len(), 1);
+        assert_eq!(hunks[0].base, "two\nthree\n");
+        assert_eq!(hunks[0].this_device, "two\ninserted\nthree\n");
+        assert_eq!(hunks[0].other_device, "TWO AND THREE\n");
+    }
+
+    #[test]
+    fn an_insertion_inside_lines_the_other_side_deleted_conflicts() {
+        let this = "one\ntwo\ninserted\nthree\nfour\nfive\n";
+        let other = "one\nfour\nfive\n";
+        assert_eq!(conflicts(&merge_lines(BASE, this, other)).len(), 1);
+    }
+
+    #[test]
+    fn rewriting_the_last_line_on_both_sides_still_conflicts() {
+        let merge = merge_lines("a\nlast", "a\nlast, laptop", "a\nlast, phone");
+        let hunks = conflicts(&merge);
+        assert_eq!(hunks.len(), 1);
+        assert_eq!(hunks[0].base, "last");
+        assert_eq!(hunks[0].this_device, "last, laptop");
+        assert_eq!(hunks[0].other_device, "last, phone");
+    }
+
+    #[test]
+    fn two_new_files_with_the_same_name_keep_both() {
         assert_eq!(
             merge_lines("", "x\n", "x\n"),
             LineMerge::Clean("x\n".into())
         );
-        assert_eq!(conflicts(&merge_lines("", "x\n", "y\n")).len(), 1);
+        assert_eq!(
+            merge_lines("", "# Day\nlaptop\n", "# Day\nphone\n"),
+            LineMerge::Clean("# Day\nlaptop\nphone\n".into())
+        );
     }
 
     #[test]
