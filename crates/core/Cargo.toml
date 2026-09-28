@@ -13,6 +13,7 @@ editor-config = { path = "../config" }
 editor-snippets = { path = "../snippets" }
 pulldown-cmark = { version = "0.13.4", default-features = false }
 unicode-width = "0.2"
+url = "2"
 
 [lints]
 workspace = true

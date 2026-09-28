@@ -3,8 +3,8 @@
 //! the declared icon. No HTML parser: the head is scanned for its `<meta>`,
 //! `<title>` and `<link>` tags, which is all the card needs.
 
-use editor_core::link_card::LinkCard;
-use reqwest::Url;
+use super::LinkCard;
+use url::Url;
 
 /// How much of a page is read: heads are small, and some pages aren't.
 pub const MAX_PAGE_BYTES: usize = 512 * 1024;
