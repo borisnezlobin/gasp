@@ -178,11 +178,23 @@ fn path_key(path: &Path) -> String {
 pub fn trash(root: &Path, path: &Path, mode: TrashMode) -> io::Result<()> {
     let full = root.join(path);
     match mode {
-        TrashMode::System => trash::delete(&full).map_err(io::Error::other),
+        TrashMode::System => move_to_system_trash(root, path),
         TrashMode::Vault => move_to_vault_trash(root, path),
         TrashMode::Delete if full.is_dir() => fs::remove_dir_all(full),
         TrashMode::Delete => fs::remove_file(full),
     }
+}
+
+#[cfg(not(target_os = "ios"))]
+fn move_to_system_trash(root: &Path, path: &Path) -> io::Result<()> {
+    trash::delete(root.join(path)).map_err(io::Error::other)
+}
+
+/// An iPhone app's files have no system trash to go to, so they go to the
+/// vault's own.
+#[cfg(target_os = "ios")]
+fn move_to_system_trash(root: &Path, path: &Path) -> io::Result<()> {
+    move_to_vault_trash(root, path)
 }
 
 fn move_to_vault_trash(root: &Path, path: &Path) -> io::Result<()> {

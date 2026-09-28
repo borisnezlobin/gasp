@@ -8,6 +8,8 @@ publish = false
 
 [dependencies]
 editor-config = { path = "../config" }
+
+[target.'cfg(not(target_os = "ios"))'.dependencies]
 trash = "5"
 
 [dev-dependencies]
