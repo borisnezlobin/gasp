@@ -109,13 +109,16 @@ const fn key_only(id: &'static str, title: &'static str, category: &'static str)
 }
 
 /// The system dictionary's popover for the selection or the word at the
-/// caret, which only macOS has.
+/// caret, which the Apple platforms have.
 const LOOK_UP: CommandSpec = spec("edit.look-up", "Look up", "Editing");
+
+/// Puts the iPhone's software keyboard away.
+const HIDE_KEYBOARD: CommandSpec = spec("keyboard.hide", "Hide the keyboard", "Editing");
 
 /// Commands only some platforms have. The registry leaves them out
 /// elsewhere, but rules may still name them, as a vault's config goes
 /// from machine to machine.
-pub const PLATFORM_COMMANDS: &[&str] = &[LOOK_UP.id];
+pub const PLATFORM_COMMANDS: &[&str] = &[LOOK_UP.id, HIDE_KEYBOARD.id];
 
 /// Every built-in command on this platform.
 pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
@@ -305,8 +308,10 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     ),
     spec("note.import-image", "Insert image from file", "Editing"),
     spec("edit.paste-plain", "Paste as plain text", "Editing"),
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
     LOOK_UP,
+    #[cfg(target_os = "ios")]
+    HIDE_KEYBOARD,
     spec("code.copy-block", "Copy code block", "Editing"),
     spec("table.insert", "Insert table", "Tables"),
     spec("table.insert-row-above", "Insert table row above", "Tables"),

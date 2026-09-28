@@ -3075,6 +3075,7 @@ dependencies = [
  "regex",
  "ropey",
  "unicode-width",
+ "url",
 ]
 
 [[package]]

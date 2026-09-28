@@ -6,14 +6,14 @@
 //! draws as a card.
 
 pub mod images;
-pub mod meta;
+pub use editor_core::link_card::meta;
 mod net;
 
 use std::ops::Range;
 use std::time::Duration;
 
 use editor_core::document::Selection;
-use editor_core::link_card::LinkCard;
+use editor_core::link_card::{LinkCard, is_web_url};
 use editor_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{
     AnyElement, AppContext, ClickEvent, Context, MouseButton, Task, anchored, div, point,
@@ -69,14 +69,6 @@ impl Default for LinkCards {
 pub fn fetch_card(url: &str) -> Result<LinkCard, String> {
     let bytes = net::get(url, meta::MAX_PAGE_BYTES)?;
     Ok(meta::card_from_html(url, &String::from_utf8_lossy(&bytes)))
-}
-
-/// Whether `text` is a web address a card can be made from.
-fn is_web_url(text: &str) -> bool {
-    ["http://", "https://"]
-        .iter()
-        .any(|scheme| text.starts_with(scheme) && text.len() > scheme.len())
-        && !text.contains(char::is_whitespace)
 }
 
 impl EditorView {

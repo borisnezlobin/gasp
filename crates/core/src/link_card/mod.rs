@@ -15,8 +15,45 @@
 //! Only `url` is required. Values are double-quoted, with `\"` and `\\`
 //! escaped.
 
+pub mod meta;
+
+use std::ops::Range;
+
 /// The code block language Link Embed writes.
 pub const LANGUAGE: &str = "embed";
+
+/// Whether `text` is a web address a card can be made from.
+pub fn is_web_url(text: &str) -> bool {
+    ["http://", "https://"]
+        .iter()
+        .any(|scheme| text.starts_with(scheme) && text.len() > scheme.len())
+        && !text.contains(char::is_whitespace)
+}
+
+/// The web address on the line of `text` holding `offset`, when the
+/// address is all the line holds.
+pub fn url_on_line(text: &str, offset: usize) -> Option<String> {
+    let offset = text.floor_char_boundary(offset.min(text.len()));
+    let start = text[..offset].rfind('\n').map_or(0, |at| at + 1);
+    let end = text[offset..]
+        .find('\n')
+        .map_or(text.len(), |at| offset + at);
+    let address = text[start..end].trim();
+    is_web_url(address).then(|| address.to_owned())
+}
+
+/// What turns the line holding `url` into its card: the range to replace,
+/// its line break included, and the card's Markdown.
+pub fn card_replacement(text: &str, url: &str, card: &LinkCard) -> Option<(Range<usize>, String)> {
+    let mut start = 0;
+    for line in text.split_inclusive('\n') {
+        if line.trim() == url {
+            return Some((start..start + line.len(), card.to_markdown()));
+        }
+        start += line.len();
+    }
+    None
+}
 
 /// What a card shows.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

@@ -263,7 +263,7 @@ const CHOICE_LABELS: &[(&str, &str)] = &[
 /// Settings the desktop app doesn't read yet, by key prefix. Showing them
 /// would be controls that do nothing, so they stay hidden until their
 /// feature lands.
-const UNWIRED: &[&str] = &[];
+const UNWIRED: &[&str] = &["mobile."];
 
 /// Settings that only apply while another (a switch) is on, as
 /// (setting, the switch it needs). Their rows fade and stop taking input
