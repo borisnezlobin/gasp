@@ -78,6 +78,11 @@ pub fn launch_bench(note: LoadedNote, bench: BenchConfig) {
     start_x11_wake();
     Application::new().with_assets(Assets).run(move |cx| {
         bind_keys(cx);
+        // The app lists the fonts just after its first frame and the
+        // theme then settles on installed ones; the bench measures that
+        // settled state, not the frame before it.
+        let names = cx.text_system().all_font_names();
+        crate::ui::set_installed_fonts(names, cx);
         let bounds = Bounds::centered(
             None,
             size(px(BENCH_WINDOW_SIZE.0), px(BENCH_WINDOW_SIZE.1)),
