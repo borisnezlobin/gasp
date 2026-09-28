@@ -60,6 +60,7 @@ pub struct SyncService {
     /// What the last merge wrote, and when, to tell its echoes from edits.
     echo: Option<(Duration, Vec<PathBuf>)>,
     step_task: Option<Task<()>>,
+    resolve_task: Option<Task<()>>,
     timer: Option<Task<()>>,
     setup_task: Option<Task<()>>,
 }
@@ -103,6 +104,7 @@ impl SyncService {
             conflicts: Vec::new(),
             echo: None,
             step_task: None,
+            resolve_task: None,
             timer: None,
             setup_task: None,
         };
@@ -362,8 +364,8 @@ impl SyncService {
                 self.signed_in = false;
             }
         }
-        if !outcome.conflicts.is_empty() {
-            self.conflicts = outcome.conflicts;
+        if let Some(conflicts) = outcome.conflicts {
+            self.conflicts = conflicts;
         }
         match self.scheduler.report(now, outcome.report) {
             Some(next) => self.run(next, cx),
@@ -422,41 +424,43 @@ impl SyncService {
 
     // ---- Conflicts ----
 
-    /// Settles every conflicted file with one resolution per hunk, then
-    /// lets sync carry on and push the merge.
-    pub fn resolve(&mut self, choices: Vec<Vec<Resolution>>, cx: &mut Context<Self>) {
+    /// Settles each file with one resolution per hunk, then syncs what was
+    /// settled. Every other note has kept syncing all along, so a step may
+    /// be running; the engine takes its turn after it.
+    pub fn resolve(
+        &mut self,
+        choices: Vec<(ConflictedFile, Vec<Resolution>)>,
+        cx: &mut Context<Self>,
+    ) {
         let Presence::Ready(engine) = &self.presence else {
             return;
         };
         let engine = engine.clone();
-        let files: Vec<(ConflictedFile, Vec<Resolution>)> =
-            self.conflicts.iter().cloned().zip(choices).collect();
-        let written: Vec<PathBuf> = files.iter().map(|(file, _)| file.path.clone()).collect();
-        let work = cx.background_spawn(async move { engine.resolve(&files) });
-        self.step_task = Some(cx.spawn(async move |this, cx| {
-            let result = work.await;
-            this.update(cx, |this, cx| this.resolved(result, written, cx))
+        let written: Vec<PathBuf> = choices.iter().map(|(file, _)| file.path.clone()).collect();
+        let work = cx.background_spawn(async move { engine.resolve(&choices) });
+        self.resolve_task = Some(cx.spawn(async move |this, cx| {
+            let (waiting, result) = work.await;
+            this.update(cx, |this, cx| this.resolved(waiting, result, written, cx))
                 .ok();
         }));
     }
 
     fn resolved(
         &mut self,
+        waiting: Vec<ConflictedFile>,
         result: Result<(), String>,
         written: Vec<PathBuf>,
         cx: &mut Context<Self>,
     ) {
-        self.step_task = None;
+        self.resolve_task = None;
         let now = self.now();
-        match result {
-            Ok(()) => {
-                self.conflicts.clear();
-                self.echo = Some((now, written));
-                self.scheduler.conflicts_resolved(now);
-                self.tick(cx);
-            }
-            Err(message) => self.failure = Some((FailureKind::Other, message)),
+        self.conflicts = waiting;
+        self.echo = Some((now, written));
+        if let Err(message) = result {
+            self.failure = Some((FailureKind::Other, message));
         }
+        self.scheduler.conflicts_resolved(now);
+        self.tick(cx);
         cx.notify();
     }
 
