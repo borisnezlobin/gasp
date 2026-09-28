@@ -54,6 +54,7 @@ pub fn launch(target: LaunchTarget) {
         }
         #[cfg(target_os = "macos")]
         crate::look_up::install(cx);
+        crate::window_drag::install();
         let _span = trace::span("open-window-total");
         if let Err(error) = open_target(target, reading, cx) {
             eprintln!("could not open a window: {error}");
