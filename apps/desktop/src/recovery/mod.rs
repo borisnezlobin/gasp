@@ -56,7 +56,15 @@ impl Recovery {
     }
 
     /// The store and the note's path in its vault, and how often it's kept.
+    /// A note named through a link to its vault is found by its real path.
     fn locate(&self, note: &Path) -> Option<(Arc<SnapshotStore>, PathBuf, Duration)> {
+        let real;
+        let note = if self.vault_of(note).is_some() {
+            note
+        } else {
+            real = crate::workspace::files::canonical_path(note)?;
+            &real
+        };
         let vault = self.vault_of(note)?;
         let store = vault.store.clone()?;
         let relative = note.strip_prefix(&vault.vault).ok()?.to_path_buf();

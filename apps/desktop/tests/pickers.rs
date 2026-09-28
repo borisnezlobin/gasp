@@ -167,7 +167,12 @@ fn arrows_and_ctrl_n_p_move_the_selection(cx: &mut TestAppContext) {
     assert_eq!(palette_selection(&mut opened), 2);
     opened.cx.simulate_keystrokes("up");
     assert_eq!(palette_selection(&mut opened), 1);
-    opened.cx.simulate_keystrokes("ctrl-n ctrl-n ctrl-p");
+    // Ctrl+N and Ctrl+P move only on macOS; elsewhere Ctrl+P is Mod+P.
+    if cfg!(target_os = "macos") {
+        opened.cx.simulate_keystrokes("ctrl-n ctrl-n ctrl-p");
+    } else {
+        opened.cx.simulate_keystrokes("down");
+    }
     assert_eq!(palette_selection(&mut opened), 2);
     opened.cx.simulate_keystrokes("up up up");
     assert_eq!(palette_selection(&mut opened), count - 1);

@@ -298,7 +298,17 @@ impl Workspace {
     }
 
     pub(crate) fn relative_name(&self, path: &Path) -> String {
-        let relative = path.strip_prefix(&self.vault).unwrap_or(path);
+        let canonical;
+        let relative = match path.strip_prefix(&self.vault) {
+            Ok(relative) => relative,
+            Err(_) => {
+                canonical = super::files::canonical_path(path);
+                canonical
+                    .as_deref()
+                    .and_then(|real| real.strip_prefix(&self.vault).ok())
+                    .unwrap_or(path)
+            }
+        };
         relative
             .components()
             .map(|part| part.as_os_str().to_string_lossy().into_owned())

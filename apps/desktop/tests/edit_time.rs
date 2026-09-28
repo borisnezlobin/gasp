@@ -183,3 +183,51 @@ fn a_moved_note_keeps_its_edit_time_and_snapshots_unopened(cx: &mut TestAppConte
     assert_eq!(kept.len(), 1, "its snapshot moved with it");
     assert_eq!(store.read(&kept[0]).unwrap(), "an older draft");
 }
+
+/// macOS's temporary folder is reached through a symlink (`/var` is
+/// `/private/var`), and the workspace keeps the vault's real path: a
+/// note named through the link is still the vault's.
+#[cfg(unix)]
+#[gpui::test]
+fn a_note_named_through_a_link_to_the_vault_is_still_the_vaults(cx: &mut TestAppContext) {
+    let real = tempfile::tempdir().unwrap();
+    std::fs::write(real.path().join("Waves.md"), "# Waves\n").unwrap();
+    let phone = StatsFile {
+        device: "Phone".into(),
+        edited_seconds: [("Waves.md".to_owned(), 120)].into(),
+    };
+    let stats = real.path().join(STATS_DIR);
+    std::fs::create_dir_all(&stats).unwrap();
+    std::fs::write(
+        stats.join("phone-abc123.json"),
+        serde_json::to_string(&phone).unwrap(),
+    )
+    .unwrap();
+    let links = tempfile::tempdir().unwrap();
+    let vault = links.path().join("vault");
+    std::os::unix::fs::symlink(real.path(), &vault).unwrap();
+    let (workspace, cx) = open_workspace(cx, &vault);
+
+    let from = vault.join("Waves.md");
+    let to = vault.join("Physics/Light waves.md");
+    cx.update(|_, cx| editor_desktop::recovery::keep_version(&from, "an older draft", cx));
+    cx.run_until_parked();
+    std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+    std::fs::rename(&from, &to).unwrap();
+    workspace.update(cx, |workspace, cx| workspace.entry_moved(&from, &to, cx));
+    cx.executor().advance_clock(Duration::from_secs(60));
+    cx.run_until_parked();
+
+    let id = cx.read(|cx| workspace.read(cx).device_state(cx).device_id);
+    let loaded = load(real.path(), &id);
+    assert_eq!(
+        loaded.own.edited_seconds.get("Physics/Light waves.md"),
+        Some(&120),
+        "the time spent on it moved with it"
+    );
+    let (store, relative) = cx
+        .read(|cx| editor_desktop::recovery::store_for(&to, cx))
+        .expect("the vault keeps snapshots");
+    let kept = store.list(&relative);
+    assert_eq!(kept.len(), 1, "its snapshot moved with it");
+}
