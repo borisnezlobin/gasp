@@ -524,6 +524,12 @@ impl EditorView {
         self.select(anchor, offset, cx);
     }
 
+    /// Ends the current typing group, so the next edit is an undo step
+    /// of its own rather than part of what was just typed.
+    pub fn break_undo_group(&mut self) {
+        self.state.history_mut().break_group();
+    }
+
     /// Replaces `range` with `text`, leaves the cursor after it and
     /// returns the inserted range. Any composition ends.
     pub fn replace(

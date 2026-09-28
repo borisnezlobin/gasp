@@ -181,6 +181,7 @@ fn build_started_workspace(
         eprintln!("could not open {}: {error}", note.display());
     }
     workspace.watch_vault(window, cx);
+    workspace.start_mcp_bridge(window, cx);
     trace::mark("workspace-built");
     workspace
 }

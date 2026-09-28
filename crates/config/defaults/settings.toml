@@ -57,6 +57,9 @@ time-format = "HH:mm"
 interval-minutes = 5   # between snapshots of a note you're editing
 keep-days        = 7
 
+[mcp]
+enabled = true   # the running app answers `editor mcp` about its tabs, cursor and commands
+
 [appearance]
 base-font-size = 12
 theme          = "match-system"   # "light" | "dark" | "match-system"

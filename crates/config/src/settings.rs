@@ -23,6 +23,7 @@ pub struct Settings {
     pub daily_notes: DailyNoteSettings,
     pub templates: TemplateSettings,
     pub recovery: RecoverySettings,
+    pub mcp: McpSettings,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -370,6 +371,21 @@ impl Default for RecoverySettings {
             interval_minutes: 5,
             keep_days: 7,
         }
+    }
+}
+
+/// Agents' access to the running app through `editor mcp`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct McpSettings {
+    /// Whether the app answers `editor mcp` about its tabs, cursor and
+    /// commands. The server's file tools work either way.
+    pub enabled: bool,
+}
+
+impl Default for McpSettings {
+    fn default() -> Self {
+        McpSettings { enabled: true }
     }
 }
 

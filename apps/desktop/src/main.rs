@@ -30,6 +30,27 @@ fn main() -> ExitCode {
             println!("{}", editor_desktop::knowledge::bench::run(&vault));
             ExitCode::SUCCESS
         }
+        Command::Mcp(vault) => mcp(vault),
+    }
+}
+
+/// `editor mcp`: serves the vault until the client hangs up. Nothing
+/// here starts GPUI, so the server answers within milliseconds.
+fn mcp(vault: Option<std::path::PathBuf>) -> ExitCode {
+    let Some(vault) = vault.or_else(AppState::last_vault) else {
+        eprintln!("editor mcp: no vault given and none opened before; pass its folder");
+        return ExitCode::from(2);
+    };
+    if !vault.is_dir() {
+        eprintln!("editor mcp: {} isn't a folder", vault.display());
+        return ExitCode::from(2);
+    }
+    match editor_mcp::serve_stdio(&vault) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("editor mcp: {error}");
+            ExitCode::from(1)
+        }
     }
 }
 
