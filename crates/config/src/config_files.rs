@@ -129,7 +129,8 @@ fn write_theme_value(
     Ok(tokens)
 }
 
-fn known_commands() -> Vec<&'static str> {
+/// Every command a rule may name: this platform's and other platforms'.
+pub fn known_commands() -> Vec<&'static str> {
     BUILTIN_COMMANDS
         .iter()
         .map(|spec| spec.id)
