@@ -1,0 +1,23 @@
+App icon: humpback whale
+
+The whale in the app icon is an ink-style render of a rigged humpback model
+derived from the following source geometry.
+
+Asset: Megaptera_FULL.stp
+Authors: Susana Gutarra Díaz, Thomas L. Stubbs, Benjamin C. Moon,
+Colin Palmer, and Michael J. Benton
+Publication: Large size in aquatic tetrapods compensates for high drag
+caused by extreme body proportions
+Publication DOI: https://doi.org/10.1038/s42003-022-03322-y
+Source archive: https://doi.org/10.5281/zenodo.5979631
+License: Creative Commons Attribution 4.0 International
+License URL: https://creativecommons.org/licenses/by/4.0/
+
+Changes to the source geometry: it was tessellated from NURBS to triangles,
+reoriented, scaled to a 14-meter representative length, adjusted at the
+pectoral fins and head, made more robust through the torso, given modeled
+ventral throat pleats, rigged, weighted and animated. For the icon it was
+posed mid-breach, rendered in an ink style, rotated, faded where it sits
+below the text lines, and composited onto a paper-coloured tile.
+
+No endorsement by the original authors is implied.
