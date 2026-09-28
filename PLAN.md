@@ -18,7 +18,7 @@ The workspace, CI and the synthetic corpus exist, the Linux-runnable Phase 0 spi
 | 3 Sync and travel check | sync built in the app (status bar, popover, settings page, conflict resolver); the switch of a vault from `main` to `master` is left to the owner; travel check not started |
 | 4 Search and prose | vault search with an in-memory index (not Tantivy yet), sentence-length highlighting, grammar layers 1 and 2 (Harper's mechanical checks and vault-learned spelling); the local grammar model and OCR aren't started |
 | 5 Export | PDF (Typst) and HTML for the website built; the website still needs `crates/export/assets/article.css` and its drop-cap script updated |
-| 6 MCP and headless modes | not started |
+| 6 MCP and headless modes | MCP server built (`editor mcp`): note, attachment, link, config and render tools, plus a bridge to the running app for its state, commands and unsaved notes. The other headless modes and app screenshots aren't started |
 | 7 iPhone | not started |
 | 8 Plugins and agents | not started |
 
@@ -52,6 +52,7 @@ Steps marked **[Mac]** need the owner's machine or a macOS runner.
 
 ```
 cargo run -p editor-desktop -- <vault folder>     # the desktop app
+cargo run -p editor-desktop -- mcp <vault folder> # the MCP server on stdio
 cargo test --workspace                            # every crate's tests
 python3 scripts/check-complexity.py               # the complexity limit
 ```
@@ -154,11 +155,12 @@ crates/
   config/     file loading, schemas, hot reload, rules engine, command registry
   sync/       git engine, merge policy, conflict model
   search/     index, query, excerpts, OCR ingestion
+  vault/      link index, links that follow moves, file operations, atomic writes
   prose/      sentence segmentation, sentence-length highlighting, grammar (Harper + second pass)
   snippets/   snippet engine, Latex Suite migrator
   math/       LaTeX → Typst conversion and layout for the editor
   export/     HTML (article body + publish), PDF (Typst)
-  mcp/        MCP server
+  mcp/        MCP server, and both ends of its bridge to the running app
   plugins/    QuickJS runtime and the TypeScript API
   ffi/        UniFFI surface for Swift
 apps/
@@ -526,6 +528,41 @@ PDF export already exists in `crates/export` from the Typst spike. HTML export, 
 ### Phase 6: MCP and headless modes
 
 This covers the MCP server with full read and write access, the CLI modes and screenshots.
+
+**The MCP server is built.** `editor mcp [VAULT]` serves one vault (the last one opened when `VAULT` is left out) over MCP on stdin and stdout. It lives in `crates/mcp`, uses the `rmcp` SDK for JSON-RPC and the handshake, and never loads GPUI, so it answers `tools/list` within a few milliseconds of starting: 8.7 ms median from spawning the process to the reply (7.3 to 12.5 ms over 30 runs) on the synthetic corpus in a release build on Linux. A first search of the corpus takes 14 ms and later ones 4 ms, since notes stay in memory and only changed files are reread.
+
+| Tools | What they do |
+|---|---|
+| `list_notes`, `read_note`, `search` | List notes (folder, glob, limit); read a note or a range of its lines with its frontmatter as JSON; search with the app's vault search engine and ranking, `tag:` included |
+| `create_note`, `write_note`, `patch_note` | Create; replace; or change part of a note: exact find and replace with an expected count, or append and prepend to the note or a heading's section (`Parent::Child` for a repeated heading) |
+| `move_note`, `delete_note` | Move with link updates as the app's rename does, honouring `files.update-links-on-rename`; delete to the system trash or the vault's `.trash` (never for good, whatever `files.trash` says) |
+| `list_attachments`, `read_attachment`, `write_attachment`, `move_attachment`, `delete_attachment` | The same for other files, as base64 (images come back as images), with a 5 MB read limit |
+| `backlinks`, `outgoing_links`, `tags` | The link index the sidebars use |
+| `get_settings`, `set_setting`, `get_theme`, `set_theme_token`, `list_commands`, `get_rules`, `set_rules`, `get_snippets`, `set_snippets`, `get_replacements`, `set_replacements` | Config, written with the settings screen's writers so comments stay, and checked before writing: a value the app wouldn't load is refused with the reason |
+| `render_note` | A page of a note as the PDF export lays it out, as a PNG |
+| `editor_state`, `run_command`, `open_note` | The running app: panes, tabs, the active note, cursor and selection; any command by id; open a note at a line |
+
+Paths are vault-relative. Absolute paths, `..`, symbolic links that lead out of the vault and hidden folders (`.git`, `.editor`, `.trash`) are refused before anything touches the disk, and every write is atomic. A tool's failure comes back as a readable error result, not a protocol error.
+
+**The bridge to the app.** With `mcp.enabled` on (the default; it's on the settings screen's General page), the app listens once its first frame is on screen, on a Unix socket named after a hash of the vault's path in the user's runtime folder (`$XDG_RUNTIME_DIR/editor/mcp/`, else the local data folder; on Windows a localhost port written to a file there). The folder is readable only by the user, and beside the socket a file readable only by the user holds a random token the app picks each time it starts; a request without it gets no answer. A thread blocks in `accept`, so an idle app spends nothing on it, and requests are answered on the main thread between frames. When a note is open with unsaved edits, `read_note` reads the editor's text and `write_note` and `patch_note` go into the editor as one undoable edit and save; otherwise they write the file, which an open app reloads. Without the app, the app tools say it isn't running and the rest work as before.
+
+**Connecting a client.** Build the app (`cargo build --release -p editor-desktop`), then for Claude Code:
+
+```
+claude mcp add editor -- /path/to/editor mcp ~/Vault
+```
+
+and for Claude Desktop, in `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "editor": { "command": "/path/to/editor", "args": ["mcp", "/Users/you/Vault"] }
+  }
+}
+```
+
+Still to do in this phase: screenshots of the running app, plugin tools (Phase 8), and the other headless modes (replaying keystrokes, a perf trace, dumping the layout tree).
 
 ### Phase 7: iPhone
 
