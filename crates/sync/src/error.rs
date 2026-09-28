@@ -12,7 +12,7 @@ pub enum SyncError {
     /// The remote rejected the push, usually because it moved on since the last fetch.
     #[error("push rejected: {0}")]
     PushRejected(String),
-    /// A merge is waiting for conflict resolution.
+    /// A merge commit was attempted with conflicts still in the index.
     #[error("unresolved conflicts in {0} file(s)")]
     UnresolvedConflicts(usize),
     /// A resolution did not fit the conflict it was applied to.

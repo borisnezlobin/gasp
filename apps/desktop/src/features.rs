@@ -248,14 +248,15 @@ fn workspace_key(service: &Entity<SyncService>) -> EntityId {
     service.entity_id()
 }
 
-/// `sync.now`: syncs, or shows what's in the way (a conflict, signing in,
-/// a vault on the wrong branch) in the sync popover.
+/// `sync.now`: syncs, or shows what's in the way (signing in, a vault on
+/// the wrong branch) in the sync popover. Notes waiting on a conflict
+/// aren't in the way: everything else syncs.
 fn sync_now(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Context<Workspace>) {
     let Some(service) = workspace.sync().cloned() else {
         return;
     };
     let phase = service.read(cx).phase();
-    let blocked = phase.needs_attention() && !matches!(phase, SyncPhase::Failed { .. });
+    let blocked = matches!(phase, SyncPhase::Setup(_) | SyncPhase::SignIn { .. });
     if matches!(phase, SyncPhase::Hidden | SyncPhase::Starting) {
         return;
     }
