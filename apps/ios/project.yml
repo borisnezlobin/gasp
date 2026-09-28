@@ -1,0 +1,72 @@
+name: Editor
+options:
+  bundleIdPrefix: com.borisnezlobin
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: XY4F56L5NQ
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    # The sample vault phase reads the corpus outside the project folder.
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+targets:
+  Editor:
+    type: application
+    platform: iOS
+    sources:
+      - path: Editor
+      - path: Core/Generated
+    dependencies:
+      - framework: Core/EditorCore.xcframework
+        embed: false
+    info:
+      path: Editor/Info.plist
+      properties:
+        CFBundleDisplayName: Editor
+        # editor://open?path=Folder/Note.md&line=12 opens a note at a line.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.borisnezlobin.editor
+            CFBundleURLSchemes: [editor]
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # The vault shows in the Files app, under On My iPhone.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.borisnezlobin.editor
+        PRODUCT_NAME: Editor
+        TARGETED_DEVICE_FAMILY: "1"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+    postCompileScripts:
+      - name: Bundle the sample vault
+        script: '"$SRCROOT/scripts/bundle-sample-vault.sh"'
+        basedOnDependencyAnalysis: false
+  EditorUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: EditorUITests
+    dependencies:
+      - target: Editor
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.borisnezlobin.editor.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+schemes:
+  Editor:
+    build:
+      targets:
+        Editor: all
+    test:
+      targets:
+        - EditorUITests

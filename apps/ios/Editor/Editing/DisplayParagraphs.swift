@@ -1,0 +1,71 @@
+import UIKit
+
+/// Builds the paragraphs TextKit 2 lays out from the storage: characters
+/// marked with a substitute are drawn as it, and collapsed lines are left
+/// out. Substitutes keep each paragraph's length, so offsets in the view
+/// stay offsets in the source.
+final class DisplayParagraphs: NSObject, NSTextContentStorageDelegate {
+    func textContentStorage(
+        _ textContentStorage: NSTextContentStorage, textParagraphWith range: NSRange
+    ) -> NSTextParagraph? {
+        guard let storage = textContentStorage.textStorage, NSMaxRange(range) <= storage.length else { return nil }
+        let source = storage.attributedSubstring(from: range)
+        var substitutes: [(NSRange, DisplaySubstitute)] = []
+        let whole = NSRange(location: 0, length: source.length)
+        source.enumerateAttribute(.displaySubstitute, in: whole) { value, run, _ in
+            if let substitute = value as? DisplaySubstitute { substitutes.append((run, substitute)) }
+        }
+        guard !substitutes.isEmpty else { return nil }
+        let display = NSMutableAttributedString(attributedString: source)
+        for (run, substitute) in substitutes {
+            let attributes = source.attributes(at: run.location, effectiveRange: nil)
+            display.replaceCharacters(in: run, with: Self.drawn(substitute, length: run.length, attributes: attributes))
+        }
+        return NSTextParagraph(attributedString: display)
+    }
+
+    func textContentManager(
+        _ textContentManager: NSTextContentManager,
+        shouldEnumerate textElement: NSTextElement,
+        options: NSTextContentManager.EnumerationOptions = []
+    ) -> Bool {
+        guard let paragraph = textElement as? NSTextParagraph, paragraph.attributedString.length > 0 else {
+            return true
+        }
+        return paragraph.attributedString.attribute(.collapsedLine, at: 0, effectiveRange: nil) == nil
+    }
+
+    private static func drawn(
+        _ substitute: DisplaySubstitute, length: Int, attributes: [NSAttributedString.Key: Any]
+    ) -> NSAttributedString {
+        switch substitute.content {
+        case .text(let text):
+            let padded = text.utf16.count == length ? text : String(repeating: " ", count: length)
+            return NSAttributedString(string: padded, attributes: attributes)
+        case .symbol(let name, let color):
+            let symbol = NSMutableAttributedString(attachment: attachment(name, color: color, attributes: attributes))
+            symbol.addAttributes(attributes, range: NSRange(location: 0, length: symbol.length))
+            let padding = String(repeating: " ", count: max(length - 1, 0))
+            let rest = NSAttributedString(string: padding, attributes: attributes)
+            symbol.append(rest)
+            return symbol
+        }
+    }
+
+    static func symbolImage(_ name: String, color: UIColor, font: UIFont) -> UIImage {
+        let configuration = UIImage.SymbolConfiguration(font: font)
+        let image = UIImage(systemName: name, withConfiguration: configuration)
+        return image?.withTintColor(color, renderingMode: .alwaysOriginal) ?? UIImage()
+    }
+
+    private static func attachment(
+        _ name: String, color: UIColor, attributes: [NSAttributedString.Key: Any]
+    ) -> NSTextAttachment {
+        let font = attributes[.font] as? UIFont ?? .preferredFont(forTextStyle: .body)
+        let image = symbolImage(name, color: color, font: font)
+        let attachment = NSTextAttachment(image: image)
+        let size = image.size
+        attachment.bounds = CGRect(x: 0, y: (font.capHeight - size.height) / 2, width: size.width, height: size.height)
+        return attachment
+    }
+}
