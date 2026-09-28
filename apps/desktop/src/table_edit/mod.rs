@@ -37,6 +37,9 @@ pub struct TableEditing {
     /// Where the table typed in since the caret went into it starts, to
     /// pad when the caret leaves.
     typed_in: Option<usize>,
+    /// Whether the selection takes in several cells, which then show
+    /// rendered rather than revealing their markup.
+    pub(crate) block_selected: bool,
     /// The handle under the pointer.
     pub(crate) hover: Option<HandleHover>,
     /// A handle pressed, and the row or column dragged by it.
@@ -199,6 +202,7 @@ impl EditorView {
     /// Follows the caret out of tables: the table edited as Markdown goes
     /// back to a grid, and the table typed in is padded.
     pub(crate) fn caret_moved_in_tables(&mut self, cx: &mut Context<Self>) {
+        self.table_edit.block_selected = self.cell_block().is_some();
         let tree = self.source.tree();
         let here = table_node_at(tree, self.cursor()).map(|id| tree.node(id).range.start);
         if self.table_edit.source.is_some() && self.table_edit.source != here {

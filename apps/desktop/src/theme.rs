@@ -405,6 +405,9 @@ pub struct TableTheme {
     pub drag_shadow: Hsla,
     pub drag_shadow_blur: Pixels,
     pub drag_opacity: f32,
+    /// Laid over the row or column's own place while it's dragged, so it
+    /// reads as the gap it leaves.
+    pub drag_source_veil: Hsla,
     /// How far the pointer moves on a handle before a press becomes a
     /// drag.
     pub drag_threshold: Pixels,
@@ -430,10 +433,14 @@ impl TableTheme {
             handle_fade: std::time::Duration::from_millis(120),
             drop_indicator: p.accent,
             drop_indicator_width: px(2.),
-            drag_fill: p.popover,
+            drag_fill: over(p.popover, p.background),
             drag_shadow: p.shadow,
             drag_shadow_blur: px(12.),
             drag_opacity: 0.85,
+            drag_source_veil: Hsla {
+                a: 0.6,
+                ..p.background
+            },
             drag_threshold: px(4.),
         }
     }

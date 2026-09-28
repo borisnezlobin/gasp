@@ -7,7 +7,7 @@
 //! rows (see [`crate::navigation`]). Backspace and Delete stop at a
 //! cell's edge, so a pipe is never deleted.
 
-use editor_core::document::{Selection, SelectionRange};
+use editor_core::document::Selection;
 use editor_core::table::{CellPos, Table, TableOp};
 use editor_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::Context;
@@ -188,17 +188,6 @@ impl EditorView {
             return range;
         };
         range.start.clamp(content.start, content.end)..range.end.clamp(content.start, content.end)
-    }
-
-    /// Selects a cell's text, as clicking a row or column handle and Tab
-    /// do.
-    pub(crate) fn select_cells(&mut self, from: usize, to: usize, cx: &mut Context<Self>) {
-        let transaction = Transaction::select(
-            Selection::single(SelectionRange::new(from, to)),
-            Origin::Input,
-            self.now_ms(),
-        );
-        self.apply_transaction(transaction, cx);
     }
 }
 

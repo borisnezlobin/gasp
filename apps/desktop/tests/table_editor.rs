@@ -419,3 +419,21 @@ fn clicking_a_row_handle_selects_the_row_and_delete_clears_it(cx: &mut TestAppCo
         text(&view, cx)
     );
 }
+
+#[gpui::test]
+fn shift_and_arrows_select_whole_cells_that_copy_as_tab_separated_text(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, NOTE);
+    let pear = NOTE.find("pear").unwrap();
+    place_cursor(&view, cx, pear + 4);
+    press(cx, "select.right");
+    press(cx, "select.down");
+    press(cx, "edit.copy");
+    let copied = cx.read_from_clipboard().and_then(|item| item.text());
+    assert_eq!(copied.as_deref(), Some("pear\t10\nfig\t2"));
+    press(cx, "edit.delete-backward");
+    assert!(
+        text(&view, cx).contains("| name | n   |\n| ---- | --- |\n|      |     |\n|      |     |"),
+        "{}",
+        text(&view, cx)
+    );
+}

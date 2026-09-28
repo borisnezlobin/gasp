@@ -6,7 +6,7 @@ use crate::bench::BenchConfig;
 
 pub const USAGE: &str = "\
 usage: editor [PATH]
-       editor --bench-layout PATH [--keystrokes N] [--scroll-pages N] [--in-code] [--in-math] [--no-prose]
+       editor --bench-layout PATH [--keystrokes N] [--scroll-pages N] [--in-code] [--in-math] [--in-table] [--no-prose]
        editor --bench-index VAULT
        editor mcp [VAULT]
 
@@ -16,8 +16,9 @@ with that note showing. With no PATH, the last vault opens again.
 --bench-layout opens a lone editor on PATH (a note, or a folder whose
 notes are joined into one long note), types into the middle and scrolls
 through it, then prints frame timings and quits. --in-code types in the
-first code block after the middle instead, and --in-math in the first
-math block, where snippets and the math helpers do the most work. --no-prose turns sentence
+first code block after the middle instead, --in-math in the first
+math block, where snippets and the math helpers do the most work, and
+--in-table in the first body cell of the first table. --no-prose turns sentence
 tints and grammar flags off, to measure what they cost. With
 EDITOR_TRACE_KEYS=1 it also lists where each keystroke's time went. On
 Linux without a display, run it under xvfb-run.
@@ -80,6 +81,10 @@ fn parse_bench(args: &[String]) -> Result<Command, String> {
     if let Some(at) = rest.iter().position(|arg| arg == "--in-math") {
         rest.remove(at);
         config.in_math = true;
+    }
+    if let Some(at) = rest.iter().position(|arg| arg == "--in-table") {
+        rest.remove(at);
+        config.in_table = true;
     }
     if let Some(at) = rest.iter().position(|arg| arg == "--no-prose") {
         rest.remove(at);

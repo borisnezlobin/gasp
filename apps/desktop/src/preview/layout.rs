@@ -125,6 +125,9 @@ pub(super) struct LineLayouter<'a, 'b> {
     pub frame: LineFrame,
     /// Syntax colours when the line is code in a fenced block.
     pub code_spans: Option<LineSpans>,
+    /// The last text chunk left out its end's padding, as the next one
+    /// carries on its fill past a hidden byte.
+    glued: bool,
 }
 
 impl<'a, 'b> LineLayouter<'a, 'b> {
@@ -143,6 +146,7 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
             tone: line_tone(plan),
             frame,
             code_spans,
+            glued: false,
         }
     }
 
@@ -286,16 +290,7 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         builder: &mut RowBuilder,
     ) -> usize {
         match &items[index] {
-            Item::Text { .. } => {
-                let (chunk, next) = self.collect_chunk(items, index);
-                if !chunk.text.is_empty() {
-                    let padding = self.chunk_padding(&chunk);
-                    builder.advance(padding);
-                    builder.push_chunk(&chunk, &self.shaper());
-                    builder.advance(padding + self.chip_gap(&items[index]));
-                }
-                return next;
-            }
+            Item::Text { .. } => return self.place_text(items, index, builder),
             Item::Inline { range, kind } => self.place_inline(range, kind, builder),
             Item::Break { .. } => builder.break_row(),
             Item::Block { range, kind } => {
@@ -304,6 +299,37 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
             }
         }
         index + 1
+    }
+
+    /// Places the chunk of text starting at item `index`, with room at its
+    /// ends for its fill, and answers the item after it. Two stretches of
+    /// one style either side of a hidden byte, such as inline code around
+    /// an escaped pipe's backslash, read as one: no room between them.
+    fn place_text(&mut self, items: &[Item], index: usize, builder: &mut RowBuilder) -> usize {
+        let (chunk, next) = self.collect_chunk(items, index);
+        if chunk.text.is_empty() {
+            return next;
+        }
+        let padding = self.chunk_padding(&chunk);
+        if !std::mem::take(&mut self.glued) {
+            builder.advance(padding);
+        }
+        builder.push_chunk(&chunk, &self.shaper());
+        let carries_on = match (&items[next - 1], items.get(next)) {
+            (
+                Item::Text { styles, .. },
+                Some(Item::Text {
+                    range,
+                    styles: after,
+                }),
+            ) => range.start == chunk.range.end + 1 && styles == after,
+            _ => false,
+        };
+        match carries_on && padding > px(0.) {
+            true => self.glued = true,
+            false => builder.advance(padding + self.chip_gap(&items[index])),
+        }
+        next
     }
 
     /// Joins adjacent text items at one size into a chunk.
