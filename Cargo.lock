@@ -3034,6 +3034,7 @@ name = "editor-export"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "editor-core",
  "editor-math",
  "lopdf",
  "pulldown-cmark",

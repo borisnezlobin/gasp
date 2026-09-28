@@ -37,8 +37,18 @@ impl SyntaxTree {
 /// Answers from the tree, which must have been parsed from `doc`'s current
 /// text.
 impl ContextProvider for SyntaxTree {
-    fn context_at(&self, _doc: &Document, offset: usize) -> InputContext {
-        SyntaxTree::context_at(self, offset)
+    /// The tree's context, or `Html` inside a tag still being typed,
+    /// which the tree can't see until its `>` is there.
+    fn context_at(&self, doc: &Document, offset: usize) -> InputContext {
+        let context = SyntaxTree::context_at(self, offset);
+        if !matches!(context, InputContext::Text | InputContext::Table) {
+            return context;
+        }
+        let line_start = doc.line_start(doc.line_of_offset(offset));
+        match super::html::in_unclosed_tag(&doc.slice(line_start..offset)) {
+            true => InputContext::Html,
+            false => context,
+        }
     }
 
     fn math_at(&self, _doc: &Document, offset: usize) -> Option<MathSpan> {
@@ -139,14 +149,15 @@ fn comment_context(node: &Node, offset: usize) -> Option<InputContext> {
     )
 }
 
+/// Inside a tag, and anywhere in an HTML block other than the text of a
+/// `<p>`, `<div>` or `<center>` block, which is prose.
 fn html_context(node: &Node, offset: usize) -> Option<InputContext> {
     match node.kind {
-        NodeKind::HtmlBlock(_) => Some(InputContext::Html),
-        NodeKind::Html(_) => when(
+        NodeKind::HtmlBlock(kind) if !kind.is_block() => Some(InputContext::Html),
+        _ => when(
             in_markup(node, MarkupKind::HtmlTag, offset),
             InputContext::Html,
         ),
-        _ => None,
     }
 }
 

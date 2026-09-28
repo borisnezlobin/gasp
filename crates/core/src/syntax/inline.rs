@@ -4,7 +4,7 @@
 
 use std::ops::Range;
 
-use super::html::{self, HtmlTag};
+use super::html::{self, CURLY_QUOTES, HtmlTag};
 use super::kinds::{HtmlKind, LinkInfo, LinkKind, MarkupKind, NodeKind};
 use super::tree::{Node, NodeId};
 
@@ -105,7 +105,7 @@ impl Arena<'_> {
         let children = self.nodes[parent.0].children.clone();
         let (open_id, close_id) = (children[open], children[close]);
         let range = self.nodes[open_id.0].range.start..self.nodes[close_id.0].range.end;
-        let kind = self.nodes[open_id.0].kind.clone();
+        let kind = self.element_kind(open_id);
         let element = self.push(kind, range, parent);
         let open_range = self.range(open_id);
         let close_range = self.range(close_id);
@@ -117,6 +117,48 @@ impl Arena<'_> {
         new_children.push(element);
         new_children.extend_from_slice(&children[close + 1..]);
         self.nodes[parent.0].children = new_children;
+    }
+
+    /// What an element opened by tag `open` is: a link for `<a>` with a
+    /// safe `href`, otherwise the tag's own kind.
+    fn element_kind(&self, open: NodeId) -> NodeKind {
+        let kind = self.nodes[open.0].kind.clone();
+        if kind != NodeKind::Html(HtmlKind::Anchor) {
+            return kind;
+        }
+        let source = &self.text[self.nodes[open.0].range.clone()];
+        let destination = html::attribute(source, "href").filter(|href| html::is_safe_href(href));
+        match destination {
+            Some(destination) => NodeKind::Link(Box::new(LinkInfo {
+                kind: LinkKind::Html,
+                destination: destination.trim().to_owned(),
+                title: html::attribute(source, "title")
+                    .unwrap_or_default()
+                    .to_owned(),
+            })),
+            None => kind,
+        }
+    }
+
+    /// Splits text children at tags pulldown-cmark reads as text because
+    /// their attribute values are in curly quotes, as Smart Typography
+    /// writes them: `<span style=”color: red;”>`.
+    pub fn split_curly_tags(&mut self, parent: NodeId) {
+        let children = std::mem::take(&mut self.nodes[parent.0].children);
+        let mut result = Vec::with_capacity(children.len());
+        for id in children {
+            let range = self.range(id);
+            let pieces = match self.is_text(id) {
+                true => curly_tags(self.text, range.clone()),
+                false => Vec::new(),
+            };
+            if pieces.is_empty() {
+                result.push(id);
+                continue;
+            }
+            self.push_pieces(&mut result, range, pieces, parent);
+        }
+        self.nodes[parent.0].children = result;
     }
 
     /// Wraps `delimiter`-delimited spans among `parent`'s text children into
@@ -241,8 +283,13 @@ impl Arena<'_> {
             self.push_text(list, at..piece.start, parent);
             at = piece.end;
             let id = self.push(kind, piece, parent);
-            if matches!(self.nodes[id.0].kind, NodeKind::Math { .. }) {
-                super::markup::add_pair(&mut self.nodes[id.0], MarkupKind::MathDelimiter, 1);
+            let node = &mut self.nodes[id.0];
+            match node.kind {
+                NodeKind::Math { .. } => {
+                    super::markup::add_pair(node, MarkupKind::MathDelimiter, 1);
+                }
+                NodeKind::Html(_) => node.add_markup(MarkupKind::HtmlTag, node.range.clone()),
+                _ => {}
             }
             list.push(id);
         }
@@ -337,6 +384,21 @@ impl Delimiter {
             },
         }
     }
+}
+
+/// Tags with a curly-quoted attribute in a text range, in order.
+fn curly_tags(text: &str, range: Range<usize>) -> Vec<(NodeKind, Range<usize>)> {
+    let source = &text[range.clone()];
+    if !source.contains('<') || !source.contains(CURLY_QUOTES) {
+        return Vec::new();
+    }
+    html::scan_tags(text, range)
+        .into_iter()
+        .filter(|tag| tag.kind != HtmlKind::Other && !tag.closing)
+        .filter(|tag| text[tag.range.clone()].contains(CURLY_QUOTES))
+        .filter(|tag| !text[..tag.range.start].ends_with('\\'))
+        .map(|tag| (NodeKind::Html(tag.kind), tag.range))
+        .collect()
 }
 
 /// Tags, bare URLs and empty `$$` in a text range, in order.
