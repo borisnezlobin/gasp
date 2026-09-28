@@ -522,6 +522,8 @@ This builds git sync, the conflict resolver and the setup flow, and replaces `va
 
 The git engine is already in `crates/sync` from the libgit2 spike. It has clone, commit, fetch, merge and push on one branch, the line-by-line merge policy, local copies kept for binaries, device-only files, conflict hunks with all four resolutions, and the clock-driven scheduler. It's tested with two simulated devices against local bare repos. Token sign-in over HTTPS, keychain storage and the resolver UI are still to do.
 
+**Packaging for macOS.** `scripts/package-macos.sh` builds `Editor.app` for Apple Silicon and Intel in one file, signs it and packages `target/package/Editor-<version>.dmg`. OpenSSL is built into the app (`git2`'s `vendored-openssl`), so the app needs nothing from Homebrew. Without `DEVELOPER_ID` it signs ad hoc, which only runs on the Mac that built it. To give it to other people, set `DEVELOPER_ID` to the owner's "Developer ID Application" certificate and `NOTARY_PROFILE` to a profile saved with `xcrun notarytool store-credentials`, and the script signs with the hardened runtime and notarizes and staples the `.dmg`. The app still needs an icon (`apps/desktop/assets/AppIcon.icns`) and an updater.
+
 ### Phase 4: search and prose
 
 This covers search with OCR, sentence-length highlighting, word count, reading time and edit-time tracking. Grammar starts with the evaluation set described under [Grammar](#grammar), then the layers are built in order, and the model is picked from the scores.
