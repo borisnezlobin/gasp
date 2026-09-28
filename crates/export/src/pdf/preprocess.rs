@@ -1,5 +1,7 @@
 //! Source clean-up before parsing: frontmatter and `%%comments%%` are
-//! removed, and the frontmatter `title` is kept for the title heading.
+//! removed, the frontmatter `title` is kept for the title heading, and
+//! curly quotes around HTML attribute values, which Smart Typography
+//! writes, are made straight so the tags read as HTML.
 
 /// A note with its frontmatter and comments removed.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,7 +16,7 @@ pub(crate) struct CleanNote {
 pub(crate) fn clean(source: &str) -> CleanNote {
     let (frontmatter, body) = split_frontmatter(source);
     CleanNote {
-        body: strip_comments(body),
+        body: editor_core::syntax::straighten_tag_quotes(&strip_comments(body)).into_owned(),
         frontmatter_title: frontmatter.and_then(|yaml| field(yaml, "title")),
         frontmatter_description: frontmatter.and_then(|yaml| field(yaml, "description")),
     }

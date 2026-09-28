@@ -41,7 +41,8 @@ pub struct Replacement {
     /// `from` must not follow a letter or digit.
     #[serde(default, skip_serializing_if = "is_false")]
     pub word_start: bool,
-    /// Where the entry may fire. Unset means everywhere except code, math and frontmatter.
+    /// Where the entry may fire. Unset means everywhere except code, math,
+    /// frontmatter and inside HTML tags.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contexts: Option<Vec<InputContext>>,
 }
@@ -75,7 +76,10 @@ impl Replacement {
             Some(contexts) => contexts.contains(&context),
             None => !matches!(
                 context,
-                InputContext::Code | InputContext::Math | InputContext::Frontmatter
+                InputContext::Code
+                    | InputContext::Math
+                    | InputContext::Frontmatter
+                    | InputContext::Html
             ),
         }
     }
@@ -317,6 +321,11 @@ mod tests {
         assert_eq!(apply("a--", InputContext::Code), "a--");
         assert_eq!(apply("a--", InputContext::Math), "a--");
         assert_eq!(apply("a--", InputContext::Frontmatter), "a--");
+        assert_eq!(
+            apply("<b title=\"a--", InputContext::Html),
+            "<b title=\"a--"
+        );
+        assert_eq!(apply("<b title=\"", InputContext::Html), "<b title=\"");
         assert_eq!(
             apply("\\equil ", InputContext::Math),
             "\\rightleftharpoons "

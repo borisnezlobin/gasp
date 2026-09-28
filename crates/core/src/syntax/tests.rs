@@ -629,10 +629,10 @@ fn inline_html() {
             "    Emphasis \"*em*\" [EmphasisDelimiter\"*\" EmphasisDelimiter\"*\"]",
             "      Text \"em\"",
             "  Text \" \"",
-            "  Html(Other) \"<span class=\\\"x\\\">s</span>\" [HtmlTag\"<span class=\\\"x\\\">\" HtmlTag\"</span>\"]",
+            "  Html(Span({})) \"<span class=\\\"x\\\">s</span>\" [HtmlTag\"<span class=\\\"x\\\">\" HtmlTag\"</span>\"]",
             "    Text \"s\"",
             "  Text \" \"",
-            "  Html(Other) \"<b>\" [HtmlTag\"<b>\"]",
+            "  Html(Bold) \"<b>\" [HtmlTag\"<b>\"]",
             "  Text \"unclosed\"",
         ],
     );
@@ -643,8 +643,8 @@ fn html_blocks() {
     check(
         "<div align=\"center\">\n<img src=\"a.png\">\n</div>\n\n<hr>\n\n<br>\n\n<!-- note -->",
         &[
-            "HtmlBlock(Div) \"<div align=\\\"center\\\">\\n<img src=\\\"a.png\\\">\\n</div>\"",
-            "  Html(Div) \"<div align=\\\"center\\\">\\n<img src=\\\"a.png\\\">\\n</div>\" [HtmlTag\"<div align=\\\"center\\\">\" HtmlTag\"</div>\"]",
+            "HtmlBlock(Div({text-align: center})) \"<div align=\\\"center\\\">\\n<img src=\\\"a.png\\\">\\n</div>\"",
+            "  Html(Div({text-align: center})) \"<div align=\\\"center\\\">\\n<img src=\\\"a.png\\\">\\n</div>\" [HtmlTag\"<div align=\\\"center\\\">\" HtmlTag\"</div>\"]",
             "    Html(Image) \"<img src=\\\"a.png\\\">\"",
             "HtmlBlock(HorizontalRule) \"<hr>\"",
             "  Html(HorizontalRule) \"<hr>\"",
@@ -795,7 +795,8 @@ fn context_at_in_frontmatter_blocks_and_empty_math() {
         InputContext::Math,
         "between a freshly typed pair"
     );
-    assert_eq!(at("raw", 1), InputContext::Html);
+    assert_eq!(at("raw", 1), InputContext::Text, "a div's text is prose");
+    assert_eq!(at("<div>", 2), InputContext::Html);
 }
 
 #[test]
@@ -1208,4 +1209,76 @@ fn render_speed(text: &str, tree: &SyntaxTree) {
     }
     let viewport = started.elapsed() / runs;
     println!("render plan: whole document {whole:?}, 60-line viewport {viewport:?}");
+}
+
+#[test]
+fn styled_html_elements() {
+    check(
+        "<span style=\"color:red;\">abc</span> <b>b</b> <i>i</i> <a href=\"https://example.com\">site</a>",
+        &[
+            "Paragraph \"<span style=\\\"color:red;\\\">abc</span> <b>b</b> <i>i</i> <a href=\\\"https://example.com\\\">site</a>\"",
+            "  Html(Span({color: #ff0000})) \"<span style=\\\"color:red;\\\">abc</span>\" [HtmlTag\"<span style=\\\"color:red;\\\">\" HtmlTag\"</span>\"]",
+            "    Text \"abc\"",
+            "  Text \" \"",
+            "  Html(Bold) \"<b>b</b>\" [HtmlTag\"<b>\" HtmlTag\"</b>\"]",
+            "    Text \"b\"",
+            "  Text \" \"",
+            "  Html(Italic) \"<i>i</i>\" [HtmlTag\"<i>\" HtmlTag\"</i>\"]",
+            "    Text \"i\"",
+            "  Text \" \"",
+            "  Link(Html,https://example.com) \"<a href=\\\"https://example.com\\\">site</a>\" [HtmlTag\"<a href=\\\"https://example.com\\\">\" HtmlTag\"</a>\"]",
+            "    Text \"site\"",
+        ],
+    );
+}
+
+#[test]
+fn html_block_elements_carry_their_alignment() {
+    check(
+        "<p style=\"text-align: center;\">Mid</p>\n\n<center>Also</center>",
+        &[
+            "HtmlBlock(Paragraph({text-align: center})) \"<p style=\\\"text-align: center;\\\">Mid</p>\"",
+            "  Html(Paragraph({text-align: center})) \"<p style=\\\"text-align: center;\\\">Mid</p>\" [HtmlTag\"<p style=\\\"text-align: center;\\\">\" HtmlTag\"</p>\"]",
+            "HtmlBlock(Center({})) \"<center>Also</center>\"",
+            "  Html(Center({})) \"<center>Also</center>\" [HtmlTag\"<center>\" HtmlTag\"</center>\"]",
+        ],
+    );
+}
+
+#[test]
+fn curly_quoted_attributes_still_style() {
+    check(
+        "<span style=”color:red;”>one</span> <span style=”color: blue; font-size: 2em”>two</span>",
+        &[
+            "Paragraph \"<span style=”color:red;”>one</span> <span style=”color: blue; font-size: 2em”>two</span>\"",
+            "  Html(Span({color: #ff0000})) \"<span style=”color:red;”>one</span>\" [HtmlTag\"<span style=”color:red;”>\" HtmlTag\"</span>\"]",
+            "    Text \"one\"",
+            "  Text \" \"",
+            "  Html(Span({color: #0000ff; font-size: 200%})) \"<span style=”color: blue; font-size: 2em”>two</span>\" [HtmlTag\"<span style=”color: blue; font-size: 2em”>\" HtmlTag\"</span>\"]",
+            "    Text \"two\"",
+        ],
+    );
+}
+
+#[test]
+fn nested_mismatched_and_unsafe_html() {
+    check(
+        "<span style=\"color:red\"><b>x</b></span> <b><i>y</b></i> <a href=\"javascript:alert(1)\">z</a> \\<b style=”a”>",
+        &[
+            "Paragraph \"<span style=\\\"color:red\\\"><b>x</b></span> <b><i>y</b></i> <a href=\\\"javascript:alert(1)\\\">z</a> \\\\<b style=”a”>\"",
+            "  Html(Span({color: #ff0000})) \"<span style=\\\"color:red\\\"><b>x</b></span>\" [HtmlTag\"<span style=\\\"color:red\\\">\" HtmlTag\"</span>\"]",
+            "    Html(Bold) \"<b>x</b>\" [HtmlTag\"<b>\" HtmlTag\"</b>\"]",
+            "      Text \"x\"",
+            "  Text \" \"",
+            "  Html(Bold) \"<b><i>y</b>\" [HtmlTag\"<b>\" HtmlTag\"</b>\"]",
+            "    Html(Italic) \"<i>\" [HtmlTag\"<i>\"]",
+            "    Text \"y\"",
+            "  Html(Italic) \"</i>\" [HtmlTag\"</i>\"]",
+            "  Text \" \"",
+            "  Html(Anchor) \"<a href=\\\"javascript:alert(1)\\\">z</a>\" [HtmlTag\"<a href=\\\"javascript:alert(1)\\\">\" HtmlTag\"</a>\"]",
+            "    Text \"z\"",
+            "  Text \" \"",
+            "  Text \"<b style=”a”>\"",
+        ],
+    );
 }

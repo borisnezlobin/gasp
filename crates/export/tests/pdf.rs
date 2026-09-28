@@ -554,3 +554,50 @@ fn short_tables_are_not_split() {
         "the filler never pushed the table to page two"
     );
 }
+
+/// The owner's styled HTML, with synthetic text.
+const STYLED_HTML: &str = "<span style=\"color:red;\">abc</span> and <span style=”color:red;”>curly</span> \
+and <span style=”color: blue; font-size: 2em”>big</span>\n\n\
+<p style=\"text-align: center;\">Centred paragraph</p>\n\n\
+<center>Centred block</center>\n\n\
+<b>bold</b> <i>italic</i> <s>gone</s> x<sup>2</sup> H<sub>2</sub>O <mark>marked</mark> \
+<kbd>Ctrl</kbd> <a href=\"https://example.com\">site</a> <a href=\"javascript:alert(1)\">bad</a> \
+<span onclick=\"alert(1)\" style=\"position: fixed; color: #00f\">safe</span>";
+
+#[test]
+fn styled_html_subset() {
+    assert_converts(
+        STYLED_HTML,
+        "#text(fill: rgb(\"#ff0000\"))[abc]; and #text(fill: rgb(\"#ff0000\"))[curly]; \
+         and #text(fill: rgb(\"#0000ff\"), size: 2em)[big];\n\n\
+         #align(center)[Centred paragraph]; \n\n\
+         #align(center)[Centred block]; \n\n\
+         #strong[bold]; #emph[italic]; #strike[gone]; x#super[2]; H#sub[2];O #mark[marked]; \
+         #kbd[Ctrl]; #link(\"https://example.com\")[site]; #[bad]; \
+         #text(fill: rgb(\"#0000ff\"))[safe];",
+    );
+}
+
+#[test]
+fn styled_html_compiles_with_sizes_applied() {
+    let document = compile_markdown(STYLED_HTML, &PdfOptions::default());
+    let pages = texts_by_page(&document);
+    let size = |needle: &str| {
+        pages[0]
+            .iter()
+            .find(|placed| placed.text.contains(needle))
+            .map(|placed| placed.size)
+            .unwrap_or_else(|| panic!("{needle} is missing"))
+    };
+    assert!(
+        size("big") > size("abc") * 1.9,
+        "{} vs {}",
+        size("big"),
+        size("abc")
+    );
+    assert!(find(&pages, "Centred paragraph").is_some());
+    assert!(
+        find(&pages, "bad").is_some(),
+        "an unsafe link keeps its text"
+    );
+}

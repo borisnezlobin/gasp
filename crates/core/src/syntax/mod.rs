@@ -8,6 +8,7 @@ mod build;
 mod callout;
 mod code_info;
 mod context;
+mod css;
 mod html;
 mod incremental;
 mod inline;
@@ -24,6 +25,8 @@ mod tests;
 use std::ops::Range;
 
 pub use crate::pipeline::InputContext;
+pub use css::{FONT_SCALE_RANGE, FontSize, HtmlStyle, Rgba8, parse_align, parse_color};
+pub use html::{attribute as html_attribute, in_unclosed_tag, is_safe_href, straighten_tag_quotes};
 pub use incremental::Edit;
 pub use kinds::{
     Alignment, CalloutInfo, CalloutKind, CodeBlockInfo, ConflictSide, Fold, HtmlKind, LinkInfo,
@@ -178,7 +181,11 @@ fn inline_pass(arena: &mut Arena<'_>, id: NodeId, in_link: bool) {
     }
     arena.merge_texts(id);
     arena.clip_texts(id);
+    if matches!(kind, NodeKind::Link(_)) {
+        arena.pair_html(id);
+    }
     if kind.holds_inlines() {
+        arena.split_curly_tags(id);
         arena.pair_html(id);
         arena.wrap_delimited(id, Delimiter::comment());
         arena.wrap_delimited(id, Delimiter::highlight());

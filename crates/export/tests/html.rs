@@ -146,3 +146,34 @@ fn standalone_page_wraps_the_article() {
     assert!(page.contains("<p class=\"description\">A short walk"));
     assert!(page.contains(&export.html));
 }
+
+#[test]
+fn styled_html_passes_through_sanitised() {
+    let markdown = "<span style=\"color:red;\">abc</span> and <span style=”color: red; font-size: 2em”>curly</span>\n\n\
+<p style=\"text-align: center;\">Centred paragraph</p>\n\n\
+<center>Centred block</center>\n\n\
+<b>bold</b> <i>italic</i> <a href=\"https://example.com\" onclick=\"x()\">site</a> \
+<a href=\"javascript:alert(1)\">bad</a> <span onmouseover=\"x()\" style=\"position: fixed; width: 1px; color: #00f\">safe</span>\
+<script>alert(1)</script>";
+    let html = export_html(markdown, None, None, &HtmlOptions::default()).html;
+    for expected in [
+        "<span style=\"color: #ff0000\">abc</span>",
+        "<span style=\"color: #ff0000; font-size: 200%\">curly</span>",
+        "<p style=\"text-align: center\">Centred paragraph</p>",
+        "<center>Centred block</center>",
+        "<b>bold</b> <i>italic</i> <a href=\"https://example.com\">site</a>",
+        "<span style=\"color: #0000ff\">safe</span>",
+    ] {
+        assert!(html.contains(expected), "{expected} missing from\n{html}");
+    }
+    for unsafe_part in [
+        "onclick",
+        "onmouseover",
+        "javascript",
+        "position",
+        "width",
+        "<script",
+    ] {
+        assert!(!html.contains(unsafe_part), "{unsafe_part} in\n{html}");
+    }
+}
