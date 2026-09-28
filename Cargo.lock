@@ -3068,6 +3068,7 @@ dependencies = [
 name = "editor-core"
 version = "0.1.0"
 dependencies = [
+ "editor-config",
  "editor-snippets",
  "proptest",
  "pulldown-cmark",

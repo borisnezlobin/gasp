@@ -1,7 +1,7 @@
 //! The commands the editor view runs, looked up by id.
 
 use editor_core::commands::{
-    FootnoteCommand, Format, duplicate_lines, insert_link, insert_or_jump_footnote,
+    FootnoteCommand, Format, duplicate_lines, insert_callout, insert_link, insert_or_jump_footnote,
     move_lines_down, move_lines_up, toggle_format, toggle_tasks,
 };
 use editor_core::footnotes::FootnoteSettings;
@@ -82,6 +82,9 @@ const HANDLERS: &[(&str, Handler)] = &[
         view.import_image(window, cx)
     }),
     ("format.link", |view, _, cx| view.run_edit(insert_link, cx)),
+    ("format.callout", |view, _, cx| {
+        view.run_edit(insert_callout, cx)
+    }),
     ("footnote.insert-or-jump", |view, _, cx| view.footnote(cx)),
     ("footnote.tidy", |view, _, cx| view.tidy_footnotes(cx)),
     ("footnote.fix-typos", |view, _, cx| {
