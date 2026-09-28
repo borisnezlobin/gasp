@@ -43,11 +43,17 @@ gpui::actions!(
 /// the rules, bound by `keymap::bind_rules`.
 pub fn bind_keys(cx: &mut App) {
     let context = Some(PICKER_CONTEXT);
+    // Ctrl+N and Ctrl+P move as in any macOS text list; elsewhere Ctrl is
+    // Mod, and Mod+P opens the palette.
+    if cfg!(target_os = "macos") {
+        cx.bind_keys([
+            KeyBinding::new("ctrl-n", SelectNext, context),
+            KeyBinding::new("ctrl-p", SelectPrevious, context),
+        ]);
+    }
     cx.bind_keys([
         KeyBinding::new("down", SelectNext, context),
-        KeyBinding::new("ctrl-n", SelectNext, context),
         KeyBinding::new("up", SelectPrevious, context),
-        KeyBinding::new("ctrl-p", SelectPrevious, context),
         KeyBinding::new("pagedown", SelectNextPage, context),
         KeyBinding::new("pageup", SelectPreviousPage, context),
         KeyBinding::new("enter", Confirm, context),

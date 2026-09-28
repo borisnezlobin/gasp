@@ -202,6 +202,17 @@ fn collect_entry(
     }
 }
 
+/// `path` with its links resolved, as the vault's own path is kept: a
+/// note named through a link to the vault, such as macOS's `/var` for
+/// `/private/var`, is still the vault's. A path that's gone, as a note's
+/// old path after a move, resolves through its folder.
+pub(crate) fn canonical_path(path: &Path) -> Option<PathBuf> {
+    std::fs::canonicalize(path).ok().or_else(|| {
+        let folder = std::fs::canonicalize(path.parent()?).ok()?;
+        Some(folder.join(path.file_name()?))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
