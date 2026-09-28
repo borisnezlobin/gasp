@@ -4,6 +4,7 @@
 use std::ops::Range;
 
 use editor_core::render::{LinePlan, LineStyle, StyleKey, WidgetKind};
+use editor_core::syntax::Alignment;
 use gpui::{Font, Pixels, TextRun, WindowTextSystem, px};
 
 use crate::images::ImageStore;
@@ -16,7 +17,7 @@ use crate::preview::items::{Item, LineItems, line_items, line_tone};
 use crate::preview::math::MathStore;
 use crate::preview::source::Source;
 use crate::preview::wrap::{Chunk, Extent, RowBuilder, Shaper};
-use crate::styling::{LineTone, fill_padding, run_font_size, text_run};
+use crate::styling::{LineTone, fill_padding, run_baseline_shift, run_font_size, text_run};
 use crate::theme::Theme;
 
 /// What every line of a frame is laid out against.
@@ -91,6 +92,10 @@ pub fn layout_framed(
     layouter.place_items(&items, &mut builder);
     layouter.place_below(&items, &mut builder);
     let mut rows = builder.finish();
+    if let Some(alignment) = line_alignment(plan) {
+        let limit = context.column_width - layouter.frame.right;
+        align_rows(&mut rows, alignment, limit);
+    }
     assign_ranges(&mut rows, layouter.text);
     let bottom = rows.last().map_or(px(0.), VisualRow::bottom);
     layouter.number_line(&rows);
@@ -278,6 +283,7 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
             unreachable!("chunks start at text");
         };
         let font_size = run_font_size(styles, &self.tone, self.theme());
+        let baseline_shift = run_baseline_shift(styles, &self.tone, self.theme());
         let indent_end = indent_columns(self.text, self.theme().tab_columns).1;
         let start = range.start.max(indent_end).min(range.end);
         let mut end = start;
@@ -285,7 +291,8 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         let mut backgrounds = Vec::new();
         let mut next = first;
         while let Some(Item::Text { range, styles }) = items.get(next) {
-            let same_size = run_font_size(styles, &self.tone, self.theme()) == font_size;
+            let same_size = run_font_size(styles, &self.tone, self.theme()) == font_size
+                && run_baseline_shift(styles, &self.tone, self.theme()) == baseline_shift;
             if range.start > end.max(start) || !same_size && next > first {
                 break;
             }
@@ -303,6 +310,7 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
             text: self.text[start..end].replace('\t', " "),
             font_size,
             line_height: font_size * self.tone.line_height_factor(self.theme()),
+            baseline_shift,
             runs,
             backgrounds,
         };
@@ -442,6 +450,32 @@ pub(super) fn chunk_padding(backgrounds: &[Background]) -> Pixels {
         .iter()
         .map(|background| background.padding)
         .fold(px(0.), Pixels::max)
+}
+
+/// How an HTML block such as `<center>` aligns this line, if it does.
+fn line_alignment(plan: &LinePlan) -> Option<Alignment> {
+    plan.line_styles.iter().find_map(|style| match style {
+        LineStyle::Align(alignment) => Some(*alignment),
+        _ => None,
+    })
+}
+
+/// Moves each text row's pieces right, so the row is centred or ends at
+/// `limit`, the right edge of the text.
+fn align_rows(rows: &mut [VisualRow], alignment: Alignment, limit: Pixels) {
+    let share = match alignment {
+        Alignment::Center => 0.5,
+        Alignment::Right => 1.,
+        Alignment::Left | Alignment::None => return,
+    };
+    for row in rows.iter_mut().filter(|row| row.kind == RowKind::Text) {
+        let room = (limit - row.right()).max(px(0.));
+        let shift = room * share;
+        row.left += shift;
+        for piece in &mut row.pieces {
+            piece.x += shift;
+        }
+    }
 }
 
 /// Whether the line is a property row, and whether it starts with a name.

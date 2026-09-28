@@ -161,6 +161,7 @@ impl LineLayouter<'_, '_> {
             text: self.text[range.clone()].replace(['\t', '\n'], " "),
             font_size,
             line_height: self.line_height(),
+            baseline_shift: px(0.),
             runs: vec![run],
             backgrounds: Vec::new(),
         };
@@ -268,10 +269,10 @@ impl LineLayouter<'_, '_> {
 
     fn superscript(&mut self, range: &Range<usize>, label: &str, builder: &mut RowBuilder) {
         let theme = self.theme();
-        let size = self.font_size() * 0.7;
+        let size = self.font_size() * theme.script_scale;
         let run = text_run(1, &[StyleKey::FootnoteRef], &self.tone, false, theme);
         let (mut piece, mut extent) = self.label(label, run, size, size);
-        let raise = self.font_size() * 0.4;
+        let raise = self.font_size() * theme.superscript_rise;
         extent.ascent += raise;
         extent.descent -= raise;
         piece.range = range.clone();

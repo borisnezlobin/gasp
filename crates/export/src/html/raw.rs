@@ -1,11 +1,13 @@
 //! Raw HTML in notes. The article keeps the handful of elements notes use
-//! for meaning (underline, super- and subscripts, keys, colour, alignment,
-//! images) with only the attributes that carry it; everything else is
-//! dropped and its text kept, so an article never carries scripts, styles
-//! or Obsidian's own markup.
+//! for meaning (bold, italic, strike-through, underline, super- and
+//! subscripts, highlights, keys, links, styled spans and paragraphs,
+//! alignment, images) with only the attributes that carry it, styles
+//! rebuilt from the subset the editor draws; everything else is dropped
+//! and its text kept, so an article never carries scripts, event
+//! handlers, layout-breaking CSS or Obsidian's own markup.
 
 use crate::pdf::convert::html::{
-    Token, attribute, css_property, is_hex_color, is_page_break, tokenize,
+    Token, attribute, element_style, is_page_break, safe_href, tokenize,
 };
 
 /// Elements kept as they are, without attributes.
@@ -70,12 +72,16 @@ pub(crate) fn filter(html: &str) -> Vec<Piece> {
         .collect()
 }
 
+/// Elements kept only with a style, which is rebuilt from what the editor
+/// understands of theirs, so no other CSS gets through.
+const STYLED: [&str; 4] = ["span", "div", "p", "center"];
+
 /// The name an element is written with, when it is kept.
 fn kept_name(name: &str) -> Option<String> {
     match name {
         "strike" => Some("s".to_owned()),
-        "span" | "div" | "a" => Some(name.to_owned()),
-        _ if PLAIN.contains(&name) => Some(name.to_owned()),
+        "a" => Some(name.to_owned()),
+        _ if PLAIN.contains(&name) || STYLED.contains(&name) => Some(name.to_owned()),
         _ => None,
     }
 }
@@ -98,27 +104,57 @@ fn open(name: &str, attrs: &str, self_closing: bool) -> Option<Piece> {
 
 /// The opening tag written for element `name`, if it is kept.
 fn opener(name: &str, attrs: &str) -> Option<String> {
-    let style = attribute(attrs, "style").unwrap_or_default();
     match name {
         "strike" => Some("<s>".to_owned()),
-        "span" => css_property(&style, "color")
-            .filter(|color| is_hex_color(color))
-            .map(|color| format!("<span style=\"color: {color}\">")),
-        "div" => css_property(&style, "text-align")
-            .or_else(|| attribute(attrs, "align"))
-            .filter(|align| matches!(align.as_str(), "left" | "right" | "center"))
-            .map(|align| format!("<div style=\"text-align: {align}\">")),
-        "a" => attribute(attrs, "href")
-            .filter(|href| href.contains("://") || href.starts_with("mailto:"))
-            .map(|href| format!("<a href=\"{}\">", super::escape_attribute(&href))),
+        "a" => {
+            safe_href(attrs).map(|href| format!("<a href=\"{}\">", super::escape_attribute(&href)))
+        }
+        _ if STYLED.contains(&name) => styled_opener(name, attrs),
         _ if PLAIN.contains(&name) => Some(format!("<{name}>")),
         _ => None,
+    }
+}
+
+/// `<span>`, `<div>`, `<p>` or `<center>` with only the styles the editor
+/// draws. A span or div with none says nothing and is dropped.
+fn styled_opener(name: &str, attrs: &str) -> Option<String> {
+    let mut style = element_style(name, attrs);
+    if name == "center" {
+        style.align = None;
+    }
+    let css = style.to_css();
+    match (css.is_empty(), name) {
+        (true, "span" | "div") => None,
+        (true, _) => Some(format!("<{name}>")),
+        (false, _) => Some(format!(
+            "<{name} style=\"{}\">",
+            super::escape_attribute(&css)
+        )),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn styles_are_rebuilt_from_the_safe_subset() {
+        let opened = |html: &str| match filter(html).into_iter().next() {
+            Some(Piece::Open { markup, .. }) => Some(markup),
+            _ => None,
+        };
+        assert_eq!(
+            opened("<span style=\"color:red; position:fixed; onclick:x\" onmouseover=\"x()\">"),
+            Some("<span style=\"color: #ff0000\">".into())
+        );
+        assert_eq!(
+            opened("<p style=\"text-align: center; width: 9999px\">"),
+            Some("<p style=\"text-align: center\">".into())
+        );
+        assert_eq!(opened("<center>"), Some("<center>".into()));
+        assert_eq!(opened("<span style=\"display:none\">"), None);
+        assert_eq!(opened("<a href=\"javascript://%0aalert(1)\">"), None);
+    }
 
     #[test]
     fn marks_hidden_elements_and_drops_unsafe_attributes() {

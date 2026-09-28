@@ -158,6 +158,20 @@ fn replacements_fire_in_text_but_not_in_math_or_code() {
 }
 
 #[test]
+fn nothing_is_replaced_or_curled_inside_html_tags() {
+    let mut typist = Typist::new("", 0);
+    typist.type_text("<span style=\"color:red;\" title='a--b'>x -- \"y\"</span>");
+    assert_eq!(
+        typist.shown(),
+        "<span style=\"color:red;\" title='a--b'>x — “y”</span>|"
+    );
+
+    let mut block = Typist::new("", 0);
+    block.type_text("<p style=\"text-align: center;\">a -> b</p>");
+    assert_eq!(block.shown(), "<p style=\"text-align: center;\">a → b</p>|");
+}
+
+#[test]
 fn an_expansion_undoes_in_one_step() {
     let mut typist = Typist::new("", 0);
     typist.type_text("x mk");

@@ -1,6 +1,10 @@
-//! The raw HTML found in notes: line breaks, rules, underline, super- and
-//! subscripts, keys, coloured spans, aligned divs, images and page breaks.
+//! The raw HTML found in notes: line breaks, rules, bold, italic,
+//! strike-through, underline, super- and subscripts, highlights, keys,
+//! links, styled spans (colour, fill, size, weight, slant, decoration),
+//! aligned blocks, images and page breaks: the subset the editor draws.
 //! Other tags are dropped and their text kept.
+
+use editor_core::syntax::{Alignment, FontSize, HtmlStyle, Rgba8};
 
 use super::{Converter, Open, OpenKind};
 use crate::pdf::escape;
@@ -67,33 +71,36 @@ fn tag_token(inner: &str) -> Option<Token<'_>> {
     })
 }
 
-/// The value of attribute `name`, quoted or bare.
+/// The value of attribute `name`, quoted (straight or curly) or bare, read
+/// as the editor reads it.
 pub(crate) fn attribute(attrs: &str, name: &str) -> Option<String> {
-    let lower = attrs.to_ascii_lowercase();
-    let mut search = 0;
-    while let Some(found) = lower[search..].find(name) {
-        let at = search + found;
-        search = at + name.len();
-        let preceded_by_space = at == 0 || lower.as_bytes()[at - 1].is_ascii_whitespace();
-        let rest = attrs[search..].trim_start();
-        let Some(value) = rest.strip_prefix('=').filter(|_| preceded_by_space) else {
-            continue;
-        };
-        return Some(attribute_value(value.trim_start()));
-    }
-    None
+    let padded = format!(" {attrs}");
+    editor_core::syntax::html_attribute(&padded, name).map(str::to_owned)
 }
 
-fn attribute_value(text: &str) -> String {
-    for quote in ['"', '\''] {
-        if let Some(rest) = text.strip_prefix(quote) {
-            return rest.split(quote).next().unwrap_or_default().to_owned();
-        }
+/// The styles an element's `style` attribute asks for, and for a block,
+/// its old `align` attribute: only what the editor draws, so nothing
+/// that moves boxes or runs code gets through.
+pub(crate) fn element_style(name: &str, attrs: &str) -> HtmlStyle {
+    let mut style =
+        attribute(attrs, "style").map_or_else(HtmlStyle::default, |css| HtmlStyle::parse(&css));
+    if style.align.is_none() && matches!(name, "p" | "div" | "center") {
+        style.align =
+            attribute(attrs, "align").and_then(|align| editor_core::syntax::parse_align(&align));
     }
-    text.split_whitespace()
-        .next()
-        .unwrap_or_default()
-        .to_owned()
+    if name == "center" && style.align.is_none() {
+        style.align = Some(Alignment::Center);
+    }
+    style
+}
+
+/// A link's address when it is safe to follow: a web or mail address,
+/// never `javascript:` or `data:`.
+pub(crate) fn safe_href(attrs: &str) -> Option<String> {
+    attribute(attrs, "href").filter(|href| {
+        editor_core::syntax::is_safe_href(href)
+            && (href.contains("://") || href.starts_with("mailto:"))
+    })
 }
 
 /// The value of CSS property `name` in a `style` attribute.
@@ -101,12 +108,6 @@ pub(crate) fn css_property(style: &str, name: &str) -> Option<String> {
     style.split(';').find_map(|declaration| {
         let (property, value) = declaration.split_once(':')?;
         (property.trim().eq_ignore_ascii_case(name)).then(|| value.trim().to_ascii_lowercase())
-    })
-}
-
-pub(crate) fn is_hex_color(value: &str) -> bool {
-    value.strip_prefix('#').is_some_and(|hex| {
-        matches!(hex.len(), 3 | 6 | 8) && hex.chars().all(|c| c.is_ascii_hexdigit())
     })
 }
 
@@ -142,25 +143,82 @@ const SIMPLE_OPENERS: [(&str, &str); 14] = [
     ("blockquote", "#quote-block["),
 ];
 
-/// The Typst opener for an element that wraps content.
-fn element_opener(name: &str, attrs: &str) -> String {
+/// The Typst opener for an element that wraps content, and how many
+/// brackets it opens.
+fn element_opener(name: &str, attrs: &str) -> (String, usize) {
     if let Some((_, opener)) = SIMPLE_OPENERS.iter().find(|(tag, _)| *tag == name) {
-        return (*opener).to_owned();
-    }
-    let style = attribute(attrs, "style").unwrap_or_default();
-    if let Some(color) = css_property(&style, "color").filter(|color| is_hex_color(color)) {
-        return format!("#text(fill: rgb(\"{color}\"))[");
-    }
-    let align = css_property(&style, "text-align").or_else(|| attribute(attrs, "align"));
-    if let Some(align @ ("right" | "center" | "left")) = align.as_deref() {
-        return format!("#align({align})[");
+        return ((*opener).to_owned(), 1);
     }
     if name == "a"
-        && let Some(href) = attribute(attrs, "href").filter(|href| href.contains("://"))
+        && let Some(href) = safe_href(attrs)
     {
-        return format!("#link({})[", escape::string(&href));
+        return (format!("#link({})[", escape::string(&href)), 1);
     }
-    "#[".to_owned()
+    let openers = style_openers(&element_style(name, attrs));
+    match openers.is_empty() {
+        true => ("#[".to_owned(), 1),
+        false => (openers.concat(), openers.len()),
+    }
+}
+
+/// One Typst opener per part of a style, outermost first.
+fn style_openers(style: &HtmlStyle) -> Vec<String> {
+    let mut openers = Vec::new();
+    if let Some(align) = style.align.and_then(typst_align) {
+        openers.push(format!("#align({align})["));
+    }
+    let text = text_arguments(style);
+    if !text.is_empty() {
+        openers.push(format!("#text({})[", text.join(", ")));
+    }
+    if let Some(color) = style.background {
+        openers.push(format!("#highlight(fill: {})[", typst_color(color)));
+    }
+    let decorations = [
+        (style.underline, "#underline["),
+        (style.strikethrough, "#strike["),
+    ];
+    openers.extend(
+        decorations
+            .iter()
+            .filter(|(on, _)| *on)
+            .map(|(_, opener)| (*opener).to_owned()),
+    );
+    openers
+}
+
+/// The arguments of the `#text` a style asks for: colour, size, weight
+/// and slant.
+fn text_arguments(style: &HtmlStyle) -> Vec<String> {
+    let mut arguments = Vec::new();
+    if let Some(color) = style.color {
+        arguments.push(format!("fill: {}", typst_color(color)));
+    }
+    if let Some(FontSize::Absolute(percent) | FontSize::Relative(percent)) = style.font_size {
+        arguments.push(format!("size: {}em", f32::from(percent) / 100.));
+    }
+    if let Some(bold) = style.bold {
+        let weight = if bold { "bold" } else { "regular" };
+        arguments.push(format!("weight: \"{weight}\""));
+    }
+    if let Some(italic) = style.italic {
+        let slant = if italic { "italic" } else { "normal" };
+        arguments.push(format!("style: \"{slant}\""));
+    }
+    arguments
+}
+
+fn typst_color(color: Rgba8) -> String {
+    format!("rgb(\"{}\")", color.to_hex())
+}
+
+fn typst_align(align: Alignment) -> Option<&'static str> {
+    match align {
+        Alignment::Left => Some("left"),
+        Alignment::Center => Some("center"),
+        Alignment::Right => Some("right"),
+        Alignment::None => None,
+    }
 }
 
 /// Elements that never have content.
@@ -227,7 +285,10 @@ impl Converter<'_> {
             "img" => self.html_image(attrs),
             _ if is_page_break(attrs) => self.inline_markup("#page-break();"),
             _ if self_closing || is_void(name) => {}
-            _ => self.open_html(name, element_opener(name, attrs)),
+            _ => {
+                let (opener, brackets) = element_opener(name, attrs);
+                self.open_html(name, opener, brackets);
+            }
         }
     }
 
@@ -241,14 +302,14 @@ impl Converter<'_> {
         self.inline_markup(&markup);
     }
 
-    fn open_html(&mut self, name: &str, opener: String) {
+    fn open_html(&mut self, name: &str, opener: String, brackets: usize) {
         self.inline_markup(&opener);
         self.open.push(Open {
             kind: OpenKind::Html {
                 tag: name.to_owned(),
                 opener,
             },
-            closer: "];".to_owned(),
+            closer: format!("{};", "]".repeat(brackets)),
         });
     }
 
@@ -302,6 +363,10 @@ mod tests {
     fn reads_attributes() {
         let attrs = r#" src="images/a b.png" width=240 style='color: #b5452c'"#;
         assert_eq!(attribute(attrs, "src").as_deref(), Some("images/a b.png"));
+        assert_eq!(
+            attribute("style=”color:red;”", "style").as_deref(),
+            Some("color:red;")
+        );
         assert_eq!(attribute(attrs, "width").as_deref(), Some("240"));
         assert_eq!(
             css_property(&attribute(attrs, "style").unwrap(), "color").as_deref(),
@@ -318,16 +383,35 @@ mod tests {
 
     #[test]
     fn picks_openers() {
-        assert_eq!(element_opener("u", ""), "#underline[");
+        let opener = |name: &str, attrs: &str| element_opener(name, attrs);
+        assert_eq!(opener("u", ""), ("#underline[".into(), 1));
         assert_eq!(
-            element_opener("span", r#" style="color: #b5452c""#),
-            "#text(fill: rgb(\"#b5452c\"))["
+            opener("span", r#" style="color: #b5452c""#),
+            ("#text(fill: rgb(\"#b5452c\"))[".into(), 1)
         );
         assert_eq!(
-            element_opener("div", r#" style="text-align: right""#),
-            "#align(right)["
+            opener("div", r#" style="text-align: right""#),
+            ("#align(right)[".into(), 1)
         );
-        assert_eq!(element_opener("span", ""), "#[");
+        assert_eq!(opener("center", ""), ("#align(center)[".into(), 1));
+        assert_eq!(opener("span", ""), ("#[".into(), 1));
+        assert_eq!(
+            opener(
+                "p",
+                " style=\"text-align:center; color:red; font-size:2em; font-weight:bold; \
+                 background-color:yellow; text-decoration:underline; position:fixed\""
+            ),
+            (
+                "#align(center)[#text(fill: rgb(\"#ff0000\"), size: 2em, weight: \"bold\")[\
+                 #highlight(fill: rgb(\"#ffff00\"))[#underline["
+                    .into(),
+                4
+            )
+        );
+        assert_eq!(
+            opener("a", r#" href="javascript://x%0aalert(1)""#),
+            ("#[".into(), 1)
+        );
     }
 
     #[test]

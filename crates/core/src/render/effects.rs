@@ -5,6 +5,7 @@ use std::ops::Range;
 
 use crate::syntax::{ConflictSide, Markup, MarkupKind, Node, NodeId, NodeKind, SyntaxKind};
 
+use super::html;
 use super::output::{LineStyle, Placement, StyleKey, Widget, WidgetKind};
 use super::reveal::{Revealer, is_line_marker};
 use super::widgets;
@@ -91,7 +92,6 @@ fn block_style(kind: &NodeKind) -> Option<StyleKey> {
     let style = match kind {
         NodeKind::Math { .. } | NodeKind::MathBlock => StyleKey::MathSource,
         NodeKind::Heading { level, .. } => StyleKey::Heading(*level),
-        NodeKind::Html(crate::syntax::HtmlKind::Underline) => StyleKey::Underline,
         NodeKind::Frontmatter => StyleKey::Frontmatter,
         NodeKind::CalloutTitle => StyleKey::CalloutTitle,
         _ => return None,
@@ -215,11 +215,15 @@ impl<'a> Planner<'a> {
             NodeKind::CodeBlock(_) => widgets::code_lines(node)
                 .map(|range| vec![(range, StyleKey::CodeBlock)])
                 .unwrap_or_default(),
-            NodeKind::Html(kind) if *kind != crate::syntax::HtmlKind::Underline => node
-                .markup
-                .iter()
-                .map(|m| (m.range.clone(), StyleKey::Html))
-                .collect(),
+            NodeKind::Html(_) => {
+                let mut spans = html::element_spans(self.revealer.tree, id);
+                spans.extend(
+                    node.markup
+                        .iter()
+                        .map(|m| (m.range.clone(), StyleKey::Html)),
+                );
+                spans
+            }
             NodeKind::ListItem { task: Some(true) } => widgets::task_text(self.revealer.text, node)
                 .map(|range| vec![(range, StyleKey::TaskDone)])
                 .unwrap_or_default(),
@@ -279,6 +283,9 @@ impl<'a> Planner<'a> {
                 })
                 .collect(),
             NodeKind::Conflict => self.conflict_line_styles(node),
+            NodeKind::Html(_) => html::alignment(node)
+                .map(|align| vec![(lines, LineStyle::Align(align))])
+                .unwrap_or_default(),
             kind => simple_line_style(kind)
                 .map(|style| vec![(lines, style)])
                 .unwrap_or_default(),

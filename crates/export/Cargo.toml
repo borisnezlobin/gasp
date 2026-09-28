@@ -8,6 +8,8 @@ publish = false
 
 [dependencies]
 editor-math = { path = "../math" }
+# The note's HTML subset: attribute and CSS parsing, shared with the editor.
+editor-core = { path = "../core" }
 pulldown-cmark = { version = "0.13", default-features = false }
 base64 = "0.22"
 # The same features Typst enables, so the crate is built once.

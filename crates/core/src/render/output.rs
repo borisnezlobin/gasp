@@ -33,6 +33,28 @@ pub enum StyleKey {
     MarkupDimmed,
     /// One item of a list property, drawn as a chip.
     PropertyChip,
+    /// `<sup>` and `<sub>` text: smaller, raised or lowered.
+    Superscript,
+    Subscript,
+    /// `<kbd>` text, drawn as a key cap.
+    Kbd,
+    /// A colour a note's HTML asks for, as `0xRRGGBBAA`. `depth` is how
+    /// deeply its element nests, so the innermost colour wins.
+    TextColor {
+        depth: u8,
+        rgba: u32,
+    },
+    /// A fill a note's HTML asks for, as `0xRRGGBBAA`.
+    TextBackground {
+        depth: u8,
+        rgba: u32,
+    },
+    /// A size a note's HTML asks for, as a percentage of the line's text,
+    /// already composed with its ancestors' and clamped.
+    FontScale {
+        depth: u8,
+        percent: u16,
+    },
 }
 
 const HEADING_NAMES: [&str; 6] = [
@@ -52,6 +74,9 @@ impl StyleKey {
         match self {
             Self::Heading(level) => HEADING_NAMES[usize::from(level.clamp(1, 6)) - 1],
             Self::MathBracket(depth) => BRACKET_NAMES[usize::from(depth % 3)],
+            Self::TextColor { .. } => "html-color",
+            Self::TextBackground { .. } => "html-background",
+            Self::FontScale { .. } => "html-font-size",
             other => other.plain_name(),
         }
     }
@@ -84,6 +109,9 @@ const STYLE_NAMES: &[(StyleKey, &str)] = &[
     (StyleKey::TaskDone, "task-done"),
     (StyleKey::MarkupDimmed, "markup-dimmed"),
     (StyleKey::PropertyChip, "property-chip"),
+    (StyleKey::Superscript, "superscript"),
+    (StyleKey::Subscript, "subscript"),
+    (StyleKey::Kbd, "kbd"),
 ];
 
 /// A decoration for a whole line, such as the bar beside a quote.
@@ -119,6 +147,9 @@ pub enum LineStyle {
     Conflict {
         side: ConflictSide,
     },
+    /// A line of an HTML block, such as `<center>` or `<p style=
+    /// "text-align: right">`, whose text is aligned this way.
+    Align(Alignment),
 }
 
 /// A run of source text sharing one set of styles.
@@ -266,6 +297,6 @@ mod tests {
         assert_eq!(StyleKey::Heading(2).name(), "heading-2");
         assert_eq!(StyleKey::FootnoteRef.name(), "footnote-ref");
         assert_eq!(StyleKey::MarkupDimmed.name(), "markup-dimmed");
-        assert_eq!(STYLE_NAMES.len(), 19);
+        assert_eq!(STYLE_NAMES.len(), 22);
     }
 }

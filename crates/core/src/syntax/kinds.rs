@@ -1,5 +1,7 @@
 //! Node kinds, markup token kinds and the per-kind details the parser records.
 
+pub use super::css::HtmlStyle;
+
 /// What a node in the syntax tree is.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NodeKind {
@@ -126,7 +128,7 @@ impl NodeKind {
 }
 
 /// Column alignment of a GFM table.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Alignment {
     None,
     Left,
@@ -145,6 +147,8 @@ pub enum LinkKind {
     Email,
     /// A plain `https://…` URL in text.
     BareUrl,
+    /// An HTML `<a href="…">…</a>`.
+    Html,
 }
 
 /// Details of a Markdown link or image.
@@ -276,25 +280,96 @@ pub struct CodeBlockInfo {
 pub enum HtmlKind {
     LineBreak,
     HorizontalRule,
+    /// `<u>` and `<ins>`.
     Underline,
-    Div,
+    /// `<div>`, which may be a page break.
+    Div(HtmlStyle),
     Image,
     /// `<!-- … -->`.
     Comment,
+    /// `<b>` and `<strong>`.
+    Bold,
+    /// `<i>` and `<em>`.
+    Italic,
+    /// `<s>`, `<del>` and `<strike>`.
+    Strike,
+    Superscript,
+    Subscript,
+    /// `<mark>`, drawn like `==highlight==`.
+    Mark,
+    /// `<kbd>`, drawn as a key cap.
+    Kbd,
+    /// `<a>`; a paired one with a safe `href` becomes a link node.
+    Anchor,
+    Span(HtmlStyle),
+    Paragraph(HtmlStyle),
+    Center(HtmlStyle),
     Other,
 }
 
+const TAG_KINDS: [(&str, HtmlKind); 21] = [
+    ("br", HtmlKind::LineBreak),
+    ("hr", HtmlKind::HorizontalRule),
+    ("u", HtmlKind::Underline),
+    ("ins", HtmlKind::Underline),
+    ("img", HtmlKind::Image),
+    ("b", HtmlKind::Bold),
+    ("strong", HtmlKind::Bold),
+    ("i", HtmlKind::Italic),
+    ("em", HtmlKind::Italic),
+    ("s", HtmlKind::Strike),
+    ("del", HtmlKind::Strike),
+    ("strike", HtmlKind::Strike),
+    ("sup", HtmlKind::Superscript),
+    ("sub", HtmlKind::Subscript),
+    ("mark", HtmlKind::Mark),
+    ("kbd", HtmlKind::Kbd),
+    ("a", HtmlKind::Anchor),
+    ("span", HtmlKind::Span(HtmlStyle::NONE)),
+    ("p", HtmlKind::Paragraph(HtmlStyle::NONE)),
+    ("center", HtmlKind::Center(HtmlStyle::NONE)),
+    ("div", HtmlKind::Div(HtmlStyle::NONE)),
+];
+
 impl HtmlKind {
-    /// Classifies an HTML tag name.
+    /// Classifies an HTML tag name. Styles are left empty.
     pub fn from_tag_name(name: &str) -> Self {
-        match name.to_ascii_lowercase().as_str() {
-            "br" => Self::LineBreak,
-            "hr" => Self::HorizontalRule,
-            "u" => Self::Underline,
-            "div" => Self::Div,
-            "img" => Self::Image,
-            _ => Self::Other,
+        TAG_KINDS
+            .iter()
+            .find(|(tag, _)| tag.eq_ignore_ascii_case(name))
+            .map_or(Self::Other, |(_, kind)| *kind)
+    }
+
+    /// The style of an element that takes a `style` attribute.
+    pub fn style(&self) -> Option<&HtmlStyle> {
+        match self {
+            Self::Span(style) | Self::Paragraph(style) | Self::Center(style) | Self::Div(style) => {
+                Some(style)
+            }
+            _ => None,
         }
+    }
+
+    fn style_mut(&mut self) -> Option<&mut HtmlStyle> {
+        match self {
+            Self::Span(style) | Self::Paragraph(style) | Self::Center(style) | Self::Div(style) => {
+                Some(style)
+            }
+            _ => None,
+        }
+    }
+
+    /// The same element with `style`, when it takes one.
+    pub fn with_style(mut self, style: HtmlStyle) -> Self {
+        if let Some(own) = self.style_mut() {
+            *own = style;
+        }
+        self
+    }
+
+    /// Whether this element is a block that `text-align` applies to.
+    pub fn is_block(&self) -> bool {
+        matches!(self, Self::Paragraph(_) | Self::Center(_) | Self::Div(_))
     }
 }
 
