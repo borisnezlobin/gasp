@@ -12,7 +12,7 @@
 
 pub mod compare;
 pub mod dialog;
-pub mod store;
+pub use editor_vault::recovery as store;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
