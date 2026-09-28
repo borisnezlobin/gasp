@@ -233,6 +233,7 @@ impl Workspace {
                     editor.update(cx, |editor, cx| editor.close_preview(cx));
                 }
                 let mut items = flag_items(pane, &anchor, cx);
+                items.extend(table_items(pane, &anchor, window, cx));
                 items.extend(self.editor_items(pane, &anchor, cx));
                 items
             }
@@ -441,6 +442,25 @@ fn flag_items(pane: &Entity<Pane>, anchor: &MenuAnchor, cx: &App) -> Vec<MenuIte
     items
 }
 
+/// A right-click on a table's cell or on a row or column handle: the
+/// table editor's edits for that cell come first.
+fn table_items(
+    pane: &Entity<Pane>,
+    anchor: &MenuAnchor,
+    window: &Window,
+    cx: &mut Context<Workspace>,
+) -> Vec<MenuItem> {
+    let MenuAnchor::Pointer(position) = anchor else {
+        return Vec::new();
+    };
+    let Some(editor) = pane.read(cx).active_editor() else {
+        return Vec::new();
+    };
+    let at = editor.update(cx, |editor, _| editor.table_offset_at(*position, window));
+    at.map(|at| crate::table_edit::menu::table_items(&editor, at, cx))
+        .unwrap_or_default()
+}
+
 /// Which editing commands have something to act on in a pane's note.
 struct EditAvailability {
     undo: bool,
@@ -572,7 +592,8 @@ mod tests {
             .chain(INSERT_ITEMS.iter().map(|(id, ..)| *id))
             .chain(TAB_CLOSE_ITEMS.iter().map(|(id, ..)| *id))
             .chain(TAB_SPLIT_ITEMS.iter().map(|(id, ..)| *id))
-            .chain(TAB_MOVE_ITEMS.iter().map(|((id, ..), _)| *id));
+            .chain(TAB_MOVE_ITEMS.iter().map(|((id, ..), _)| *id))
+            .chain(crate::table_edit::menu::menu_commands());
         for id in ids {
             assert!(BUILTIN_COMMANDS.iter().any(|spec| spec.id == id), "{id}");
         }

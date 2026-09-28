@@ -46,9 +46,13 @@ pub enum IconName {
     CloudWarning,
     Code,
     Columns,
+    ColumnsPlusLeft,
+    ColumnsPlusRight,
     Command,
     Control,
     Copy,
+    DotsSix,
+    DotsSixVertical,
     DotsThree,
     Export,
     Eye,
@@ -92,6 +96,8 @@ pub enum IconName {
     Question,
     Quotes,
     Rows,
+    RowsPlusBottom,
+    RowsPlusTop,
     Scissors,
     Selection,
     SelectionAll,
@@ -100,12 +106,17 @@ pub enum IconName {
     Sigma,
     SlidersHorizontal,
     SortAscending,
+    SortDescending,
     Square,
     SquareSplitHorizontal,
     SquareSplitVertical,
     Stamp,
     Swap,
+    Table,
     TextAa,
+    TextAlignCenter,
+    TextAlignLeft,
+    TextAlignRight,
     TextB,
     TextItalic,
     TextStrikethrough,
@@ -119,7 +130,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 108] = [
+const ICONS: [(IconName, &str, &[u8]); 119] = [
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -306,6 +317,16 @@ const ICONS: [(IconName, &str, &[u8]); 108] = [
         include_bytes!("../assets/icons/columns.svg"),
     ),
     (
+        IconName::ColumnsPlusLeft,
+        "columns-plus-left",
+        include_bytes!("../assets/icons/columns-plus-left.svg"),
+    ),
+    (
+        IconName::ColumnsPlusRight,
+        "columns-plus-right",
+        include_bytes!("../assets/icons/columns-plus-right.svg"),
+    ),
+    (
         IconName::Command,
         "command",
         include_bytes!("../assets/icons/command.svg"),
@@ -319,6 +340,16 @@ const ICONS: [(IconName, &str, &[u8]); 108] = [
         IconName::Copy,
         "copy",
         include_bytes!("../assets/icons/copy.svg"),
+    ),
+    (
+        IconName::DotsSix,
+        "dots-six",
+        include_bytes!("../assets/icons/dots-six.svg"),
+    ),
+    (
+        IconName::DotsSixVertical,
+        "dots-six-vertical",
+        include_bytes!("../assets/icons/dots-six-vertical.svg"),
     ),
     (
         IconName::DotsThree,
@@ -536,6 +567,16 @@ const ICONS: [(IconName, &str, &[u8]); 108] = [
         include_bytes!("../assets/icons/rows.svg"),
     ),
     (
+        IconName::RowsPlusBottom,
+        "rows-plus-bottom",
+        include_bytes!("../assets/icons/rows-plus-bottom.svg"),
+    ),
+    (
+        IconName::RowsPlusTop,
+        "rows-plus-top",
+        include_bytes!("../assets/icons/rows-plus-top.svg"),
+    ),
+    (
         IconName::Scissors,
         "scissors",
         include_bytes!("../assets/icons/scissors.svg"),
@@ -576,6 +617,11 @@ const ICONS: [(IconName, &str, &[u8]); 108] = [
         include_bytes!("../assets/icons/sort-ascending.svg"),
     ),
     (
+        IconName::SortDescending,
+        "sort-descending",
+        include_bytes!("../assets/icons/sort-descending.svg"),
+    ),
+    (
         IconName::Square,
         "square",
         include_bytes!("../assets/icons/square.svg"),
@@ -601,9 +647,29 @@ const ICONS: [(IconName, &str, &[u8]); 108] = [
         include_bytes!("../assets/icons/swap.svg"),
     ),
     (
+        IconName::Table,
+        "table",
+        include_bytes!("../assets/icons/table.svg"),
+    ),
+    (
         IconName::TextAa,
         "text-aa",
         include_bytes!("../assets/icons/text-aa.svg"),
+    ),
+    (
+        IconName::TextAlignCenter,
+        "text-align-center",
+        include_bytes!("../assets/icons/text-align-center.svg"),
+    ),
+    (
+        IconName::TextAlignLeft,
+        "text-align-left",
+        include_bytes!("../assets/icons/text-align-left.svg"),
+    ),
+    (
+        IconName::TextAlignRight,
+        "text-align-right",
+        include_bytes!("../assets/icons/text-align-right.svg"),
     ),
     (
         IconName::TextB,

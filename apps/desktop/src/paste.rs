@@ -400,8 +400,18 @@ impl EditorView {
     /// Replaces `range` with `text` as its own undo step, with the cursor
     /// after it.
     fn paste_text_at(&mut self, range: Range<usize>, text: &str, cx: &mut Context<Self>) {
+        // Pasting over several cells empties them and pastes into the
+        // first; in a cell, pipes are escaped and line breaks are spaces.
+        let over_cells = self.cell_block().is_some();
+        let typed = self.cell_typing(text, cx);
+        let range = if over_cells {
+            self.selected_range()
+        } else {
+            range
+        };
+        let text = typed.unwrap_or_else(|| text.to_owned());
         let cursor = range.start + text.len();
-        self.apply_paste(range, text, cursor, cx);
+        self.apply_paste(range, &text, cursor, cx);
     }
 
     fn apply_paste(

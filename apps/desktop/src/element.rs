@@ -18,6 +18,7 @@ use crate::frame::{FrameLayout, PlacedLine};
 use crate::icons::IconName;
 use crate::line_layout::{Hit, Piece, PieceContent, Surface};
 use crate::prose::ProseFrame;
+use crate::table_edit::paint::{DragMark, TableMarks};
 use crate::theme::Theme;
 
 /// Suggestions and hover previews draw above the text and the editor's
@@ -39,6 +40,8 @@ impl EditorElement {
 pub struct Prepainted {
     frame: FrameLayout,
     selection: Vec<Bounds<Pixels>>,
+    /// The table editor's fills, rings, handles and drag.
+    tables: TableMarks,
     caret: Option<Bounds<Pixels>>,
     theme: Theme,
     /// The code block copy button, with its hitbox for the pointer.
@@ -108,6 +111,16 @@ impl Element for EditorElement {
                 .flat_map(|range| frame.range_rects(range, &view.theme))
                 .collect();
             let caret = frame.caret_bounds(view.cursor(), &view.theme);
+            let focused = view.focus_handle.is_focused(window);
+            let tables = view.table_marks(&frame, focused && !view.read_only);
+            if tables.animating {
+                window.request_animation_frame();
+            }
+            // Cells selected across are drawn whole, not as text.
+            let selection = match &tables.block {
+                Some(block) => block.clone(),
+                None => selection,
+            };
             drop(phase);
             let phase = crate::keytrace::span("prose");
             let prose = view.prose_frame(&frame, cx);
@@ -159,6 +172,7 @@ impl Element for EditorElement {
             Prepainted {
                 frame,
                 selection,
+                tables,
                 caret,
                 theme: view.theme.clone(),
                 copy_button,
@@ -197,8 +211,10 @@ impl Element for EditorElement {
         });
         drop(phase);
         // A drag selection follows the pointer anywhere in the window, not
-        // only over the note, so it can run past the edge and scroll.
-        if self.view.read(cx).is_selecting {
+        // only over the note, so it can run past the edge and scroll; so
+        // does a table handle's drag.
+        let view = self.view.read(cx);
+        if view.is_selecting || view.table_edit.drag.is_some() {
             let view = self.view.clone();
             window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
                 if phase == DispatchPhase::Bubble {
@@ -281,6 +297,9 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
     let frame = &prepainted.frame;
     paint_surfaces(frame, theme, window);
     paint_bands(frame, theme, window);
+    for (bounds, color) in &prepainted.tables.fills {
+        window.paint_quad(fill(*bounds, *color));
+    }
     for (rect, color) in &prepainted.prose.tints {
         window.paint_quad(fill(*rect, *color).corner_radii(theme.radius_sm));
     }
@@ -310,8 +329,15 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
         paint_line(placed, &context, window, cx);
     }
     paint_flag_underlines(&prepainted.prose, theme, window);
+    if let Some(ring) = prepainted.tables.ring.filter(|_| focused) {
+        paint_cell_ring(ring, theme, window);
+    }
     if let Some(caret) = prepainted.caret.filter(|_| focused) {
         window.paint_quad(fill(caret, theme.cursor));
+    }
+    paint_table_handles(&prepainted.tables, theme, window, cx);
+    if let Some(drag) = &prepainted.tables.drag {
+        paint_table_drag(drag, &context, window, cx);
     }
     for placed in &frame.lines {
         paint_overlays(placed, frame.text_left, theme, window);
@@ -693,6 +719,85 @@ fn paint_piece(
             let theme = context.theme;
             window.paint_quad(fill(bounds, theme.tab_stop).corner_radii(theme.radius_sm / 2.));
         }
+    }
+}
+
+/// The ring on the cell being edited: inset so it sits inside the cell's
+/// rules.
+fn paint_cell_ring(bounds: Bounds<Pixels>, theme: &Theme, window: &mut Window) {
+    let look = &theme.table;
+    let inset = look.ring_width / 2.;
+    let bounds = Bounds::from_corners(
+        point(bounds.left() + inset, bounds.top() + inset),
+        point(bounds.right() - inset, bounds.bottom() - inset),
+    );
+    window.paint_quad(quad(
+        bounds,
+        theme.radius_sm,
+        transparent_black(),
+        look.ring_width,
+        look.active_ring,
+        BorderStyle::default(),
+    ));
+}
+
+/// The row and column handles: dots, a fill under the pointer or while
+/// held, all faded in by the handle's opacity.
+fn paint_table_handles(marks: &TableMarks, theme: &Theme, window: &mut Window, cx: &mut App) {
+    let look = &theme.table;
+    for handle in &marks.handles {
+        let faded = |color: Hsla| Hsla {
+            a: color.a * handle.opacity,
+            ..color
+        };
+        let (fill_color, icon_color) = match handle.hot {
+            true => (look.handle_fill, look.handle_icon_hover),
+            false => (transparent_black(), look.handle_icon),
+        };
+        window.paint_quad(fill(handle.bounds, faded(fill_color)).corner_radii(look.handle_radius));
+        report(window.paint_svg(
+            handle.bounds,
+            handle.icon.path(),
+            TransformationMatrix::unit(),
+            faded(icon_color),
+            cx,
+        ));
+    }
+}
+
+/// A row or column being dragged: lifted on a raised card with a shadow,
+/// its text a little faded, and the line where it would drop.
+fn paint_table_drag(
+    drag: &DragMark,
+    context: &PaintContext<'_>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let look = &context.theme.table;
+    window.paint_shadows(
+        drag.card,
+        Corners::all(context.theme.radius_sm),
+        &[BoxShadow {
+            color: look.drag_shadow,
+            offset: point(px(0.), look.drag_shadow_blur / 4.),
+            blur_radius: look.drag_shadow_blur,
+            spread_radius: px(0.),
+        }],
+    );
+    window.paint_quad(fill(drag.card, look.drag_fill).corner_radii(context.theme.radius_sm));
+    for placed in &drag.lines {
+        paint_line(placed, context, window, cx);
+    }
+    let veil = Hsla {
+        a: 1. - look.drag_opacity,
+        ..look.drag_fill
+    };
+    window.paint_quad(fill(drag.card, veil).corner_radii(context.theme.radius_sm));
+    if let Some(indicator) = drag.indicator {
+        window.paint_quad(
+            fill(indicator, look.drop_indicator)
+                .corner_radii(indicator.size.height.min(indicator.size.width) / 2.),
+        );
     }
 }
 

@@ -18,6 +18,7 @@ use gpui::{Hsla, Pixels};
 use crate::line_layout::{Hit, LineDecor, Surface, VisualLine};
 use crate::preview::code_highlight::LineSpans;
 use crate::preview::decor::LineFrame;
+use crate::preview::table::Columns;
 
 /// Lines kept before the cache starts over; far more than a screen.
 const LIMIT: usize = 2048;
@@ -65,12 +66,14 @@ impl LineCache {
     }
 
     /// The key for a planned line of `text`, or `None` when the line
-    /// can't be cached.
+    /// can't be cached. A table row's layout also depends on its table's
+    /// `columns`.
     pub fn key(
         plan: &LinePlan,
         text: &str,
         frame: &LineFrame,
         spans: Option<&LineSpans>,
+        columns: Option<&Columns>,
     ) -> Option<LineKey> {
         if !plan.widgets.iter().all(|widget| is_settled(&widget.kind)) {
             return None;
@@ -80,6 +83,9 @@ impl LineCache {
         hash_plan(plan, &mut hasher);
         hash_frame(frame, &mut hasher);
         spans.map(|spans| &spans[..]).hash(&mut hasher);
+        if let Some(columns) = columns {
+            columns.hash_into(&mut hasher);
+        }
         Some(LineKey {
             hash: hasher.finish(),
         })
@@ -129,9 +135,8 @@ impl LineCache {
 
 /// Whether a widget looks the same every time it's laid out. Images,
 /// math and link cards load in the background, so their lines aren't
-/// cached. Neither are tables: their cells, which may hold math, are on
-/// lines the key doesn't read.
-fn is_settled(kind: &WidgetKind) -> bool {
+/// cached.
+pub(crate) fn is_settled(kind: &WidgetKind) -> bool {
     !matches!(
         kind,
         WidgetKind::InlineMath { .. }
@@ -139,7 +144,6 @@ fn is_settled(kind: &WidgetKind) -> bool {
             | WidgetKind::MathPreview { .. }
             | WidgetKind::Image { .. }
             | WidgetKind::LinkCard(_)
-            | WidgetKind::Table { .. }
     )
 }
 
@@ -158,9 +162,14 @@ fn hash_plan(plan: &LinePlan, hasher: &mut DefaultHasher) {
         relative(hidden).hash(hasher);
     }
     for widget in &plan.widgets {
-        // Widgets can reach past the line, as a table does.
         (widget.range.start.wrapping_sub(start), widget.range.len()).hash(hasher);
         (widget.placement as u8).hash(hasher);
+    }
+    if let Some(row) = &plan.table_row {
+        (row.index, row.count, &row.alignments).hash(hasher);
+        for cell in &row.cells {
+            relative(cell).hash(hasher);
+        }
     }
 }
 

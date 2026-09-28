@@ -85,7 +85,11 @@ impl EditorView {
         self.timings
             .input_started
             .get_or_insert_with(std::time::Instant::now);
-        self.run_pipeline(EditRequest::InsertText(text.to_owned()), cx);
+        // In a table's cell a pipe is escaped and a line break is a space.
+        let text = self
+            .cell_typing(text, cx)
+            .unwrap_or_else(|| text.to_owned());
+        self.run_pipeline(EditRequest::InsertText(text), cx);
     }
 
     /// Backspace, which also deletes both halves of an empty pair.

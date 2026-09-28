@@ -681,19 +681,31 @@ fn math_errors_show_the_source(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn tables_render_as_a_grid_until_the_cursor_enters(cx: &mut TestAppContext) {
+fn tables_render_as_a_grid_a_row_per_line_with_the_cursor_in_or_out(cx: &mut TestAppContext) {
     let note = "| a | b |\n| --- | ---: |\n| one | 2 |\n\nend";
     let (view, cx) = open(cx, note);
     place_cursor(&view, cx, note.len());
-    let first = visual(&view, cx, 0);
-    assert_eq!(first.rows.len(), 1);
-    let cells = first.pieces().filter(|piece| piece.is_text()).count();
-    assert_eq!(cells, 4);
-    assert!(visual(&view, cx, 1).is_collapsed());
-    assert!(visual(&view, cx, 2).is_collapsed());
+    let cells = |line: &VisualLine| line.pieces().filter(|piece| piece.is_text()).count();
+    let header = visual(&view, cx, 0);
+    assert_eq!(
+        (header.grid.as_ref().unwrap().index, cells(&header)),
+        (0, 2)
+    );
+    assert!(
+        visual(&view, cx, 1).is_collapsed(),
+        "the delimiter row takes no space"
+    );
+    assert_eq!(cells(&visual(&view, cx, 2)), 2);
     place_cursor(&view, cx, 3);
-    assert!(!visual(&view, cx, 2).is_collapsed());
-    assert!(shows_text_at(&visual(&view, cx, 0), 0));
+    assert!(
+        visual(&view, cx, 1).is_collapsed(),
+        "still a grid with the cursor in it"
+    );
+    assert!(
+        !shows_text_at(&visual(&view, cx, 0), 0),
+        "the pipes stay hidden"
+    );
+    assert!(visual(&view, cx, 2).grid.is_some());
 }
 
 const CODE: &str =
@@ -774,7 +786,7 @@ fn table_cells_show_rendered_math_on_the_text_baseline(cx: &mut TestAppContext) 
     let (view, cx) = open(cx, &note);
     place_cursor(&view, cx, note.len());
     cx.run_until_parked();
-    let line = visual(&view, cx, 0);
+    let line = visual(&view, cx, 2);
     let math = line
         .pieces()
         .find(|piece| matches!(piece.content, PieceContent::Image { .. }))
@@ -820,16 +832,17 @@ fn table_cells_wrap_within_their_columns_and_keep_math_whole(cx: &mut TestAppCon
     place_cursor(&view, cx, note.len());
     cx.run_until_parked();
     let column = view.read_with(cx, |view, _| view.frame().unwrap().column_width);
-    let line = visual(&view, cx, 0);
+    let line = visual(&view, cx, 2);
     let widest = line.pieces().map(Piece::right).fold(px(0.), Pixels::max);
     assert!(
         widest <= column + px(0.01),
         "{widest:?} spills past {column:?}"
     );
     let text_tops: std::collections::BTreeSet<i32> = line
-        .pieces()
-        .filter(|piece| piece.is_text())
-        .map(|piece| f32::from(piece.top) as i32)
+        .rows
+        .iter()
+        .filter(|row| row.pieces.iter().any(Piece::is_text))
+        .map(|row| f32::from(row.top) as i32)
         .collect();
     assert!(text_tops.len() > 3, "the long cell takes several lines");
     let math = line
@@ -844,11 +857,9 @@ fn table_cells_set_each_style_in_its_own_font(cx: &mut TestAppContext) {
     let note = "| h |\n| --- |\n| *it* and `code` |\n\nend";
     let (view, cx) = open(cx, note);
     place_cursor(&view, cx, note.len());
-    let line = visual(&view, cx, 0);
-    let header = line.pieces().find(|piece| piece.is_text()).unwrap();
-    let body_cells = line
+    let body_cells = visual(&view, cx, 2)
         .pieces()
-        .filter(|piece| piece.is_text() && piece.top > header.top + header.height)
+        .filter(|piece| piece.is_text())
         .count();
     assert_eq!(body_cells, 3, "italic, plain and code are shaped apart");
 }

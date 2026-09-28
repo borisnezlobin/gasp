@@ -6,6 +6,7 @@ use editor_core::commands::{
 };
 use editor_core::footnotes::FootnoteSettings;
 use editor_core::motion;
+use editor_core::table::TableOp;
 use gpui::{Context, Window};
 
 use crate::editor::EditorView;
@@ -102,6 +103,8 @@ const HANDLERS: &[(&str, Handler)] = &[
 /// Whether the editor view can run `id`.
 pub fn handles(id: &str) -> bool {
     find(id).is_some()
+        || TableOp::from_command_id(id).is_some()
+        || crate::table_edit::COMMANDS.contains(&id)
 }
 
 enum Found {
@@ -129,7 +132,10 @@ fn find(id: &str) -> Option<Found> {
 impl EditorView {
     /// Runs a command by id. Returns false when the view doesn't know it.
     pub fn run_command(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        if self.run_suggestion_key(id, cx) {
+        if self.run_suggestion_key(id, cx) || self.run_table_key(id, cx) {
+            return true;
+        }
+        if self.run_table_command(id, cx) {
             return true;
         }
         match find(id) {

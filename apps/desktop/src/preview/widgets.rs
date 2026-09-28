@@ -1,6 +1,5 @@
 //! Pieces and rows for the planner's widgets: math, images, checkboxes,
-//! bullets, footnote marks, callout headers, rules, code block headers and
-//! tables.
+//! bullets, footnote marks, callout headers, rules and code block headers.
 
 use std::ops::Range;
 use std::sync::Arc;
@@ -456,12 +455,6 @@ impl LineLayouter<'_, '_> {
             }
             WidgetKind::CodeBlock { title, .. } => self.code_header(range, title.as_deref(), left),
             WidgetKind::LinkCard(card) => self.link_card(range, card, left, width),
-            WidgetKind::Table { alignments, rows } => self.table(
-                range,
-                &super::table::TableSpec { alignments, rows },
-                left,
-                width,
-            ),
             WidgetKind::Image {
                 target,
                 width: w,
