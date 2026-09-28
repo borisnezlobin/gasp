@@ -1,0 +1,13 @@
+[package]
+name = "uniffi-bindgen"
+description = "UniFFI's binding generator, at the version crates/ffi uses, for the iPhone app's Swift bindings."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+uniffi = { version = "0.32", features = ["cli"] }
+
+[lints]
+workspace = true

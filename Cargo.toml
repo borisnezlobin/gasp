@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*", "apps/desktop", "tools/migrate", "tools/corpus"]
+members = ["crates/*", "apps/desktop", "tools/migrate", "tools/corpus", "tools/uniffi-bindgen"]
 
 [workspace.package]
 version = "0.1.0"

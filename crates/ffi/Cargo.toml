@@ -6,7 +6,20 @@ edition.workspace = true
 license.workspace = true
 publish = false
 
+[lib]
+# `apps/ios/scripts/build-core.sh` builds the static library for iOS with
+# `cargo rustc --crate-type staticlib`, so the desktop builds skip it.
+crate-type = ["lib"]
+
 [dependencies]
+editor-config = { path = "../config" }
+editor-core = { path = "../core" }
+editor-vault = { path = "../vault" }
+thiserror = "2"
+uniffi = { version = "0.32", default-features = false }
+
+[dev-dependencies]
+tempfile = "3"
 
 [lints]
 workspace = true
