@@ -44,10 +44,6 @@ pub(crate) fn replacement(revealer: &Revealer<'_>, id: NodeId) -> Option<WidgetK
         NodeKind::FootnoteReference { label } => WidgetKind::FootnoteSuperscript {
             label: label.clone(),
         },
-        NodeKind::Table { alignments } => WidgetKind::Table {
-            alignments: alignments.clone(),
-            rows: table_rows(revealer, id),
-        },
         NodeKind::CodeBlock(_) => return link_card(text, node),
         _ => return simple_replacement(node, text),
     };
@@ -153,27 +149,6 @@ pub(crate) fn tex(revealer: &Revealer<'_>, id: NodeId) -> String {
     }
     tex.push_str(&revealer.text[at..range.end]);
     tex.trim().to_owned()
-}
-
-fn table_rows(revealer: &Revealer<'_>, id: NodeId) -> Vec<Vec<Range<usize>>> {
-    let tree = revealer.tree;
-    tree.node(id)
-        .children
-        .iter()
-        .map(|&row| {
-            tree.node(row)
-                .children
-                .iter()
-                .map(|&cell| trimmed(revealer.text, &tree.node(cell).range))
-                .collect()
-        })
-        .collect()
-}
-
-fn trimmed(text: &str, range: &Range<usize>) -> Range<usize> {
-    let source = &text[range.clone()];
-    let start = range.start + (source.len() - source.trim_start().len());
-    start..(range.start + source.trim_end().len()).max(start)
 }
 
 /// The code between a code block's fences.

@@ -91,20 +91,26 @@ impl TableOp {
     /// can't be deleted or moved below the body, the first body row can't
     /// move up, the only column can't go, and so on.
     pub fn applies(self, table: &Table, at: CellPos) -> bool {
-        let rows = table.row_count();
         let columns = table.column_count();
-        let body = at.row > 0;
         match self {
-            TableOp::InsertRowAbove | TableOp::DeleteRow => body,
-            TableOp::MoveRowUp => at.row > 1,
-            TableOp::MoveRowDown => body && at.row + 1 < rows,
             TableOp::DeleteColumn => columns > 1,
             TableOp::MoveColumnLeft => at.column > 0,
             TableOp::MoveColumnRight => at.column + 1 < columns,
-            TableOp::Align(alignment) => table.alignment(at.column) != alignment,
-            TableOp::SortAscending | TableOp::SortDescending => rows > 2,
-            TableOp::MoveRow { to } => body && to > 0 && to < rows && to != at.row,
             TableOp::MoveColumn { to } => to < columns && to != at.column,
+            TableOp::Align(alignment) => table.alignment(at.column) != alignment,
+            _ => self.applies_to_rows(table.row_count(), at.row),
+        }
+    }
+
+    /// Whether an edit to rows does anything to row `row` of `rows`.
+    fn applies_to_rows(self, rows: usize, row: usize) -> bool {
+        let body = row > 0;
+        match self {
+            TableOp::InsertRowAbove | TableOp::DeleteRow => body,
+            TableOp::MoveRowUp => row > 1,
+            TableOp::MoveRowDown => body && row + 1 < rows,
+            TableOp::MoveRow { to } => body && to > 0 && to < rows && to != row,
+            TableOp::SortAscending | TableOp::SortDescending => rows > 2,
             _ => true,
         }
     }
