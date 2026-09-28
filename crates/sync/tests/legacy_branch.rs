@@ -85,6 +85,34 @@ fn a_second_app_device_clones_master_and_still_follows_main() {
 }
 
 #[test]
+fn appends_on_master_and_on_main_both_land_without_a_conflict() {
+    let lemma = "Lemma.md";
+    let world = World::seeded_on(old_tool_config(), &[(lemma, b"# Lemma\nProof")]);
+    let app = world.device("laptop");
+    let old_tool = world.device_with("phone", old_tool_config());
+    write(&app, lemma, b"# Lemma\nProof\nFrom the laptop");
+    sync(&app, "laptop");
+    write(&old_tool, lemma, b"# Lemma\nProof\nFrom the phone");
+    sync(&old_tool, "phone");
+
+    let outcome = sync(&app, "laptop");
+    assert!(
+        matches!(outcome, MergeOutcome::Merged { .. }),
+        "{outcome:?}"
+    );
+    let merged = "# Lemma\nProof\nFrom the laptop\nFrom the phone";
+    assert_eq!(read(&app, lemma), merged);
+    assert_eq!(
+        world.remote_file("master", lemma).unwrap(),
+        merged.as_bytes()
+    );
+    assert_eq!(
+        world.remote_file("main", lemma).unwrap(),
+        b"# Lemma\nProof\nFrom the phone"
+    );
+}
+
+#[test]
 fn without_a_legacy_branch_a_missing_branch_is_an_error() {
     let world = world_on_main();
     let config = VaultConfig {
