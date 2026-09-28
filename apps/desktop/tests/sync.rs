@@ -79,6 +79,16 @@ impl World {
             .ok()?;
         Some(String::from_utf8_lossy(blob.content()).into_owned())
     }
+
+    /// The message of the newest commit on the remote's `master`.
+    fn remote_message(&self) -> String {
+        let repo = git2::Repository::open_bare(&self.remote).unwrap();
+        let commit = repo
+            .find_reference("refs/heads/master")
+            .and_then(|reference| reference.peel_to_commit())
+            .unwrap();
+        commit.message().unwrap_or_default().to_owned()
+    }
 }
 
 fn write(root: &Path, name: &str, text: &str) {
@@ -391,6 +401,10 @@ fn a_conflict_doesnt_stop_other_notes_from_syncing(cx: &mut TestAppContext) {
     assert_eq!(
         world.remote_file("other.md").unwrap(),
         "other\nwritten on the laptop\n"
+    );
+    assert_eq!(
+        world.remote_message(),
+        format!("{}: other.md", editor_desktop::edit_time::device_name())
     );
     assert_eq!(phase(&service, cx), SyncPhase::Conflict { files: 1 });
     sync_device(&desktop, "desktop");
