@@ -52,12 +52,16 @@ impl EditorView {
         }
     }
 
-    /// Escape closes the suggestion list, or leaves a table; otherwise it
-    /// goes on to the workspace.
+    /// Escape puts back a table's row or column being dragged, closes the
+    /// suggestion list, or leaves a table; otherwise it goes on to the
+    /// workspace.
     fn on_key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         let keystroke = &event.keystroke;
         if keystroke.key != "escape" || keystroke.modifiers.modified() {
             return;
+        }
+        if self.cancel_table_drag(cx) {
+            return cx.stop_propagation();
         }
         let previewing = self.hover.open.is_some();
         self.close_preview(cx);
@@ -126,24 +130,29 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         if self.table_edit.drag.is_some() {
-            return self.drag_table_handle(position, cx);
-        }
-        if !self.is_selecting {
+            self.drag_table_handle(position, cx);
+        } else if self.is_selecting {
+            let offset = self.offset_for_point(position, window);
+            self.extend_by_unit(offset, cx);
+        } else {
             return;
         }
-        let offset = self.offset_for_point(position, window);
-        self.extend_by_unit(offset, cx);
         self.pointer_at = Some(position);
         self.start_drag_scroll(window, cx);
     }
 
     /// How far the pointer is past the note's top (negative) or bottom
-    /// (positive): zero while it's over the note.
+    /// (positive): zero while it's over the note. A table's row is
+    /// dragged within the note, so for it the edges are a band inside.
     fn drag_overshoot(&self, y: Pixels) -> Pixels {
         let Some(frame) = self.frame.as_ref() else {
             return Pixels::ZERO;
         };
-        let (top, bottom) = (frame.bounds.top(), frame.bounds.bottom());
+        let band = match self.table_edit.drag {
+            Some(_) => self.theme.table.autoscroll_band,
+            None => Pixels::ZERO,
+        };
+        let (top, bottom) = (frame.bounds.top() + band, frame.bounds.bottom() - band);
         if y < top {
             y - top
         } else if y > bottom {
@@ -179,7 +188,11 @@ impl EditorView {
     /// One frame of a drag held past the edge: scrolls faster the further
     /// past it the pointer is, and selects to the line now under it.
     fn drag_scroll_tick(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        let Some(at) = self.pointer_at.filter(|_| self.is_selecting) else {
+        let dragging_table = self.table_edit.drag.is_some();
+        let Some(at) = self
+            .pointer_at
+            .filter(|_| self.is_selecting || dragging_table)
+        else {
             return false;
         };
         let past = self.drag_overshoot(at.y);
@@ -189,8 +202,12 @@ impl EditorView {
         let before = self.scroll_offset();
         let step = (past * DRAG_SCROLL_RATE).clamp(-DRAG_SCROLL_MAX, DRAG_SCROLL_MAX);
         self.scroll_by(step, cx);
-        let offset = self.offset_for_point(at, window);
-        self.extend_by_unit(offset, cx);
+        if dragging_table {
+            self.drag_table_handle(at, cx);
+        } else {
+            let offset = self.offset_for_point(at, window);
+            self.extend_by_unit(offset, cx);
+        }
         self.scroll_offset() != before
     }
 

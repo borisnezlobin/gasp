@@ -1,6 +1,8 @@
 //! The table's part of the note's right-click menu: on a cell or a row
 //! or column handle, the table editor's edits for that cell, each greyed
-//! out where it doesn't apply, above the usual editing items.
+//! out where it doesn't apply, above the usual editing items. Only the
+//! insertions sit at the top level; the rest go in Row, Column and Table
+//! submenus.
 
 use editor_core::syntax::Alignment;
 use editor_core::table::TableOp;
@@ -35,17 +37,17 @@ const INSERT: [Item; 4] = [
     ),
 ];
 
-const MOVE: [Item; 4] = [
-    ("table.move-row-up", "Move row up", IconName::ArrowUp),
-    ("table.move-row-down", "Move row down", IconName::ArrowDown),
-    (
-        "table.move-column-left",
-        "Move column left",
-        IconName::ArrowLeft,
-    ),
+const ROW: [Item; 3] = [
+    ("table.move-row-up", "Move up", IconName::ArrowUp),
+    ("table.move-row-down", "Move down", IconName::ArrowDown),
+    ("table.delete-row", "Delete row", IconName::Trash),
+];
+
+const MOVE_COLUMN: [Item; 2] = [
+    ("table.move-column-left", "Move left", IconName::ArrowLeft),
     (
         "table.move-column-right",
-        "Move column right",
+        "Move right",
         IconName::ArrowRight,
     ),
 ];
@@ -61,31 +63,22 @@ const SORT: [Item; 2] = [
     ("table.sort-descending", "Z→A", IconName::SortDescending),
 ];
 
-const DELETE: [Item; 3] = [
-    ("table.delete-row", "Delete row", IconName::Rows),
-    ("table.delete-column", "Delete column", IconName::Columns),
+const DELETE_COLUMN: Item = ("table.delete-column", "Delete column", IconName::Trash);
+
+const TABLE: [Item; 4] = [
+    ("table.copy-markdown", "Copy as Markdown", IconName::Copy),
+    (
+        "table.copy-tsv",
+        "Copy as tab-separated text",
+        IconName::Copy,
+    ),
+    ("table.edit-as-markdown", "Edit as Markdown", IconName::Code),
     ("table.delete", "Delete table", IconName::Trash),
 ];
 
-const COPY: [Item; 3] = [
-    (
-        "table.copy-markdown",
-        "Copy table as Markdown",
-        IconName::Copy,
-    ),
-    (
-        "table.copy-tsv",
-        "Copy table as tab-separated text",
-        IconName::Copy,
-    ),
-    (
-        "table.edit-as-markdown",
-        "Edit table as Markdown",
-        IconName::Code,
-    ),
-];
-
-/// The table items for a menu opened on the cell holding `at`.
+/// The table items for a menu opened on the cell holding `at`: the four
+/// insertions, then what acts on its row, its column and the table, each
+/// in a submenu so the menu stays short.
 pub fn table_items(editor: &Entity<EditorView>, at: usize, cx: &App) -> Vec<MenuItem> {
     let item = |(id, label, icon): Item| {
         table_item(editor, at, id, cx)
@@ -94,8 +87,24 @@ pub fn table_items(editor: &Entity<EditorView>, at: usize, cx: &App) -> Vec<Menu
     };
     let mut items: Vec<MenuItem> = INSERT.into_iter().map(item).collect();
     items.push(MenuItem::Separator);
-    items.extend(MOVE.into_iter().map(item));
+    let row = ROW.into_iter().map(item).collect();
+    items.push(MenuItem::submenu("Row", row).with_icon(IconName::Rows));
+    let column = column_items(editor, at, &item, cx);
+    items.push(MenuItem::submenu("Column", column).with_icon(IconName::Columns));
+    let table = TABLE.into_iter().map(item).collect();
+    items.push(MenuItem::submenu("Table", table).with_icon(IconName::Table));
     items.push(MenuItem::Separator);
+    items
+}
+
+/// The column's submenu: moving it, its alignment with the current one
+/// checked, sorting by it, and deleting it.
+fn column_items(
+    editor: &Entity<EditorView>,
+    at: usize,
+    item: &dyn Fn(Item) -> MenuItem,
+    cx: &App,
+) -> Vec<MenuItem> {
     let current = editor
         .read(cx)
         .grid_table(at)
@@ -110,14 +119,13 @@ pub fn table_items(editor: &Entity<EditorView>, at: usize, cx: &App) -> Vec<Menu
             item(entry).checked(alignment == current)
         })
         .collect();
-    items.push(MenuItem::submenu("Align column", align).with_icon(IconName::TextAlignLeft));
     let sort = SORT.into_iter().map(item).collect();
-    items.push(MenuItem::submenu("Sort by this column", sort).with_icon(IconName::SortAscending));
+    let mut items: Vec<MenuItem> = MOVE_COLUMN.into_iter().map(item).collect();
     items.push(MenuItem::Separator);
-    items.extend(DELETE.into_iter().map(item));
+    items.push(MenuItem::submenu("Align", align).with_icon(IconName::TextAlignLeft));
+    items.push(MenuItem::submenu("Sort", sort).with_icon(IconName::SortAscending));
     items.push(MenuItem::Separator);
-    items.extend(COPY.into_iter().map(item));
-    items.push(MenuItem::Separator);
+    items.push(item(DELETE_COLUMN));
     items
 }
 
@@ -146,10 +154,11 @@ fn table_item(editor: &Entity<EditorView>, at: usize, id: &'static str, cx: &App
 pub fn menu_commands() -> impl Iterator<Item = &'static str> {
     INSERT
         .iter()
-        .chain(&MOVE)
+        .chain(&ROW)
+        .chain(&MOVE_COLUMN)
         .chain(&ALIGN)
         .chain(&SORT)
-        .chain(&DELETE)
-        .chain(&COPY)
+        .chain(std::iter::once(&DELETE_COLUMN))
+        .chain(&TABLE)
         .map(|(id, ..)| *id)
 }

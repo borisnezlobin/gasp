@@ -448,12 +448,14 @@ impl DropdownMenu {
                     .as_ref()
                     .filter(|open| open.index == index)
                     .map(|open| {
+                        // Slid up or left to stay inside the window when
+                        // it opens near an edge.
                         div()
                             .absolute()
                             .top(-theme.menu_padding)
                             .left_full()
                             .pl(theme.space_xs)
-                            .child(open.menu.clone())
+                            .child(anchored().snap_to_window().child(open.menu.clone()))
                     });
                 div()
                     .flex_none()
@@ -515,15 +517,34 @@ fn separator(theme: &UiTheme) -> AnyElement {
         .into_any_element()
 }
 
+/// How tall a menu of `items` is with every row showing.
+fn menu_height(items: &[MenuItem], theme: &UiTheme) -> Pixels {
+    let separator = theme.menu_padding * 2. + theme.hairline;
+    let rows = items.iter().fold(Pixels::ZERO, |height, item| {
+        height
+            + match item {
+                MenuItem::Separator => separator,
+                _ => theme.menu_row_height,
+            }
+    });
+    rows + theme.menu_padding * 2.
+}
+
 impl Render for DropdownMenu {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = ui_theme(cx);
         let has_icons = self.items.iter().any(|item| item.leading_icon().is_some());
         let rows: Vec<AnyElement> = (0..self.items.len())
             .map(|index| self.render_row(index, has_icons, &theme, cx))
             .collect();
+        // A menu taller than the window keeps inside it and scrolls. Only
+        // then, since scrolling clips what hangs outside it, a submenu
+        // included.
+        let room = window.viewport_size().height - theme.space_md * 2.;
+        let capped = menu_height(&self.items, &theme) > room;
         super::popover(&theme)
             .id("dropdown-menu")
+            .when(capped, |menu| menu.max_h(room).overflow_y_scroll())
             .key_context("Menu")
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(Self::on_key_down))
@@ -659,14 +680,10 @@ impl MenuSlot {
         let backdrop =
             deferred(anchored().position(point(px(0.), px(0.))).child(backdrop)).with_priority(1);
         let menu = match &open.anchor {
+            // Below and right of the pointer, or above or left of it
+            // where there isn't room, then slid inside the window.
             MenuAnchor::Pointer(position) => Some(
-                deferred(
-                    anchored()
-                        .position(*position)
-                        .snap_to_window()
-                        .child(open.menu.clone()),
-                )
-                .with_priority(2),
+                deferred(anchored().position(*position).child(open.menu.clone())).with_priority(2),
             ),
             MenuAnchor::Below { .. } | MenuAnchor::Above { .. } => None,
         };
@@ -700,5 +717,24 @@ impl MenuSlot {
             spot.child(deferred(menu).with_priority(2))
                 .into_any_element(),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::px;
+
+    use super::{MenuItem, menu_height};
+    use crate::theme::UiTheme;
+
+    #[test]
+    fn a_menu_is_as_tall_as_its_rows_and_separators() {
+        let theme = UiTheme::default();
+        let row = || MenuItem::action("Row", |_, _| {});
+        let items = [row(), MenuItem::Separator, row()];
+        let separator = theme.menu_padding * 2. + theme.hairline;
+        let expected = theme.menu_row_height * 2. + separator + theme.menu_padding * 2.;
+        assert_eq!(menu_height(&items, &theme), expected);
+        assert!(menu_height(&[], &theme) > px(0.));
     }
 }

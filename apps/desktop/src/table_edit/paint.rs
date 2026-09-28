@@ -8,7 +8,7 @@ use gpui::{Bounds, Hsla, Pixels, point, px, size};
 use crate::editor::EditorView;
 use crate::frame::{FrameLayout, PlacedLine};
 use crate::icons::IconName;
-use crate::table_edit::handles::{Picked, ScreenTable, column_handle, row_handle};
+use crate::table_edit::handles::{Drag, Picked, ScreenTable, column_handle, row_handle};
 use crate::theme::Theme;
 
 /// A handle to draw: where, which icon, whether it's under the pointer or
@@ -26,8 +26,9 @@ pub struct HandleMark {
 pub struct DragMark {
     /// The raised card under the copy.
     pub card: Bounds<Pixels>,
-    /// The row's or column's own place, veiled while it's away.
-    pub source: Bounds<Pixels>,
+    /// The row's or column's own place, veiled while it's away, when
+    /// it's on screen.
+    pub source: Option<Bounds<Pixels>>,
     /// The row's line, or the column's cells, moved with the pointer.
     pub lines: Vec<PlacedLine>,
     /// The line between rows or columns where it would drop.
@@ -67,7 +68,10 @@ impl EditorView {
         marks.block = block
             .as_ref()
             .map(|block| self.cell_block_rects(frame, block));
-        if block.is_none() && focused {
+        // A drag hides the cell being edited, so nothing of it shows
+        // around the lifted card.
+        let dragging = self.table_edit.drag.is_some();
+        if block.is_none() && focused && !dragging {
             marks.ring = self.caret_cell_rect(frame);
         }
         let tables = self.tables_on_screen();
@@ -136,57 +140,77 @@ impl EditorView {
     }
 
     /// The dragged row or column, lifted under the pointer, and where it
-    /// would drop.
+    /// would drop: a line only where dropping would move it.
     fn drag_mark(&self, frame: &FrameLayout, tables: &[ScreenTable]) -> Option<DragMark> {
         let drag = self.table_edit.drag.as_ref()?;
         let to = drag.to?;
         let table = tables.iter().find(|table| table.start == drag.table)?;
-        let lines = frame.lines.iter().filter(|placed| {
-            table.rows.iter().any(|row| row.1 == placed.top) && placed.visual.grid.is_some()
-        });
-        let width = self.theme.table.drop_indicator_width;
-        let (source, lines, indicator) = match drag.picked {
-            Picked::Row(row) => {
-                let placed = lines
-                    .into_iter()
-                    .find(|placed| placed.visual.grid.as_ref().is_some_and(|g| g.index == row))?;
-                let mut lifted = placed.clone();
-                lifted.top += drag.at.y - drag.from.y;
-                let source = Bounds::new(
-                    point(table.left, placed.top),
-                    size(table.width, placed.visual.height),
-                );
-                let indicator = (to != row).then(|| row_indicator(table, row, to, width));
-                (source, vec![lifted], indicator.flatten())
-            }
-            Picked::Column(column) => {
-                let dx = drag.at.x - drag.from.x;
-                let (x, column_width) = *table.columns.get(column)?;
-                let lifted = lines
-                    .filter_map(|placed| column_copy(placed, column, dx))
-                    .collect();
-                let source = Bounds::from_corners(
-                    point(x, table.top()),
-                    point(x + column_width, table.bottom()),
-                );
-                let indicator = (to != column).then(|| column_indicator(table, column, to, width));
-                (source, lifted, indicator.flatten())
-            }
+        let look = &self.theme.table;
+        let line = DropLine {
+            width: look.drop_indicator_width,
+            overhang: look.handle_size + look.handle_gap,
         };
-        let offset = match drag.picked {
-            Picked::Row(_) => point(Pixels::ZERO, drag.at.y - drag.from.y),
-            Picked::Column(_) => point(drag.at.x - drag.from.x, Pixels::ZERO),
+        let mut mark = match drag.picked {
+            Picked::Row(row) => row_drag(drag, table, row)?,
+            Picked::Column(column) => column_drag(frame, drag, table, column)?,
         };
-        Some(DragMark {
-            card: Bounds {
-                origin: source.origin + offset,
-                ..source
-            },
-            source,
-            lines,
-            indicator,
-        })
+        mark.indicator = match drag.picked {
+            _ if !drag.moves => None,
+            Picked::Row(row) => row_indicator(table, row, to, line),
+            Picked::Column(column) => column_indicator(table, column, to, line),
+        };
+        Some(mark)
     }
+}
+
+/// A dragged row: its line as pressed, on a card under the pointer.
+fn row_drag(drag: &Drag, table: &ScreenTable, row: usize) -> Option<DragMark> {
+    let pressed = drag.lifted.as_ref()?;
+    let mut lifted = pressed.clone();
+    lifted.top = drag.lifted_top(pressed.top);
+    let height = pressed.visual.height;
+    let source = table
+        .row(row)
+        .map(|(top, _)| Bounds::new(point(table.left, top), size(table.width, height)));
+    Some(DragMark {
+        card: Bounds::new(point(table.left, lifted.top), size(table.width, height)),
+        source,
+        lines: vec![lifted],
+        indicator: None,
+    })
+}
+
+/// A dragged column: its cells in the rows on screen, moved sideways
+/// with the pointer.
+fn column_drag(
+    frame: &FrameLayout,
+    drag: &Drag,
+    table: &ScreenTable,
+    column: usize,
+) -> Option<DragMark> {
+    let dx = drag.at.x - drag.from.x;
+    let (x, column_width) = *table.columns.get(column)?;
+    let lines = frame
+        .lines
+        .iter()
+        .filter(|placed| {
+            placed.visual.grid.is_some() && table.rows.iter().any(|row| row.1 == placed.top)
+        })
+        .filter_map(|placed| column_copy(placed, column, dx))
+        .collect();
+    let source = Bounds::from_corners(
+        point(x, table.top()),
+        point(x + column_width, table.bottom()),
+    );
+    Some(DragMark {
+        card: Bounds {
+            origin: source.origin + point(dx, Pixels::ZERO),
+            ..source
+        },
+        source: Some(source),
+        lines,
+        indicator: None,
+    })
 }
 
 /// The header's fill and the rule under each row of every grid table.
@@ -236,19 +260,29 @@ fn column_copy(placed: &PlacedLine, column: usize, dx: Pixels) -> Option<PlacedL
     Some(copy)
 }
 
+/// How the line where a row or column would drop is drawn: its width,
+/// and how far it runs past the table's edges. The card covers the table
+/// and the line is under the card, so the ends out in the handles' gutter
+/// keep it in sight wherever the card is.
+#[derive(Clone, Copy)]
+struct DropLine {
+    width: Pixels,
+    overhang: Pixels,
+}
+
 /// The line where a row dropped at `to` would go: above `to` when it
 /// moves up, below it when it moves down.
 fn row_indicator(
     table: &ScreenTable,
     from: usize,
     to: usize,
-    width: Pixels,
+    line: DropLine,
 ) -> Option<Bounds<Pixels>> {
     let (top, bottom) = table.row(to)?;
     let y = if to < from { top } else { bottom };
-    Some(Bounds::new(
-        point(table.left, y - width / 2.),
-        size(table.width, width),
+    Some(Bounds::from_corners(
+        point(table.left - line.overhang, y - line.width / 2.),
+        point(table.right() + line.overhang, y + line.width / 2.),
     ))
 }
 
@@ -257,12 +291,13 @@ fn column_indicator(
     table: &ScreenTable,
     from: usize,
     to: usize,
-    width: Pixels,
+    line: DropLine,
 ) -> Option<Bounds<Pixels>> {
     let (x, column_width) = *table.columns.get(to)?;
     let edge = if to < from { x } else { x + column_width };
+    let bottom = table.bottom().max(table.top() + px(1.));
     Some(Bounds::from_corners(
-        point(edge - width / 2., table.top()),
-        point(edge + width / 2., table.bottom().max(table.top() + px(1.))),
+        point(edge - line.width / 2., table.top() - line.overhang),
+        point(edge + line.width / 2., bottom + line.overhang),
     ))
 }

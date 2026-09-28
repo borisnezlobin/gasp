@@ -20,7 +20,8 @@ pub mod paint;
 use editor_core::render::RevealMode;
 use editor_core::syntax::SyntaxKind;
 use editor_core::table::{
-    CellPos, Table, TableOp, cell_text, insert_table, table_node_at, table_transaction,
+    CellPos, Table, TableOp, cell_paste_text, cell_text, insert_table, table_node_at,
+    table_transaction,
 };
 use editor_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{ClipboardItem, Context};
@@ -171,6 +172,21 @@ impl EditorView {
     /// caret isn't in a cell or the text needs no change. Typing over
     /// several selected cells empties them first.
     pub(crate) fn cell_typing(&mut self, text: &str, cx: &mut Context<Self>) -> Option<String> {
+        self.text_for_cell(text, cell_text, cx)
+    }
+
+    /// Text pasted into a cell as the cell can hold it: on one line, even
+    /// when it's several lines or a whole line copied with its break.
+    pub(crate) fn cell_pasting(&mut self, text: &str, cx: &mut Context<Self>) -> Option<String> {
+        self.text_for_cell(text, cell_paste_text, cx)
+    }
+
+    fn text_for_cell(
+        &mut self,
+        text: &str,
+        convert: fn(&str) -> String,
+        cx: &mut Context<Self>,
+    ) -> Option<String> {
         if !self.selected_range().is_empty() && self.cell_block().is_some() {
             self.clear_cell_block(cx);
         }
@@ -178,7 +194,7 @@ impl EditorView {
             return None;
         }
         self.grid_table(self.cursor())?;
-        Some(cell_text(text))
+        Some(convert(text))
     }
 
     /// Notes that the caret's table was typed in, so it's padded when the

@@ -403,6 +403,9 @@ pub struct TableTheme {
     /// fill with a shadow, a little faded.
     pub drag_fill: Hsla,
     pub drag_shadow: Hsla,
+    /// The card's edge, which the shadow alone doesn't show on a dark
+    /// page.
+    pub drag_ring: Hsla,
     pub drag_shadow_blur: Pixels,
     pub drag_opacity: f32,
     /// Laid over the row or column's own place while it's dragged, so it
@@ -411,6 +414,8 @@ pub struct TableTheme {
     /// How far the pointer moves on a handle before a press becomes a
     /// drag.
     pub drag_threshold: Pixels,
+    /// How near the note's top or bottom a dragged row scrolls it.
+    pub autoscroll_band: Pixels,
 }
 
 impl TableTheme {
@@ -433,8 +438,9 @@ impl TableTheme {
             handle_fade: std::time::Duration::from_millis(120),
             drop_indicator: p.accent,
             drop_indicator_width: px(2.),
-            drag_fill: over(p.popover, p.background),
+            drag_fill: p.background,
             drag_shadow: p.shadow,
+            drag_ring: p.popover_ring,
             drag_shadow_blur: px(12.),
             drag_opacity: 0.85,
             drag_source_veil: Hsla {
@@ -442,6 +448,7 @@ impl TableTheme {
                 ..p.background
             },
             drag_threshold: px(4.),
+            autoscroll_band: px(32.),
         }
     }
 
@@ -456,6 +463,7 @@ impl TableTheme {
             handle_radius: self.handle_radius * zoom,
             drop_indicator_width: self.drop_indicator_width * zoom,
             drag_shadow_blur: self.drag_shadow_blur * zoom,
+            autoscroll_band: self.autoscroll_band * zoom,
             ..self.clone()
         }
     }
