@@ -1,4 +1,4 @@
-//! The command palette (`palette.open`, Mod+Shift+P): every palette
+//! The command palette (`palette.open`, Mod+P): every palette
 //! command with its current shortcut, recently used ones first.
 //!
 //! Enter runs the command. Mod+Enter asks for a new shortcut: the next

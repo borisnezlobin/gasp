@@ -1025,7 +1025,7 @@ fn typing_keys_in_the_search_finds_the_commands_they_run(cx: &mut TestAppContext
     let (view, cx, _) = open(cx, dir.path());
     view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
     // "cmd" is the platform's main modifier: Command on a Mac, Ctrl elsewhere.
-    cx.simulate_input("cmd shift p");
+    cx.simulate_input("cmd p");
     let ids = |view: &Entity<SettingsView>, cx: &mut VisualTestContext| -> Vec<String> {
         view.read_with(cx, |view, _| {
             view.rows()
@@ -1041,7 +1041,7 @@ fn typing_keys_in_the_search_finds_the_commands_they_run(cx: &mut TestAppContext
     // The label the rows show reads back as the same keys.
     view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
     cx.simulate_keystrokes("secondary-a");
-    cx.simulate_input(&label("Mod+Shift+P"));
+    cx.simulate_input(&label("Mod+P"));
     assert_eq!(ids(&view, cx), ["palette.open"]);
     // Naming the page shows all of it.
     view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
@@ -1057,18 +1057,18 @@ fn search_by_keys_waits_for_a_chord_and_searches_for_it(cx: &mut TestAppContext)
     let (view, cx, _) = open(cx, dir.path());
     click(cx, "search-by-keys");
     assert!(view.read_with(cx, |view, _| view.searching_by_keys()));
-    cx.simulate_keystrokes("secondary-shift-p");
+    cx.simulate_keystrokes("secondary-p");
     assert!(!view.read_with(cx, |view, _| view.searching_by_keys()));
     assert_eq!(
         view.read_with(cx, |view, _| view.query().to_string()),
-        label("Mod+Shift+P")
+        label("Mod+P")
     );
     assert_eq!(
         view.read_with(cx, |view, _| view.current_section()),
         Some(Page::Shortcuts)
     );
     let found = shortcut(&view, "palette.open", cx);
-    assert!(found.labels().contains(&label("Mod+Shift+P")));
+    assert!(found.labels().contains(&label("Mod+P")));
     // A chord nothing uses leaves the page empty, with a way back.
     click(cx, "search-by-keys");
     cx.simulate_keystrokes("secondary-alt-shift-f12");
