@@ -21,6 +21,7 @@ pub mod history;
 pub mod launcher;
 mod layout;
 pub mod links;
+mod mcp;
 pub mod menus;
 pub mod modal;
 pub mod note_doc;
@@ -154,6 +155,8 @@ pub struct Workspace {
     edit_time: crate::edit_time::EditTime,
     /// Whether a write of this device's edit times is on its way.
     edit_time_save_pending: bool,
+    /// Answers `editor mcp` about this window.
+    mcp: mcp::McpBridge,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -242,6 +245,7 @@ impl Workspace {
             sheet: Default::default(),
             edit_time: crate::edit_time::EditTime::new("", ""),
             edit_time_save_pending: false,
+            mcp: Default::default(),
             _subscriptions: Vec::new(),
         };
         workspace.scan_vault_index(cx);
@@ -432,6 +436,7 @@ impl Workspace {
         crate::recovery::configure(&self.vault, &self.config.settings.recovery, cx);
         let grammar = &self.config.settings.prose.grammar;
         crate::prose::checker::configure(&self.vault, grammar, cx);
+        self.sync_mcp_bridge(cx);
         self.restyle_editors(cx);
     }
 

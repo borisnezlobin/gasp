@@ -8,6 +8,7 @@ pub const USAGE: &str = "\
 usage: editor [PATH]
        editor --bench-layout PATH [--keystrokes N] [--scroll-pages N] [--in-code] [--in-math] [--no-prose]
        editor --bench-index VAULT
+       editor mcp [VAULT]
 
 PATH is a folder of notes (a vault) or a note, which opens its vault
 with that note showing. With no PATH, the last vault opens again.
@@ -22,14 +23,24 @@ EDITOR_TRACE_KEYS=1 it also lists where each keystroke's time went. On
 Linux without a display, run it under xvfb-run.
 
 --bench-index builds VAULT's link index and prints how long that, a
-save, a backlinks list, an unlinked-mentions search and a rename take.";
+save, a backlinks list, an unlinked-mentions search and a rename take.
+
+mcp serves VAULT (the last vault when left out) to an agent over MCP on
+stdin and stdout. Its tools read and change notes, attachments and the
+vault's config whether or not the app is running; with the app open on
+the vault, they also see its tabs and cursor and run its commands.";
 
 /// What the binary was asked to do.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
     Open(Option<PathBuf>),
-    Bench { path: PathBuf, config: BenchConfig },
+    Bench {
+        path: PathBuf,
+        config: BenchConfig,
+    },
     BenchIndex(PathBuf),
+    /// `editor mcp`: the MCP server on stdio for a vault, or the last one.
+    Mcp(Option<PathBuf>),
     Help,
 }
 
@@ -43,9 +54,18 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
             [vault] => Ok(Command::BenchIndex(PathBuf::from(vault))),
             _ => Err("--bench-index needs one vault".to_owned()),
         },
+        Some("mcp") => parse_mcp(&args[1..]),
         Some(flag) if flag.starts_with("--") => Err(format!("unknown option {flag}")),
         Some(path) if args.len() == 1 => Ok(Command::Open(Some(PathBuf::from(path)))),
         Some(_) => Err("expected one path".to_owned()),
+    }
+}
+
+fn parse_mcp(args: &[String]) -> Result<Command, String> {
+    match args {
+        [] => Ok(Command::Mcp(None)),
+        [vault] => Ok(Command::Mcp(Some(PathBuf::from(vault)))),
+        _ => Err("mcp takes at most one vault".to_owned()),
     }
 }
 
@@ -133,6 +153,16 @@ mod tests {
             panic!("expected a bench command");
         };
         assert!(!config.prose);
+    }
+
+    #[test]
+    fn mcp_takes_an_optional_vault() {
+        assert_eq!(parse(&args(&["mcp"])), Ok(Command::Mcp(None)));
+        assert_eq!(
+            parse(&args(&["mcp", "notes"])),
+            Ok(Command::Mcp(Some(PathBuf::from("notes"))))
+        );
+        assert!(parse(&args(&["mcp", "a", "b"])).is_err());
     }
 
     #[test]

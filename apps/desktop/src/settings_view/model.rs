@@ -129,6 +129,11 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "How {{time}} is written, such as HH:mm for 14:05.",
     ),
     (
+        "mcp.enabled",
+        "Let agents use the app",
+        "Agents connected through editor mcp can see your tabs and cursor, run commands and edit open notes. They can read and change the vault's files either way.",
+    ),
+    (
         "editor.show-inline-title",
         "Show the note’s title",
         "Show the file name as an editable title above the text.",
@@ -395,7 +400,10 @@ pub const PAGES: &[PageSpec] = &[
         title: "General",
         icon: IconName::SlidersHorizontal,
         group: "App",
-        cards: &[&[RowSpec::Vault, RowSpec::Version]],
+        cards: &[
+            &[RowSpec::Vault, RowSpec::Version],
+            &[setting("mcp.enabled")],
+        ],
     },
     PageSpec {
         page: Page::Sync,

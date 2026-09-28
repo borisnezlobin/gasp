@@ -76,7 +76,10 @@ fn replace_keeping_cursor(
 ) {
     let (old_range, new_range) = changed_ranges(old, new);
     let (anchor, head) = (editor.anchor(), editor.cursor());
+    // Its own step: typing just before or after doesn't join it.
+    editor.break_undo_group();
     editor.replace(old_range.clone(), &new[new_range.clone()], cx);
+    editor.break_undo_group();
     let shift = |at: usize| -> usize {
         if at <= old_range.start {
             at

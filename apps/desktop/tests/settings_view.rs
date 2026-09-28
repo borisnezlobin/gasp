@@ -306,19 +306,24 @@ fn general_shows_the_vault_and_opens_another(cx: &mut TestAppContext) {
     let (view, cx, recorded) = open(cx, dir.path());
     go_to_section(&view, "General", cx);
     let rows = view.read_with(cx, |view, _| view.rows());
-    assert_eq!(rows, [ControlRow::Vault, ControlRow::Version]);
+    assert_eq!(rows[..2], [ControlRow::Vault, ControlRow::Version]);
+    let keys: Vec<&str> = rows[2..]
+        .iter()
+        .filter_map(|row| Some(row.item()?.key.as_str()))
+        .collect();
+    assert_eq!(keys, ["mcp.enabled"]);
     assert!(
         ControlRow::Version
             .title()
             .contains(env!("CARGO_PKG_VERSION"))
     );
-    // Version has nothing to press, so Down stays on the vault row.
+    // Version has nothing to press, so Down skips it.
     cx.simulate_keystrokes("down");
     assert_eq!(
         view.read_with(cx, |view, _| view.focus_state()),
-        SettingsFocus::Control(0)
+        SettingsFocus::Control(2)
     );
-    cx.simulate_keystrokes("enter");
+    cx.simulate_keystrokes("up enter");
     assert_eq!(
         recorded.borrow().requests,
         [SettingsRequest::RunCommand("vault.open".into())]
@@ -396,12 +401,17 @@ fn tab_walks_search_sections_and_controls(cx: &mut TestAppContext) {
     let (view, cx, _) = open(cx, dir.path());
     let focus = |cx: &mut VisualTestContext| view.read_with(cx, |view, _| view.focus_state());
     assert_eq!(focus(cx), SettingsFocus::Sections);
-    // General has one control: the vault button. Version is skipped.
+    // General's controls are the vault button and the agents switch.
+    // Version is skipped.
     cx.simulate_keystrokes("tab");
     assert_eq!(focus(cx), SettingsFocus::Control(0));
     cx.simulate_keystrokes("tab");
+    assert_eq!(focus(cx), SettingsFocus::Control(2));
+    cx.simulate_keystrokes("tab");
     assert_eq!(focus(cx), SettingsFocus::Search);
     cx.simulate_keystrokes("shift-tab");
+    assert_eq!(focus(cx), SettingsFocus::Control(2));
+    cx.simulate_keystrokes("up");
     assert_eq!(focus(cx), SettingsFocus::Control(0));
     cx.simulate_keystrokes("up");
     assert_eq!(focus(cx), SettingsFocus::Sections);
