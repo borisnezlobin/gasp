@@ -115,6 +115,23 @@ impl History {
         self.group_open = true;
     }
 
+    /// Records an edit as part of the last step, whatever group that was,
+    /// as a tidy-up belonging to the edits before it: undoing the step
+    /// takes both back.
+    fn record_into_last(&mut self, inverse: ChangeSet, selection_before: Selection) {
+        self.redo.clear();
+        match self.undo.back_mut() {
+            Some(top) => top.changes = inverse.compose(&top.changes),
+            None => self.undo.push_back(Step {
+                changes: inverse,
+                selection: selection_before,
+                origin: Origin::Other("tidy".into()),
+                timestamp_ms: 0,
+            }),
+        }
+        self.group_open = false;
+    }
+
     fn joins_group(&self, meta: &TransactionMeta) -> bool {
         let Some(top) = self.undo.back().filter(|_| self.group_open) else {
             return false;
@@ -209,6 +226,22 @@ impl EditorState {
         Ok(())
     }
 
+    /// Applies a transaction as part of the last undo step, such as
+    /// padding a table's columns once typing in it is done.
+    pub fn apply_into_last(&mut self, transaction: Transaction) -> Result<(), ChangeError> {
+        let Transaction {
+            changes, selection, ..
+        } = transaction;
+        changes.validate(&self.doc)?;
+        let inverse = changes.invert(&self.doc);
+        changes.apply(&mut self.doc)?;
+        let selection_before = self.set_selection_after(&changes, selection);
+        if !changes.is_empty() {
+            self.history.record_into_last(inverse, selection_before);
+        }
+        Ok(())
+    }
+
     /// Undoes the last step. Returns false when there is nothing to undo.
     pub fn undo(&mut self, timestamp_ms: u64) -> bool {
         let Some(step) = self.history.undo.pop_back() else {
@@ -289,6 +322,29 @@ mod tests {
         assert!(state.undo(1000));
         assert_eq!(state.doc().to_string(), "");
         assert_eq!(state.selection(), &Selection::cursor(0));
+    }
+
+    #[test]
+    fn a_tidy_up_joins_the_last_step() {
+        let mut state = EditorState::new(Document::new());
+        type_chars(&mut state, "ab", 0, 100);
+        let tidy = Transaction::new(ChangeSet::insert(2, "  "), Origin::command("tidy"), 5000);
+        state.apply_into_last(tidy).unwrap();
+        assert_eq!(state.doc().to_string(), "ab  ");
+        assert_eq!(state.history().undo_depth(), 1);
+        assert!(state.undo(6000));
+        assert_eq!(state.doc().to_string(), "");
+        // What's typed next is a step of its own.
+        type_chars(&mut state, "c", 7000, 100);
+        state
+            .apply_into_last(Transaction::new(
+                ChangeSet::insert(0, "x"),
+                Origin::Input,
+                7050,
+            ))
+            .unwrap();
+        type_chars(&mut state, "d", 7100, 100);
+        assert_eq!(state.history().undo_depth(), 2);
     }
 
     #[test]

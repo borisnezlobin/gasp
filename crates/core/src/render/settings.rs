@@ -32,6 +32,10 @@ pub struct RevealSettings {
     /// Whether brackets in shown math source are coloured by how deeply
     /// they nest, so the two halves of a pair match.
     pub bracket_colours: bool,
+    /// An offset whose table shows its Markdown source instead of its
+    /// grid, for editing the table as text. Tables are grids otherwise,
+    /// unless tables' symbols are always shown.
+    pub source_table: Option<usize>,
 }
 
 impl Default for RevealSettings {
@@ -48,6 +52,7 @@ impl RevealSettings {
             mode,
             overrides: HashMap::new(),
             bracket_colours: true,
+            source_table: None,
         }
     }
 

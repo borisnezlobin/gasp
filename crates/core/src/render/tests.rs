@@ -127,9 +127,6 @@ fn simple_widget_label(kind: &WidgetKind) -> String {
             number: Some(n), ..
         } => format!("{n}."),
         WidgetKind::ListBullet { depth, .. } => format!("•{depth}"),
-        WidgetKind::Table { rows, .. } => {
-            format!("table:{}x{}", rows.len(), rows.first().map_or(0, Vec::len))
-        }
         WidgetKind::CodeBlock {
             language, title, ..
         } => format!(
@@ -152,6 +149,16 @@ fn show_line(text: &str, line: &LinePlan) -> String {
     if line.collapsed {
         out.push_str("~collapsed~");
         return out;
+    }
+    if let Some(row) = &line.table_row {
+        let cells: Vec<&str> = row.cells.iter().map(|cell| &text[cell.clone()]).collect();
+        let _ = write!(
+            out,
+            "⟨row {}/{}: {}⟩ ",
+            row.index,
+            row.count,
+            cells.join("¦")
+        );
     }
     for widget in line
         .widgets
@@ -532,13 +539,51 @@ fn inline_code() {
 }
 
 #[test]
-fn table_becomes_grid_widget() {
+fn table_rows_become_grid_rows() {
     check(
         "| a | **b** |\n|---|:-:|\n| 1 | $x$ |\n\n‸",
         &element(),
         &[
-            "[table] ⟦table:2x2⟧",
+            "[table] ⟨row 0/2: a¦**b**⟩  a  {strong:b} ",
             "[table] ~collapsed~",
+            "[table] ⟨row 1/2: 1¦$x$⟩  1  ⟦math:x⟧ ",
+            "",
+            "",
+        ],
+    );
+}
+
+#[test]
+fn a_table_stays_a_grid_with_the_cursor_inside() {
+    // The cursor's cell reaches to it, and its bold reveals as a
+    // paragraph's does; the pipes and delimiter row stay hidden.
+    check(
+        "| a | b |\n|---|---|\n| **1** | 2 ‸ |",
+        &element(),
+        &[
+            "[table] ⟨row 0/2: a¦b⟩  a  b ",
+            "[table] ~collapsed~",
+            "[table] ⟨row 1/2: **1**¦2 ⟩  {strong:1}  2  ",
+        ],
+    );
+    check(
+        "| a | b |\n|---|---|\n| **‸1** | 2 |",
+        &element(),
+        &[
+            "[table] ⟨row 0/2: a¦b⟩  a  b ",
+            "[table] ~collapsed~",
+            "[table] ⟨row 1/2: **1**¦2⟩  {strong,markup-dimmed:**}{strong:1}{strong,markup-dimmed:**}  2 ",
+        ],
+    );
+}
+
+#[test]
+fn escaped_pipes_hide_their_backslash_in_the_grid() {
+    check(
+        "| a \\| b |\n|---|\n\n‸",
+        &element(),
+        &[
+            "[table] ⟨row 0/1: a \\| b⟩  a | b ",
             "[table] ~collapsed~",
             "",
             "",
@@ -547,10 +592,12 @@ fn table_becomes_grid_widget() {
 }
 
 #[test]
-fn table_source_shows_with_cursor_inside() {
+fn a_table_edited_as_markdown_shows_its_source() {
+    let mut settings = element();
+    settings.source_table = Some(3);
     check(
         "| a | b |\n|---|---|\n| 1 | ‸2 |",
-        &element(),
+        &settings,
         &[
             "[table] {markup-dimmed:|} a {markup-dimmed:|} b {markup-dimmed:|}",
             "[table] {markup-dimmed:|---|---|}",

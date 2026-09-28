@@ -5,7 +5,7 @@ use std::ops::Range;
 use crate::syntax::SyntaxTree;
 
 use super::effects::Effects;
-use super::output::{LinePlan, LineStyle, Placement, StyleKey, StyledRun, Widget};
+use super::output::{LinePlan, LineStyle, Placement, StyleKey, StyledRun, TableRowPlan, Widget};
 use super::reveal::Revealer;
 
 /// Builds the plans for `lines` from the collected effects.
@@ -27,6 +27,7 @@ pub(crate) fn assemble(
                 hidden: Vec::new(),
                 widgets: Vec::new(),
                 collapsed: false,
+                table_row: None,
             })
             .collect(),
     };
@@ -35,6 +36,7 @@ pub(crate) fn assemble(
     sorter.sort_widgets(effects.widgets);
     sorter.sort_line_styles(effects.line_styles);
     sorter.sort_collapsed(effects.collapsed);
+    sorter.sort_table_rows(effects.table_rows);
     let mut plans = sorter.plans;
     for (plan, line_spans) in plans.iter_mut().zip(spans) {
         plan.runs = build_runs(&plan.range, &line_spans);
@@ -101,6 +103,14 @@ impl LineSorter<'_> {
             let slots: Vec<usize> = lines.filter_map(|line| self.slot(line)).collect();
             for slot in slots {
                 self.plans[slot].line_styles.push(style);
+            }
+        }
+    }
+
+    fn sort_table_rows(&mut self, rows: Vec<(usize, TableRowPlan)>) {
+        for (line, row) in rows {
+            if let Some(slot) = self.slot(line) {
+                self.plans[slot].table_row = Some(row);
             }
         }
     }

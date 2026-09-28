@@ -225,11 +225,6 @@ pub enum WidgetKind {
         /// Whether the body is collapsed right now.
         folded: bool,
     },
-    Table {
-        alignments: Vec<Alignment>,
-        /// Cell content ranges, header row first.
-        rows: Vec<Vec<Range<usize>>>,
-    },
     CodeBlock {
         language: Option<String>,
         title: Option<String>,
@@ -263,6 +258,26 @@ pub enum WidgetKind {
     EmptyTabStop,
 }
 
+/// A table row drawn as a row of the table's grid: where its cells' text
+/// is and how the columns align. The pipes and the delimiter row never
+/// show; the text in the cells keeps its own styles and reveals its
+/// markup around the cursor as a paragraph's does.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct TableRowPlan {
+    /// The row's place in the table: 0 is the header. The delimiter row
+    /// isn't a row.
+    pub index: usize,
+    /// How many rows the table has, header included.
+    pub count: usize,
+    pub alignments: Vec<Alignment>,
+    /// Each cell's text in document offsets, without the padding around
+    /// it, but reaching to a cursor in the padding so what's typed there
+    /// shows.
+    pub cells: Vec<Range<usize>>,
+    /// Where the table starts, which names it among the note's tables.
+    pub table_start: usize,
+}
+
 /// The plan for one source line.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LinePlan {
@@ -280,6 +295,8 @@ pub struct LinePlan {
     /// The line takes no space: a widget on an earlier line replaces it, or
     /// it is inside a folded callout.
     pub collapsed: bool,
+    /// The line is a row of a table drawn as a grid.
+    pub table_row: Option<TableRowPlan>,
 }
 
 /// The plan for a range of lines.

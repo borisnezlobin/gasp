@@ -36,6 +36,7 @@ fn is_leaf_block(kind: &NodeKind) -> bool {
             | NodeKind::MathBlock
             | NodeKind::HtmlBlock(_)
             | NodeKind::Table { .. }
+            | NodeKind::TableCell
             | NodeKind::ThematicBreak
             | NodeKind::Frontmatter
             | NodeKind::CommentBlock
@@ -55,6 +56,18 @@ impl Revealer<'_> {
             RevealMode::AlwaysHidden => false,
             RevealMode::AroundCursor { scope } => self.touches(&self.region(id, scope, marker)),
         }
+    }
+
+    /// Whether table `id` shows its Markdown source rather than its grid:
+    /// when tables' symbols are always shown, or while it's edited as
+    /// text.
+    pub fn table_shows_source(&self, id: NodeId) -> bool {
+        let range = &self.tree.node(id).range;
+        self.settings.mode_for(SyntaxKind::Table) == RevealMode::AlwaysShown
+            || self
+                .settings
+                .source_table
+                .is_some_and(|at| range.start <= at && at <= range.end)
     }
 
     /// Whether any selection touches `range`, ends included.

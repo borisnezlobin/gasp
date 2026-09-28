@@ -6,7 +6,7 @@ use std::ops::Range;
 use crate::syntax::{ConflictSide, Markup, MarkupKind, Node, NodeId, NodeKind, SyntaxKind};
 
 use super::html;
-use super::output::{LineStyle, Placement, StyleKey, Widget, WidgetKind};
+use super::output::{LineStyle, Placement, StyleKey, TableRowPlan, Widget, WidgetKind};
 use super::reveal::{Revealer, is_line_marker};
 use super::widgets;
 
@@ -19,6 +19,8 @@ pub(crate) struct Effects {
     pub line_styles: Vec<(Range<usize>, LineStyle)>,
     /// Line numbers that take no space.
     pub collapsed: Vec<Range<usize>>,
+    /// Lines drawn as rows of a table's grid.
+    pub table_rows: Vec<(usize, TableRowPlan)>,
 }
 
 pub(crate) struct Planner<'a> {
@@ -34,7 +36,6 @@ fn replaceable_syntax(node: &Node, text: &str) -> Option<SyntaxKind> {
         NodeKind::Image(_) | NodeKind::Embed(_) => SyntaxKind::Image,
         NodeKind::ThematicBreak => SyntaxKind::ThematicBreak,
         NodeKind::FootnoteReference { .. } => SyntaxKind::Footnote,
-        NodeKind::Table { .. } => SyntaxKind::Table,
         NodeKind::Comment | NodeKind::CommentBlock => SyntaxKind::Comment,
         NodeKind::Html(kind) if node.children.is_empty() && widgets::html_replaceable(*kind) => {
             SyntaxKind::Html
@@ -114,6 +115,9 @@ impl<'a> Planner<'a> {
         let node = self.node(id);
         if is_empty_math(node) {
             return;
+        }
+        if matches!(node.kind, NodeKind::Table { .. }) {
+            return self.visit_table(id);
         }
         let replaceable = replaceable_syntax(node, self.revealer.text);
         let replaced = replaceable.is_some_and(|syntax| !self.revealer.revealed(id, syntax, None));
@@ -247,7 +251,7 @@ impl<'a> Planner<'a> {
         }
     }
 
-    fn add_line_styles(&mut self, id: NodeId) {
+    pub(super) fn add_line_styles(&mut self, id: NodeId) {
         let node = self.node(id);
         let lines = self.lines_of(&node.range);
         let styles: Vec<(Range<usize>, LineStyle)> = match &node.kind {
@@ -425,23 +429,29 @@ impl<'a> Planner<'a> {
         }
     }
 
-    /// Tables reveal their pipes as a whole; other markup reveals with its node.
-    fn reveal_owner(&self, id: NodeId, kind: MarkupKind) -> NodeId {
-        if kind != MarkupKind::TablePipe {
-            return id;
+    /// Whether a token shows: a table's pipes while the table shows its
+    /// source, other markup as its node's reveal mode says.
+    fn markup_shown(&self, id: NodeId, token: &Markup) -> bool {
+        let node = self.node(id);
+        if matches!(
+            token.kind,
+            MarkupKind::TablePipe | MarkupKind::TableDelimiterRow
+        ) {
+            let tree = self.revealer.tree;
+            let table = std::iter::once(id)
+                .chain(tree.ancestors(id))
+                .find(|&a| matches!(tree.node(a).kind, NodeKind::Table { .. }));
+            return table.is_some_and(|table| self.revealer.table_shows_source(table));
         }
-        let tree = self.revealer.tree;
-        tree.ancestors(id)
-            .find(|&a| matches!(tree.node(a).kind, NodeKind::Table { .. }))
-            .unwrap_or(id)
+        let line_marker = is_line_marker(&node.kind, token.kind).then_some(&token.range);
+        matches!(node.kind, NodeKind::LinkDefinition { .. })
+            || self
+                .revealer
+                .revealed(id, token.kind.syntax_kind(), line_marker)
     }
 
-    fn markup_effect(&mut self, id: NodeId, token: &Markup) {
-        let owner = self.reveal_owner(id, token.kind);
-        let line_marker = is_line_marker(&self.node(id).kind, token.kind).then_some(&token.range);
-        let syntax = token.kind.syntax_kind();
-        let always_shown = matches!(self.node(id).kind, NodeKind::LinkDefinition { .. });
-        if always_shown || self.revealer.revealed(owner, syntax, line_marker) {
+    pub(super) fn markup_effect(&mut self, id: NodeId, token: &Markup) {
+        if self.markup_shown(id, token) {
             self.effects
                 .spans
                 .push((token.range.clone(), StyleKey::MarkupDimmed));

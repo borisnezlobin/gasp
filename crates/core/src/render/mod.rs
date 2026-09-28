@@ -4,6 +4,7 @@
 
 mod assemble;
 mod effects;
+mod grid;
 mod html;
 mod output;
 mod reveal;
@@ -18,7 +19,8 @@ use std::ops::Range;
 use crate::syntax::SyntaxTree;
 
 pub use output::{
-    LinePlan, LineStyle, Placement, RenderPlan, StyleKey, StyledRun, Widget, WidgetKind,
+    LinePlan, LineStyle, Placement, RenderPlan, StyleKey, StyledRun, TableRowPlan, Widget,
+    WidgetKind,
 };
 pub use settings::{RevealMode, RevealScope, RevealSettings};
 
