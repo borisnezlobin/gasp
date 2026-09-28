@@ -64,11 +64,11 @@ write_info_plist() {
 PLIST
 }
 
-copy_icon() {
-  local icon="$REPO_ROOT/apps/desktop/assets/AppIcon.icns"
+copy_resources() {
+  local assets="$REPO_ROOT/apps/desktop/assets"
   mkdir -p "$APP_DIR/Contents/Resources"
-  [[ -f "$icon" ]] && cp "$icon" "$APP_DIR/Contents/Resources/AppIcon.icns"
-  return 0
+  cp "$assets/AppIcon.icns" "$APP_DIR/Contents/Resources/AppIcon.icns"
+  cp "$assets/icon/THIRD_PARTY_NOTICES.txt" "$APP_DIR/Contents/Resources/THIRD_PARTY_NOTICES.txt"
 }
 
 sign() {
@@ -110,7 +110,7 @@ main() {
   rm -rf "$APP_DIR"
   build_universal_binary
   write_info_plist "$version" "$build_number"
-  copy_icon
+  copy_resources
   step "Signing"
   sign "$APP_DIR"
   codesign --verify --strict "$APP_DIR"
