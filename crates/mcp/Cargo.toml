@@ -1,12 +1,37 @@
 [package]
 name = "editor-mcp"
-description = "MCP server."
+description = "MCP server: the vault, its config and the running app, for agents."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [dependencies]
+editor-config = { path = "../config" }
+editor-export = { path = "../export" }
+editor-search = { path = "../search" }
+editor-snippets = { path = "../snippets" }
+editor-vault = { path = "../vault" }
+# The official MCP SDK: JSON-RPC framing, the handshake and version
+# negotiation over stdio. Tools are listed and dispatched by hand.
+rmcp = { version = "3.5", default-features = false, features = ["server", "transport-io"] }
+tokio = { version = "1", features = ["rt", "io-std", "time"] }
+schemars = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Frontmatter, as notes write it. Typst already builds it.
+serde_yaml = "0.9"
+globset = { version = "0.4", default-features = false }
+base64 = "0.22"
+# Rendered pages as PNG; `image` already builds this version.
+png = "0.18"
+dirs = "5"
+# The bridge's per-session token.
+getrandom = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["rt", "io-std", "io-util", "macros", "time"] }
 
 [lints]
 workspace = true
