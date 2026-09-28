@@ -308,13 +308,20 @@ impl LineLayouter<'_, '_> {
         if let Some(widths) = self.resources.tables.rows.get(&key) {
             return widths.clone();
         }
-        let input = RenderInput {
-            text: source.text(),
-            tree: source.tree(),
-            selections: self.context.selections,
-            settings: self.context.reveal,
+        // The row being laid out has its plan already.
+        let plan = match line == self.plan.line {
+            true => Some(self.plan.clone()),
+            false => {
+                let input = RenderInput {
+                    text: source.text(),
+                    tree: source.tree(),
+                    selections: self.context.selections,
+                    settings: self.context.reveal,
+                };
+                plan_lines(&input, line..line + 1).lines.pop()
+            }
         };
-        let Some(plan) = plan_lines(&input, line..line + 1).lines.pop() else {
+        let Some(plan) = plan else {
             return Arc::default();
         };
         let widths = Arc::new(self.measure_row(&plan, header));

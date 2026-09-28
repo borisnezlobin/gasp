@@ -64,6 +64,7 @@ pub fn plan_lines(input: &RenderInput<'_>, lines: Range<usize>) -> RenderPlan {
             settings: input.settings,
         },
         effects: Effects::default(),
+        span: span.clone(),
     };
     for id in input.tree.nodes_overlapping(span) {
         planner.visit(id);

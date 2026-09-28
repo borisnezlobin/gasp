@@ -16,6 +16,7 @@ mod kinds;
 mod markup;
 mod prefix;
 mod segments;
+mod table_rows;
 mod tree;
 mod wikilink;
 

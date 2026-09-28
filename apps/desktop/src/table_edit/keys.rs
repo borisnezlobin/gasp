@@ -29,8 +29,6 @@ impl EditorView {
             return false;
         }
         match id {
-            "edit.indent" => self.tab_to_cell(Step::Forward, cx),
-            "edit.outdent" => self.tab_to_cell(Step::Back, cx),
             "edit.newline" => self.enter_below(cx),
             "link.follow" => self.link_at(self.cursor()).is_none() && self.leave_below(cx),
             "cursor.left" | "select.left" => self.cross_cell(Step::Back, id == "select.left", cx),
@@ -45,9 +43,15 @@ impl EditorView {
         }
     }
 
-    /// Tab and Shift+Tab: the next or previous cell with its text
-    /// selected. Tab in the last cell adds a row and goes to its first.
-    fn tab_to_cell(&mut self, step: Step, cx: &mut Context<Self>) -> bool {
+    /// Tab and Shift+Tab, when a snippet isn't waiting for them: the
+    /// next or previous cell with its text selected. Tab in the last
+    /// cell adds a row and goes to its first. Answers false outside a
+    /// table.
+    pub(crate) fn tab_to_cell(&mut self, forward: bool, cx: &mut Context<Self>) -> bool {
+        let step = match forward {
+            true => Step::Forward,
+            false => Step::Back,
+        };
         let Some((table, at)) = self.caret_cell() else {
             return false;
         };

@@ -32,7 +32,12 @@ impl Planner<'_> {
             return;
         };
         let count = node.children.len();
+        let span = self.span.clone();
         for (index, &row) in node.children.iter().enumerate() {
+            let range = &tree.node(row).range;
+            if range.end < span.start || range.start > span.end {
+                continue;
+            }
             let cells: Vec<Range<usize>> = tree
                 .node(row)
                 .children

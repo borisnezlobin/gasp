@@ -270,6 +270,7 @@ impl EditorView {
             at: position,
             to: None,
         });
+        self.pointer_cursor = gpui::CursorStyle::ClosedHand;
         cx.notify();
         true
     }

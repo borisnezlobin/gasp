@@ -98,18 +98,22 @@ impl EditorView {
     }
 
     /// Tab expands a snippet, moves to the next tab stop, adds a column in
-    /// a matrix or leaves a bracket in math; anywhere else it indents.
+    /// a matrix or leaves a bracket in math; in a table it goes to the
+    /// next cell, and anywhere else it indents.
     pub fn tab(&mut self, cx: &mut Context<Self>) {
         let output = self.pipeline_output(EditRequest::Tab);
         if output.step.as_deref() == Some(step_names::APPLY) {
-            self.run_edit(indent, cx);
+            if !self.tab_to_cell(true, cx) {
+                self.run_edit(indent, cx);
+            }
             return;
         }
         self.apply_output(output, cx);
     }
 
     /// Shift+Tab goes back to the previous tab stop while a snippet is
-    /// being filled in, and outdents otherwise.
+    /// being filled in, to the previous cell in a table, and outdents
+    /// otherwise.
     pub fn back_tab(&mut self, cx: &mut Context<Self>) {
         let previous = self.tab_stops.as_mut().and_then(TabStops::back);
         match previous {
@@ -117,6 +121,7 @@ impl EditorView {
                 let select = Transaction::select(selection, Origin::Input, self.now_ms());
                 self.apply_transaction(select, cx);
             }
+            None if self.tab_to_cell(false, cx) => {}
             None => self.run_edit(outdent, cx),
         }
     }
