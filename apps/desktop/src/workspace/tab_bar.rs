@@ -2,8 +2,8 @@
 //! tabs, a new-tab button and the list of every tab.
 
 use gpui::{
-    AnyElement, Context, MouseButton, SharedString, canvas, div, linear_color_stop,
-    linear_gradient, prelude::*, px,
+    AnyElement, Bounds, Context, MouseButton, MouseDownEvent, Pixels, SharedString, Window, canvas,
+    div, linear_color_stop, linear_gradient, prelude::*, px,
 };
 
 use super::pane::{Pane, PaneEvent, PaneMenu, Tab, TabState};
@@ -43,10 +43,23 @@ impl Pane {
             });
         let list_menu = self.menu.render_attached(TAB_LIST_KEY, ui.space_xs);
         div()
+            .on_children_prepainted({
+                // Every child but the tab strip's box is a button.
+                let (controls, strip) = (self.bar_controls.clone(), toggle.is_some() as usize);
+                move |children: Vec<Bounds<Pixels>>, _, _| {
+                    *controls.borrow_mut() = children
+                        .into_iter()
+                        .enumerate()
+                        .filter(|(index, _)| *index != strip)
+                        .map(|(_, bounds)| bounds)
+                        .collect();
+                }
+            })
             .id("tab-bar")
             .debug_selector(|| "tab-bar".to_owned())
             .on_drag_move(cx.listener(Self::on_drag_over_tabs))
             .on_drop(cx.listener(Self::on_drop_on_tabs))
+            .on_mouse_down(MouseButton::Left, cx.listener(Self::on_bar_mouse_down))
             .flex()
             .flex_row()
             .flex_none()
@@ -98,6 +111,36 @@ impl Pane {
                     .attach(list_menu),
             )
             .children(right_toggle)
+    }
+
+    /// A press on the bar's empty space, which tabs and buttons haven't
+    /// taken, moves the window, and a double click zooms it, as a title
+    /// bar does. Only a bar along the window's top counts: a pane split
+    /// below keeps its bar's empty space still.
+    fn on_bar_mouse_down(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let ui = ui_theme(cx);
+        let at_top = event.position.y < ui.surface_gap + ui.tab_bar_height;
+        // The pane's own focus handling runs first and marks every press
+        // as taken, so the bar goes by where its tabs and buttons are.
+        let hits = |bounds: Bounds<Pixels>| bounds.contains(&event.position);
+        let on_button = self.bar_controls.borrow().iter().copied().any(hits);
+        let on_tab = (0..self.tab_scroll.children_count())
+            .filter_map(|index| self.tab_scroll.bounds_for_item(index))
+            .any(hits);
+        let on_control = on_button || on_tab;
+        if on_control || !at_top {
+            return;
+        }
+        if event.click_count == 2 {
+            crate::window_drag::double_click(window);
+        } else {
+            crate::window_drag::start(window);
+        }
     }
 
     /// Scrolls the active tab back into view when the strip's width

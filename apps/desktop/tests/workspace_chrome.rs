@@ -626,3 +626,25 @@ fn a_resize_ending_inside_the_hover_sidebar_keeps_it(cx: &mut TestAppContext) {
     assert!(panel_visible(&workspace, cx));
     assert_eq!(panel_width(&workspace, cx), px(300.));
 }
+
+#[gpui::test]
+fn the_tab_bar_moves_the_window_from_its_empty_space_only(cx: &mut TestAppContext) {
+    use editor_desktop::window_drag::moves_started;
+
+    let vault = vault_with(&[("a.md", "A"), ("b.md", "B")]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "a.md", OpenIn::ActiveTab);
+    open(&workspace, cx, "b.md", OpenIn::NewTab);
+    let before = moves_started();
+    // A tab takes its press, to be dragged or chosen.
+    click(cx, "tab-a");
+    assert_eq!(moves_started(), before, "a tab doesn't move the window");
+    click(cx, "pane-new-tab");
+    assert_eq!(moves_started(), before, "nor does a button");
+    // Past the last tab, the bar is a title bar.
+    let bar = cx.debug_bounds("tab-bar").unwrap();
+    let plus = cx.debug_bounds("pane-new-tab").unwrap();
+    let empty = gpui::point(plus.left() - gpui::px(20.), bar.center().y);
+    cx.simulate_click(empty, Modifiers::none());
+    assert_eq!(moves_started(), before + 1, "empty space moves it");
+}

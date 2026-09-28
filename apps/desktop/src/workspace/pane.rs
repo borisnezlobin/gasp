@@ -139,6 +139,9 @@ pub struct Pane {
     /// The tab strip's width when the active tab was last scrolled into
     /// view: a pane that narrows, as when it's split, shows it again.
     pub(super) revealed_width: Rc<std::cell::Cell<Pixels>>,
+    /// Where the tab bar last drew its buttons, so a press can tell them
+    /// from the bar's empty space. The tabs' places are the strip's.
+    pub(super) bar_controls: Rc<std::cell::RefCell<Vec<gpui::Bounds<Pixels>>>>,
     pub(super) theme: Theme,
     pub(super) vault: PathBuf,
     show_inline_title: bool,
@@ -202,6 +205,7 @@ impl Pane {
             toolbar: None,
             tab_scroll: ScrollHandle::new(),
             revealed_width: Rc::new(std::cell::Cell::new(px(0.))),
+            bar_controls: Rc::default(),
             theme: Theme::default(),
             vault: vault.to_path_buf(),
             show_inline_title,
