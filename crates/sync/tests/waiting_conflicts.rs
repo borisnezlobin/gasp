@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{World, author, read, sync, write};
+use common::{World, author, read, remote_head_message, sync, write};
 use editor_sync::{MergeOutcome, Resolution, Vault, VaultConfig};
 use git2::Repository;
 
@@ -61,6 +61,10 @@ fn a_conflict_in_one_note_does_not_block_an_edit_to_another() {
 
     write(&trio.phone, OTHER, b"ideas\nwritten offline on the phone\n");
     sync(&trio.phone, "phone");
+    assert_eq!(
+        remote_head_message(&trio.world, "master"),
+        "phone: Habit Ideas.md"
+    );
     assert_eq!(trio.phone.conflicts().unwrap().len(), 1, "still waiting");
 
     for device in [&trio.laptop, &trio.desktop] {
@@ -137,6 +141,10 @@ fn the_conflict_waits_across_reopening_the_vault_and_resolves() {
     assert_eq!(
         trio.world.remote_file("master", NOTE).unwrap(),
         both.as_bytes()
+    );
+    assert_eq!(
+        remote_head_message(&trio.world, "master"),
+        "phone: Lemma.md"
     );
     sync(&trio.desktop, "desktop");
     assert_eq!(read(&trio.desktop, NOTE), both);

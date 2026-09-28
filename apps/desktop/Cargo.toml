@@ -73,8 +73,9 @@ objc = "0.2"
 x11rb = "0.13"
 
 [target.'cfg(unix)'.dependencies]
-# Per-thread CPU time for startup tracing (`EDITOR_TRACE_STARTUP`).
-rustix = { version = "1", default-features = false, features = ["std", "time"] }
+# Per-thread CPU time for startup tracing (`EDITOR_TRACE_STARTUP`), and the
+# hostname that names this device in sync commits.
+rustix = { version = "1", default-features = false, features = ["std", "system", "time"] }
 
 [dev-dependencies]
 gpui = { version = "=0.2.2", features = ["test-support"] }

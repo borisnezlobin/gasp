@@ -5,7 +5,7 @@ use std::time::Duration;
 use common::{World, author, write};
 use editor_sync::{Scheduler, SyncEventKind, SyncStatus, SyncStep, drive, run_step};
 
-const MESSAGE: &str = "Automatic sync";
+const DEVICE: &str = "laptop";
 
 fn secs(seconds: u64) -> Duration {
     Duration::from_secs(seconds)
@@ -24,18 +24,22 @@ fn scheduler_commits_a_minute_after_the_last_edit_then_pushes() {
     scheduler.edited(secs(40));
 
     assert_eq!(
-        drive(&laptop, &mut scheduler, secs(60), &who, MESSAGE),
+        drive(&laptop, &mut scheduler, secs(60), &who, DEVICE),
         SyncStatus::Synced
     );
     assert_eq!(world.remote_file("master", "note.md").unwrap(), b"hello\n");
 
     assert_eq!(
-        drive(&laptop, &mut scheduler, secs(100), &who, MESSAGE),
+        drive(&laptop, &mut scheduler, secs(100), &who, DEVICE),
         SyncStatus::Synced
     );
     assert_eq!(
         world.remote_file("master", "note.md").unwrap(),
         b"hello, second draft\n"
+    );
+    assert_eq!(
+        common::remote_head_message(&world, "master"),
+        "laptop: note.md"
     );
     let kinds: Vec<_> = scheduler.log().map(|event| event.kind.clone()).collect();
     assert_eq!(
@@ -59,7 +63,7 @@ fn push_failure_keeps_commits_local_and_reports_offline() {
 
     write(&laptop, "note.md", b"written on a plane\n");
     write(&laptop, "second.md", b"also on a plane\n");
-    let commit = laptop.commit_all(&who, MESSAGE).unwrap().unwrap();
+    let commit = laptop.commit_all(&who, DEVICE).unwrap().unwrap();
     laptop.fetch().unwrap();
     laptop.merge(&who).unwrap();
     laptop
@@ -72,7 +76,7 @@ fn push_failure_keeps_commits_local_and_reports_offline() {
     assert_eq!(laptop.unpushed_changes().unwrap(), 2);
     assert_eq!(world.remote_file("master", "note.md").unwrap(), b"hello\n");
 
-    let report = run_step(&laptop, SyncStep::Push, &who, MESSAGE);
+    let report = run_step(&laptop, SyncStep::Push, &who, DEVICE);
     let mut scheduler = Scheduler::default();
     scheduler.request_sync();
     scheduler.poll(secs(0));
@@ -88,11 +92,11 @@ fn push_failure_keeps_commits_local_and_reports_offline() {
 
     laptop.set_remote_url(&real_url).unwrap();
     assert_eq!(
-        drive(&laptop, &mut scheduler, secs(30), &who, MESSAGE),
+        drive(&laptop, &mut scheduler, secs(30), &who, DEVICE),
         SyncStatus::Offline { waiting: 2 }
     );
     assert_eq!(
-        drive(&laptop, &mut scheduler, secs(61), &who, MESSAGE),
+        drive(&laptop, &mut scheduler, secs(61), &who, DEVICE),
         SyncStatus::Synced
     );
     assert_eq!(
@@ -113,7 +117,7 @@ fn unreachable_remote_during_a_scheduled_sync_reports_offline() {
     let mut scheduler = Scheduler::default();
     write(&laptop, "note.md", b"offline edit\n");
     scheduler.edited(secs(0));
-    let status = drive(&laptop, &mut scheduler, secs(60), &who, MESSAGE);
+    let status = drive(&laptop, &mut scheduler, secs(60), &who, DEVICE);
     assert_eq!(status, SyncStatus::Offline { waiting: 1 });
     assert!(laptop.head_commit().unwrap().is_some());
     assert!(
@@ -135,17 +139,21 @@ fn scheduled_sync_keeps_syncing_other_notes_while_a_conflict_waits() {
     let mut scheduler = Scheduler::default();
     write(&phone, "note.md", b"phone line\n");
     scheduler.edited(secs(0));
-    let status = drive(&phone, &mut scheduler, secs(60), &who, MESSAGE);
+    let status = drive(&phone, &mut scheduler, secs(60), &who, "phone");
     assert_eq!(status, SyncStatus::Conflict { files: 1 });
     assert!(!phone.is_merging());
 
     write(&phone, "other.md", b"other, edited offline\n");
     scheduler.edited(secs(70));
-    let status = drive(&phone, &mut scheduler, secs(130), &who, MESSAGE);
+    let status = drive(&phone, &mut scheduler, secs(130), &who, "phone");
     assert_eq!(status, SyncStatus::Conflict { files: 1 });
     assert_eq!(
         world.remote_file("master", "other.md").unwrap(),
         b"other, edited offline\n"
+    );
+    assert_eq!(
+        common::remote_head_message(&world, "master"),
+        "phone: other.md"
     );
 
     let files = phone.conflicts().unwrap();
@@ -154,11 +162,15 @@ fn scheduled_sync_keeps_syncing_other_notes_while_a_conflict_waits() {
         .unwrap();
     scheduler.conflicts_resolved(secs(140));
     assert_eq!(
-        drive(&phone, &mut scheduler, secs(140), &who, MESSAGE),
+        drive(&phone, &mut scheduler, secs(140), &who, "phone"),
         SyncStatus::Synced
     );
     assert_eq!(
         world.remote_file("master", "note.md").unwrap(),
         b"phone line\nlaptop line\n"
+    );
+    assert_eq!(
+        common::remote_head_message(&world, "master"),
+        "phone: note.md"
     );
 }

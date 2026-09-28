@@ -22,8 +22,8 @@ pub const REMOTE: &str = "origin";
 pub struct Engine {
     vault: Mutex<Vault>,
     author: Author,
-    /// The message of every sync commit.
-    message: String,
+    /// Names this device in commit messages.
+    device: String,
     remote_url: String,
 }
 
@@ -105,7 +105,7 @@ pub fn open(root: &Path, settings: &SyncSettings, store: &dyn CredentialStore) -
     let engine = Engine {
         vault: Mutex::new(vault),
         author,
-        message: format!("Sync from {device}"),
+        device,
         remote_url,
     };
     Opened::Ready {
@@ -139,7 +139,7 @@ impl Engine {
             SyncStep::Push => vault.tracking_commit(),
             SyncStep::Commit | SyncStep::Fetch => None,
         };
-        let report = run_step(&vault, step, &self.author, &self.message);
+        let report = run_step(&vault, step, &self.author, &self.device);
         let changed = match (step, &report) {
             (_, StepReport::Failed(_)) | (SyncStep::Commit | SyncStep::Fetch, _) => Vec::new(),
             (SyncStep::Merge | SyncStep::Push, _) => vault

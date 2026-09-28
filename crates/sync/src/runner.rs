@@ -7,16 +7,12 @@ use crate::scheduler::{
 use crate::vault::{Author, MergeOutcome, Vault};
 
 /// Runs one scheduler step against `vault` and reports how it went.
-pub fn run_step(
-    vault: &Vault,
-    step: SyncStep,
-    author: &Author,
-    commit_message: &str,
-) -> StepReport {
+/// Commits are named after `device` and the files they change.
+pub fn run_step(vault: &Vault, step: SyncStep, author: &Author, device: &str) -> StepReport {
     let result = match step {
         SyncStep::Commit => {
             vault
-                .commit_all(author, commit_message)
+                .commit_changes(author, device)
                 .map(|commit| StepReport::Committed {
                     new_commit: commit.is_some(),
                 })
@@ -36,11 +32,11 @@ pub fn drive(
     scheduler: &mut Scheduler,
     now: Duration,
     author: &Author,
-    commit_message: &str,
+    device: &str,
 ) -> SyncStatus {
     let mut next = scheduler.poll(now);
     while let Some(step) = next {
-        let report = run_step(vault, step, author, commit_message);
+        let report = run_step(vault, step, author, device);
         next = scheduler.report(now, report);
     }
     scheduler.status()

@@ -13,6 +13,7 @@ mod credentials;
 mod device_files;
 mod error;
 mod line_merge;
+mod message;
 mod parked;
 mod policy;
 mod runner;
@@ -24,6 +25,7 @@ pub use credentials::{CredentialStore, InMemoryCredentialStore, Token};
 pub use device_files::{DEFAULT_DEVICE_ONLY_GLOBS, DeviceOnlyFiles};
 pub use error::{SyncError, SyncResult};
 pub use line_merge::{LineMerge, merge_lines};
+pub use message::commit_message;
 pub use policy::{FileKind, classify};
 pub use runner::{drive, run_step};
 pub use scheduler::{

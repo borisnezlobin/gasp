@@ -83,9 +83,7 @@ pub fn read_bytes(vault: &Vault, path: &str) -> Vec<u8> {
 /// A conflict doesn't stop the push: the files it's about wait on their own.
 pub fn sync(vault: &Vault, who: &str) -> MergeOutcome {
     let author = author(who);
-    vault
-        .commit_all(&author, &format!("Sync from {who}"))
-        .expect("commit");
+    vault.commit_changes(&author, who).expect("commit");
     vault.fetch().expect("fetch");
     let outcome = vault.merge(&author).expect("merge");
     vault.push().expect("push");

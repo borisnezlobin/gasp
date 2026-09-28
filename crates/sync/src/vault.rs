@@ -12,6 +12,7 @@ use crate::credentials::{CredentialStore, Token, remote_callbacks};
 use crate::device_files::DeviceOnlyFiles;
 use crate::error::{SyncError, SyncResult};
 use crate::line_merge::{LineMerge, merge_lines};
+use crate::message::commit_message;
 use crate::parked::BranchKeeps;
 use crate::policy::{FileKind, classify};
 
@@ -320,6 +321,12 @@ impl Vault {
     /// Returns `None` when there was nothing to commit.
     pub fn commit_all(&self, author: &Author, message: &str) -> SyncResult<Option<Oid>> {
         self.commit_with(author, |_| message.to_owned())
+    }
+
+    /// Like [`Vault::commit_all`], with a message naming `device` and the
+    /// files that changed, such as `mac: Lemma.md, Habit Ideas.md`.
+    pub fn commit_changes(&self, author: &Author, device: &str) -> SyncResult<Option<Oid>> {
+        self.commit_with(author, |paths| commit_message(device, paths))
     }
 
     fn commit_with(
