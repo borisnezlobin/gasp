@@ -33,8 +33,8 @@ build_universal_binary() {
     rustup target add "$target" >/dev/null
     step "Building for $target"
     MACOSX_DEPLOYMENT_TARGET="$MINIMUM_MACOS" \
-      cargo build --release --locked -p editor-desktop --target "$target" --manifest-path "$REPO_ROOT/Cargo.toml"
-    binaries+=("$REPO_ROOT/target/$target/release/$EXECUTABLE")
+      cargo build --profile dist --locked -p editor-desktop --target "$target" --manifest-path "$REPO_ROOT/Cargo.toml"
+    binaries+=("$REPO_ROOT/target/$target/dist/$EXECUTABLE")
   done
   mkdir -p "$APP_DIR/Contents/MacOS"
   lipo -create -output "$APP_DIR/Contents/MacOS/$EXECUTABLE" $binaries

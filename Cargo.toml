@@ -13,3 +13,10 @@ unsafe_code = "deny"
 
 [workspace.lints.clippy]
 cognitive_complexity = "deny"
+
+# Builds that go to other people: slower to compile, smaller and faster to run.
+[profile.dist]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+strip = true
