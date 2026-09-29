@@ -6,24 +6,22 @@
 //! arrive.
 //!
 //! A file's size is read from its header straight away, so layout gives it
-//! its room at once; the pixels are decoded on a background thread, no
-//! larger than they're drawn on screen (a screenshot of a Retina display
-//! shown in the text column needs a quarter of its pixels), and decoded
-//! again, sharper, if the image is later drawn larger.
+//! its room at once; the pixels are decoded on a background thread and
+//! shrunk by a whole factor to no smaller than they're drawn on screen (a
+//! screenshot of a Retina display shown in the text column needs a quarter
+//! of its pixels), and decoded again, sharper, if the image is later drawn
+//! larger.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use gpui::{Pixels, RenderImage, Size, px, size};
-use image::imageops::FilterType;
-use image::{DynamicImage, Frame, RgbaImage};
+use image::{Frame, RgbaImage};
 
 const PLACEHOLDER_SIZE: (u32, u32) = (96, 64);
 const MAX_ASPECT_RATIO: f32 = 4.;
-/// Decoded widths are rounded up to a multiple of this, so resizing the
-/// window a little doesn't decode the image again.
-const DECODE_WIDTH_STEP: u32 = 256;
+const CHANNELS: usize = 4;
 
 /// An image as layout needs it.
 #[derive(Clone)]
@@ -158,7 +156,7 @@ impl ImageStore {
         let Some(path) = entry.path.clone() else {
             return;
         };
-        let wanted = decode_width(width, entry.shown.natural.0);
+        let wanted = width.clamp(1, entry.shown.natural.0.max(1));
         let enough = entry.decoded_width.max(entry.decoding_width.unwrap_or(0));
         if wanted <= enough {
             return;
@@ -217,8 +215,8 @@ impl ImageStore {
         entry.decoding_width = None;
         match image {
             Some(image) => {
+                entry.decoded_width = image.size(0).width.0.max(0) as u32;
                 entry.shown.image = Arc::new(image);
-                entry.decoded_width = decode.width;
             }
             None => *entry = placeholder,
         }
@@ -283,33 +281,62 @@ impl ImageStore {
     }
 }
 
-/// The width to decode an image `natural_width` pixels wide at, to draw
-/// it `drawn` pixels wide: rounded up a step, never wider than the file.
-fn decode_width(drawn: u32, natural_width: u32) -> u32 {
-    drawn
-        .max(1)
-        .div_ceil(DECODE_WIDTH_STEP)
-        .saturating_mul(DECODE_WIDTH_STEP)
-        .min(natural_width.max(1))
-}
-
-/// Decodes `decode`'s file no wider than it asks for. Slow for a large
-/// file, so call it off the main thread.
+/// Decodes `decode`'s file, shrunk by the largest whole factor that keeps
+/// it at least as wide as asked. Slow for a large file, so call it off the
+/// main thread.
 pub fn decode_file(decode: &Decode) -> Option<RenderImage> {
-    let decoded = image::open(&decode.path).ok()?;
-    Some(render_image(
-        shrink_to_width(decoded, decode.width).to_rgba8(),
-    ))
+    let pixels = image::open(&decode.path).ok()?.to_rgba8();
+    let factor = (pixels.width() / decode.width.max(1)).max(1);
+    Some(render_image(shrink_by(pixels, factor)))
 }
 
-fn shrink_to_width(image: DynamicImage, width: u32) -> DynamicImage {
-    if image.width() <= width {
-        return image;
+/// Averages each `factor` by `factor` block of pixels into one, weighting
+/// colour by opacity so transparent pixels don't darken the edges around
+/// them. Blocks at the right and bottom edges may be smaller.
+fn shrink_by(pixels: RgbaImage, factor: u32) -> RgbaImage {
+    if factor <= 1 {
+        return pixels;
     }
-    let height = (u64::from(image.height()) * u64::from(width))
-        .div_ceil(u64::from(image.width()))
-        .max(1) as u32;
-    image.resize_exact(width, height, FilterType::CatmullRom)
+    let (width, height) = pixels.dimensions();
+    let (out_width, out_height) = (width.div_ceil(factor), height.div_ceil(factor));
+    let mut out = Vec::with_capacity(out_width as usize * out_height as usize * CHANNELS);
+    let mut sums = vec![0u64; out_width as usize * CHANNELS];
+    let rows = pixels.as_raw().chunks_exact(width as usize * CHANNELS);
+    for (y, row) in (0u32..).zip(rows) {
+        for (x, pixel) in row.chunks_exact(CHANNELS).enumerate() {
+            let at = x / factor as usize * CHANNELS;
+            add_weighted(&mut sums[at..at + CHANNELS], pixel);
+        }
+        if (y + 1) % factor == 0 || y + 1 == height {
+            let block_rows = y % factor + 1;
+            average_into(&mut out, &mut sums, width, factor, block_rows);
+        }
+    }
+    RgbaImage::from_raw(out_width, out_height, out).unwrap_or(pixels)
+}
+
+/// Adds one pixel to a block's sums: colour times opacity, then opacity.
+fn add_weighted(sums: &mut [u64], pixel: &[u8]) {
+    let alpha = u64::from(pixel[3]);
+    for channel in 0..3 {
+        sums[channel] += u64::from(pixel[channel]) * alpha;
+    }
+    sums[3] += alpha;
+}
+
+/// Turns a row of blocks' sums into pixels, and clears the sums.
+fn average_into(out: &mut Vec<u8>, sums: &mut [u64], width: u32, factor: u32, rows: u32) {
+    for (column, sum) in (0u32..).zip(sums.chunks_exact_mut(CHANNELS)) {
+        let columns = (width - column * factor).min(factor);
+        let count = u64::from(columns * rows);
+        let alpha = sum[3];
+        for weighted in &sum[..3] {
+            let colour = (weighted + alpha / 2).checked_div(alpha).unwrap_or(0);
+            out.push(colour as u8);
+        }
+        out.push(((alpha + count / 2) / count) as u8);
+        sum.fill(0);
+    }
 }
 
 /// The size an image is drawn at: the width written in the note (`|300`)
@@ -427,17 +454,34 @@ mod tests {
         assert_eq!(pending.natural, (2000, 1000), "sized before it decodes");
         assert!(Arc::ptr_eq(&pending.image, &store.blank));
         run_decodes(&mut store);
+        // A third of the width is the smallest whole shrink that's 600 wide.
         let drawn = store.image("wide.png", 600).image.size(0);
-        assert_eq!((drawn.width.0, drawn.height.0), (768, 384));
+        assert_eq!((drawn.width.0, drawn.height.0), (667, 334));
+        store.image("wide.png", 650);
         assert!(store.take_decodes().is_empty(), "sharp enough already");
         store.image("wide.png", 1500);
         run_decodes(&mut store);
-        assert_eq!(store.image("wide.png", 1500).image.size(0).width.0, 1536);
+        assert_eq!(store.image("wide.png", 1500).image.size(0).width.0, 2000);
         store.image("wide.png", 4000);
-        run_decodes(&mut store);
-        let full = store.image("wide.png", 4000).image.size(0);
-        assert_eq!(full.width.0, 2000, "never wider than the file");
+        assert!(store.take_decodes().is_empty(), "never wider than the file");
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn shrinking_averages_blocks_by_opacity() {
+        let mut pixels = RgbaImage::new(3, 2);
+        pixels.put_pixel(0, 0, image::Rgba([200, 100, 0, 255]));
+        pixels.put_pixel(1, 0, image::Rgba([0, 0, 0, 0]));
+        pixels.put_pixel(0, 1, image::Rgba([100, 100, 100, 255]));
+        pixels.put_pixel(1, 1, image::Rgba([0, 0, 0, 0]));
+        pixels.put_pixel(2, 0, image::Rgba([10, 20, 30, 255]));
+        pixels.put_pixel(2, 1, image::Rgba([30, 40, 50, 255]));
+        let shrunk = shrink_by(pixels, 2);
+        assert_eq!(shrunk.dimensions(), (2, 1));
+        // Transparent pixels add no colour, only lower the opacity.
+        assert_eq!(shrunk.get_pixel(0, 0).0, [150, 100, 50, 128]);
+        // The right edge's block is one column wide.
+        assert_eq!(shrunk.get_pixel(1, 0).0, [20, 30, 40, 255]);
     }
 
     #[test]
@@ -470,7 +514,7 @@ mod tests {
             let image = decode_file(decode);
             store.finish_decode(decode, image);
         }
-        assert_eq!(store.image("wide.png", 1500).image.size(0).width.0, 1536);
+        assert_eq!(store.image("wide.png", 1500).image.size(0).width.0, 2000);
         std::fs::remove_dir_all(dir).unwrap();
     }
 
