@@ -155,3 +155,27 @@ extension Font {
         self.init(font as CTFont)
     }
 }
+
+/// Light or dark as `appearance.theme` asks. Every colour above is dynamic,
+/// so overriding the windows' interface style restyles the editor, the
+/// sheets, menus and the keyboard at once; `system` hands it back to the
+/// phone's own setting.
+extension Appearance {
+    var interfaceStyle: UIUserInterfaceStyle {
+        switch self {
+        case .light: .light
+        case .dark: .dark
+        case .system: .unspecified
+        }
+    }
+
+    /// Applies this appearance to every window the app has open.
+    @MainActor
+    func apply() {
+        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+            for window in scene.windows {
+                window.overrideUserInterfaceStyle = interfaceStyle
+            }
+        }
+    }
+}
