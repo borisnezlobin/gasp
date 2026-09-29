@@ -3,6 +3,7 @@
 //! `.gasp/settings.toml` the way the desktop's settings screen does.
 
 use gasp_config::schema::{SettingKind, setting_descriptors};
+use gasp_config::setting_texts::{HIDDEN, setting_text};
 use gasp_config::settings::SettingsIndex;
 use gasp_config::store::write_setting;
 use serde_json::Value as Json;
@@ -56,13 +57,25 @@ impl VaultFolder {
         let index = SettingsIndex::new(&self.config().settings);
         setting_descriptors()
             .into_iter()
+            .filter(|descriptor| {
+                !HIDDEN
+                    .iter()
+                    .any(|prefix| descriptor.key.starts_with(prefix))
+            })
             .filter_map(|descriptor| {
                 let control = control(&descriptor.kind)?;
                 let value = setting_value(index.get(&descriptor.key)?)?;
+                let (title, description) = match setting_text(&descriptor.key) {
+                    Some((title, description)) => (title.to_owned(), description.to_owned()),
+                    None => (
+                        title(&descriptor.key),
+                        descriptor.description.unwrap_or_default(),
+                    ),
+                };
                 Some(SettingItem {
                     section: humanize(descriptor.key.split('.').next().unwrap_or_default()),
-                    title: title(&descriptor.key),
-                    description: descriptor.description.unwrap_or_default(),
+                    title,
+                    description,
                     key: descriptor.key,
                     control,
                     value,
@@ -177,7 +190,8 @@ mod tests {
             .find(|item| item.key == "files.trash")
             .unwrap();
         assert_eq!(trash.section, "Files");
-        assert_eq!(trash.title, "Trash");
+        assert_eq!(trash.title, "Deleted notes");
+        assert_eq!(trash.description, "Where a note goes when you delete it.");
         assert!(matches!(trash.control, SettingControl::Choice { .. }));
         assert_eq!(
             trash.value,

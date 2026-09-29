@@ -19,6 +19,7 @@ pub mod names;
 pub mod platform;
 pub mod rules;
 pub mod schema;
+pub mod setting_texts;
 pub mod settings;
 pub mod store;
 pub mod theme;

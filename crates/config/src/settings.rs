@@ -321,7 +321,8 @@ impl Default for MathSettings {
 pub struct DailyNoteSettings {
     /// The folder daily notes go in, from the vault root. Empty is the root.
     pub folder: String,
-    /// The note's name as a Moment.js date format, such as `YYYY-MM-DD`.
+    /// The note's name as a date pattern: `YYYY` year, `MM` month, `DD`
+    /// day, such as `YYYY-MM-DD`.
     pub format: String,
     /// A note whose text starts each new daily note. Empty starts it blank.
     pub template: String,
@@ -342,9 +343,9 @@ impl Default for DailyNoteSettings {
 pub struct TemplateSettings {
     /// The folder templates are kept in, from the vault root.
     pub folder: String,
-    /// How `{{date}}` is written, as a Moment.js format.
+    /// How `{{date}}` is written, as a date pattern such as `YYYY-MM-DD`.
     pub date_format: String,
-    /// How `{{time}}` is written, as a Moment.js format.
+    /// How `{{time}}` is written, as a time pattern such as `HH:mm`.
     pub time_format: String,
 }
 
@@ -382,8 +383,8 @@ impl Default for RecoverySettings {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
 pub struct McpSettings {
-    /// Whether the app answers `gasp mcp` about its tabs, cursor and
-    /// commands. The server's file tools work either way.
+    /// Whether agents using `gasp mcp` can see and change what's open in
+    /// the app. Reading and writing the vault's files works either way.
     pub enabled: bool,
 }
 
