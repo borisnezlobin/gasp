@@ -53,6 +53,14 @@ pub struct Palette {
     pub ring: ThemeColor,
     pub indent_guide: ThemeColor,
     pub math: ThemeColor,
+    /// Tints behind sentences by length, for sentence-length highlighting.
+    pub sentence_short: ThemeColor,
+    pub sentence_medium: ThemeColor,
+    pub sentence_long: ThemeColor,
+    pub search_match: ThemeColor,
+    pub backdrop: ThemeColor,
+    pub popover: ThemeColor,
+    pub shadow: ThemeColor,
     /// Each callout kind's colour by its name, such as `warning`.
     pub callouts: HashMap<String, ThemeColor>,
     /// How strongly a callout's colour tints its surface.
@@ -197,6 +205,13 @@ fn palette(read: &TokenReader<'_>) -> Palette {
         ring: read.color("color.ring"),
         indent_guide: read.color("color.indent-guide"),
         math: read.color("color.math.bracket-1"),
+        sentence_short: read.color("color.sentence.short"),
+        sentence_medium: read.color("color.sentence.medium"),
+        sentence_long: read.color("color.sentence.long"),
+        search_match: read.color("color.search-match"),
+        backdrop: read.color("color.backdrop"),
+        popover: read.color("color.popover"),
+        shadow: read.color("color.popover-shadow"),
         callouts: read.callout_colors(),
         callout_opacity: read.number("opacity.callout"),
     }

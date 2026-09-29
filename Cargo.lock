@@ -3156,9 +3156,14 @@ version = "0.1.0"
 dependencies = [
  "editor-config",
  "editor-core",
+ "editor-export",
+ "editor-prose",
+ "editor-search",
  "editor-vault",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.21",
+ "toml 0.8.23",
  "uniffi",
 ]
 

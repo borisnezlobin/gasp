@@ -1,20 +1,37 @@
-//! UniFFI surface for the iPhone app: a vault folder's notes, one open
-//! note's render plan, and the theme. Offsets are in UTF-16 code units, as
+//! UniFFI surface for the iPhone app: a vault folder and everything done
+//! with its notes, one open note's render plan and editing commands, the
+//! command registry and the theme. Offsets are in UTF-16 code units, as
 //! UIKit counts them.
 
+mod commands;
+mod display;
 mod document;
+mod edits;
+mod export;
+mod knowledge;
+mod notes;
 mod offsets;
 mod plan;
+mod recovery;
+mod settings;
 mod theme;
 mod vault;
 
-pub use document::NoteDocument;
+pub use commands::{CommandInfo, KeyBinding};
+pub use display::SymbolVisibility;
+pub use document::{NoteDocument, OutlineHeading, SentenceLength, SentenceTint};
+pub use edits::{CommandOutcome, TextReplacement};
+pub use export::ExportedFile;
+pub use knowledge::{SearchHit, SearchResult, TagInfo};
+pub use notes::LinkDestination;
 pub use offsets::TextRange;
 pub use plan::{
     InlineStyle, LineDecoration, LinePlan, NotePlan, Placement, StyledRun, TableRow, TextAlign,
     Widget, WidgetKind,
 };
+pub use recovery::{SnapshotInfo, use_data_folder};
+pub use settings::{SettingControl, SettingItem, SettingValue};
 pub use theme::{Palette, Spacing, ThemeColor, ThemeTokens, Typography, built_in_theme};
-pub use vault::{NoteSummary, VaultError, VaultFolder};
+pub use vault::{NoteSummary, OpenTabs, VaultError, VaultFolder};
 
 uniffi::setup_scaffolding!();
