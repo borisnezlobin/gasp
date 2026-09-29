@@ -10,7 +10,7 @@
 #let settings = state("editor-settings", (print-background: false, line-height: 2))
 
 // LaTeX math converted by mitex, evaluated with its scope.
-#let m(source) = eval(source, scope: mitex-scope)
+#let m(source, scope: mitex-scope) = eval(source, scope: scope)
 
 // An equation that could not be converted is shown as its LaTeX source.
 #let math-error(source) = text(fill: rgb("#b00020"), raw(source))
