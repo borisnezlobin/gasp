@@ -4012,6 +4012,7 @@ dependencies = [
  "gasp-bench",
  "gasp-config",
  "gasp-vault",
+ "rayon",
  "tempfile",
  "unicode-normalization",
 ]

@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 gasp-config = { path = "../config" }
+rayon = "1.12"
 unicode-normalization = "0.1.25"
 
 [dev-dependencies]
