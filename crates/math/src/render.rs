@@ -1,4 +1,6 @@
-//! Layout and SVG rendering of one equation.
+//! Layout of one equation, and its SVG.
+
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use typst::introspection::Tag;
 use typst::layout::{Abs, Frame, FrameItem};
@@ -6,6 +8,7 @@ use typst_layout::Page;
 
 use crate::MathError;
 use crate::convert::latex_to_typst;
+use crate::scope::scope_for;
 use crate::world::{SCOPE_MODULE_PATH, compile_document};
 
 /// A rendered equation. Lengths are in typographic points.
@@ -38,13 +41,72 @@ pub fn render_latex(src: &str, display: bool, font_size: f64) -> Result<Rendered
 /// Renders a Typst equation literal (as returned by [`latex_to_typst`])
 /// evaluated with the mitex scope.
 pub fn render_typst(equation: &str, font_size: f64) -> Result<RenderedMath, MathError> {
+    let page = layout_typst(equation, font_size)?;
+    let metrics = Metrics::of(&page, is_display(equation));
+    Ok(RenderedMath {
+        svg: typst_svg::svg(&page, &typst_svg::SvgOptions::default()),
+        width: metrics.width,
+        height: metrics.height,
+        baseline: metrics.baseline,
+    })
+}
+
+/// Converts LaTeX math with mitex and lays it out as one page of exactly
+/// the equation's size.
+pub(crate) fn layout_latex(src: &str, display: bool, font_size: f64) -> Result<Page, MathError> {
+    let equation = latex_to_typst(src, display)?;
+    layout_typst(&equation, font_size)
+}
+
+/// Typst memoises every layout, so its memory grows with each equation
+/// seen. Every this many renders, the layouts not used in the last
+/// [`EVICTION_AGE`] rounds are let go.
+const RENDERS_BETWEEN_EVICTIONS: usize = 200;
+const EVICTION_AGE: usize = 2;
+
+static RENDERS: AtomicUsize = AtomicUsize::new(0);
+
+fn evict_now_and_then() {
+    let renders = RENDERS.fetch_add(1, Ordering::Relaxed) + 1;
+    if renders.is_multiple_of(RENDERS_BETWEEN_EVICTIONS) {
+        typst::comemo::evict(EVICTION_AGE);
+    }
+}
+
+fn layout_typst(equation: &str, font_size: f64) -> Result<Page, MathError> {
+    evict_now_and_then();
     let main = main_source(equation, font_size);
     let document = compile_document(main).map_err(MathError::Render)?;
-    let page = document
+    document
         .pages()
         .first()
-        .ok_or_else(|| MathError::Render("no page was produced".to_owned()))?;
-    Ok(rendered_page(page, is_display(equation)))
+        .cloned()
+        .ok_or_else(|| MathError::Render("no page was produced".to_owned()))
+}
+
+/// An equation's size and baseline in points.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Metrics {
+    pub width: f64,
+    pub height: f64,
+    /// Distance from the top edge to the baseline.
+    pub baseline: f64,
+}
+
+impl Metrics {
+    pub(crate) fn of(page: &Page, display: bool) -> Metrics {
+        let size = page.frame.size();
+        let baseline = if display {
+            first_group_baseline(&page.frame)
+        } else {
+            equation_tag_baseline(&page.frame)
+        };
+        Metrics {
+            width: size.x.to_pt(),
+            height: size.y.to_pt(),
+            baseline: baseline.unwrap_or(size.y).to_pt(),
+        }
+    }
 }
 
 /// Display literals are `$ … $`: Typst treats an equation that starts with
@@ -60,8 +122,9 @@ fn main_source(equation: &str, font_size: f64) -> String {
         "#import \"{SCOPE_MODULE_PATH}\": mitex-scope\n\
          #set page(width: auto, height: auto, margin: 0pt, fill: none)\n\
          #set text(size: {font_size}pt, top-edge: \"bounds\", bottom-edge: \"bounds\")\n\
-         #eval(\"{}\", scope: mitex-scope)\n",
-        escape_typst_string(equation)
+         #eval(\"{}\", scope: {})\n",
+        escape_typst_string(equation),
+        scope_for(equation)
     )
 }
 
@@ -78,21 +141,6 @@ fn escape_typst_string(text: &str) -> String {
         }
     }
     escaped
-}
-
-fn rendered_page(page: &Page, display: bool) -> RenderedMath {
-    let size = page.frame.size();
-    let baseline = if display {
-        first_group_baseline(&page.frame)
-    } else {
-        equation_tag_baseline(&page.frame)
-    };
-    RenderedMath {
-        svg: typst_svg::svg(page, &typst_svg::SvgOptions::default()),
-        width: size.x.to_pt(),
-        height: size.y.to_pt(),
-        baseline: baseline.unwrap_or(size.y).to_pt(),
-    }
 }
 
 /// A display equation's first line is a hard frame with its own baseline.
@@ -126,8 +174,8 @@ fn equation_tag_baseline(frame: &Frame) -> Option<Abs> {
 }
 
 /// Frees Typst's memoized layout results that have not been used in the last
-/// `max_age` calls to this function. Call it now and then (for example after
-/// each note is laid out) so memory does not grow without bound.
+/// `max_age` calls to this function. Rendering already does this every few
+/// hundred equations; call it to let go of more, sooner.
 pub fn evict_layout_memory(max_age: usize) {
     typst::comemo::evict(max_age);
 }
