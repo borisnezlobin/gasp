@@ -21,6 +21,18 @@ pub const RESTORE_COMMAND: &str = "note.restore-deleted";
 pub struct DeletedNote {
     pub path: PathBuf,
     pub text: String,
+    /// The notice offering to undo it, taken away once it's restored.
+    notice: Option<u64>,
+}
+
+impl DeletedNote {
+    pub fn new(path: PathBuf, text: String) -> DeletedNote {
+        DeletedNote {
+            path,
+            text,
+            notice: None,
+        }
+    }
 }
 
 impl Workspace {
@@ -34,16 +46,16 @@ impl Workspace {
 
     /// Remembers a note that just went to the trash and says so, with an
     /// Undo.
-    pub(crate) fn remember_deleted(&mut self, note: DeletedNote, cx: &mut Context<Self>) {
+    pub(crate) fn remember_deleted(&mut self, mut note: DeletedNote, cx: &mut Context<Self>) {
         let message = format!("Moved “{}” to the trash.", note_title(&note.path));
+        note.notice = Some(notices::show(
+            Notice::done(message).with_action("Undo", RESTORE_COMMAND),
+            cx,
+        ));
         self.deleted.push(note);
         if self.deleted.len() > REMEMBERED {
             self.deleted.remove(0);
         }
-        notices::show(
-            Notice::done(message).with_action("Undo", RESTORE_COMMAND),
-            cx,
-        );
     }
 
     /// Notes deleted this session, oldest first.
@@ -71,6 +83,9 @@ impl Workspace {
             return;
         }
         self.focus_active(window, cx);
+        if let Some(id) = note.notice {
+            notices::dismiss(id, cx);
+        }
         let message = format!("Restored “{}”.", note_title(&path));
         notices::show(Notice::done(message), cx);
     }
