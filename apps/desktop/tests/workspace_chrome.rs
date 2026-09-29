@@ -679,7 +679,9 @@ fn a_resize_ending_inside_the_hover_sidebar_keeps_it(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn the_tab_bar_moves_the_window_from_its_empty_space_only(cx: &mut TestAppContext) {
-    use gasp_desktop::window_drag::moves_started;
+    use gasp_desktop::window_drag::{moves_started, only_count_moves};
+
+    only_count_moves();
 
     let vault = vault_with(&[("a.md", "A"), ("b.md", "B")]);
     let (workspace, cx) = open_workspace(cx, vault.path());
