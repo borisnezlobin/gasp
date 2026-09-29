@@ -1,8 +1,10 @@
 //! Times what the iPhone asks of the core on every keystroke and cursor
-//! move: `update` with the text view's whole text, then `plan`,
-//! `sentence_tints` and `heading_folds`, each result lowered into the
-//! buffer UniFFI hands to Swift. Runs on a typical corpus note and on a
-//! long one, with sentence-length highlighting on.
+//! move: `replace` with the edit, then `plan_update` and
+//! `sentence_tints`, each result lowered into the buffer UniFFI hands to
+//! Swift. Runs on a typical corpus note and on a long one, with
+//! sentence-length highlighting on. Then making, renaming and trashing a
+//! note in a vault of three copies of the corpus, each followed by the
+//! backlinks the sidebar asks for.
 //!
 //! `cargo run --release -p gasp-ffi --example ffi_bench`
 //!
@@ -11,7 +13,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use gasp_bench::corpus::{ScratchDir, corpus_notes, long_note};
+use gasp_bench::corpus::{ScratchDir, copy_corpus, corpus_notes, long_note};
 use gasp_bench::{CountingAllocator, Report, Samples, Stopwatch};
 use gasp_ffi::{NoteDocument, TextRange, UniFfiTag, VaultFolder};
 
@@ -49,6 +51,7 @@ fn main() {
     );
     let long = long_note(200 * 1024);
     phone_benches("200 KB note", &long, &vault, &mut report, Budgets::LONG);
+    note_operation_benches(&mut report);
     report.finish();
 }
 
@@ -98,7 +101,7 @@ fn phone_benches(
     };
     let (document, kept) = CountingAllocator::measure(|| {
         let document = vault.document(text.to_owned());
-        drop(document.plan(at_cursor));
+        drop(document.plan_update(at_cursor, false));
         document
     });
     report.note_bytes(
@@ -110,9 +113,9 @@ fn phone_benches(
     let mut phases = PhaseTimes::default();
     let (_, stats) = CountingAllocator::measure(|| {
         for key in TYPED.chars().cycle().take(KEYS) {
-            let new_text = typing.press(key);
+            let (range, typed) = typing.press(key);
             let started = Stopwatch::start();
-            phases.update.time(|| document.update(new_text));
+            phases.edit.time(|| document.replace(range, typed));
             let selection = typing.selection();
             ask_for_drawing(&document, selection, &mut phases);
             keystrokes.push(started.elapsed());
@@ -146,11 +149,10 @@ fn phone_benches(
 
 /// What the phone's `restyle` asks for, lowered as UniFFI returns it.
 fn ask_for_drawing(document: &Arc<NoteDocument>, selection: TextRange, phases: &mut PhaseTimes) {
-    let plan = phases.plan.time(|| document.plan(selection));
+    let plan = phases.plan.time(|| document.plan_update(selection, false));
     let plan = phases.plan_lowering.time(|| lowered(plan));
     let tints = phases.tints.time(|| lowered(document.sentence_tints()));
-    let folds = phases.folds.time(|| lowered(document.heading_folds()));
-    phases.buffer_bytes = plan + tints + folds;
+    phases.buffer_bytes = plan + tints;
 }
 
 /// The size of the buffer UniFFI would hand to Swift for `value`.
@@ -161,21 +163,19 @@ fn lowered<T: uniffi::Lower<UniFfiTag>>(value: T) -> usize {
 
 #[derive(Default)]
 struct PhaseTimes {
-    update: Samples,
+    edit: Samples,
     plan: Samples,
     plan_lowering: Samples,
     tints: Samples,
-    folds: Samples,
     buffer_bytes: usize,
 }
 
 impl PhaseTimes {
     fn report(&self, label: &str, report: &mut Report) {
         for (name, samples) in [
-            ("update", &self.update),
+            ("edit", &self.edit),
             ("plan", &self.plan),
             ("sentence tints", &self.tints),
-            ("heading folds", &self.folds),
             ("lowering the plan", &self.plan_lowering),
         ] {
             report.note_time(format!("{label}: {name}, median"), samples.median());
@@ -203,11 +203,13 @@ impl Typing {
         }
     }
 
-    fn press(&mut self, key: char) -> String {
+    /// Types `key` at the cursor, answering the edit the text view reports.
+    fn press(&mut self, key: char) -> (TextRange, String) {
         self.text.insert(self.at, key);
         self.at += key.len_utf8();
+        let at = self.cursor_utf16;
         self.cursor_utf16 += key.len_utf16() as u32;
-        self.text.clone()
+        (TextRange { start: at, end: at }, key.to_string())
     }
 
     fn selection(&self) -> TextRange {
@@ -220,4 +222,45 @@ impl Typing {
 
 fn utf16_len(text: &str) -> u32 {
     text.encode_utf16().count() as u32
+}
+
+const NOTE_OPERATIONS: usize = 20;
+
+/// Making, renaming and trashing a note, each followed by the backlinks
+/// the sidebar shows, in a vault of three copies of the corpus.
+fn note_operation_benches(report: &mut Report) {
+    let scratch = ScratchDir::new("ffi-notes");
+    copy_corpus(scratch.path(), 3);
+    let settings = scratch.path().join(".gasp/settings.toml");
+    std::fs::create_dir_all(settings.parent().expect("a parent")).expect("the folder is made");
+    std::fs::write(settings, "[files]\ntrash = \"vault\"\n").expect("the settings write");
+    let vault = VaultFolder::open(scratch.path().to_string_lossy().into_owned())
+        .expect("the corpus vault opens");
+    let linked = "Summary.md".to_owned();
+    vault.backlinks(linked.clone());
+    let (mut created, mut renamed, mut trashed) = (Samples::new(), Samples::new(), Samples::new());
+    for round in 0..NOTE_OPERATIONS {
+        let path = created.time(|| {
+            let path = vault
+                .create_note(String::new(), Some(format!("Bench {round}")))
+                .expect("the note is made");
+            vault.backlinks(linked.clone());
+            path
+        });
+        let path = renamed.time(|| {
+            let path = vault
+                .rename_note(path, format!("Renamed {round}"))
+                .expect("the note is renamed");
+            vault.backlinks(linked.clone());
+            path
+        });
+        trashed.time(|| {
+            vault.trash_note(path).expect("the note is trashed");
+            vault.backlinks(linked.clone())
+        });
+    }
+    let budget = Duration::from_millis(20);
+    report.time("new note, then backlinks, median", created.median(), budget);
+    report.time("rename, then backlinks, median", renamed.median(), budget);
+    report.time("trash, then backlinks, median", trashed.median(), budget);
 }

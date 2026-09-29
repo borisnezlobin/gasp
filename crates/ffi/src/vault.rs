@@ -139,6 +139,12 @@ impl VaultFolder {
         NoteDocument::with_display(text, self.display.clone())
     }
 
+    /// Reads the notes and files at `paths` again after something other
+    /// than this vault changed them, such as a sync.
+    pub fn files_changed(&self, paths: Vec<String>) {
+        self.reindex(&paths);
+    }
+
     /// Reads `.gasp/` again, after its files changed.
     pub fn reload_config(&self) {
         let config = load_config(&self.root);
@@ -211,9 +217,34 @@ impl VaultFolder {
         index
     }
 
-    /// Forgets the link index after files move, so it's built again.
-    pub(crate) fn forget_index(&self) {
-        *self.index() = None;
+    /// Reads the files at `paths` into the link index again, or forgets
+    /// the ones that are gone, if the index has been built. Only what
+    /// changed is read, so making, renaming or trashing a note costs the
+    /// notes it touches rather than the whole vault.
+    pub(crate) fn reindex(&self, paths: &[String]) {
+        let mut index = self.index();
+        let Some(index) = index.as_mut() else {
+            return;
+        };
+        for path in paths {
+            let full = self.root.join(path);
+            if !full.is_file() {
+                index.remove(path);
+            } else if !is_note_path(path) {
+                index.add_file(path);
+            } else if let Ok(text) = std::fs::read_to_string(&full) {
+                index.set_note(path, text);
+            }
+        }
+    }
+
+    /// Follows a note moving from `from` to `to` in the link index, and
+    /// reads again the notes whose links the move rewrote.
+    pub(crate) fn reindex_move(&self, from: &str, to: &str, rewritten: &[String]) {
+        if let Some(index) = self.index().as_mut() {
+            index.rename(from, to);
+        }
+        self.reindex(rewritten);
     }
 
     pub(crate) fn summary(&self, path: String) -> NoteSummary {

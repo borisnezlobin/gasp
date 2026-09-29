@@ -49,9 +49,14 @@ impl VaultFolder {
             .strip_prefix(&self.root)
             .unwrap_or(Path::new(""));
         let name = unique_name(&self.root, relative_folder, &base, EntryKind::Note);
-        let created = ops::create(&self.root, relative_folder, &name, EntryKind::Note)?;
-        self.forget_index();
-        Ok(slash_path(&created))
+        let created = slash_path(&ops::create(
+            &self.root,
+            relative_folder,
+            &name,
+            EntryKind::Note,
+        )?);
+        self.reindex(std::slice::from_ref(&created));
+        Ok(created)
     }
 
     /// Gives a note a new title in the same folder, updating links to it
@@ -66,8 +71,14 @@ impl VaultFolder {
         if let Some(store) = self.snapshot_store() {
             store.moved(&renamed.from, &renamed.to).ok();
         }
-        self.forget_index();
-        Ok(slash_path(&renamed.to))
+        let (from, to) = (slash_path(&renamed.from), slash_path(&renamed.to));
+        let rewritten: Vec<String> = renamed
+            .updated_notes
+            .iter()
+            .map(|note| slash_path(note))
+            .collect();
+        self.reindex_move(&from, &to, &rewritten);
+        Ok(to)
     }
 
     /// Moves a note to the trash that `files.trash` names; on the phone the
@@ -76,7 +87,7 @@ impl VaultFolder {
         self.note_path(&path)?;
         let mode = self.config().settings.files.trash;
         ops::trash(&self.root, Path::new(&path), mode)?;
-        self.forget_index();
+        self.reindex(&[path]);
         Ok(())
     }
 
@@ -89,10 +100,11 @@ impl VaultFolder {
             &settings.templates,
             dates::now(),
         )?;
+        let relative = self.relative(&path);
         if created {
-            self.forget_index();
+            self.reindex(std::slice::from_ref(&relative));
         }
-        Ok(self.relative(&path))
+        Ok(relative)
     }
 
     /// The templates in the templates folder, without `.md`.
@@ -164,7 +176,7 @@ impl VaultFolder {
                 std::fs::create_dir_all(parent)?;
             }
             std::fs::write(&path, "")?;
-            self.forget_index();
+            self.reindex(std::slice::from_ref(&relative));
         }
         Ok(LinkDestination::Note {
             path: relative,
@@ -202,6 +214,58 @@ mod tests {
             .unwrap();
         assert_eq!(renamed, "Tides.md");
         assert_eq!(vault.read_note("Index.md".into()).unwrap(), "see [[Tides]]");
+    }
+
+    /// Everything the index answers, as a fresh index of the same files
+    /// would answer it.
+    fn assert_index_is_fresh(dir: &tempfile::TempDir, vault: &VaultFolder) {
+        let fresh = VaultFolder::open(dir.path().to_string_lossy().into_owned()).unwrap();
+        let paths: Vec<String> = fresh.notes().into_iter().map(|note| note.path).collect();
+        for path in paths {
+            assert_eq!(
+                vault.backlinks(path.clone()),
+                fresh.backlinks(path.clone()),
+                "{path}"
+            );
+            assert_eq!(
+                vault.outgoing_links(path.clone()),
+                fresh.outgoing_links(path.clone()),
+                "{path}"
+            );
+        }
+        assert_eq!(vault.tags(), fresh.tags());
+        assert_eq!(vault.search("#tide".into()), fresh.search("#tide".into()));
+    }
+
+    #[test]
+    fn making_moving_and_trashing_notes_keeps_the_index_as_fresh() {
+        let (dir, vault) = vault_with(&[
+            ("Waves.md", "see [[Tides]] #tide"),
+            ("Index.md", "see [[Waves]] and [[Missing]]"),
+            ("Deep/Other.md", "[[Waves#Speed]] #tide/low"),
+            (".gasp/settings.toml", "[files]\ntrash = \"vault\"\n"),
+        ]);
+        assert_eq!(vault.backlinks("Waves.md".into()).len(), 2);
+        let tides = vault
+            .create_note(String::new(), Some("Tides".into()))
+            .unwrap();
+        assert_index_is_fresh(&dir, &vault);
+        vault
+            .rename_note("Waves.md".into(), "Swell".into())
+            .unwrap();
+        assert_index_is_fresh(&dir, &vault);
+        vault
+            .resolve_link("Index.md".into(), "Missing".into())
+            .unwrap();
+        assert_index_is_fresh(&dir, &vault);
+        vault.daily_note().unwrap();
+        assert_index_is_fresh(&dir, &vault);
+        vault.trash_note(tides).unwrap();
+        assert_index_is_fresh(&dir, &vault);
+        std::fs::write(dir.path().join("Deep/Other.md"), "now [[Index]] #sea").unwrap();
+        std::fs::write(dir.path().join("Synced.md"), "[[Swell]]").unwrap();
+        vault.files_changed(vec!["Deep/Other.md".into(), "Synced.md".into()]);
+        assert_index_is_fresh(&dir, &vault);
     }
 
     #[test]
