@@ -233,8 +233,15 @@ impl Workspace {
     /// the note counts as the panel for hover reveal.
     fn render_panel_edge(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = &self.theme.workspace;
+        let group: SharedString = "left-panel-edge".into();
+        let dragging = self.drag == Some(Drag::Sidebar);
+        let ui = ui_theme(cx);
+        let line = resize_line(group.clone(), dragging, theme.divider_grab_width, &ui);
         div()
             .id("left-panel-edge")
+            .selector(|| "left-panel-edge".to_owned())
+            .group(group)
+            .child(line)
             .absolute()
             .top_0()
             .bottom_0()
@@ -332,6 +339,27 @@ impl Workspace {
         .size_full();
         Some(tracker.into_any_element())
     }
+}
+
+/// The line a sidebar's resize strip shows under the pointer and while
+/// it's dragged, as a divider between panes does, so the strip is
+/// findable. `group` is the strip's hover group; `grab` its width.
+pub(super) fn resize_line(
+    group: SharedString,
+    dragging: bool,
+    grab: gpui::Pixels,
+    ui: &crate::theme::UiTheme,
+) -> gpui::Div {
+    let inset = (grab - ui.divider_line_width) / 2.;
+    div()
+        .absolute()
+        .top_0()
+        .bottom_0()
+        .left(inset)
+        .w(ui.divider_line_width)
+        .rounded_full()
+        .when(dragging, |line| line.bg(ui.divider_active))
+        .group_hover(group, |style| style.bg(ui.divider_active))
 }
 
 impl Workspace {

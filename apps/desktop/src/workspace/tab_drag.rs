@@ -224,8 +224,7 @@ impl Pane {
             .absolute()
             .rounded(ui.surface_radius)
             .bg(ui.drop_zone)
-            .border_1()
-            .border_color(ui.drop_zone_ring)
+            .shadow(vec![ui.ring(ui.drop_zone_ring)])
             .with_animation(
                 motion,
                 Animation::new(ui.drop_zone_motion).with_easing(ease_out_quint()),
