@@ -1,6 +1,6 @@
 //! Small drawings the tour explains things with: sheets of paper with
-//! lines of text on them, a folder, a laptop, a phone, a repository and a
-//! Keychain prompt. They're drawn from the theme's own surfaces and fills,
+//! lines of text on them, a folder, a laptop, a phone and a Keychain
+//! prompt. They're drawn from the theme's own surfaces and fills,
 //! so they look like the app in both themes.
 
 use gpui::{Div, Hsla, Pixels, div, prelude::*};
@@ -174,24 +174,6 @@ fn screen_note(width: Pixels, ui: &UiTheme) -> Div {
         .child(heading_bar(inner * 0.6, ui))
         .child(text_bar(inner, ui))
         .child(text_bar(inner * 0.7, ui))
-}
-
-/// A repository: a stack of versions, the newest on top.
-pub fn repository(width: Pixels, ui: &UiTheme) -> Div {
-    let layer = |shift: f32| {
-        div()
-            .absolute()
-            .left(width * shift)
-            .top(width * shift)
-            .child(note(width * 0.8, &[0.8, 0.6], ui))
-    };
-    div()
-        .relative()
-        .w(width)
-        .h(width * 0.95)
-        .child(layer(0.))
-        .child(layer(0.08))
-        .child(layer(0.16))
 }
 
 /// The Keychain's question, with `Always Allow` ringed in the caret's red
