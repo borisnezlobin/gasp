@@ -75,7 +75,14 @@ final class TableGridView: UIScrollView, UIContextMenuInteractionDelegate {
     var tableStart: UInt32
     weak var host: TableGridHost?
     /// What the grid draws; it's drawn at its rows' place by `update`.
-    var model: TableGridModel
+    var model: TableGridModel {
+        didSet { modelChanged = true }
+    }
+    private var modelChanged = true
+    /// Where the rows were last drawn, so placing them again where they
+    /// already are draws nothing.
+    private var drawnRows: [CGRect] = []
+    private var drawnInset: CGFloat = -1
     private let tokens: Tokens
     private let content: TableGridContent
     private var editor: CellEditor?
@@ -103,9 +110,22 @@ final class TableGridView: UIScrollView, UIContextMenuInteractionDelegate {
         fatalError("Grids aren't decoded")
     }
 
+    /// Takes the model of the same table after text before it moved, which
+    /// draws the same.
+    func follow(_ moved: TableGridModel) {
+        let redraw = modelChanged
+        model = moved
+        modelChanged = redraw
+    }
+
     /// Draws the model with each row at its line's place, given as the top
     /// and height of each row relative to the grid.
     func update(rows: [(top: CGFloat, height: CGFloat)], sideInset: CGFloat) {
+        let placed = rows.map { CGRect(x: 0, y: $0.top, width: 0, height: $0.height) }
+        guard modelChanged || placed != drawnRows || sideInset != drawnInset else { return }
+        modelChanged = false
+        drawnRows = placed
+        drawnInset = sideInset
         content.lay(model, rows: rows)
         contentInset = UIEdgeInsets(top: 0, left: sideInset, bottom: 0, right: sideInset)
         contentSize = content.bounds.size

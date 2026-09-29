@@ -18,20 +18,47 @@ extension EditingController: TableGridHost {
             grid.removeFromSuperview()
             tableGrids[start] = nil
         }
+        let moved = Set(styler.movedGrids.values)
         for (start, model) in models {
-            let existing = tableGrids[start]
-            let grid = existing ?? makeGrid(start, model)
-            grid.model = model
-            tableGrids[start] = grid
-            // Grids that only moved are placed with the rest once the text
-            // is laid out again.
-            if existing == nil || styler.laidOutGrids.contains(start) { place(grid) }
+            guard let grid = tableGrids[start] else {
+                let grid = makeGrid(start, model)
+                tableGrids[start] = grid
+                place(grid)
+                continue
+            }
+            if styler.laidOutGrids.contains(start) {
+                grid.model = model
+                place(grid)
+            } else if moved.contains(start) {
+                // Placed with the rest once the text is laid out again.
+                grid.follow(model)
+            }
         }
     }
 
     /// Moves every grid onto its rows, after the text was laid out again.
     func placeTableGrids() {
         tableGrids.values.forEach(place)
+    }
+
+    /// The text the viewport shows, in UTF-16 offsets, or `nil` before any
+    /// layout.
+    private var viewportCharacters: NSRange? {
+        guard let manager = textView.textLayoutManager, let storage = manager.textContentManager,
+              let viewport = manager.textViewportLayoutController.viewportRange else { return nil }
+        let start = storage.offset(from: storage.documentRange.location, to: viewport.location)
+        let end = storage.offset(from: storage.documentRange.location, to: viewport.endLocation)
+        return NSRange(location: start, length: max(end - start, 0))
+    }
+
+    /// Whether any of the grid's rows are where the viewport lays text out.
+    /// Asking TextKit where rows elsewhere are would lay the text out up to
+    /// them.
+    private func isInViewport(_ grid: TableGridView) -> Bool {
+        guard let viewport = viewportCharacters, let first = grid.model.rows.first,
+              let last = grid.model.rows.last else { return false }
+        let table = NSRange(location: first.line.location, length: NSMaxRange(last.line) - first.line.location)
+        return NSIntersectionRange(table, viewport).length > 0 || NSLocationInRange(table.location, viewport)
     }
 
     private func makeGrid(_ start: UInt32, _ model: TableGridModel) -> TableGridView {
@@ -44,6 +71,10 @@ extension EditingController: TableGridHost {
     /// Lines the grid up with its rows' lines, or hides it while they
     /// aren't laid out.
     private func place(_ grid: TableGridView) {
+        guard isInViewport(grid) else {
+            grid.isHidden = true
+            return
+        }
         let frames = grid.model.rows.map { rowFrame($0.line.location) }
         guard let first = frames.first ?? nil, frames.allSatisfy({ $0 != nil }) else {
             grid.isHidden = true
