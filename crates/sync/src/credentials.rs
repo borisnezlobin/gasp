@@ -64,6 +64,63 @@ impl CredentialStore for InMemoryCredentialStore {
     }
 }
 
+/// The name tokens are filed under in the system's credential store, keyed
+/// by the remote's URL.
+pub const KEYCHAIN_SERVICE: &str = "editor-sync";
+
+/// The system's credential store: the Keychain on macOS and iOS,
+/// Credential Manager on Windows.
+#[cfg(all(
+    feature = "keychain",
+    any(target_os = "macos", target_os = "ios", target_os = "windows")
+))]
+pub struct KeychainStore;
+
+#[cfg(all(
+    feature = "keychain",
+    any(target_os = "macos", target_os = "ios", target_os = "windows")
+))]
+impl KeychainStore {
+    fn entry(remote_url: &str) -> SyncResult<keyring::Entry> {
+        keyring::Entry::new(KEYCHAIN_SERVICE, remote_url).map_err(keychain_error)
+    }
+}
+
+#[cfg(all(
+    feature = "keychain",
+    any(target_os = "macos", target_os = "ios", target_os = "windows")
+))]
+fn keychain_error(error: keyring::Error) -> crate::error::SyncError {
+    crate::error::SyncError::Io(std::io::Error::other(error.to_string()))
+}
+
+#[cfg(all(
+    feature = "keychain",
+    any(target_os = "macos", target_os = "ios", target_os = "windows")
+))]
+impl CredentialStore for KeychainStore {
+    fn load(&self, remote_url: &str) -> SyncResult<Option<Token>> {
+        match Self::entry(remote_url)?.get_password() {
+            Ok(secret) => Ok(Some(Token::new(secret))),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(error) => Err(keychain_error(error)),
+        }
+    }
+
+    fn save(&self, remote_url: &str, token: &Token) -> SyncResult<()> {
+        Self::entry(remote_url)?
+            .set_password(token.secret())
+            .map_err(keychain_error)
+    }
+
+    fn delete(&self, remote_url: &str) -> SyncResult<()> {
+        match Self::entry(remote_url)?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(error) => Err(keychain_error(error)),
+        }
+    }
+}
+
 /// GitHub accepts any user name with a token; this is the conventional one.
 const TOKEN_USER: &str = "x-access-token";
 

@@ -15,13 +15,19 @@ mod error;
 mod line_merge;
 mod message;
 mod parked;
+pub mod phase;
 mod policy;
 mod runner;
 mod scheduler;
 mod vault;
 
 pub use conflict::{ConflictHunk, ConflictedFile, MarkedHunk, MarkedText, Resolution, Segment};
-pub use credentials::{CredentialStore, InMemoryCredentialStore, Token};
+#[cfg(all(
+    feature = "keychain",
+    any(target_os = "macos", target_os = "ios", target_os = "windows")
+))]
+pub use credentials::KeychainStore;
+pub use credentials::{CredentialStore, InMemoryCredentialStore, KEYCHAIN_SERVICE, Token};
 pub use device_files::{DEFAULT_DEVICE_ONLY_GLOBS, DeviceOnlyFiles};
 pub use error::{SyncError, SyncResult};
 pub use line_merge::{LineMerge, merge_lines};
