@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use gasp_config::command_name;
 
 use crate::bench::BenchConfig;
+use crate::snapshot::SnapshotRequest;
 
 pub const USAGE: &str = concat!(
     "usage: ",
@@ -14,6 +15,8 @@ pub const USAGE: &str = concat!(
     " --bench-layout PATH [--keystrokes N] [--scroll-pages N] [--in-code] [--in-math] [--in-table] [--no-prose]\n       ",
     command_name!(),
     " --bench-index VAULT\n       ",
+    command_name!(),
+    " --snapshot NOTE OUT.png [--width N] [--height N] [--theme light|dark] [--cursor LINE:COL]\n       ",
     command_name!(),
     " mcp [VAULT]
 
@@ -29,6 +32,12 @@ math block, where snippets and the math helpers do the most work, and
 tints and grammar flags off, to measure what they cost. With
 EDITOR_TRACE_KEYS=1 it also lists where each keystroke's time went. On
 Linux without a display, run it under xvfb-run.
+
+--snapshot draws NOTE's editor, as its vault's theme and settings
+show it, into OUT.png without showing a window or taking focus. The
+window is 900 by 700 unless --width and --height say otherwise, and the
+image is at the display's scale. --cursor puts the caret at a line and
+column, counted from 1, with the editor focused. macOS only for now.
 
 --bench-index builds VAULT's link index and prints how long that, a
 save, a backlinks list, an unlinked-mentions search and a rename take.
@@ -48,6 +57,8 @@ pub enum Command {
         config: BenchConfig,
     },
     BenchIndex(PathBuf),
+    /// `gasp --snapshot`: a note drawn to a PNG with no window shown.
+    Snapshot(SnapshotRequest),
     /// `gasp mcp`: the MCP server on stdio for a vault, or the last one.
     Mcp(Option<PathBuf>),
     Help,
@@ -63,6 +74,7 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
             [vault] => Ok(Command::BenchIndex(PathBuf::from(vault))),
             _ => Err("--bench-index needs one vault".to_owned()),
         },
+        Some("--snapshot") => parse_snapshot(&args[1..]),
         Some("mcp") => parse_mcp(&args[1..]),
         Some(flag) if flag.starts_with("--") => Err(format!("unknown option {flag}")),
         Some(path) if args.len() == 1 => Ok(Command::Open(Some(PathBuf::from(path)))),
@@ -76,6 +88,61 @@ fn parse_mcp(args: &[String]) -> Result<Command, String> {
         [vault] => Ok(Command::Mcp(Some(PathBuf::from(vault)))),
         _ => Err("mcp takes at most one vault".to_owned()),
     }
+}
+
+fn parse_snapshot(args: &[String]) -> Result<Command, String> {
+    let [note, out, options @ ..] = args else {
+        return Err("--snapshot needs a note and a PNG to write".to_owned());
+    };
+    let mut request = SnapshotRequest::new(PathBuf::from(note), PathBuf::from(out));
+    for pair in options.chunks(2) {
+        let [flag, value] = pair else {
+            return Err(format!("{} needs a value", pair[0]));
+        };
+        apply_snapshot_option(&mut request, flag, value)?;
+    }
+    Ok(Command::Snapshot(request))
+}
+
+fn apply_snapshot_option(
+    request: &mut SnapshotRequest,
+    flag: &str,
+    value: &str,
+) -> Result<(), String> {
+    let pixels = || match value.parse::<u32>() {
+        Ok(pixels) if pixels >= 1 => Ok(pixels),
+        _ => Err(format!("{flag} needs a size in pixels, not {value}")),
+    };
+    match flag {
+        "--width" => request.width = pixels()?,
+        "--height" => request.height = pixels()?,
+        "--theme" => request.dark = parse_theme(value)?,
+        "--cursor" => request.cursor = Some(parse_line_column(value)?),
+        _ => return Err(format!("unknown option {flag}")),
+    }
+    Ok(())
+}
+
+/// Whether `--theme` asks for dark.
+fn parse_theme(value: &str) -> Result<bool, String> {
+    match value {
+        "light" => Ok(false),
+        "dark" => Ok(true),
+        _ => Err(format!("--theme is light or dark, not {value}")),
+    }
+}
+
+/// `LINE:COL`, both counted from one.
+fn parse_line_column(value: &str) -> Result<(usize, usize), String> {
+    let wrong = || format!("--cursor needs LINE:COL, such as 12:3, not {value}");
+    let (line, column) = value.split_once(':').ok_or_else(wrong)?;
+    let number = |text: &str| {
+        text.parse::<usize>()
+            .ok()
+            .filter(|&n| n >= 1)
+            .ok_or_else(wrong)
+    };
+    Ok((number(line)?, number(column)?))
 }
 
 fn parse_bench(args: &[String]) -> Result<Command, String> {
@@ -176,6 +243,36 @@ mod tests {
             Ok(Command::Mcp(Some(PathBuf::from("notes"))))
         );
         assert!(parse(&args(&["mcp", "a", "b"])).is_err());
+    }
+
+    #[test]
+    fn snapshot_takes_a_note_an_image_and_options() {
+        let parsed = parse(&args(&["--snapshot", "a.md", "a.png"]));
+        let Ok(Command::Snapshot(request)) = parsed else {
+            panic!("expected a snapshot command");
+        };
+        assert_eq!(request, SnapshotRequest::new("a.md".into(), "a.png".into()));
+        let parsed = parse(&args(&[
+            "--snapshot",
+            "a.md",
+            "a.png",
+            "--width",
+            "600",
+            "--theme",
+            "dark",
+            "--cursor",
+            "12:3",
+        ]));
+        let Ok(Command::Snapshot(request)) = parsed else {
+            panic!("expected a snapshot command");
+        };
+        assert_eq!(request.width, 600);
+        assert!(request.dark);
+        assert_eq!(request.cursor, Some((12, 3)));
+        assert!(parse(&args(&["--snapshot", "a.md"])).is_err());
+        assert!(parse(&args(&["--snapshot", "a.md", "a.png", "--cursor", "0:1"])).is_err());
+        assert!(parse(&args(&["--snapshot", "a.md", "a.png", "--theme", "sepia"])).is_err());
+        assert!(parse(&args(&["--snapshot", "a.md", "a.png", "--height"])).is_err());
     }
 
     #[test]

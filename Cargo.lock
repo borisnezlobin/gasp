@@ -3871,6 +3871,7 @@ dependencies = [
  "gpui",
  "image",
  "jiff",
+ "metal 0.29.0",
  "notify",
  "objc",
  "raw-window-handle",
