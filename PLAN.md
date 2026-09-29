@@ -19,7 +19,7 @@ The workspace, CI and the synthetic corpus exist, the Linux-runnable Phase 0 spi
 | 4 Search and prose | vault search with an in-memory index (not Tantivy yet), sentence-length highlighting, grammar layers 1 and 2 (Harper's mechanical checks and vault-learned spelling); the local grammar model and OCR aren't started |
 | 5 Export | PDF (Typst) and HTML for the website built; the website still needs `crates/export/assets/article.css` and its drop-cap script updated |
 | 6 MCP and headless modes | MCP server built (`editor mcp`): note, attachment, link, config and render tools, plus a bridge to the running app for its state, commands and unsaved notes. The other headless modes and app screenshots aren't started |
-| 7 iPhone | not started |
+| 7 iPhone | built as a browser on the core (UniFFI, SwiftUI, TextKit 2): tabs with an overview, an edge-swipe sidebar (search, files, outline, links, tags), live preview from the core's planner, the keyboard bar from `mobile.toolbar`, find and replace, and every registry command but panes and sync through the palette, the bar or hardware keys. Math shows as TeX, images as placeholders; sync, OCR and a scrolling table grid aren't on the phone yet. Runs in the simulator; not yet run on the owner's iPhone |
 | 8 Plugins and agents | not started |
 
 Update this table, and the phase's section, when work lands.
@@ -60,6 +60,19 @@ python3 scripts/check-complexity.py               # the complexity limit
 On Linux, GPUI needs `libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev libssl-dev clang` (the CI workflow installs the same list).
 
 On macOS, GPUI compiles its Metal shaders at build time, so it needs Apple's Metal Toolchain (Xcode, then `xcodebuild -downloadComponent MetalToolchain` if the build asks for it). Without it, build with `cargo run -p editor-desktop --features runtime-shaders`, which compiles the shaders when the app starts instead.
+
+The iPhone app needs a Mac with Xcode and XcodeGen (`brew install xcodegen`):
+
+```
+apps/ios/scripts/build-core.sh          # the Rust core for iPhone and simulator, with Swift bindings
+cd apps/ios && xcodegen generate        # Editor.xcodeproj from project.yml
+apps/ios/scripts/run-simulator.sh       # build, install and launch on a simulator, headless
+open -a Simulator                       # to watch it
+```
+
+`build-core.sh` runs again after any change to the Rust code (`--debug` builds faster and runs slower). The core, the bindings and the Xcode project are generated, so git ignores them. `xcrun simctl launch <device> com.borisnezlobin.editor -open 'editor://open?path=Summary.md&line=3' -run palette.open` opens a note with the cursor on a line and runs a command, which is how the screenshots are taken: `xcrun simctl io <device> screenshot shot.png`.
+
+To run it on your iPhone: plug it in, turn on Developer Mode (Settings › Privacy & Security), open `apps/ios/Editor.xcodeproj`, pick the phone as the destination and press Run. The project already uses team `XY4F56L5NQ` with automatic signing and the bundle ID `com.borisnezlobin.editor`; the first time, Xcode registers the phone with the team, and the phone asks you to trust the developer in Settings › General › VPN & Device Management.
 
 ### First tasks
 
@@ -573,7 +586,55 @@ Still to do in this phase: screenshots of the running app, plugin tools (Phase 8
 
 ### Phase 7: iPhone
 
-This is the SwiftUI and TextKit 2 app on the same core, with your mobile toolbar (attach file, indent, unindent, callout, inline math, footnote, sentence highlighting, table), sync on open and close, search and export. It's done when it replaces Obsidian and GitSync on your phone.
+This is the SwiftUI and TextKit 2 app on the same core, with your mobile toolbar (attach file, indent, unindent, callout, inline math, footnote, sentence highlighting, table), sync on open and close, search and export. It's done when it replaces Obsidian and GitSync on your phone. Build and run instructions are in [Building and running](#building-and-running).
+
+**How it's put together.** `apps/ios` is an XcodeGen project (`project.yml`) for the app Editor, bundle ID `com.borisnezlobin.editor`, team `XY4F56L5NQ`, iOS 17 and up. `crates/ffi` is the whole bridge: a UniFFI surface with offsets in UTF-16, as UIKit counts them. `apps/ios/scripts/build-core.sh` builds it with `cargo rustc --crate-type staticlib` for `aarch64-apple-ios` and `aarch64-apple-ios-sim`, generates the Swift bindings with `tools/uniffi-bindgen` (UniFFI 0.32, library mode), and packs `apps/ios/Core/EditorCore.xcframework`. The phone decides nothing about Markdown itself:
+
+| FFI object | What the phone gets from the core |
+|---|---|
+| `NoteDocument` | The note's text and syntax tree, kept in step with the text view (each change reparses only the blocks it touched); the render plan for a selection, read with the vault's `markdown.symbols` settings; every editing command in the registry, returned as UTF-16 replacements the text view applies as one undo step; the outline; the link and card address under the cursor; sentence lengths |
+| `VaultFolder` | Notes and folders; reading and atomic saving; the theme tokens and `appearance.base-font-size`; the command registry as the phone sees it, the iOS key bindings and `mobile.toolbar`; making, renaming (with link updates) and trashing notes; daily notes, templates, attached images and link resolution; backlinks, outgoing links, tags and the desktop's search; settings from the schema and writing them back; open tabs in `.editor/device.toml`; recovery snapshots; HTML and PDF export |
+
+To give the phone the desktop's behaviour rather than a copy of it, code that lived in the desktop app moved into shared crates: daily notes, templates, Moment.js dates, recovery snapshots, attachment naming and note link resolution into `editor-vault`; the reveal settings for `markdown.symbols` and the link-card metadata parser into `editor-core`. The desktop re-exports them. The registry gained `format.callout` (Obsidian's Insert callout, bound on the desktop too), `keyboard.hide` on iOS, and Look up on iOS as well as macOS.
+
+**Drawing.** A `UITextView` on TextKit 2 keeps the note's exact source in its storage and styles it from the core's plan: fonts and colours from the theme tokens (Charter, Courier New, heading scales, line heights), hidden markup drawn tiny and clear, and only lines whose plan changed restyled. `NSTextContentStorageDelegate` draws substitutes of the same length (a bullet for `-`, an SF Symbol checkbox for `[x]`, tabs between table cells) and leaves out collapsed lines; an `NSTextLayoutFragment` subclass draws code block and callout surfaces, quote bars, rules and a table's header line. Checkboxes toggle on a tap. Tables that fit are laid out in columns with tab stops; wider ones read as rows with faint pipes. Math blocks and inline math show their TeX in the math colour, images show a placeholder with their name, and link cards their title, description and address.
+
+**The browser.** The app works like Safari rather than a list you drill into:
+
+- *Tabs.* Several notes stay open, each with its own editing session (cursor, scroll, undo) and back and forward history. The bar at the bottom names the note showing; swiping it moves to the neighbouring tab and tapping it opens the overview, a grid of note cards to switch to, close or add. A new tab opens on a search and the recent notes. Open tabs are saved per device in `.editor/device.toml`, which never syncs. The bar hides while the keyboard is up.
+- *Sidebar.* A swipe in from the left edge (or the bar's sidebar button) slides it over the note, above a dimmed backdrop that a tap or swipe closes. It holds the vault search (by name, text, or `tag:`), the file tree, the note's outline, its backlinks and outgoing links, and the vault's tags, with new note, today's note and settings at its foot. There's no navigation stack, so nothing else claims that edge.
+- *Keyboard bar.* An `inputAccessoryView` above the software keyboard, scrolling sideways, whose buttons are the commands in the `mobile.toolbar` setting. The default is Obsidian's mobile toolbar after "hide the keyboard" (insert image, indent, outdent, callout, inline math, footnote, sentence highlighting, table), then find, undo, redo, bold, italic, highlight, link, inline code, task, and the palette. Reorder or trim it in `.editor/settings.toml`; the desktop's settings screen leaves this setting out.
+- *Palette.* Every command the phone has, searchable, grouped by category, with its hardware key.
+- *Find.* UIKit's find navigator, with next, previous and replace.
+- *Hardware keyboard.* The desktop keymap's iOS bindings become key commands (hidden SwiftUI shortcut buttons), so they also list in the overlay shown while Command is held. Arrows, deleting and plain Tab and Escape stay with the text view.
+- *Reading.* While the keyboard is away, a tap on a link follows it: web links open in the browser, note links open the note (making it if it doesn't exist) at its heading.
+
+**Commands.** `CommandRunner` runs every command in the registry: editing commands through the core, the rest on the browser. The phone leaves out the `pane.` commands, since it shows one note at a time, and the `sync.` commands until sync comes to the phone.
+
+| Group | On the phone |
+|---|---|
+| Formatting, footnotes, lines, tasks, tables, callouts, links | The core's commands on the note, as one undo step each |
+| Find | The system find navigator |
+| Tabs and history | Tabs, the overview, back and forward, reopening a closed tab |
+| Sidebar, file tree, outline, backlinks, tags, search, switcher | The sidebar, opened on the right section or with the search focused |
+| New, daily, rename, trash, recover, template, import image | The vault operations above; recovery lists snapshots and restores one after keeping the current text; images come from Photos |
+| Export and print | HTML or PDF (Typst, reading the iPhone's system fonts) to the share sheet; the PDF to the print panel |
+| Settings, another vault | A settings screen generated from the schema; a folder picked in Files, kept with a security-scoped bookmark |
+| View | Zoom per device, readable line length on wide screens, cycling Markdown symbols in every open note, sentence-length tints |
+| Editing and the clipboard | Undo, redo, copy or cut the line, paste, paste as plain text, select all, Look up, hide the keyboard |
+| Cursor and selection keys | The text view's own |
+
+**Verified** in the iPhone 17 Pro simulator (iOS 26.4), headless, with `simctl io screenshot`: the start page and recent notes; notes with headings, emphasis, links, footnotes, tasks, callouts, quotes, code and math blocks and tables; markup showing around the cursor; the sidebar's files and outline; the tab overview; the palette; the keyboard bar in the Obsidian order; find and replace; a callout inserted through the core and saved to disk; sentence tints; the settings screen; printing a Typst PDF; rename; dark mode. An earlier build's UI test typed into a note and read it back from disk after a relaunch. Not verified: hardware keys, the edge and tab swipes (they need touch or a keyboard, not screenshots), and a run on a real iPhone.
+
+**Still to do in this phase:**
+
+- Sync on the phone: libgit2 over HTTPS with a token in the Keychain, on open, close and a timer, and the conflict resolver. The vault folder is `Documents/Vault`, where the clone will go; for now the app copies a few corpus notes there on first launch.
+- Math rendered as math: `crates/math` already renders to SVG; the phone needs it rasterized (or drawn) as attachments.
+- Images shown from the vault, and link cards with their image.
+- Tables as a horizontally scrolling grid, with the desktop's grid editing.
+- Folding headings and callouts, which the planner doesn't report yet.
+- OCR with Vision for search, the grammar layers, and the edit-time stats file.
+- Keeping the cursor in each note across launches (`device.toml` has `positions`), and `SwiftLint` and a simulator build in CI.
 
 ### Phase 8: plugins and agents
 
