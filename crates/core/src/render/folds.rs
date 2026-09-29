@@ -122,6 +122,30 @@ impl Folds {
             .collect();
     }
 
+    /// The lines whose plan the folds can change: the section of every
+    /// folded heading, and every callout folded or unfolded in this view.
+    pub fn reached_lines(&self, tree: &SyntaxTree) -> Vec<Range<usize>> {
+        let index = tree.lines();
+        let callouts = self.folded.keys().filter_map(|&header| {
+            let callout = tree
+                .path_at(header)
+                .into_iter()
+                .map(|id| tree.node(id))
+                .find(|node| matches!(node.kind, NodeKind::Callout(_)))?;
+            Some(index.line_of(callout.range.start)..index.line_of(callout.range.end) + 1)
+        });
+        let sections: Vec<Range<usize>> = if self.headings.is_empty() {
+            Vec::new()
+        } else {
+            heading_sections(tree)
+                .into_iter()
+                .filter(|section| self.headings.contains(&section.line_start))
+                .map(|section| section.body)
+                .collect()
+        };
+        callouts.chain(sections).collect()
+    }
+
     /// Applies the folds to planned lines. Bodies a selection touches stay
     /// open.
     pub fn apply(&self, plans: &mut [LinePlan], tree: &SyntaxTree, selections: &[Range<usize>]) {

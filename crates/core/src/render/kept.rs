@@ -21,6 +21,59 @@ use crate::syntax::{Edit, Reparsed, SyntaxTree};
 #[derive(Clone, Debug, Default)]
 pub struct KeptPlan {
     kept: Option<Kept>,
+    /// How the edit since the last plan moved the kept lines.
+    splice: Option<LineSplice>,
+}
+
+/// How an edit moved a plan's lines: `removed` lines from `at` gave way to
+/// `inserted` new ones, and every line after them moved `bytes` on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LineSplice {
+    pub at: usize,
+    pub removed: usize,
+    pub inserted: usize,
+    pub bytes: isize,
+}
+
+impl LineSplice {
+    /// Where line `line`, before the edit, is after it. Lines the edit
+    /// took out go to where the new ones start.
+    pub fn moved_line(&self, line: usize) -> usize {
+        if line < self.at {
+            line
+        } else if line >= self.at + self.removed {
+            line + self.inserted - self.removed
+        } else {
+            self.at
+        }
+    }
+
+    /// Where the lines `lines`, before the edit, are after it, taking in
+    /// the new lines when they reach into the ones taken out.
+    pub fn moved_lines(&self, lines: &Range<usize>) -> Range<usize> {
+        let end = if lines.end <= self.at {
+            lines.end
+        } else if lines.end >= self.at + self.removed {
+            lines.end + self.inserted - self.removed
+        } else {
+            self.at + self.inserted
+        };
+        self.moved_line(lines.start)..end
+    }
+}
+
+/// Which lines a plan may have changed since the one before it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PlanChanges {
+    /// It was planned afresh, so any line may differ.
+    Whole,
+    /// The edit's splice, if there was one, and the lines planned again
+    /// (numbered after the splice), sorted and apart. Every other line
+    /// is the one before, moved by the splice.
+    Lines {
+        splice: Option<LineSplice>,
+        replanned: Vec<Range<usize>>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -36,6 +89,7 @@ impl KeptPlan {
     /// Drops the kept plan.
     pub fn forget(&mut self) {
         self.kept = None;
+        self.splice = None;
     }
 
     /// Follows `edit`, after which `tree` reparsed what `reparsed` says:
@@ -44,46 +98,57 @@ impl KeptPlan {
     pub fn edited(&mut self, edit: &Edit, reparsed: &Reparsed, tree: &SyntaxTree) {
         let followed = match (self.kept.as_mut(), reparsed) {
             (Some(kept), Reparsed::Blocks { old, new }) => kept.follow(edit, old, new, tree),
-            _ => false,
+            _ => None,
         };
-        if !followed {
-            self.forget();
+        match followed {
+            Some(splice) => self.splice = Some(splice),
+            None => self.forget(),
         }
     }
 
     /// Every line's plan for `input`, the same as [`plan`] gives.
     pub fn plan(&mut self, input: &RenderInput<'_>) -> &[LinePlan] {
+        self.plan_with_changes(input).0
+    }
+
+    /// Every line's plan for `input`, and which lines may differ from the
+    /// last plan's.
+    pub fn plan_with_changes(&mut self, input: &RenderInput<'_>) -> (&[LinePlan], PlanChanges) {
         let selections = ordered(input.selections);
-        let kept = match self.kept.take() {
+        let splice = self.splice.take();
+        let (kept, changes) = match self.kept.take() {
             Some(mut kept) if kept.can_follow(input.settings, &selections) => {
-                kept.replan_moved(input, &selections);
+                let replanned = kept.replan_moved(input, &selections);
                 kept.selections = selections;
-                kept
+                (kept, PlanChanges::Lines { splice, replanned })
             }
-            _ => Kept {
-                lines: plan(input).lines,
-                selections,
-                settings: input.settings.clone(),
-                unplanned: None,
-            },
+            _ => {
+                let kept = Kept {
+                    lines: plan(input).lines,
+                    selections,
+                    settings: input.settings.clone(),
+                    unplanned: None,
+                };
+                (kept, PlanChanges::Whole)
+            }
         };
-        &self.kept.insert(kept).lines
+        (&self.kept.insert(kept).lines, changes)
     }
 }
 
 impl Kept {
-    /// Makes room for the reparsed lines and moves the ones after them.
-    /// Answers false when the kept lines don't line up with the edit,
-    /// which plans afresh.
+    /// Makes room for the reparsed lines and moves the ones after them,
+    /// answering how. Answers `None` when the kept lines don't line up
+    /// with the edit, which plans afresh.
     fn follow(
         &mut self,
         edit: &Edit,
         old: &Range<usize>,
         new: &Range<usize>,
         tree: &SyntaxTree,
-    ) -> bool {
+    ) -> Option<LineSplice> {
         if self.unplanned.is_some() {
-            return false;
+            return None;
         }
         let index = tree.lines();
         let reparsed = index.line_of(new.start)..index.line_of(new.end) + 1;
@@ -94,7 +159,7 @@ impl Kept {
             .lines
             .partition_point(|line| line.range.start <= old.end);
         if before != reparsed.start || after < before {
-            return false;
+            return None;
         }
         let bytes = edit.new_len as isize - edit.old.len() as isize;
         let lines = reparsed.len() as isize - (after - before) as isize;
@@ -106,8 +171,14 @@ impl Kept {
         for selection in &mut self.selections {
             *selection = moved_through(selection.start, edit)..moved_through(selection.end, edit);
         }
+        let splice = LineSplice {
+            at: before,
+            removed: after - before,
+            inserted: reparsed.len(),
+            bytes,
+        };
         self.unplanned = Some(reparsed);
-        self.lines.len() == index.line_count()
+        (self.lines.len() == index.line_count()).then_some(splice)
     }
     /// Whether moving from the kept selections to `selections` changes
     /// only the blocks they're in. Going from no selection to one reveals
@@ -116,18 +187,31 @@ impl Kept {
         self.settings == *settings && !self.selections.is_empty() && !selections.is_empty()
     }
 
-    fn replan_moved(&mut self, input: &RenderInput<'_>, selections: &[Range<usize>]) {
+    /// Plans again the lines the selections left or entered and the
+    /// lines an edit reparsed, answering which they were.
+    fn replan_moved(
+        &mut self,
+        input: &RenderInput<'_>,
+        selections: &[Range<usize>],
+    ) -> Vec<Range<usize>> {
         let touched = self.selections.iter().chain(selections);
         let mut stale: Vec<Range<usize>> = touched
             .flat_map(|selection| stale_lines(input.tree, input.text, selection))
             .chain(self.unplanned.take())
             .collect();
         stale.sort_by_key(|lines| lines.start);
-        for lines in merged(stale) {
+        let stale = merged(stale);
+        for lines in &stale {
             let fresh = plan_lines(input, lines.clone()).lines;
             let lines = lines.start..lines.end.min(self.lines.len());
             self.lines.splice(lines, fresh);
         }
+        let count = self.lines.len();
+        stale
+            .into_iter()
+            .map(|lines| lines.start.min(count)..lines.end.min(count))
+            .filter(|lines| !lines.is_empty())
+            .collect()
     }
 }
 
@@ -221,6 +305,76 @@ mod tests {
         for scope in [RevealScope::Line, RevealScope::Block] {
             check_moves(&RevealSettings::new(RevealMode::AroundCursor { scope }));
         }
+    }
+
+    /// The lines an app would show if it took only the changed lines of
+    /// each plan and moved the rest by the splice.
+    fn follow_changes(shown: &mut Vec<LinePlan>, lines: &[LinePlan], changes: PlanChanges) {
+        let PlanChanges::Lines { splice, replanned } = changes else {
+            *shown = lines.to_vec();
+            return;
+        };
+        if let Some(splice) = splice {
+            let moved_by = splice.inserted as isize - splice.removed as isize;
+            for line in &mut shown[splice.at + splice.removed..] {
+                line.shift(splice.bytes, moved_by);
+            }
+            let fresh = (0..splice.inserted).map(|at| LinePlan::unplanned(splice.at + at));
+            shown.splice(splice.at..splice.at + splice.removed, fresh);
+        }
+        for range in replanned {
+            shown[range.clone()].clone_from_slice(&lines[range]);
+        }
+    }
+
+    #[test]
+    fn the_changes_name_every_line_that_differs() {
+        let settings = RevealSettings::default();
+        let mut text = NOTE.to_owned();
+        let mut tree = parse(&text);
+        let mut kept = KeptPlan::default();
+        let mut shown = Vec::new();
+        let mut spliced = 0;
+        for step in 0..NOTE.len() {
+            if step % 5 == 2 {
+                let mut at = step * 7 % text.len();
+                while !text.is_char_boundary(at) {
+                    at -= 1;
+                }
+                let typed = ["x", "\n", "*", "$"][step % 4];
+                text.insert_str(at, typed);
+                let edit = Edit {
+                    old: at..at,
+                    new_len: typed.len(),
+                };
+                let reparsed = tree.edit(&text, &edit);
+                kept.edited(&edit, &reparsed, &tree);
+            }
+            let mut cursor = step * 3 % text.len();
+            while !text.is_char_boundary(cursor) {
+                cursor -= 1;
+            }
+            let caret = cursor..cursor;
+            let input = RenderInput {
+                text: &text,
+                tree: &tree,
+                selections: std::slice::from_ref(&caret),
+                settings: &settings,
+            };
+            let (lines, changes) = kept.plan_with_changes(&input);
+            if matches!(
+                changes,
+                PlanChanges::Lines {
+                    splice: Some(_),
+                    ..
+                }
+            ) {
+                spliced += 1;
+            }
+            follow_changes(&mut shown, lines, changes);
+            assert_eq!(shown, plan(&input).lines, "step {step}");
+        }
+        assert!(spliced > NOTE.len() / 10, "{spliced} edits followed");
     }
 
     #[test]

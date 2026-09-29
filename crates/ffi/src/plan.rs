@@ -1,7 +1,8 @@
 //! The render planner's output in UTF-16 offsets, for Swift to draw.
 
+use gasp_core::render::folds::{Folds, heading_sections};
 use gasp_core::render::{self, StyleKey};
-use gasp_core::syntax::{Alignment, CalloutKind, ConflictSide};
+use gasp_core::syntax::{Alignment, CalloutKind, ConflictSide, SyntaxTree};
 
 use crate::offsets::{TextRange, Utf16Offsets};
 
@@ -25,6 +26,9 @@ pub struct LinePlan {
     /// The line takes no room, such as a table's delimiter row.
     pub collapsed: bool,
     pub table_row: Option<TableRow>,
+    /// Whether the line is a heading with something under it to fold, and
+    /// if so whether it's folded.
+    pub heading_fold: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, uniffi::Record)]
@@ -435,7 +439,11 @@ fn table_row(row: &render::TableRowPlan, offsets: &Utf16Offsets) -> TableRow {
     }
 }
 
-fn line_plan(line: &render::LinePlan, offsets: &Utf16Offsets) -> LinePlan {
+pub(crate) fn line_plan(
+    line: &render::LinePlan,
+    offsets: &Utf16Offsets,
+    headings: &FoldableHeadings,
+) -> LinePlan {
     LinePlan {
         line: line.line as u32,
         range: offsets.range(&line.range),
@@ -456,12 +464,44 @@ fn line_plan(line: &render::LinePlan, offsets: &Utf16Offsets) -> LinePlan {
             .collect(),
         collapsed: line.collapsed,
         table_row: line.table_row.as_ref().map(|row| table_row(row, offsets)),
+        heading_fold: headings.state(line.line),
     }
 }
 
-pub(crate) fn note_plan(lines: &[render::LinePlan], offsets: &Utf16Offsets) -> NotePlan {
+pub(crate) fn note_plan(
+    lines: &[render::LinePlan],
+    offsets: &Utf16Offsets,
+    headings: &FoldableHeadings,
+) -> NotePlan {
     NotePlan {
-        lines: lines.iter().map(|line| line_plan(line, offsets)).collect(),
+        lines: lines
+            .iter()
+            .map(|line| line_plan(line, offsets, headings))
+            .collect(),
+    }
+}
+
+/// The headings with something under them to fold, by line, and whether
+/// each is folded.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct FoldableHeadings(pub(crate) Vec<(usize, bool)>);
+
+impl FoldableHeadings {
+    pub(crate) fn of(tree: &SyntaxTree, folds: &Folds) -> Self {
+        Self(
+            heading_sections(tree)
+                .into_iter()
+                .filter(|section| !section.body.is_empty())
+                .map(|section| (section.line, folds.is_heading_folded(section.line_start)))
+                .collect(),
+        )
+    }
+
+    pub(crate) fn state(&self, line: usize) -> Option<bool> {
+        self.0
+            .binary_search_by_key(&line, |(heading, _)| *heading)
+            .ok()
+            .map(|index| self.0[index].1)
     }
 }
 

@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use gasp_core::link_card::meta::card_from_html;
 use gasp_core::link_card::{card_replacement, url_on_line};
 use gasp_core::render::folds::Folds;
-use gasp_core::render::{KeptPlan, RenderInput, reveal_settings};
+use gasp_core::render::{self, KeptPlan, RenderInput, RevealSettings, reveal_settings};
 use gasp_core::syntax::{self, Edit, NodeKind, SyntaxTree, WikiInfo};
 use gasp_core::table::Table;
 use gasp_prose::segment::Thresholds;
@@ -16,7 +16,8 @@ use gasp_prose::{Length, SentenceLengthCache};
 use crate::display::{DisplayState, SharedDisplay};
 use crate::edits::{self, CommandInput, CommandOutcome, TextReplacement};
 use crate::offsets::{TextRange, Utf16Offsets};
-use crate::plan::{NotePlan, note_plan};
+use crate::plan::{FoldableHeadings, NotePlan, note_plan};
+use crate::shown::{PlanUpdate, ShownPlan, UpdateInput};
 
 #[derive(uniffi::Object)]
 pub struct NoteDocument {
@@ -41,6 +42,8 @@ pub(crate) struct ParsedText {
     /// The last whole-note plan, so a cursor move plans only the blocks
     /// it leaves and enters.
     kept_plan: KeptPlan,
+    /// What the phone was last sent of the plan.
+    pub(crate) shown: ShownPlan,
 }
 
 impl ParsedText {
@@ -54,6 +57,7 @@ impl ParsedText {
             tints: None,
             sentence_lengths: SentenceLengthCache::new(),
             kept_plan: KeptPlan::default(),
+            shown: ShownPlan::default(),
         }
     }
 
@@ -61,13 +65,60 @@ impl ParsedText {
         let Some(edit) = changed_span(&self.text, &text) else {
             return;
         };
-        let reparsed = self.tree.edit(&text, &edit);
-        self.folds.map(&edit);
-        self.offsets.edited(&text, &edit);
         self.text = text;
+        self.follow(&edit);
+    }
+
+    /// Replaces the text in `range` (UTF-16) with `replacement`. Answers
+    /// false, changing nothing, when the range doesn't fall between
+    /// characters.
+    fn replace(&mut self, range: TextRange, replacement: &str) -> bool {
+        let bytes = self.offsets.byte_range(range);
+        let between_characters = bytes.start <= bytes.end
+            && self.offsets.utf16(bytes.start) == range.start
+            && self.offsets.utf16(bytes.end) == range.end;
+        if !between_characters {
+            return false;
+        }
+        let edit = Edit {
+            old: bytes.clone(),
+            new_len: replacement.len(),
+        };
+        self.text.replace_range(bytes, replacement);
+        self.follow(&edit);
+        true
+    }
+
+    /// Follows `edit`, which `self.text` already has.
+    fn follow(&mut self, edit: &Edit) {
+        let length_before = i64::from(self.offsets.utf16(usize::MAX));
+        let reparsed = self.tree.edit(&self.text, edit);
+        self.folds.map(edit);
+        self.offsets.edited(&self.text, edit);
         self.source_table = None;
         self.tints = None;
-        self.kept_plan.edited(&edit, &reparsed, &self.tree);
+        self.kept_plan.edited(edit, &reparsed, &self.tree);
+        let length_after = i64::from(self.offsets.utf16(usize::MAX));
+        self.shown.text_edited(length_after - length_before);
+    }
+
+    fn utf16_len(&self) -> u32 {
+        self.offsets.utf16(usize::MAX)
+    }
+
+    /// The reveal settings for `selected`, forgetting a table shown as its
+    /// source once the cursor has left it.
+    fn settings_for(&mut self, selected: &Range<usize>, display: &SharedDisplay) -> RevealSettings {
+        let cursor_left_table = self
+            .source_table
+            .as_ref()
+            .is_some_and(|table| !(table.start <= selected.end && selected.end <= table.end));
+        if cursor_left_table {
+            self.source_table = None;
+        }
+        let mut settings = reveal_settings(&display.lock().symbols);
+        settings.source_table = self.source_table.as_ref().map(|table| table.start);
+        settings
     }
 
     fn sentence_tints(&mut self, thresholds: Thresholds) -> Vec<SentenceTint> {
@@ -139,41 +190,66 @@ impl NoteDocument {
         self.lock().update(text);
     }
 
+    /// Takes one edit from the text view: the text in `range` (UTF-16,
+    /// before the edit) replaced with `replacement`. Answers the text's
+    /// UTF-16 length after it, for the view to check against its own; a
+    /// range that splits a character changes nothing.
+    pub fn replace(&self, range: TextRange, replacement: String) -> u32 {
+        let mut parsed = self.lock();
+        parsed.replace(range, &replacement);
+        parsed.utf16_len()
+    }
+
     /// What every line should look like with `selection` (in UTF-16
     /// offsets; an empty range is the cursor), as the desktop app plans it.
+    /// Planned afresh each time, and apart from the updates.
     pub fn plan(&self, selection: TextRange) -> NotePlan {
         let mut parsed = self.lock();
-        let selected = parsed.offsets.byte_range(selection);
-        let cursor_left_table = parsed
-            .source_table
-            .as_ref()
-            .is_some_and(|table| !(table.start <= selected.end && selected.end <= table.end));
-        if cursor_left_table {
-            parsed.source_table = None;
-        }
-        let mut settings = reveal_settings(&self.display.lock().symbols);
-        settings.source_table = parsed.source_table.as_ref().map(|table| table.start);
-        let selections = [selected];
+        let selections = [parsed.offsets.byte_range(selection)];
+        let settings = parsed.settings_for(&selections[0], &self.display);
+        let input = RenderInput {
+            text: &parsed.text,
+            tree: &parsed.tree,
+            selections: &selections,
+            settings: &settings,
+        };
+        let mut lines = render::plan(&input).lines;
+        parsed.folds.apply(&mut lines, &parsed.tree, &selections);
+        let headings = FoldableHeadings::of(&parsed.tree, &parsed.folds);
+        note_plan(&lines, &parsed.offsets, &headings)
+    }
+
+    /// What changed in the plan for `selection` since the last update:
+    /// the lines that may differ and how an edit moved the rest. With
+    /// `whole`, or the first time, every line.
+    pub fn plan_update(&self, selection: TextRange, whole: bool) -> PlanUpdate {
+        let mut parsed = self.lock();
+        let selections = [parsed.offsets.byte_range(selection)];
+        let settings = parsed.settings_for(&selections[0], &self.display);
         let ParsedText {
             text,
             tree,
             offsets,
             folds,
             kept_plan,
+            shown,
             ..
         } = &mut *parsed;
-        let lines = kept_plan.plan(&RenderInput {
+        let (lines, changes) = kept_plan.plan_with_changes(&RenderInput {
             text,
             tree,
             selections: &selections,
             settings: &settings,
         });
-        if folds.is_empty() {
-            return note_plan(lines, offsets);
-        }
-        let mut folded = lines.to_vec();
-        folds.apply(&mut folded, tree, &selections);
-        note_plan(&folded, offsets)
+        let input = UpdateInput {
+            lines,
+            changes,
+            tree,
+            folds,
+            selections: &selections,
+            offsets,
+        };
+        shown.update(input, whole)
     }
 
     /// Runs the editing command `id` on `selection`.
@@ -434,30 +510,6 @@ mod tests {
         for (old, new) in cases {
             let edit = changed_span(old, new).unwrap();
             assert_eq!(apply(old, &edit, new), new, "{old:?} → {new:?}");
-        }
-    }
-
-    #[test]
-    fn plans_after_cursor_moves_and_edits_match_fresh_ones() {
-        let text = "# Title *em*\n\nText **bold** $x^2$ [link](https://a.org)\n\n- one\n- two\n\n\
-                    > [!note]- Folded\n> body\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nlast";
-        let document = NoteDocument::new(text.into());
-        document.toggle_fold(text.find("> [!note]").unwrap() as u32);
-        let utf16_len = text.encode_utf16().count() as u32;
-        for step in 0..=utf16_len {
-            if step % 7 == 3 {
-                let mut edited = document.text();
-                let insert = ["x", "\n", "*"][step as usize % 3];
-                edited.insert_str(step as usize * 5 % edited.len(), insert);
-                document.update(edited);
-            }
-            let selection = TextRange {
-                start: step,
-                end: (step + step % 3 * 4).min(utf16_len),
-            };
-            let fresh = NoteDocument::new(document.text());
-            fresh.lock().folds = document.lock().folds.clone();
-            assert_eq!(document.plan(selection), fresh.plan(selection), "{step}");
         }
     }
 
