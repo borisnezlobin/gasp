@@ -1,8 +1,8 @@
 //! Maps the render planner's semantic styles to fonts, colours and
 //! decorations from the theme.
 
-use editor_core::render::StyleKey;
-use editor_core::syntax::CalloutKind;
+use gasp_core::render::StyleKey;
+use gasp_core::syntax::CalloutKind;
 use gpui::{Font, FontStyle, Hsla, Pixels, Rgba, StrikethroughStyle, TextRun, UnderlineStyle, px};
 
 use crate::theme::Theme;

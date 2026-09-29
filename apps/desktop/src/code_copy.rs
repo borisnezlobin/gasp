@@ -10,7 +10,7 @@
 use std::ops::Range;
 use std::time::Duration;
 
-use editor_core::syntax::{NodeKind, SyntaxTree};
+use gasp_core::syntax::{NodeKind, SyntaxTree};
 use gpui::{Bounds, ClipboardItem, Context, Pixels, Point, Task, point, size};
 
 use crate::editor::EditorView;

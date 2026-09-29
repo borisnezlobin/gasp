@@ -1,6 +1,6 @@
 //! The built-in synthetic equation list converts and renders completely.
 
-use editor_math::{MathCache, find_math, latex_to_typst};
+use gasp_math::{MathCache, find_math, latex_to_typst};
 
 const EQUATIONS: &str = include_str!("data/equations.md");
 

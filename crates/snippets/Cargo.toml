@@ -1,5 +1,5 @@
 [package]
-name = "editor-snippets"
+name = "gasp-snippets"
 description = "Snippet engine, snippet file format and the replacements table."
 version.workspace = true
 edition.workspace = true

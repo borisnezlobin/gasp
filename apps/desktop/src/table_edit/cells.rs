@@ -7,7 +7,7 @@
 
 use std::ops::RangeInclusive;
 
-use editor_core::table::{CellPos, Table, TableOp};
+use gasp_core::table::{CellPos, Table, TableOp};
 use gpui::{Bounds, ClipboardItem, Context, Pixels, point};
 
 use crate::editor::EditorView;

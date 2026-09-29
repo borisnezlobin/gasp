@@ -1,8 +1,8 @@
 //! Drawing the settings screen: a modal with the section list on the
 //! left and the current page on the right, its rows grouped on cards.
 
-use editor_config::Platform;
-use editor_config::keys::KeyChord;
+use gasp_config::Platform;
+use gasp_config::keys::KeyChord;
 use std::rc::Rc;
 
 use gpui::{

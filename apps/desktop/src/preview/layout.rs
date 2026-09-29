@@ -3,8 +3,8 @@
 
 use std::ops::Range;
 
-use editor_core::render::{LinePlan, LineStyle, RevealSettings, StyleKey, WidgetKind};
-use editor_core::syntax::Alignment;
+use gasp_core::render::{LinePlan, LineStyle, RevealSettings, StyleKey, WidgetKind};
+use gasp_core::syntax::Alignment;
 use gpui::{Font, Pixels, TextRun, WindowTextSystem, px};
 
 use crate::images::ImageStore;

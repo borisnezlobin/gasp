@@ -26,7 +26,7 @@ pub(crate) struct Equation {
 pub(crate) fn to_mathml(equations: &[Equation]) -> (Vec<Option<String>>, Option<String>) {
     let converted: Vec<Option<String>> = equations
         .iter()
-        .map(|equation| editor_math::latex_to_typst(&equation.latex, equation.display).ok())
+        .map(|equation| gasp_math::latex_to_typst(&equation.latex, equation.display).ok())
         .collect();
     if converted.iter().all(Option::is_none) {
         return (vec![None; equations.len()], None);

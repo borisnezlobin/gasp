@@ -2,21 +2,21 @@
 //! in a real workspace: every panel is reached by its command and by its
 //! buttons, and what it shows follows the active note and the index.
 
-use editor_config::CONFIG_DIR;
+use gasp_config::CONFIG_DIR;
 use std::path::{Path, PathBuf};
 
-use editor_config::{Platform, RuleSet};
-use editor_desktop::actions::bind_keys;
-use editor_desktop::features;
-use editor_desktop::keymap::all_bindings;
-use editor_desktop::knowledge::sidebar::{Row, describe};
-use editor_desktop::knowledge::{KnowledgeSidebar, SidebarView, dates, is_actionable};
-use editor_desktop::vault_search::VaultSearch;
-use editor_desktop::workspace::{OpenIn, Workspace};
+use gasp_config::{Platform, RuleSet};
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::features;
+use gasp_desktop::keymap::all_bindings;
+use gasp_desktop::knowledge::sidebar::{Row, describe};
+use gasp_desktop::knowledge::{KnowledgeSidebar, SidebarView, dates, is_actionable};
+use gasp_desktop::vault_search::VaultSearch;
+use gasp_desktop::workspace::{OpenIn, Workspace};
 use gpui::{Entity, Focusable, Modifiers, TestAppContext, VisualTestContext};
 use tempfile::TempDir;
 
-const VAULT_SETTINGS: &str = concat!(editor_config::config_dir!(), "/settings.toml");
+const VAULT_SETTINGS: &str = concat!(gasp_config::config_dir!(), "/settings.toml");
 
 fn vault_with(notes: &[(&str, &str)]) -> TempDir {
     let vault = tempfile::tempdir().unwrap();

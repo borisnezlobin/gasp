@@ -4,7 +4,7 @@
 
 use std::ops::Range;
 
-use editor_prose::Flag;
+use gasp_prose::Flag;
 use gpui::{Context, Div, Pixels, TextRun, Window, div, prelude::*};
 
 use crate::editor::EditorView;

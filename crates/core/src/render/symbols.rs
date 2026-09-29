@@ -3,7 +3,7 @@
 
 use super::{RevealMode, RevealScope, RevealSettings};
 use crate::syntax::SyntaxKind;
-use editor_config::settings::{
+use gasp_config::settings::{
     RevealScope as ConfigScope, SymbolMode, SymbolSettings, SyntaxKind as ConfigSyntax,
 };
 

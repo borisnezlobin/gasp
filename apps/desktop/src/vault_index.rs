@@ -11,7 +11,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
-use editor_core::syntax::{self, NodeKind};
+use gasp_core::syntax::{self, NodeKind};
 
 use crate::knowledge::build::{LinkChange, build_index, read_changes};
 use crate::knowledge::index::LinkIndex;

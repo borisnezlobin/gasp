@@ -3,7 +3,7 @@
 
 use std::cell::Cell;
 
-use editor_config::schema::SettingKind;
+use gasp_config::schema::SettingKind;
 use gpui::{
     AppContext, Context, Entity, Focusable, ScrollStrategy, Subscription, UniformListScrollHandle,
     Window,

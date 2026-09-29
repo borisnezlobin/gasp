@@ -102,11 +102,11 @@ pub fn launch_bench(note: LoadedNote, bench: BenchConfig) {
             }
         };
         let started = window.update(cx, |view, window, cx| {
-            window.set_window_title(editor_config::APP_NAME);
+            window.set_window_title(gasp_config::APP_NAME);
             window.focus(&view.focus_handle);
             view.set_log_timings(false);
             if !bench.prose {
-                let mut prose = editor_config::settings::ProseSettings::default();
+                let mut prose = gasp_config::settings::ProseSettings::default();
                 prose.sentence_length.enabled = false;
                 prose.grammar.enabled = false;
                 view.apply_prose_settings(&prose, cx);
@@ -115,7 +115,7 @@ pub fn launch_bench(note: LoadedNote, bench: BenchConfig) {
             cx.activate(true);
         });
         if let Err(error) = started {
-            eprintln!("could not start {}: {error}", editor_config::APP_NAME);
+            eprintln!("could not start {}: {error}", gasp_config::APP_NAME);
         }
     });
 }

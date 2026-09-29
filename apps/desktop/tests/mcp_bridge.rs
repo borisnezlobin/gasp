@@ -4,12 +4,12 @@
 
 use std::path::Path;
 
-use editor_desktop::actions::bind_keys;
-use editor_desktop::features;
-use editor_desktop::workspace::{OpenIn, Workspace};
-use editor_mcp::bridge::Request;
-use editor_mcp::bridge::endpoint::Endpoint;
-use editor_mcp::tool::Output;
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::features;
+use gasp_desktop::workspace::{OpenIn, Workspace};
+use gasp_mcp::bridge::Request;
+use gasp_mcp::bridge::endpoint::Endpoint;
+use gasp_mcp::tool::Output;
 use gpui::{Entity, TestAppContext, VisualTestContext};
 use serde_json::{Value, json};
 
@@ -182,8 +182,8 @@ fn the_server_patches_through_the_socket(cx: &mut TestAppContext) {
     // the test keeps the app's main thread turning until it's done.
     let root = vault.path().to_path_buf();
     let server = std::thread::spawn(move || {
-        let context = editor_mcp::Context::with_endpoint(&root, Some(endpoint)).unwrap();
-        let tools = editor_mcp::tools::all();
+        let context = gasp_mcp::Context::with_endpoint(&root, Some(endpoint)).unwrap();
+        let tools = gasp_mcp::tools::all();
         let patch = tools.iter().find(|tool| tool.name == "patch_note").unwrap();
         let arguments = json!({"path": "Plan", "operation": "append", "content": "Two."});
         patch.call(&context, arguments)

@@ -8,7 +8,7 @@
 //! in the platform's sans. Nothing is joined with "+": the gap between
 //! glyphs does that.
 
-use editor_config::keys::{Key, Modifiers, NamedKey};
+use gasp_config::keys::{Key, Modifiers, NamedKey};
 use gpui::{Div, SharedString, div, prelude::*};
 
 use crate::icons::{IconName, icon};
@@ -142,8 +142,8 @@ pub fn keycap_glyphs(glyphs: Vec<Glyph>, theme: &KeycapTheme) -> Div {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use editor_config::Platform;
-    use editor_config::keys::KeyChord;
+    use gasp_config::Platform;
+    use gasp_config::keys::KeyChord;
 
     fn drawn(text: &str, platform: Platform) -> Vec<Glyph> {
         glyphs(Shortcut::new(KeyChord::parse(text).unwrap(), platform))

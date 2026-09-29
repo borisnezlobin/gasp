@@ -182,7 +182,7 @@ impl HotkeyMigration {
     /// The rules as TOML, in the shared `[[rule]]` format.
     pub fn to_toml(&self) -> String {
         let mut out =
-            String::from("# Key rules imported from Obsidian's hotkeys.json by editor-migrate.\n");
+            String::from("# Key rules imported from Obsidian's hotkeys.json by gasp-migrate.\n");
         for rule in &self.rules {
             out.push_str(&format!(
                 "\n[[rule]]\non   = \"key\"\nkeys = {}\ndo   = {}\n",

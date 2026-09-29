@@ -3051,239 +3051,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "editor-config"
-version = "0.1.0"
-dependencies = [
- "editor-snippets",
- "notify",
- "schemars 0.8.22",
- "serde",
- "serde_json",
- "tempfile",
- "toml 0.8.23",
- "toml_edit 0.22.27",
-]
-
-[[package]]
-name = "editor-core"
-version = "0.1.0"
-dependencies = [
- "editor-config",
- "editor-snippets",
- "proptest",
- "pulldown-cmark",
- "regex",
- "ropey",
- "unicode-width",
- "url",
-]
-
-[[package]]
-name = "editor-corpus"
-version = "0.1.0"
-dependencies = [
- "regex",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
-name = "editor-desktop"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "dirs 5.0.1",
- "editor-config",
- "editor-core",
- "editor-export",
- "editor-highlight",
- "editor-math",
- "editor-mcp",
- "editor-migrate",
- "editor-prose",
- "editor-search",
- "editor-snippets",
- "editor-sync",
- "editor-vault",
- "emojis",
- "env_logger",
- "futures",
- "git2",
- "gpui",
- "image",
- "jiff",
- "notify",
- "objc",
- "raw-window-handle",
- "resvg 0.45.1",
- "rustix 1.1.5",
- "serde",
- "serde_json",
- "similar",
- "syntect",
- "tempfile",
- "toml 0.8.23",
- "toml_edit 0.22.27",
- "trash",
- "two-face",
- "unicode-normalization",
- "unicode-segmentation",
- "x11rb",
- "zed-reqwest",
-]
-
-[[package]]
-name = "editor-export"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "editor-core",
- "editor-math",
- "lopdf",
- "pulldown-cmark",
- "syntect",
- "typst",
- "typst-assets",
- "typst-html",
- "typst-layout",
- "typst-pdf",
- "typst-render",
-]
-
-[[package]]
-name = "editor-ffi"
-version = "0.1.0"
-dependencies = [
- "editor-config",
- "editor-core",
- "editor-export",
- "editor-highlight",
- "editor-math",
- "editor-prose",
- "editor-search",
- "editor-sync",
- "editor-vault",
- "git2",
- "resvg 0.45.1",
- "serde_json",
- "tempfile",
- "thiserror 2.0.21",
- "toml 0.8.23",
- "uniffi",
-]
-
-[[package]]
-name = "editor-highlight"
-version = "0.1.0"
-dependencies = [
- "syntect",
- "two-face",
-]
-
-[[package]]
-name = "editor-math"
-version = "0.1.0"
-dependencies = [
- "mitex",
- "mitex-spec",
- "mitex-spec-gen",
- "typst",
- "typst-assets",
- "typst-layout",
- "typst-svg",
-]
-
-[[package]]
-name = "editor-mcp"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "dirs 5.0.1",
- "editor-config",
- "editor-export",
- "editor-search",
- "editor-snippets",
- "editor-vault",
- "getrandom 0.3.4",
- "globset",
- "png 0.18.1",
- "rmcp",
- "schemars 1.2.2",
- "serde",
- "serde_json",
- "serde_yaml",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "editor-migrate"
-version = "0.1.0"
-dependencies = [
- "editor-config",
- "editor-snippets",
- "serde_json",
- "tempfile",
- "toml 0.8.23",
-]
-
-[[package]]
-name = "editor-plugins"
-version = "0.1.0"
-
-[[package]]
-name = "editor-prose"
-version = "0.1.0"
-dependencies = [
- "editor-config",
- "editor-core",
- "harper-core",
- "unicode-segmentation",
-]
-
-[[package]]
-name = "editor-search"
-version = "0.1.0"
-dependencies = [
- "editor-config",
- "tempfile",
- "unicode-normalization",
-]
-
-[[package]]
-name = "editor-snippets"
-version = "0.1.0"
-dependencies = [
- "fancy-regex",
- "serde",
- "toml 0.8.23",
-]
-
-[[package]]
-name = "editor-sync"
-version = "0.1.0"
-dependencies = [
- "editor-config",
- "git2",
- "globset",
- "keyring",
- "similar",
- "tempfile",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "editor-vault"
-version = "0.1.0"
-dependencies = [
- "dirs 5.0.1",
- "editor-config",
- "jiff",
- "tempfile",
- "trash",
-]
-
-[[package]]
 name = "either"
 version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4040,6 +3807,239 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c31b6d751ae2c7f11320402d34e41349dd1016f8d5d45e48c4312bc8625af50c"
 dependencies = [
  "byteorder",
+]
+
+[[package]]
+name = "gasp-config"
+version = "0.1.0"
+dependencies = [
+ "gasp-snippets",
+ "notify",
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml 0.8.23",
+ "toml_edit 0.22.27",
+]
+
+[[package]]
+name = "gasp-core"
+version = "0.1.0"
+dependencies = [
+ "gasp-config",
+ "gasp-snippets",
+ "proptest",
+ "pulldown-cmark",
+ "regex",
+ "ropey",
+ "unicode-width",
+ "url",
+]
+
+[[package]]
+name = "gasp-corpus"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "gasp-desktop"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dirs 5.0.1",
+ "emojis",
+ "env_logger",
+ "futures",
+ "gasp-config",
+ "gasp-core",
+ "gasp-export",
+ "gasp-highlight",
+ "gasp-math",
+ "gasp-mcp",
+ "gasp-migrate",
+ "gasp-prose",
+ "gasp-search",
+ "gasp-snippets",
+ "gasp-sync",
+ "gasp-vault",
+ "git2",
+ "gpui",
+ "image",
+ "jiff",
+ "notify",
+ "objc",
+ "raw-window-handle",
+ "resvg 0.45.1",
+ "rustix 1.1.5",
+ "serde",
+ "serde_json",
+ "similar",
+ "syntect",
+ "tempfile",
+ "toml 0.8.23",
+ "toml_edit 0.22.27",
+ "trash",
+ "two-face",
+ "unicode-normalization",
+ "unicode-segmentation",
+ "x11rb",
+ "zed-reqwest",
+]
+
+[[package]]
+name = "gasp-export"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "gasp-core",
+ "gasp-math",
+ "lopdf",
+ "pulldown-cmark",
+ "syntect",
+ "typst",
+ "typst-assets",
+ "typst-html",
+ "typst-layout",
+ "typst-pdf",
+ "typst-render",
+]
+
+[[package]]
+name = "gasp-ffi"
+version = "0.1.0"
+dependencies = [
+ "gasp-config",
+ "gasp-core",
+ "gasp-export",
+ "gasp-highlight",
+ "gasp-math",
+ "gasp-prose",
+ "gasp-search",
+ "gasp-sync",
+ "gasp-vault",
+ "git2",
+ "resvg 0.45.1",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toml 0.8.23",
+ "uniffi",
+]
+
+[[package]]
+name = "gasp-highlight"
+version = "0.1.0"
+dependencies = [
+ "syntect",
+ "two-face",
+]
+
+[[package]]
+name = "gasp-math"
+version = "0.1.0"
+dependencies = [
+ "mitex",
+ "mitex-spec",
+ "mitex-spec-gen",
+ "typst",
+ "typst-assets",
+ "typst-layout",
+ "typst-svg",
+]
+
+[[package]]
+name = "gasp-mcp"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "dirs 5.0.1",
+ "gasp-config",
+ "gasp-export",
+ "gasp-search",
+ "gasp-snippets",
+ "gasp-vault",
+ "getrandom 0.3.4",
+ "globset",
+ "png 0.18.1",
+ "rmcp",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "gasp-migrate"
+version = "0.1.0"
+dependencies = [
+ "gasp-config",
+ "gasp-snippets",
+ "serde_json",
+ "tempfile",
+ "toml 0.8.23",
+]
+
+[[package]]
+name = "gasp-plugins"
+version = "0.1.0"
+
+[[package]]
+name = "gasp-prose"
+version = "0.1.0"
+dependencies = [
+ "gasp-config",
+ "gasp-core",
+ "harper-core",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "gasp-search"
+version = "0.1.0"
+dependencies = [
+ "gasp-config",
+ "tempfile",
+ "unicode-normalization",
+]
+
+[[package]]
+name = "gasp-snippets"
+version = "0.1.0"
+dependencies = [
+ "fancy-regex",
+ "serde",
+ "toml 0.8.23",
+]
+
+[[package]]
+name = "gasp-sync"
+version = "0.1.0"
+dependencies = [
+ "gasp-config",
+ "git2",
+ "globset",
+ "keyring",
+ "similar",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "gasp-vault"
+version = "0.1.0"
+dependencies = [
+ "dirs 5.0.1",
+ "gasp-config",
+ "jiff",
+ "tempfile",
+ "trash",
 ]
 
 [[package]]

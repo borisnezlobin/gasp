@@ -2,22 +2,22 @@
 //! with the owner's Latex Suite and Smart Typography settings as the
 //! migrator converts them from `reference/obsidian`.
 
-use editor_config::CONFIG_DIR;
+use gasp_config::CONFIG_DIR;
 use std::path::{Path, PathBuf};
 
 use std::cell::RefCell;
 use std::fs;
 use std::rc::Rc;
 
-use editor_config::{Config, ConfigLoader, Platform, RuleSet};
-use editor_desktop::EditorView;
-use editor_desktop::actions::bind_keys;
-use editor_desktop::keymap::editor_bindings;
-use editor_desktop::settings_view::snippet_editor::{EditorField, EditorStop, OptionControl};
-use editor_desktop::settings_view::snippet_look::ResultPiece;
-use editor_desktop::settings_view::snippets_page::SnippetRow;
-use editor_desktop::settings_view::{ControlRow, SettingsEvent, SettingsView};
-use editor_desktop::text_input;
+use gasp_config::{Config, ConfigLoader, Platform, RuleSet};
+use gasp_desktop::EditorView;
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::keymap::editor_bindings;
+use gasp_desktop::settings_view::snippet_editor::{EditorField, EditorStop, OptionControl};
+use gasp_desktop::settings_view::snippet_look::ResultPiece;
+use gasp_desktop::settings_view::snippets_page::SnippetRow;
+use gasp_desktop::settings_view::{ControlRow, SettingsEvent, SettingsView};
+use gasp_desktop::text_input;
 use gpui::{Entity, Focusable, TestAppContext, VisualTestContext};
 
 /// A vault whose `.gasp` folder is what the migrator makes of the
@@ -25,7 +25,7 @@ use gpui::{Entity, Focusable, TestAppContext, VisualTestContext};
 fn migrated_vault() -> tempfile::TempDir {
     let reference = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/obsidian");
     let vault = tempfile::tempdir().expect("a temp vault");
-    let migration = editor_migrate::migrate_obsidian(&reference).expect("the reference migrates");
+    let migration = gasp_migrate::migrate_obsidian(&reference).expect("the reference migrates");
     migration
         .write_to(&vault.path().join(CONFIG_DIR))
         .expect("the migrated files write");
@@ -116,7 +116,7 @@ fn the_migrated_file_loads_every_active_snippet(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn an_empty_tab_stop_has_room_of_its_own(cx: &mut TestAppContext) {
-    use editor_desktop::line_layout::PieceContent;
+    use gasp_desktop::line_layout::PieceContent;
     let (view, cx) = open(cx, "");
     cx.simulate_input("mk//");
     let line = view.read_with(cx, |view, _| {
@@ -553,7 +553,7 @@ fn the_try_it_box_follows_the_controls(cx: &mut TestAppContext) {
     };
     assert_eq!(result(cx).text, "a $$");
     view.update(cx, |view, cx| {
-        view.set_snippet_fire(editor_snippets::Fire::OnTab, cx)
+        view.set_snippet_fire(gasp_snippets::Fire::OnTab, cx)
     });
     let now = result(cx);
     assert!(now.tab, "on Tab, the box presses Tab after the text");
@@ -655,7 +655,7 @@ fn a_replacement_switches_off_in_its_file(cx: &mut TestAppContext) {
     );
     cx.simulate_keystrokes("space");
     let text = fs::read_to_string(vault.path().join(CONFIG_DIR).join("replacements.toml")).unwrap();
-    let table = editor_snippets::Replacements::from_toml(&text).unwrap();
+    let table = gasp_snippets::Replacements::from_toml(&text).unwrap();
     let dash = table
         .entries
         .iter()

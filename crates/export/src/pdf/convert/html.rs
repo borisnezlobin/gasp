@@ -4,7 +4,7 @@
 //! aligned blocks, images and page breaks: the subset the editor draws.
 //! Other tags are dropped and their text kept.
 
-use editor_core::syntax::{Alignment, FontSize, HtmlStyle, Rgba8};
+use gasp_core::syntax::{Alignment, FontSize, HtmlStyle, Rgba8};
 
 use super::{Converter, Open, OpenKind};
 use crate::pdf::escape;
@@ -75,7 +75,7 @@ fn tag_token(inner: &str) -> Option<Token<'_>> {
 /// as the editor reads it.
 pub(crate) fn attribute(attrs: &str, name: &str) -> Option<String> {
     let padded = format!(" {attrs}");
-    editor_core::syntax::html_attribute(&padded, name).map(str::to_owned)
+    gasp_core::syntax::html_attribute(&padded, name).map(str::to_owned)
 }
 
 /// The styles an element's `style` attribute asks for, and for a block,
@@ -86,7 +86,7 @@ pub(crate) fn element_style(name: &str, attrs: &str) -> HtmlStyle {
         attribute(attrs, "style").map_or_else(HtmlStyle::default, |css| HtmlStyle::parse(&css));
     if style.align.is_none() && matches!(name, "p" | "div" | "center") {
         style.align =
-            attribute(attrs, "align").and_then(|align| editor_core::syntax::parse_align(&align));
+            attribute(attrs, "align").and_then(|align| gasp_core::syntax::parse_align(&align));
     }
     if name == "center" && style.align.is_none() {
         style.align = Some(Alignment::Center);
@@ -98,7 +98,7 @@ pub(crate) fn element_style(name: &str, attrs: &str) -> HtmlStyle {
 /// never `javascript:` or `data:`.
 pub(crate) fn safe_href(attrs: &str) -> Option<String> {
     attribute(attrs, "href").filter(|href| {
-        editor_core::syntax::is_safe_href(href)
+        gasp_core::syntax::is_safe_href(href)
             && (href.contains("://") || href.starts_with("mailto:"))
     })
 }

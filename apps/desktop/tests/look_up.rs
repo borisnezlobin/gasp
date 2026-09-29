@@ -2,9 +2,9 @@
 //! only macOS shows the popover: the word under a force click or at the
 //! caret, or the selection, and where its baseline is drawn.
 
-use editor_desktop::EditorView;
-use editor_desktop::actions::bind_keys;
-use editor_desktop::look_up::LookUp;
+use gasp_desktop::EditorView;
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::look_up::LookUp;
 use gpui::{
     Bounds, Entity, Focusable, Pixels, Point, TestAppContext, VisualTestContext, point, px,
 };

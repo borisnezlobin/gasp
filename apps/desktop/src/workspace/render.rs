@@ -1,7 +1,7 @@
 //! Drawing the workspace: the pane tree with its dividers, the left panel,
 //! the status bar and the modal slot.
 
-use editor_config::EventKind;
+use gasp_config::EventKind;
 use gpui::{
     AnyElement, Context, CursorStyle, DispatchPhase, Entity, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, SharedString, Window, canvas, div, prelude::*, relative,

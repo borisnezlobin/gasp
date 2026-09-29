@@ -3,7 +3,7 @@
 
 use std::ops::Range;
 
-use editor_core::document::Document;
+use gasp_core::document::Document;
 
 pub fn offset_to_utf16(doc: &Document, offset: usize) -> usize {
     let rope = doc.rope();

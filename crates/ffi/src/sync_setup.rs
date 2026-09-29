@@ -5,9 +5,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use editor_config::settings::SyncSettings;
-use editor_sync::phase::plain_git_message;
-use editor_sync::{CredentialStore, SyncError, Token, Vault};
+use gasp_config::settings::SyncSettings;
+use gasp_sync::phase::plain_git_message;
+use gasp_sync::{CredentialStore, SyncError, Token, Vault};
 
 use crate::sync::vault_config;
 use crate::vault::{VaultError, VaultFolder};
@@ -159,11 +159,11 @@ fn refused(message: &str) -> VaultError {
 pub(crate) fn token_store() -> Arc<dyn CredentialStore> {
     #[cfg(target_os = "ios")]
     {
-        Arc::new(editor_sync::KeychainStore)
+        Arc::new(gasp_sync::KeychainStore)
     }
     #[cfg(not(target_os = "ios"))]
     {
-        static STORE: std::sync::OnceLock<Arc<editor_sync::InMemoryCredentialStore>> =
+        static STORE: std::sync::OnceLock<Arc<gasp_sync::InMemoryCredentialStore>> =
             std::sync::OnceLock::new();
         STORE.get_or_init(Default::default).clone()
     }

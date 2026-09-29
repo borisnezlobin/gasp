@@ -6,7 +6,7 @@ use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use editor_desktop::export_ui::{self, ExportDialog, ExportFormat, ExportState};
+use gasp_desktop::export_ui::{self, ExportDialog, ExportFormat, ExportState};
 use gpui::{
     Context, DismissEvent, Entity, IntoElement, Render, TestAppContext, VisualTestContext, Window,
     div, prelude::*,

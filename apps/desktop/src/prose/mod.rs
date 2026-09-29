@@ -19,9 +19,9 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use editor_config::settings::ProseSettings;
-use editor_core::syntax::Edit;
-use editor_prose::{
+use gasp_config::settings::ProseSettings;
+use gasp_core::syntax::Edit;
+use gasp_prose::{
     Flag, FlagKind, Length, Purpose, Thresholds, Unit, projection::Piece, sentence_lengths, units,
 };
 use gpui::{Bounds, Context, Hsla, Pixels, Point, Task, point};
@@ -474,7 +474,7 @@ fn underline_spans(
 
 #[cfg(test)]
 mod tests {
-    use editor_prose::FlagKind;
+    use gasp_prose::FlagKind;
 
     use super::*;
 

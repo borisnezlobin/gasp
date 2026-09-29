@@ -3,7 +3,7 @@
 //! table drawn as a grid, Up and Down move through a cell's rows, then to
 //! the cell above or below in the same column.
 
-use editor_core::motion;
+use gasp_core::motion;
 use gpui::{Context, Pixels, Window, px};
 
 use crate::editor::EditorView;

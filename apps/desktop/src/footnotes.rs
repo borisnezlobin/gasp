@@ -11,13 +11,13 @@
 use std::ops::Range;
 use std::time::Duration;
 
-use editor_core::document::Selection;
-use editor_core::footnotes::{
+use gasp_core::document::Selection;
+use gasp_core::footnotes::{
     AUTO_RENUMBER_DEBOUNCE_MS, AutoRenumber, FootnoteEdit, FootnoteProblem, FootnoteProblemKind,
     FootnoteSettings, apply_renumber, fix_inline_typos, fix_typos_message, highlight_problems,
     parse_footnotes, tidy_message,
 };
-use editor_core::transaction::{ChangeSet, Origin, TextEdit, Transaction};
+use gasp_core::transaction::{ChangeSet, Origin, TextEdit, Transaction};
 use gpui::{AppContext, Context, Task};
 
 use crate::editor::{EditorView, HighlightKind};
@@ -251,7 +251,7 @@ fn plan_idle_tidy(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use editor_core::footnotes::apply_edits;
+    use gasp_core::footnotes::apply_edits;
 
     fn idle(text: &str, cursor: usize) -> Option<String> {
         let mut auto = AutoRenumber::new();

@@ -2,8 +2,8 @@
 //! callout tints, code block and frontmatter surfaces, and code line
 //! numbers.
 
-use editor_core::render::{LinePlan, LineStyle};
-use editor_core::syntax::{ConflictSide, Node, NodeKind, SyntaxTree};
+use gasp_core::render::{LinePlan, LineStyle};
+use gasp_core::syntax::{ConflictSide, Node, NodeKind, SyntaxTree};
 use gpui::{Pixels, px};
 
 use crate::line_layout::{Bar, LineDecor, Surface};
@@ -205,7 +205,7 @@ impl<'a> FrameBuilder<'a> {
         }
     }
 
-    fn callout(&mut self, kind: editor_core::syntax::CalloutKind, depth: usize) {
+    fn callout(&mut self, kind: gasp_core::syntax::CalloutKind, depth: usize) {
         let theme = self.theme;
         let quotes =
             self.enclosing(|kind| matches!(kind, NodeKind::BlockQuote | NodeKind::Callout(_)));
@@ -315,7 +315,7 @@ fn is_highlighted(ranges: &[(u32, u32)], index: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use editor_core::render::{RenderInput, RevealSettings, plan};
+    use gasp_core::render::{RenderInput, RevealSettings, plan};
 
     use super::*;
 

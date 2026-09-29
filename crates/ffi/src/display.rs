@@ -4,9 +4,9 @@
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use editor_config::Settings;
-use editor_config::settings::{SymbolMode, SymbolSettings};
-use editor_prose::segment::Thresholds;
+use gasp_config::Settings;
+use gasp_config::settings::{SymbolMode, SymbolSettings};
+use gasp_prose::segment::Thresholds;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct DisplayState {

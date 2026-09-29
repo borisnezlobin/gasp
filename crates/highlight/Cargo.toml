@@ -1,5 +1,5 @@
 [package]
-name = "editor-highlight"
+name = "gasp-highlight"
 description = "Syntax colours for fenced code blocks, shared by the desktop and the phone."
 version.workspace = true
 edition.workspace = true

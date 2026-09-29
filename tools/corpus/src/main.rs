@@ -1,11 +1,11 @@
-//! `editor-corpus`: writes the synthetic vault to a folder.
+//! `gasp-corpus`: writes the synthetic vault to a folder.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use editor_corpus::{DEFAULT_SEED, Options, generate};
+use gasp_corpus::{DEFAULT_SEED, Options, generate};
 
-const USAGE: &str = "usage: editor-corpus [--out <dir>] [--seed <u64>] [--notes <n>]\n\
+const USAGE: &str = "usage: gasp-corpus [--out <dir>] [--seed <u64>] [--notes <n>]\n\
 defaults: --out fixtures/corpus --seed 20260927 --notes 204";
 
 struct Args {
@@ -49,7 +49,7 @@ fn main() -> ExitCode {
     };
     let vault = generate(args.seed, &Options { notes: args.notes });
     if let Err(error) = vault.write_to(&args.out) {
-        eprintln!("editor-corpus: {error}");
+        eprintln!("gasp-corpus: {error}");
         return ExitCode::FAILURE;
     }
     println!(

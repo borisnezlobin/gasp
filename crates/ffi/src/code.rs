@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::{Mutex, PoisonError};
 
-use editor_core::syntax::NodeKind;
-use editor_highlight::{CodeKind, Spans, highlight_block};
+use gasp_core::syntax::NodeKind;
+use gasp_highlight::{CodeKind, Spans, highlight_block};
 
 use crate::document::NoteDocument;
 use crate::offsets::{TextRange, Utf16Offsets};

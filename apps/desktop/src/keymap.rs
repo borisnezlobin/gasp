@@ -1,8 +1,8 @@
 //! Key bindings built from the config crate's rules, so every shortcut the
 //! editor answers to is a rule a vault can change.
 
-use editor_config::keys::{Key, KeyChord, Modifiers, NamedKey};
-use editor_config::{Platform, RuleSet};
+use gasp_config::keys::{Key, KeyChord, Modifiers, NamedKey};
+use gasp_config::{Platform, RuleSet};
 use gpui::{Action, App, KeyBinding, SharedString, actions};
 
 use crate::commands::handles;

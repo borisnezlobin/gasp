@@ -1,7 +1,7 @@
 //! Showing, hiding and focusing the left panel, including hover reveal
 //! through the rules engine.
 
-use editor_config::EventKind;
+use gasp_config::EventKind;
 use gpui::{Context, Window};
 
 use super::Workspace;

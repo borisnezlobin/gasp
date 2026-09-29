@@ -6,15 +6,15 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use editor_config::settings::SymbolMode;
-use editor_config::{Platform, RuleSet};
-use editor_desktop::actions::bind_keys;
-use editor_desktop::keymap::editor_bindings;
-use editor_desktop::line_layout::{Hit, Piece, PieceContent, VisualLine};
-use editor_desktop::preview::math::RenderFn;
-use editor_desktop::vault_index::{VaultIndex, index_changes};
-use editor_desktop::{EditorEvent, EditorView, HighlightKind};
-use editor_math::{MathError, RenderedMath};
+use gasp_config::settings::SymbolMode;
+use gasp_config::{Platform, RuleSet};
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::keymap::editor_bindings;
+use gasp_desktop::line_layout::{Hit, Piece, PieceContent, VisualLine};
+use gasp_desktop::preview::math::RenderFn;
+use gasp_desktop::vault_index::{VaultIndex, index_changes};
+use gasp_desktop::{EditorEvent, EditorView, HighlightKind};
+use gasp_math::{MathError, RenderedMath};
 use gpui::{
     AppContext, Entity, Focusable, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, Pixels,
     Point, TestAppContext, VisualTestContext, point, px,
@@ -724,7 +724,7 @@ fn code_blocks_pick_out_lines_and_number_them_when_asked(cx: &mut TestAppContext
     let numbered = |cx: &mut VisualTestContext| !visual(&view, cx, 3).decor.gutter.is_empty();
     assert!(!numbered(cx), "numbers are off by default");
     view.update(cx, |view, cx| {
-        let mut config = editor_config::Config::defaults();
+        let mut config = gasp_config::Config::defaults();
         config.settings.editor.code_line_numbers = true;
         view.apply_config(&config, cx);
     });
@@ -758,7 +758,7 @@ fn the_copy_button_shows_on_hover_and_copies_the_code(cx: &mut TestAppContext) {
     );
     assert_eq!(cursor(&view, cx), 0, "the click doesn't move the cursor");
     cx.executor()
-        .advance_clock(editor_desktop::code_copy::COPIED_FOR * 2);
+        .advance_clock(gasp_desktop::code_copy::COPIED_FOR * 2);
     cx.run_until_parked();
     assert!(
         view.read_with(cx, |view, _| view.copied_code_block())

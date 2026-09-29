@@ -1,5 +1,5 @@
 [package]
-name = "editor-sync"
+name = "gasp-sync"
 description = "Git sync engine, merge policy and conflict model."
 version.workspace = true
 edition.workspace = true
@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
-editor-config = { path = "../config" }
+gasp-config = { path = "../config" }
 git2 = { version = "0.20", default-features = false, features = ["https", "vendored-libgit2", "vendored-openssl"] }
 globset = "0.4"
 similar = "2"

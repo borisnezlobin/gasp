@@ -98,7 +98,7 @@ pub fn manifest_json(vault: &Vault) -> String {
     let note_bytes: usize = vault.notes.iter().map(|n| n.text.len()).sum();
     let attachment_bytes: usize = vault.attachments.iter().map(|a| a.bytes.len()).sum();
     let value = json!({
-        "generator": "editor-corpus",
+        "generator": "gasp-corpus",
         "seed": vault.seed,
         "note_count": vault.notes.len(),
         "attachment_count": vault.attachments.len(),

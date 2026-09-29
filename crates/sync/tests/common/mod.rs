@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use editor_sync::{Author, MergeOutcome, Token, Vault, VaultConfig};
+use gasp_sync::{Author, MergeOutcome, Token, Vault, VaultConfig};
 use git2::{Repository, RepositoryInitOptions};
 use tempfile::TempDir;
 

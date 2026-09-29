@@ -2,7 +2,7 @@
 //! shows, running commands, opening notes, and changing notes that have
 //! unsaved edits so the change is one undoable edit.
 //!
-//! `editor_mcp::bridge::listener` blocks in `accept` on its own thread
+//! `gasp_mcp::bridge::listener` blocks in `accept` on its own thread
 //! and hands each request here over a channel; the answer is worked out
 //! on the main thread, between frames, and sent back. Nothing runs while
 //! no agent asks, and nothing starts until the first frame is on screen.
@@ -12,12 +12,12 @@ use std::path::Path;
 use std::sync::mpsc::{SyncSender, sync_channel};
 use std::time::Duration;
 
-use editor_config::config_files::known_commands;
-use editor_mcp::bridge::endpoint::Endpoint;
-use editor_mcp::bridge::listener::BridgeListener;
-use editor_mcp::bridge::{Buffer, CursorState, EditorState, PaneState, Request, TabState};
 use futures::StreamExt;
 use futures::channel::mpsc::{UnboundedSender, unbounded};
+use gasp_config::config_files::known_commands;
+use gasp_mcp::bridge::endpoint::Endpoint;
+use gasp_mcp::bridge::listener::BridgeListener;
+use gasp_mcp::bridge::{Buffer, CursorState, EditorState, PaneState, Request, TabState};
 use gpui::{AnyWindowHandle, App, AppContext, Context, Entity, Task, Window};
 use serde_json::{Value, json};
 
@@ -154,7 +154,7 @@ impl Workspace {
 
     fn relative_path(&self, path: &Path) -> String {
         path.strip_prefix(&self.vault)
-            .map(editor_vault::ops::slash_path)
+            .map(gasp_vault::ops::slash_path)
             .unwrap_or_default()
     }
 
@@ -280,7 +280,7 @@ impl Workspace {
                 doc.update(cx, |doc, cx| doc.save_or_log(cx));
             }
         }
-        editor_vault::ops::rename(&self.vault, Path::new(from), Path::new(to), false)
+        gasp_vault::ops::rename(&self.vault, Path::new(from), Path::new(to), false)
             .map_err(|error| format!("couldn't move {from}: {error}"))?;
         let updated: Vec<String> = self
             .entry_moved(&old, &new, cx)

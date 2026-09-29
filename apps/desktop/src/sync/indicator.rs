@@ -407,7 +407,7 @@ mod tests {
             Action::Settings
         );
         assert_eq!(
-            action_for(&SyncPhase::Syncing(editor_sync::SyncStep::Push)),
+            action_for(&SyncPhase::Syncing(gasp_sync::SyncStep::Push)),
             Action::Syncing
         );
     }

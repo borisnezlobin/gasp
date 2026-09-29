@@ -5,7 +5,7 @@
 mod common;
 
 use common::{World, author, read, remote_head_message, sync, write};
-use editor_sync::{MergeOutcome, Resolution, Vault, VaultConfig};
+use gasp_sync::{MergeOutcome, Resolution, Vault, VaultConfig};
 use git2::Repository;
 
 const NOTE: &str = "Lemma.md";

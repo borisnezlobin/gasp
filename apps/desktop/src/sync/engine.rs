@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use editor_config::settings::SyncSettings;
-use editor_sync::{
+use gasp_config::settings::SyncSettings;
+use gasp_sync::{
     Author, ConflictedFile, CredentialStore, DeviceOnlyFiles, Resolution, StepReport, SyncStep,
     Token, Vault, VaultConfig, run_step,
 };
@@ -70,7 +70,7 @@ pub fn vault_config(settings: &SyncSettings) -> Result<VaultConfig, String> {
 /// written to (line-ending settings, device-only excludes) once it's on
 /// the branch sync uses, so a vault another tool syncs is left alone.
 pub fn open(root: &Path, settings: &SyncSettings, store: &dyn CredentialStore) -> Opened {
-    let Some(probe) = editor_sync::probe(root, REMOTE) else {
+    let Some(probe) = gasp_sync::probe(root, REMOTE) else {
         return Opened::NotSynced;
     };
     let Some(remote_url) = probe.remote_url else {
@@ -101,7 +101,7 @@ pub fn open(root: &Path, settings: &SyncSettings, store: &dyn CredentialStore) -
     let device = device_name();
     let author = probe
         .author
-        .unwrap_or_else(|| Author::new(device.clone(), editor_sync::FALLBACK_AUTHOR_EMAIL));
+        .unwrap_or_else(|| Author::new(device.clone(), gasp_sync::FALLBACK_AUTHOR_EMAIL));
     let engine = Engine {
         vault: Mutex::new(vault),
         author,

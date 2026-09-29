@@ -4,7 +4,7 @@
 
 use std::ops::Range;
 
-use editor_core::document::Document;
+use gasp_core::document::Document;
 use gpui::{Bounds, Context, EntityInputHandler, Pixels, Point, UTF16Selection, Window, point};
 
 use super::TextInput;

@@ -12,14 +12,14 @@
 
 pub mod compare;
 pub mod dialog;
-pub use editor_vault::recovery as store;
+pub use gasp_vault::recovery as store;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
-use editor_config::settings::RecoverySettings;
+use gasp_config::settings::RecoverySettings;
 use gpui::{App, AppContext, Context, Global, Window};
 
 use self::dialog::{RecoveryDialog, RecoveryEvent};

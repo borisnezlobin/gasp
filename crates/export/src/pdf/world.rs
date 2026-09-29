@@ -39,7 +39,7 @@ static EMBEDDED: LazyLock<Embedded> = LazyLock::new(|| Embedded {
         .flat_map(|data| Font::iter(Bytes::new(data)))
         .collect(),
     sources: std::iter::once((TEMPLATE_PATH, include_str!("../../assets/template.typ")))
-        .chain(editor_math::MITEX_SOURCES)
+        .chain(gasp_math::MITEX_SOURCES)
         .map(|(path, text)| Source::new(file_id(path), text.to_owned()))
         .collect(),
 });

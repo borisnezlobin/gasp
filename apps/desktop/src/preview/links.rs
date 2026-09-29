@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use editor_core::syntax::{LinkKind, NodeKind, SyntaxTree, WikiInfo};
+use gasp_core::syntax::{LinkKind, NodeKind, SyntaxTree, WikiInfo};
 
 /// Something a hover preview can show.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -81,7 +81,7 @@ fn wiki_target(info: &WikiInfo) -> String {
 
 #[cfg(test)]
 mod tests {
-    use editor_core::syntax::parse;
+    use gasp_core::syntax::parse;
 
     use super::*;
 

@@ -3,10 +3,10 @@
 
 use std::path::{Path, PathBuf};
 
-use editor_config::CONFIG_DIR;
-use editor_config::names::LEGACY_CONFIG_DIR;
+use gasp_config::CONFIG_DIR;
+use gasp_config::names::LEGACY_CONFIG_DIR;
 
-pub use editor_vault::files::atomic_write;
+pub use gasp_vault::files::atomic_write;
 
 /// The extension every note has.
 pub const NOTE_EXTENSION: &str = "md";

@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 pub const IDLE_GAP: Duration = Duration::from_secs(60);
 
 /// Where each device's file lives, from the vault root.
-pub const STATS_DIR: &str = concat!(editor_config::config_dir!(), "/stats");
+pub const STATS_DIR: &str = concat!(gasp_config::config_dir!(), "/stats");
 
 /// How long after an edit the device's file is written.
 pub const SAVE_DELAY: Duration = Duration::from_secs(5);

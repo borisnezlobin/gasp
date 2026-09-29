@@ -5,9 +5,9 @@ use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use editor_desktop::actions::bind_keys;
-use editor_desktop::find;
-use editor_desktop::vault_search::{self, VaultSearch, VaultSearchEvent};
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::find;
+use gasp_desktop::vault_search::{self, VaultSearch, VaultSearchEvent};
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
 fn write(root: &Path, path: &str, text: &str) {

@@ -4,10 +4,10 @@
 
 use std::path::Path;
 
-use editor_config::device::{PaneLayout, SplitAxis};
-use editor_desktop::actions::bind_keys;
-use editor_desktop::workspace::pane_tree::Direction;
-use editor_desktop::workspace::{OpenIn, Pane, Workspace};
+use gasp_config::device::{PaneLayout, SplitAxis};
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::workspace::pane_tree::Direction;
+use gasp_desktop::workspace::{OpenIn, Pane, Workspace};
 use gpui::{
     Bounds, Entity, Modifiers, MouseButton, MouseDownEvent, Pixels, Point, TestAppContext,
     VisualTestContext, point, px,

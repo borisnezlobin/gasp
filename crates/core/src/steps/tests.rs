@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use editor_snippets::{Replacements, SnippetEngine, SnippetFile};
+use gasp_snippets::{Replacements, SnippetEngine, SnippetFile};
 
 use super::install_typing_steps;
 use crate::document::{Document, Selection};

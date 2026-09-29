@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::thread::JoinHandle;
 
-use editor_config::{Config, ConfigLoader};
+use gasp_config::{Config, ConfigLoader};
 
 use super::files::notes_by_recency;
 use super::launcher::{MAX_RECENT, RECENT_SCAN_FOLDERS};

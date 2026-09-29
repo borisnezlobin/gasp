@@ -2,10 +2,10 @@
 //! run, the keys that run them with a hardware keyboard, and the bar above
 //! the software keyboard.
 
-use editor_config::commands::{BUILTIN_COMMANDS, CommandSpec};
-use editor_config::keys::{Key, KeyChord, Modifiers, NamedKey};
-use editor_config::rules::Rule;
-use editor_config::{Config, Platform};
+use gasp_config::commands::{BUILTIN_COMMANDS, CommandSpec};
+use gasp_config::keys::{Key, KeyChord, Modifiers, NamedKey};
+use gasp_config::rules::Rule;
+use gasp_config::{Config, Platform};
 
 /// Commands the phone leaves out: it shows one note at a time, so there are
 /// no panes to split or move tabs between.

@@ -1,7 +1,7 @@
 //! The native menu bar (macOS). Every item dispatches the same
 //! `RunCommand` action its key does, so menus show the current shortcut.
 
-use editor_config::commands::BUILTIN_COMMANDS;
+use gasp_config::commands::BUILTIN_COMMANDS;
 use gpui::{App, KeyBinding, Menu, MenuItem, OsAction, SystemMenuType, actions};
 
 use crate::keymap::{Quit, RunCommand};
@@ -18,7 +18,7 @@ actions!(
 );
 
 /// The app's name in the menu bar.
-pub const APP_NAME: &str = editor_config::APP_NAME;
+pub const APP_NAME: &str = gasp_config::APP_NAME;
 
 /// One entry in a menu table.
 enum Entry {

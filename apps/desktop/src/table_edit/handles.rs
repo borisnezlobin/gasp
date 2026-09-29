@@ -6,7 +6,7 @@
 
 use std::time::Instant;
 
-use editor_core::table::{CellPos, Table, TableOp};
+use gasp_core::table::{CellPos, Table, TableOp};
 use gpui::{Bounds, Context, Pixels, Point, point, size};
 
 use crate::editor::EditorView;
@@ -205,7 +205,7 @@ impl EditorView {
         };
         let tree = self.source.tree();
         screen_tables(frame, |offset| {
-            let id = editor_core::table::table_node_at(tree, offset)?;
+            let id = gasp_core::table::table_node_at(tree, offset)?;
             Some(tree.node(id).range.start)
         })
     }

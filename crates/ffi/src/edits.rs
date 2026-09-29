@@ -3,19 +3,19 @@
 
 use std::ops::Range;
 
-use editor_core::commands::{
+use gasp_core::commands::{
     FootnoteCommand, Format, duplicate_lines, indent, insert_callout, insert_link,
     insert_or_jump_footnote, move_lines_down, move_lines_up, outdent, toggle_format, toggle_tasks,
 };
-use editor_core::document::{Document, Selection, SelectionRange};
-use editor_core::footnotes::{
+use gasp_core::document::{Document, Selection, SelectionRange};
+use gasp_core::footnotes::{
     FootnoteEdit, FootnoteSettings, apply_renumber, fix_inline_typos, fix_typos_message,
     tidy_message,
 };
-use editor_core::motion;
-use editor_core::syntax::{NodeKind, SyntaxTree};
-use editor_core::table::{Table, TableOp, insert_table, table_transaction};
-use editor_core::transaction::Transaction;
+use gasp_core::motion;
+use gasp_core::syntax::{NodeKind, SyntaxTree};
+use gasp_core::table::{Table, TableOp, insert_table, table_transaction};
+use gasp_core::transaction::Transaction;
 
 use crate::offsets::{TextRange, Utf16Offsets};
 

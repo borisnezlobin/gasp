@@ -1,7 +1,7 @@
 //! Every command in mitex's bundled spec should convert and render against
 //! the vendored scope plus `assets/compat.typ`.
 
-use editor_math::render_latex;
+use gasp_math::render_latex;
 use mitex_spec::{ArgPattern, ArgShape, CommandSpecItem};
 
 /// Commands that cannot render on their own, and why.

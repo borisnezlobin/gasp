@@ -1,9 +1,9 @@
 //! Folding headings and callouts on the phone. The note keeps its folds
 //! and moves them along with every edit; the plan leaves folded lines out.
 
-use editor_core::render::folds::{HeadingSection, heading_sections};
-use editor_core::render::{RenderInput, RevealSettings, WidgetKind, plan_lines};
-use editor_core::syntax::{MarkupKind, NodeKind};
+use gasp_core::render::folds::{HeadingSection, heading_sections};
+use gasp_core::render::{RenderInput, RevealSettings, WidgetKind, plan_lines};
+use gasp_core::syntax::{MarkupKind, NodeKind};
 
 use crate::document::{NoteDocument, ParsedText};
 use crate::offsets::TextRange;

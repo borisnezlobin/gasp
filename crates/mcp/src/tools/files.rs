@@ -5,9 +5,9 @@
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
-use editor_config::settings::TrashMode;
-use editor_vault::files::atomic_write;
-use editor_vault::ops;
+use gasp_config::settings::TrashMode;
+use gasp_vault::files::atomic_write;
+use gasp_vault::ops;
 use globset::{Glob, GlobMatcher};
 use serde_json::{Value, json};
 

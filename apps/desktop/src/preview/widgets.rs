@@ -4,9 +4,9 @@
 use std::ops::Range;
 use std::sync::Arc;
 
-use editor_core::render::{StyleKey, WidgetKind};
-use editor_core::syntax::{CalloutKind, ConflictSide, Fold};
-use editor_math::fill_empty_arguments;
+use gasp_core::render::{StyleKey, WidgetKind};
+use gasp_core::syntax::{CalloutKind, ConflictSide, Fold};
+use gasp_math::fill_empty_arguments;
 use gpui::{Pixels, RenderImage, SharedString, px};
 
 use crate::icons::IconName;

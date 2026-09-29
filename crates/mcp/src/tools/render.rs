@@ -1,8 +1,8 @@
 //! `render_note`: a page of a note as PDF export lays it out, as a PNG,
 //! so an agent can see what an export or a change to a note looks like.
 
-use editor_export::pdf::{PageImage, PdfOptions, compile_note, evict_memory, fonts_for};
-use editor_export::pdf::{render_page, typst_source};
+use gasp_export::pdf::{PageImage, PdfOptions, compile_note, evict_memory, fonts_for};
+use gasp_export::pdf::{render_page, typst_source};
 use schemars::JsonSchema;
 use serde::Deserialize;
 

@@ -1,9 +1,9 @@
 //! Tools on the link graph: backlinks, a note's outgoing links and the
 //! vault's tags, from the same index the app's sidebars use.
 
-use editor_vault::index::LinkIndex;
-use editor_vault::mentions::link_excerpt;
-use editor_vault::parse::Link;
+use gasp_vault::index::LinkIndex;
+use gasp_vault::mentions::link_excerpt;
+use gasp_vault::parse::Link;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};

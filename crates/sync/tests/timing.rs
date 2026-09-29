@@ -1,5 +1,5 @@
 //! Times the sync steps on a synthetic vault of about 200 notes.
-//! Run with `cargo test -p editor-sync --release --test timing -- --nocapture`.
+//! Run with `cargo test -p gasp-sync --release --test timing -- --nocapture`.
 
 mod common;
 
@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 use std::time::{Duration, Instant};
 
 use common::{World, author, read, write};
-use editor_sync::{MergeOutcome, Vault, VaultConfig};
+use gasp_sync::{MergeOutcome, Vault, VaultConfig};
 
 const NOTE_COUNT: usize = 200;
 const EDITED_PER_DEVICE: usize = 20;

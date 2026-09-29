@@ -4,9 +4,9 @@
 
 use std::ops::Range;
 
-use editor_config::Platform;
-use editor_config::keys::KeyChord;
-use editor_core::find::{FindOptions, FindQuery, replace_all_transaction, replace_one_transaction};
+use gasp_config::Platform;
+use gasp_config::keys::KeyChord;
+use gasp_core::find::{FindOptions, FindQuery, replace_all_transaction, replace_one_transaction};
 use gpui::{
     App, ClickEvent, Context, Entity, EventEmitter, FocusHandle, Focusable, KeyBinding,
     SharedString, Subscription, Window, actions, div, prelude::*,
@@ -272,7 +272,7 @@ impl FindBar {
             .compiled
             .as_ref()
             .map_or_else(Vec::new, |query| query.matches(&text));
-        self.active = editor_core::find::match_at_or_after(&self.matches, from);
+        self.active = gasp_core::find::match_at_or_after(&self.matches, from);
         self.push_highlights(cx);
     }
 
@@ -326,8 +326,8 @@ impl FindBar {
         let on_active = self.active_range() == Some(selection.clone());
         let count = self.matches.len();
         self.active = Some(match (on_active, self.active, forward) {
-            (true, Some(index), true) => editor_core::find::next_index(index, count),
-            (true, Some(index), false) => editor_core::find::previous_index(index, count),
+            (true, Some(index), true) => gasp_core::find::next_index(index, count),
+            (true, Some(index), false) => gasp_core::find::previous_index(index, count),
             (_, _, true) => first_after(&self.matches, selection.end),
             (_, _, false) => last_before(&self.matches, selection.start),
         });
@@ -413,7 +413,7 @@ impl FindBar {
 
 /// The first match starting at or after `offset`, wrapping to the first.
 fn first_after(matches: &[Range<usize>], offset: usize) -> usize {
-    editor_core::find::match_at_or_after(matches, offset).unwrap_or(0)
+    gasp_core::find::match_at_or_after(matches, offset).unwrap_or(0)
 }
 
 /// The last match ending at or before `offset`, wrapping to the last.

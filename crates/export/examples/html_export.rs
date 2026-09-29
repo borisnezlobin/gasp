@@ -1,6 +1,6 @@
 //! Exports one note as an article and reports what it contains.
 //!
-//! `cargo run -p editor-export --example html_export -- <note.md> <out.html>
+//! `cargo run -p gasp-export --example html_export -- <note.md> <out.html>
 //!  [--vault DIR] [--page]`
 //!
 //! `--page` writes the standalone preview page (title, description and the
@@ -9,7 +9,7 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
-use editor_export::html::{HtmlOptions, export_html, standalone_page};
+use gasp_export::html::{HtmlOptions, export_html, standalone_page};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut positional = Vec::new();

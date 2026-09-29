@@ -2,9 +2,9 @@
 //! schema describes, its value, and writing one back to
 //! `.gasp/settings.toml` the way the desktop's settings screen does.
 
-use editor_config::schema::{SettingKind, setting_descriptors};
-use editor_config::settings::SettingsIndex;
-use editor_config::store::write_setting;
+use gasp_config::schema::{SettingKind, setting_descriptors};
+use gasp_config::settings::SettingsIndex;
+use gasp_config::store::write_setting;
 use serde_json::Value as Json;
 use toml::Value as Toml;
 

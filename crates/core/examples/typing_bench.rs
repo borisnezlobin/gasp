@@ -3,18 +3,18 @@
 //! line in a long note, and typing prose in its middle. The whole pipeline
 //! runs, as in the editor, but not layout or paint.
 //!
-//! `cargo run --release -p editor-core --example typing_bench -- NOTE.md`
+//! `cargo run --release -p gasp-core --example typing_bench -- NOTE.md`
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use editor_core::document::{Document, Selection};
-use editor_core::history::EditorState;
-use editor_core::pipeline::{EditRequest, Pipeline, TabStops, follow_stops, step_names};
-use editor_core::steps::install_typing_steps;
-use editor_core::syntax;
-use editor_core::transaction::{Origin, Transaction};
-use editor_snippets::{Replacements, SnippetEngine, SnippetFile};
+use gasp_core::document::{Document, Selection};
+use gasp_core::history::EditorState;
+use gasp_core::pipeline::{EditRequest, Pipeline, TabStops, follow_stops, step_names};
+use gasp_core::steps::install_typing_steps;
+use gasp_core::syntax;
+use gasp_core::transaction::{Origin, Transaction};
+use gasp_snippets::{Replacements, SnippetEngine, SnippetFile};
 
 const MATH_TEXT: &str = "x2 + ab - cd ";
 const PROSE_TEXT: &str = "the quick brown fox -- and ... ";

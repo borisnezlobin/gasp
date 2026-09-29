@@ -4,8 +4,8 @@
 
 use std::path::Path;
 
-use editor_export::html::{HtmlOptions, export_html, standalone_page};
-use editor_export::pdf::{PdfOptions, export_pdf, fonts_for};
+use gasp_export::html::{HtmlOptions, export_html, standalone_page};
+use gasp_export::pdf::{PdfOptions, export_pdf, fonts_for};
 
 use crate::vault::{VaultError, VaultFolder};
 
@@ -43,7 +43,7 @@ impl VaultFolder {
                 message: error.to_string(),
             },
         )?;
-        editor_export::pdf::evict_memory(0);
+        gasp_export::pdf::evict_memory(0);
         Ok(ExportedFile {
             file_name: format!("{}.pdf", stem(&note)),
             bytes: export.pdf,

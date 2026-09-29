@@ -3,8 +3,8 @@
 
 use std::ops::Range;
 
-use editor_core::document::Document;
-use editor_core::syntax::{self, Edit, SyntaxTree};
+use gasp_core::document::Document;
+use gasp_core::syntax::{self, Edit, SyntaxTree};
 
 /// The text and tree the render planner reads.
 #[derive(Clone, Debug)]

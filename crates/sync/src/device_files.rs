@@ -9,16 +9,16 @@ use crate::error::{SyncError, SyncResult};
 ///
 /// Per-device stats under `.gasp/stats/` are deliberately absent: each
 /// device writes its own file there and those files do sync.
-pub const DEFAULT_DEVICE_ONLY_GLOBS: &[&str] = editor_config::settings::DEFAULT_DEVICE_ONLY;
+pub const DEFAULT_DEVICE_ONLY_GLOBS: &[&str] = gasp_config::settings::DEFAULT_DEVICE_ONLY;
 
 const EXCLUDE_BEGIN: &str = concat!(
     "# ",
-    editor_config::command_name!(),
+    gasp_config::command_name!(),
     ": device-only files (managed, do not edit)"
 );
 const EXCLUDE_END: &str = concat!(
     "# ",
-    editor_config::command_name!(),
+    gasp_config::command_name!(),
     ": end of device-only files"
 );
 const LEGACY_EXCLUDE_BEGIN: &str = "# editor: device-only files (managed, do not edit)";
@@ -131,8 +131,8 @@ fn without_managed_block(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use editor_config::CONFIG_DIR;
-    use editor_config::names::LEGACY_CONFIG_DIR;
+    use gasp_config::CONFIG_DIR;
+    use gasp_config::names::LEGACY_CONFIG_DIR;
 
     use super::*;
 

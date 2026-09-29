@@ -3,7 +3,7 @@ mod common;
 use std::time::Duration;
 
 use common::{World, author, write};
-use editor_sync::{Scheduler, SyncEventKind, SyncStatus, SyncStep, drive, run_step};
+use gasp_sync::{Scheduler, SyncEventKind, SyncStatus, SyncStep, drive, run_step};
 
 const DEVICE: &str = "laptop";
 
@@ -81,9 +81,9 @@ fn push_failure_keeps_commits_local_and_reports_offline() {
     scheduler.request_sync();
     scheduler.poll(secs(0));
     for step_report in [
-        editor_sync::StepReport::Committed { new_commit: false },
-        editor_sync::StepReport::Fetched,
-        editor_sync::StepReport::Merged(editor_sync::MergeReport::UpToDate),
+        gasp_sync::StepReport::Committed { new_commit: false },
+        gasp_sync::StepReport::Fetched,
+        gasp_sync::StepReport::Merged(gasp_sync::MergeReport::UpToDate),
         report,
     ] {
         scheduler.report(secs(1), step_report);
@@ -158,7 +158,7 @@ fn scheduled_sync_keeps_syncing_other_notes_while_a_conflict_waits() {
 
     let files = phone.conflicts().unwrap();
     phone
-        .resolve(&files[0], &[editor_sync::Resolution::Both])
+        .resolve(&files[0], &[gasp_sync::Resolution::Both])
         .unwrap();
     scheduler.conflicts_resolved(secs(140));
     assert_eq!(

@@ -11,7 +11,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use base64::Engine;
-use editor_config::{COMMAND_NAME, app_name, config_dir};
+use gasp_config::{COMMAND_NAME, app_name, config_dir};
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation,
     ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerConfig,

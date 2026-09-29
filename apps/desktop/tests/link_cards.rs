@@ -2,14 +2,14 @@
 //! offer turns the line into a Link Embed block, and live preview draws
 //! the block as a card. Pages are read by a stand-in, not the web.
 
-use editor_config::{Platform, RuleSet};
-use editor_core::link_card::LinkCard;
-use editor_desktop::EditorView;
-use editor_desktop::actions::bind_keys;
-use editor_desktop::editor::EditorEvent;
-use editor_desktop::keymap::editor_bindings;
-use editor_desktop::line_layout::Hit;
-use editor_desktop::link_cards::OfferState;
+use gasp_config::{Platform, RuleSet};
+use gasp_core::link_card::LinkCard;
+use gasp_desktop::EditorView;
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::editor::EditorEvent;
+use gasp_desktop::keymap::editor_bindings;
+use gasp_desktop::line_layout::Hit;
+use gasp_desktop::link_cards::OfferState;
 use gpui::{
     Bounds, ClipboardItem, CursorStyle, Entity, Focusable, Modifiers, Pixels, TestAppContext,
     VisualTestContext, point, size,

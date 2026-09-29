@@ -1,8 +1,8 @@
 //! Every setting appears in the schema with a type and a default.
 
-use editor_config::Settings;
-use editor_config::merge::flatten;
-use editor_config::schema::setting_descriptors;
+use gasp_config::Settings;
+use gasp_config::merge::flatten;
+use gasp_config::schema::setting_descriptors;
 
 #[test]
 fn every_settings_field_is_described() {
@@ -40,7 +40,7 @@ fn every_descriptor_is_a_real_setting() {
 
 #[test]
 fn json_schema_serializes() {
-    let schema = editor_config::schema::settings_json_schema();
+    let schema = gasp_config::schema::settings_json_schema();
     let json = serde_json::to_string(&schema).unwrap();
     assert!(json.contains("sidebar"));
 }

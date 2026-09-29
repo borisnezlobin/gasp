@@ -19,8 +19,8 @@ use crate::settings_view::controls::{button, inert_button};
 use crate::settings_view::modal_size;
 use crate::theme::SettingsTheme;
 use crate::ui::keycap;
-use editor_config::keys::KeyChord;
-use editor_config::settings::RecoverySettings;
+use gasp_config::keys::KeyChord;
+use gasp_config::settings::RecoverySettings;
 use gpui::{
     AnyElement, ClickEvent, Context, DismissEvent, EventEmitter, FocusHandle, Focusable,
     HighlightStyle, Hsla, KeyDownEvent, ScrollHandle, SharedString, StrikethroughStyle, StyledText,
@@ -445,7 +445,7 @@ fn marked_text(stretches: &[(Mark, String)], styles: &MarkStyles) -> StyledText 
 fn key_chip(key: &str, theme: &crate::theme::KeycapTheme) -> impl IntoElement {
     let chord = KeyChord::parse(key).expect("dialog keys parse");
     keycap(
-        Shortcut::new(chord, editor_config::Platform::current()),
+        Shortcut::new(chord, gasp_config::Platform::current()),
         theme,
     )
 }
@@ -466,7 +466,7 @@ fn read_versions(store: &SnapshotStore, note: &std::path::Path) -> Vec<Version> 
 }
 
 fn words_label(text: &str) -> String {
-    match editor_prose::word_count(text) {
+    match gasp_prose::word_count(text) {
         1 => "1 word".to_owned(),
         n => format!("{} words", thousands(n)),
     }

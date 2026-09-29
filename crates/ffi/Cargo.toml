@@ -1,5 +1,5 @@
 [package]
-name = "editor-ffi"
+name = "gasp-ffi"
 description = "UniFFI surface for the iPhone app."
 version.workspace = true
 edition.workspace = true
@@ -12,15 +12,15 @@ publish = false
 crate-type = ["lib"]
 
 [dependencies]
-editor-config = { path = "../config" }
-editor-core = { path = "../core" }
-editor-export = { path = "../export" }
-editor-highlight = { path = "../highlight" }
-editor-math = { path = "../math" }
-editor-prose = { path = "../prose" }
-editor-search = { path = "../search" }
-editor-sync = { path = "../sync", features = ["keychain"] }
-editor-vault = { path = "../vault" }
+gasp-config = { path = "../config" }
+gasp-core = { path = "../core" }
+gasp-export = { path = "../export" }
+gasp-highlight = { path = "../highlight" }
+gasp-math = { path = "../math" }
+gasp-prose = { path = "../prose" }
+gasp-search = { path = "../search" }
+gasp-sync = { path = "../sync", features = ["keychain"] }
+gasp-vault = { path = "../vault" }
 # Rasterises rendered math, as the desktop does; the desktop already
 # builds this version.
 resvg = { version = "0.45", default-features = false }

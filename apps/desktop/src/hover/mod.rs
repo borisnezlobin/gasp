@@ -16,9 +16,9 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use editor_config::Config;
-use editor_config::settings::SymbolMode;
-use editor_core::footnotes::{find_def, parse_footnotes};
+use gasp_config::Config;
+use gasp_config::settings::SymbolMode;
+use gasp_core::footnotes::{find_def, parse_footnotes};
 use gpui::{AppContext, Context, Entity, Pixels, Point, Subscription, Task, Window};
 
 use self::resolve::{NoteLink, resolve};
@@ -50,7 +50,7 @@ pub enum PreviewContent {
     /// Something to say instead, such as a footnote with no definition.
     Message(String),
     /// What the grammar checker found, with its fixes.
-    Flag(editor_prose::Flag),
+    Flag(gasp_prose::Flag),
 }
 
 /// An open popover and the link it belongs to.

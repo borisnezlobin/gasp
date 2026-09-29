@@ -5,7 +5,7 @@ use std::fs;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 
-use editor_config::settings::TrashMode;
+use gasp_config::settings::TrashMode;
 
 use super::entries::{EntryKind, NOTE_EXTENSION, is_hidden};
 use crate::link_update::{LinkUpdater, expand_folder_move};

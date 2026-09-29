@@ -1,5 +1,5 @@
 [package]
-name = "editor-prose"
+name = "gasp-prose"
 description = "Sentence segmentation, sentence-length highlighting and grammar."
 version.workspace = true
 edition.workspace = true
@@ -7,8 +7,8 @@ license.workspace = true
 publish = false
 
 [dependencies]
-editor-config = { path = "../config" }
-editor-core = { path = "../core" }
+gasp-config = { path = "../config" }
+gasp-core = { path = "../core" }
 harper-core = { version = "=1.12.0", default-features = false, features = ["concurrent"] }
 unicode-segmentation = "1.13"
 

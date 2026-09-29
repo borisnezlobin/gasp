@@ -144,7 +144,7 @@ impl Workspace {
 
 #[cfg(test)]
 mod tests {
-    use editor_config::commands::BUILTIN_COMMANDS;
+    use gasp_config::commands::BUILTIN_COMMANDS;
 
     use super::*;
 

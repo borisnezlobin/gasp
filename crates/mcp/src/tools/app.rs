@@ -2,7 +2,7 @@
 //! and opening notes. Each fails with a clear message when no app has
 //! the vault open.
 
-use editor_config::config_files::known_commands;
+use gasp_config::config_files::known_commands;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;

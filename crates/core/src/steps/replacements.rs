@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use editor_snippets::Replacements;
+use gasp_snippets::Replacements;
 
 use crate::document::Selection;
 use crate::pipeline::{EditRequest, PipelineStep, StepContext, StepOutcome};

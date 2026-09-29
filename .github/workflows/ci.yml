@@ -64,7 +64,7 @@ jobs:
             libvulkan-dev libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev \
             libssl-dev clang xvfb mesa-vulkan-drivers openbox
       - name: Build the release binary
-        run: cargo build --release --locked -p editor-desktop
+        run: cargo build --release --locked -p gasp-desktop
       # GPUI's X11 client can miss its first map event without a window
       # manager, so the window never draws. openbox provides one.
       - name: Run the bench

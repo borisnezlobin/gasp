@@ -66,7 +66,7 @@ impl CredentialStore for InMemoryCredentialStore {
 
 /// The name tokens are filed under in the system's credential store, keyed
 /// by the remote's URL.
-pub const KEYCHAIN_SERVICE: &str = concat!(editor_config::command_name!(), "-sync");
+pub const KEYCHAIN_SERVICE: &str = concat!(gasp_config::command_name!(), "-sync");
 
 /// The name tokens were filed under before the app was called Gasp.
 pub const LEGACY_KEYCHAIN_SERVICE: &str = "editor-sync";

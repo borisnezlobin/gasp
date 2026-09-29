@@ -1,9 +1,9 @@
 //! Suggestions while typing: note names after `[[`, headings after `#`
 //! inside a link, and tags, driven through GPUI's test platform.
 
-use editor_desktop::EditorView;
-use editor_desktop::actions::bind_keys;
-use editor_desktop::vault_index::{NoteScan, VaultIndex};
+use gasp_desktop::EditorView;
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::vault_index::{NoteScan, VaultIndex};
 use gpui::{
     AppContext, Entity, Focusable, Modifiers, ScrollDelta, ScrollWheelEvent, TestAppContext,
     VisualTestContext, point,

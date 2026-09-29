@@ -4,7 +4,7 @@
 //! type. Tab walks the fields and controls, arrows change a choice, Space
 //! flips a switch, Enter saves and Escape closes.
 
-use editor_snippets::{
+use gasp_snippets::{
     FileLine, Fire, InputContext, Options, Preview, STOP_GLYPH, Scope, SnippetEngine,
     format_expansion, format_options, format_trigger, parse_snippet, preview,
 };

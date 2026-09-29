@@ -2,9 +2,9 @@
 //! (which never syncs) so a note opens where it was left after a relaunch:
 //! the cursor, the line at the top of the view and the folded headings.
 
-use editor_config::device::{NotePosition, move_positions, remember_position};
-use editor_config::loader::CONFIG_DIR;
-use editor_config::store::save;
+use gasp_config::device::{NotePosition, move_positions, remember_position};
+use gasp_config::loader::CONFIG_DIR;
+use gasp_config::store::save;
 
 use crate::document::NoteDocument;
 use crate::vault::{VaultError, VaultFolder};

@@ -96,7 +96,7 @@ impl Migration {
             });
         }
         if let Some(replacements) = &self.replacements {
-            let header = "# Replacements merged from Smart Typography and Symbols Prettifier by editor-migrate.\n\n";
+            let header = "# Replacements merged from Smart Typography and Symbols Prettifier by gasp-migrate.\n\n";
             files.push(OutputFile {
                 name: REPLACEMENTS_FILE,
                 contents: format!("{header}{}", replacements.table.to_toml()),

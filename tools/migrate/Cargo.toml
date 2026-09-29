@@ -1,5 +1,5 @@
 [package]
-name = "editor-migrate"
+name = "gasp-migrate"
 description = "One-shot importer for .obsidian settings, hotkeys and snippets."
 version.workspace = true
 edition.workspace = true
@@ -7,17 +7,17 @@ license.workspace = true
 publish = false
 
 [[bin]]
-name = "editor-migrate"
+name = "gasp-migrate"
 path = "src/main.rs"
 
 [dependencies]
-editor-snippets = { path = "../../crates/snippets" }
+gasp-snippets = { path = "../../crates/snippets" }
 serde_json = { version = "1", features = ["preserve_order"] }
 toml = "0.8"
 
 [dev-dependencies]
 tempfile = "3"
-editor-config = { path = "../../crates/config" }
+gasp-config = { path = "../../crates/config" }
 
 [lints]
 workspace = true

@@ -350,7 +350,7 @@ mod tests {
     use std::sync::Mutex;
     use std::sync::OnceLock;
 
-    use editor_core::syntax::parse;
+    use gasp_core::syntax::parse;
 
     use super::*;
     use crate::markdown::{Purpose, units};

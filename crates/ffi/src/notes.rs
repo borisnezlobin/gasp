@@ -3,12 +3,12 @@
 
 use std::path::{Path, PathBuf};
 
-use editor_vault::attachments::{attachments_dir, embed, save_attachment};
-use editor_vault::entries::EntryKind;
-use editor_vault::knowledge::daily::ensure_daily_note;
-use editor_vault::knowledge::templates::{TemplateContext, fill, list_templates, templates_folder};
-use editor_vault::knowledge::{dates, links, note_title};
-use editor_vault::ops::{self, slash_path, unique_name, validate_name};
+use gasp_vault::attachments::{attachments_dir, embed, save_attachment};
+use gasp_vault::entries::EntryKind;
+use gasp_vault::knowledge::daily::ensure_daily_note;
+use gasp_vault::knowledge::templates::{TemplateContext, fill, list_templates, templates_folder};
+use gasp_vault::knowledge::{dates, links, note_title};
+use gasp_vault::ops::{self, slash_path, unique_name, validate_name};
 
 use crate::vault::{VaultError, VaultFolder};
 

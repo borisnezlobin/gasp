@@ -1,4 +1,4 @@
-//! Math drawn as math on the phone: LaTeX goes through `editor-math`
+//! Math drawn as math on the phone: LaTeX goes through `gasp-math`
 //! (mitex and Typst) to SVG, which is rasterised with resvg into coverage
 //! alone, one byte a pixel. The phone fills that with the text colour, so
 //! one render serves light and dark mode, and keeps its own cache.
@@ -8,7 +8,7 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use editor_math::{RenderedMath, evict_layout_memory, render_latex, warm_up};
+use gasp_math::{RenderedMath, evict_layout_memory, render_latex, warm_up};
 use resvg::{tiny_skia, usvg};
 
 /// Typst memoises layouts; every this many renders, the ones not used

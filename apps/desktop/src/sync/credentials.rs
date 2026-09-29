@@ -10,11 +10,11 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-pub use editor_sync::KeychainStore;
-use editor_sync::{CredentialStore, SyncError, SyncResult, Token};
+pub use gasp_sync::KeychainStore;
+use gasp_sync::{CredentialStore, SyncError, SyncResult, Token};
 
 /// The name tokens are filed under in the system's credential store.
-pub const SERVICE: &str = editor_sync::KEYCHAIN_SERVICE;
+pub const SERVICE: &str = gasp_sync::KEYCHAIN_SERVICE;
 
 /// The store this platform uses.
 pub fn default_store() -> Arc<dyn CredentialStore> {
@@ -27,7 +27,7 @@ pub fn default_store() -> Arc<dyn CredentialStore> {
         let folder = dirs::config_dir().unwrap_or_else(std::env::temp_dir);
         Arc::new(FileStore::new(
             folder
-                .join(editor_config::APP_FOLDER)
+                .join(gasp_config::APP_FOLDER)
                 .join("credentials.toml"),
         ))
     }

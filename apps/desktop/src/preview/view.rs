@@ -5,8 +5,8 @@
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 
-use editor_config::settings::SymbolMode;
-use editor_core::transaction::{ChangeSet, Origin, Transaction};
+use gasp_config::settings::SymbolMode;
+use gasp_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{AppContext, Context};
 
 use crate::editor::{EditorEvent, EditorView};

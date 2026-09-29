@@ -197,8 +197,8 @@ impl EditorView {
     fn table_cell_after(&self, offset: usize) -> Option<usize> {
         let text = self.source.text();
         let row = offset + text[offset..].find("\n|")? + 1;
-        let table = editor_core::table::Table::at(text, self.source.tree(), row)?;
-        let cell = editor_core::table::CellPos::new(1, 0);
+        let table = gasp_core::table::Table::at(text, self.source.tree(), row)?;
+        let cell = gasp_core::table::CellPos::new(1, 0);
         table.content(text, cell).map(|content| content.end)
     }
 

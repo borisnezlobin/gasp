@@ -15,7 +15,7 @@ use gpui::{
 use crate::picker::fuzzy::{Candidate, Matcher, Query};
 use crate::picker::{Confirmed, Picker, PickerDelegate, highlighted_text};
 use crate::theme::PickerTheme;
-pub use editor_vault::knowledge::templates::{
+pub use gasp_vault::knowledge::templates::{
     TemplateContext, fill, list_templates, templates_folder,
 };
 

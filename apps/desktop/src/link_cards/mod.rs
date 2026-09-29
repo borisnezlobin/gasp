@@ -6,15 +6,15 @@
 //! draws as a card.
 
 pub mod images;
-pub use editor_core::link_card::meta;
+pub use gasp_core::link_card::meta;
 mod net;
 
 use std::ops::Range;
 use std::time::Duration;
 
-use editor_core::document::Selection;
-use editor_core::link_card::{LinkCard, is_web_url};
-use editor_core::transaction::{ChangeSet, Origin, Transaction};
+use gasp_core::document::Selection;
+use gasp_core::link_card::{LinkCard, is_web_url};
+use gasp_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{
     AnyElement, AppContext, ClickEvent, Context, MouseButton, Task, anchored, div, point,
     prelude::*,

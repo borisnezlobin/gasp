@@ -4,13 +4,13 @@
 use std::ops::Range;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use editor_core::link_card::meta::card_from_html;
-use editor_core::link_card::{card_replacement, url_on_line};
-use editor_core::render::folds::Folds;
-use editor_core::render::{RenderInput, reveal_settings};
-use editor_core::syntax::{self, Edit, NodeKind, SyntaxTree, WikiInfo};
-use editor_core::table::Table;
-use editor_prose::{Length, Purpose, sentence_lengths, units};
+use gasp_core::link_card::meta::card_from_html;
+use gasp_core::link_card::{card_replacement, url_on_line};
+use gasp_core::render::folds::Folds;
+use gasp_core::render::{RenderInput, reveal_settings};
+use gasp_core::syntax::{self, Edit, NodeKind, SyntaxTree, WikiInfo};
+use gasp_core::table::Table;
+use gasp_prose::{Length, Purpose, sentence_lengths, units};
 
 use crate::display::{DisplayState, SharedDisplay};
 use crate::edits::{self, CommandInput, CommandOutcome, TextReplacement};
@@ -116,7 +116,7 @@ impl NoteDocument {
         let mut settings = reveal_settings(&self.display.lock().symbols);
         settings.source_table = parsed.source_table.as_ref().map(|table| table.start);
         let selections = [selected];
-        let mut plan = editor_core::render::plan(&RenderInput {
+        let mut plan = gasp_core::render::plan(&RenderInput {
             text: &parsed.text,
             tree: &parsed.tree,
             selections: &selections,

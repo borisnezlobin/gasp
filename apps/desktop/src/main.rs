@@ -1,13 +1,13 @@
 use std::process::ExitCode;
 
-use editor_config::COMMAND_NAME;
-use editor_desktop::app::{has_display, launch, launch_bench};
-use editor_desktop::bench::BenchConfig;
-use editor_desktop::cli::{self, Command, USAGE};
-use editor_desktop::note::{self, LONG_NOTE_LINES};
-use editor_desktop::trace;
-use editor_desktop::workspace::state::{AppState, migrate_app_folders};
-use editor_desktop::workspace::window::LaunchTarget;
+use gasp_config::COMMAND_NAME;
+use gasp_desktop::app::{has_display, launch, launch_bench};
+use gasp_desktop::bench::BenchConfig;
+use gasp_desktop::cli::{self, Command, USAGE};
+use gasp_desktop::note::{self, LONG_NOTE_LINES};
+use gasp_desktop::trace;
+use gasp_desktop::workspace::state::{AppState, migrate_app_folders};
+use gasp_desktop::workspace::window::LaunchTarget;
 
 fn main() -> ExitCode {
     trace::init();
@@ -29,7 +29,7 @@ fn main() -> ExitCode {
         Command::Open(path) => open(path.as_deref()),
         Command::Bench { path, config } => bench(&path, config),
         Command::BenchIndex(vault) => {
-            println!("{}", editor_desktop::knowledge::bench::run(&vault));
+            println!("{}", gasp_desktop::knowledge::bench::run(&vault));
             ExitCode::SUCCESS
         }
         Command::Mcp(vault) => mcp(vault),
@@ -47,7 +47,7 @@ fn mcp(vault: Option<std::path::PathBuf>) -> ExitCode {
         eprintln!("{COMMAND_NAME} mcp: {} isn't a folder", vault.display());
         return ExitCode::from(2);
     }
-    match editor_mcp::serve_stdio(&vault) {
+    match gasp_mcp::serve_stdio(&vault) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{COMMAND_NAME} mcp: {error}");

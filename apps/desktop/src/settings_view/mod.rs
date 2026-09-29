@@ -25,7 +25,7 @@ pub mod snippets_page;
 mod sync_page;
 mod view;
 
-pub use editor_config::{config_files, store};
+pub use gasp_config::{config_files, store};
 pub use menu::MenuTarget;
 pub use model::{FontSlot, Page};
 pub use render::modal_size;

@@ -4,10 +4,10 @@
 
 use std::time::Duration;
 
-use editor_desktop::actions::bind_keys;
-use editor_desktop::hover::PreviewContent;
-use editor_desktop::vault_index::VaultIndex;
-use editor_desktop::{EditorEvent, EditorView};
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::hover::PreviewContent;
+use gasp_desktop::vault_index::VaultIndex;
+use gasp_desktop::{EditorEvent, EditorView};
 use gpui::{
     AppContext, Entity, Focusable, Modifiers, Pixels, Point, TestAppContext, VisualTestContext,
 };

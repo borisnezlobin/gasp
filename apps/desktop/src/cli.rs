@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use editor_config::command_name;
+use gasp_config::command_name;
 
 use crate::bench::BenchConfig;
 

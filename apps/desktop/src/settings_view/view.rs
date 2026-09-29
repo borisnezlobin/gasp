@@ -7,9 +7,9 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use editor_config::schema::SettingKind;
-use editor_config::theme::Theme as Tokens;
-use editor_config::{Config, Platform, RuleSet};
+use gasp_config::schema::SettingKind;
+use gasp_config::theme::Theme as Tokens;
+use gasp_config::{Config, Platform, RuleSet};
 use gpui::{
     App, AppContext, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     ListAlignment, ListOffset, ListState, Subscription, Window, px,

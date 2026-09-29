@@ -22,7 +22,7 @@ help:
 	@echo "make ios-phone   Build the iPhone app and install it on the plugged-in iPhone"
 
 build:
-	cargo build --release -p editor-desktop
+	cargo build --release -p gasp-desktop
 	codesign --force --sign "$(DEV_SIGNING_ID)" --identifier $(BUNDLE_ID) target/release/gasp
 
 run: build

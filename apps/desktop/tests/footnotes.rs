@@ -4,9 +4,9 @@
 
 use std::time::Duration;
 
-use editor_desktop::actions::bind_keys;
-use editor_desktop::footnotes::{LINT_DELAY, TIDY_DELAY};
-use editor_desktop::{EditorView, HighlightKind};
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::footnotes::{LINT_DELAY, TIDY_DELAY};
+use gasp_desktop::{EditorView, HighlightKind};
 use gpui::{Entity, Focusable, TestAppContext, VisualTestContext};
 
 fn open<'a>(
@@ -69,7 +69,7 @@ fn footnotes_renumber_once_typing_pauses(cx: &mut TestAppContext) {
 fn the_setting_leaves_footnotes_as_written(cx: &mut TestAppContext) {
     let out_of_order = "B[^2]. A[^1]\n\n[^1]: one\n[^2]: two\n";
     let (view, cx) = open(cx, out_of_order, 6);
-    let mut config = editor_config::Config::defaults();
+    let mut config = gasp_config::Config::defaults();
     config.settings.editor.renumber_footnotes = false;
     view.update(cx, |view, cx| view.apply_config(&config, cx));
     view.update(cx, |view, cx| view.replace(6..6, "", cx));

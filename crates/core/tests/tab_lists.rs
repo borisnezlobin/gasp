@@ -1,6 +1,6 @@
 //! Lists nested with a tab, as Obsidian writes them, start at their marker.
 
-use editor_core::syntax::{MarkupKind, NodeKind, parse};
+use gasp_core::syntax::{MarkupKind, NodeKind, parse};
 
 #[test]
 fn a_tab_nested_list_item_starts_at_its_marker() {

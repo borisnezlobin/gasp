@@ -4,7 +4,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use editor_config::settings::{DailyNoteSettings, TemplateSettings};
+use gasp_config::settings::{DailyNoteSettings, TemplateSettings};
 use jiff::civil::DateTime;
 
 use super::dates;

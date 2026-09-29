@@ -10,7 +10,7 @@
 use std::fmt;
 use std::sync::{Arc, LazyLock, Mutex};
 
-use editor_snippets::{ParseError, Replacements, SnippetEngine, SnippetFile};
+use gasp_snippets::{ParseError, Replacements, SnippetEngine, SnippetFile};
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::loader::Built;

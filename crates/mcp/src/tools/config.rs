@@ -8,18 +8,18 @@
 
 use std::path::Path;
 
-use editor_config::commands::BUILTIN_COMMANDS;
-use editor_config::config_files::{
+use gasp_config::commands::BUILTIN_COMMANDS;
+use gasp_config::config_files::{
     REPLACEMENTS_FILE, RULES_FILE, SNIPPETS_FILE, default_number, default_token, known_commands,
     load_rules, load_tokens, replacements_path, rules_path, snippets_path, write_theme_number,
     write_theme_token,
 };
-use editor_config::loader::{build_rules, build_settings};
-use editor_config::schema::{SettingDescriptor, SettingKind, setting_descriptors};
-use editor_config::settings::SettingsIndex;
-use editor_config::store::{SETTINGS_FILE, SettingsFile, save, settings_path, write_setting};
-use editor_config::{CONFIG_DIR, Diagnostic, Platform, config_dir};
-use editor_snippets::{
+use gasp_config::loader::{build_rules, build_settings};
+use gasp_config::schema::{SettingDescriptor, SettingKind, setting_descriptors};
+use gasp_config::settings::SettingsIndex;
+use gasp_config::store::{SETTINGS_FILE, SettingsFile, save, settings_path, write_setting};
+use gasp_config::{CONFIG_DIR, Diagnostic, Platform, config_dir};
+use gasp_snippets::{
     DEFAULT_REPLACEMENTS, DEFAULT_SNIPPETS, Replacements, SnippetEngine, SnippetFile,
 };
 use schemars::JsonSchema;
@@ -317,8 +317,8 @@ fn get_theme(context: &Context, args: GetTheme) -> ToolResult {
     })))
 }
 
-fn token_json(value: &editor_config::theme::TokenValue) -> Value {
-    use editor_config::theme::TokenValue;
+fn token_json(value: &gasp_config::theme::TokenValue) -> Value {
+    use gasp_config::theme::TokenValue;
     match value {
         TokenValue::Text(text) => Value::from(text.as_str()),
         TokenValue::Integer(number) => Value::from(*number),

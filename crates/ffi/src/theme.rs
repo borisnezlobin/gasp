@@ -3,9 +3,9 @@
 
 use std::collections::HashMap;
 
-use editor_config::loader::Config;
-use editor_config::theme::Theme as Tokens;
-use editor_core::syntax::parse_color;
+use gasp_config::loader::Config;
+use gasp_config::theme::Theme as Tokens;
+use gasp_core::syntax::parse_color;
 
 /// The desktop app turns the base size in points into pixels at 96 per
 /// inch, and the phone draws a pixel's size as one point.

@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-use editor_export::pdf::{
+use gasp_export::pdf::{
     ConvertOptions, MathSite, PdfOptions, TypstBody, TypstNote, compile_note, export_pdf,
     markdown_to_typst, typst_preamble, typst_source, write_pdf,
 };
@@ -245,7 +245,7 @@ struct TempNote {
 
 impl TempNote {
     fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("editor-export-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("gasp-export-{name}-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("images")).unwrap();
         let corpus_image = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../fixtures/corpus/Course Notes/Classical Mechanics/images/vector-159.png");

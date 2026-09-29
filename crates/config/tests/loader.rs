@@ -3,9 +3,9 @@
 use std::fs;
 use std::path::Path;
 
-use editor_config::layout::SlotContent;
-use editor_config::settings::SidebarMode;
-use editor_config::{CONFIG_DIR, ConfigLoader, KeyChord, Platform, Severity};
+use gasp_config::layout::SlotContent;
+use gasp_config::settings::SidebarMode;
+use gasp_config::{CONFIG_DIR, ConfigLoader, KeyChord, Platform, Severity};
 use tempfile::TempDir;
 
 fn write(dir: &Path, name: &str, text: &str) {
@@ -23,7 +23,7 @@ fn vault() -> (TempDir, ConfigLoader) {
 fn empty_folder_loads_defaults() {
     let (_vault, mut loader) = vault();
     assert!(loader.load_all().is_empty());
-    assert_eq!(loader.config(), &editor_config::Config::defaults());
+    assert_eq!(loader.config(), &gasp_config::Config::defaults());
 }
 
 #[test]
@@ -152,7 +152,7 @@ fn a_bad_rule_rejects_the_whole_rules_file() {
     let diagnostics = loader.load_all();
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].line, 7);
-    assert_eq!(loader.config().rules, editor_config::RuleSet::defaults());
+    assert_eq!(loader.config().rules, gasp_config::RuleSet::defaults());
 }
 
 #[test]

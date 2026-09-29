@@ -12,7 +12,7 @@
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use editor_core::render::{LinePlan, WidgetKind};
+use gasp_core::render::{LinePlan, WidgetKind};
 use gpui::{Hsla, Pixels};
 
 use crate::line_layout::{Hit, LineDecor, Surface, VisualLine};

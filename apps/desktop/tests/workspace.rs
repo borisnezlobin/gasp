@@ -5,17 +5,17 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use editor_desktop::actions::bind_keys;
-use editor_desktop::workspace::note_doc::{AUTOSAVE_DELAY, Conflict};
-use editor_desktop::workspace::watcher::DiskChange;
-use editor_desktop::workspace::{OpenIn, Workspace};
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::workspace::note_doc::{AUTOSAVE_DELAY, Conflict};
+use gasp_desktop::workspace::watcher::DiskChange;
+use gasp_desktop::workspace::{OpenIn, Workspace};
 use gpui::{
     App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, Modifiers,
     MouseButton, Render, TestAppContext, VisualTestContext, Window, div, point, prelude::*, px,
 };
 use tempfile::TempDir;
 
-const VAULT_SETTINGS: &str = concat!(editor_config::config_dir!(), "/settings.toml");
+const VAULT_SETTINGS: &str = concat!(gasp_config::config_dir!(), "/settings.toml");
 
 fn vault_with(notes: &[(&str, &str)]) -> TempDir {
     let vault = tempfile::tempdir().unwrap();
@@ -230,7 +230,7 @@ fn a_long_note_opens_at_once_and_is_parsed_in_the_background(cx: &mut TestAppCon
         .map(|at| format!("## Section {at}\n\nSome *text* for it.\n\n"))
         .collect();
     let note = format!("---\ntitle: Long\n---\n{body}");
-    assert!(note.len() >= editor_desktop::workspace::note_doc::BACKGROUND_PARSE_BYTES);
+    assert!(note.len() >= gasp_desktop::workspace::note_doc::BACKGROUND_PARSE_BYTES);
     let vault = vault_with(&[("Long.md", &note)]);
     let (workspace, cx) = open_workspace(cx, vault.path());
     // Opened without letting background work run: the text is there,

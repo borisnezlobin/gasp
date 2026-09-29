@@ -2,23 +2,23 @@
 //! grammar checker's flags with Accept and Ignore, and recovering an
 //! earlier version of a note from its snapshots.
 
-use editor_config::CONFIG_DIR;
+use gasp_config::CONFIG_DIR;
 use std::path::Path;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use editor_config::Platform;
-use editor_config::RuleSet;
-use editor_desktop::EditorView;
-use editor_desktop::actions::bind_keys;
-use editor_desktop::features;
-use editor_desktop::hover::PreviewContent;
-use editor_desktop::keymap::all_bindings;
-use editor_desktop::prose::CHECK_DELAY;
-use editor_desktop::recovery::dialog::RecoveryDialog;
-use editor_desktop::recovery::store::use_data_dir;
-use editor_desktop::workspace::{OpenIn, Workspace};
-use editor_prose::{FlagKind, Length};
+use gasp_config::Platform;
+use gasp_config::RuleSet;
+use gasp_desktop::EditorView;
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::features;
+use gasp_desktop::hover::PreviewContent;
+use gasp_desktop::keymap::all_bindings;
+use gasp_desktop::prose::CHECK_DELAY;
+use gasp_desktop::recovery::dialog::RecoveryDialog;
+use gasp_desktop::recovery::store::use_data_dir;
+use gasp_desktop::workspace::{OpenIn, Workspace};
+use gasp_prose::{FlagKind, Length};
 use gpui::{Entity, Modifiers, TestAppContext, VisualTestContext};
 use tempfile::TempDir;
 

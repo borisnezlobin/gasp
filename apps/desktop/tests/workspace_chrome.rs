@@ -3,20 +3,20 @@
 //! right-click menu. Every test works in a temporary vault with the
 //! standalone views wired in.
 
-use editor_config::CONFIG_DIR;
+use gasp_config::CONFIG_DIR;
 use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Duration;
 
-use editor_config::Platform;
-use editor_desktop::actions::bind_keys;
-use editor_desktop::features;
-use editor_desktop::settings_view::SettingsView;
-use editor_desktop::ui::{MenuItem, Tooltip, hints};
-use editor_desktop::vault_search::VaultSearch;
-use editor_desktop::workspace::help::ShortcutsHelp;
-use editor_desktop::workspace::{OpenIn, Workspace};
+use gasp_config::Platform;
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::features;
+use gasp_desktop::settings_view::SettingsView;
+use gasp_desktop::ui::{MenuItem, Tooltip, hints};
+use gasp_desktop::vault_search::VaultSearch;
+use gasp_desktop::workspace::help::ShortcutsHelp;
+use gasp_desktop::workspace::{OpenIn, Workspace};
 use gpui::{
     Entity, Focusable, Modifiers, MouseButton, MouseDownEvent, Pixels, ScrollDelta,
     ScrollWheelEvent, TestAppContext, VisualTestContext, point, px,
@@ -630,7 +630,7 @@ fn a_resize_ending_inside_the_hover_sidebar_keeps_it(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn the_tab_bar_moves_the_window_from_its_empty_space_only(cx: &mut TestAppContext) {
-    use editor_desktop::window_drag::moves_started;
+    use gasp_desktop::window_drag::moves_started;
 
     let vault = vault_with(&[("a.md", "A"), ("b.md", "B")]);
     let (workspace, cx) = open_workspace(cx, vault.path());

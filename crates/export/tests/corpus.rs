@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use editor_export::pdf::{PdfError, PdfOptions, compile_note, typst_source, write_pdf};
+use gasp_export::pdf::{PdfError, PdfOptions, compile_note, typst_source, write_pdf};
 
 fn corpus_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/corpus")

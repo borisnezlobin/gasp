@@ -24,7 +24,7 @@ pub fn learn<'a>(notes: impl IntoIterator<Item = &'a str>, min_notes: usize) -> 
 
 /// Where a vault keeps the phrases its writer dismissed, from its root.
 /// It syncs like the rest of the config, so a dismissal holds everywhere.
-pub const IGNORED_FILE: &str = concat!(editor_config::config_dir!(), "/prose/ignored.txt");
+pub const IGNORED_FILE: &str = concat!(gasp_config::config_dir!(), "/prose/ignored.txt");
 
 /// The dismissed phrases in the ignore file's text, lower-cased.
 pub fn parse_ignored(text: &str) -> HashSet<String> {

@@ -2,13 +2,13 @@
 
 use std::collections::BTreeSet;
 
-use editor_config::commands::{BUILTIN_COMMANDS, PLATFORM_COMMANDS};
-use editor_config::keys::KeyChord;
-use editor_config::layout::SlotContent;
-use editor_config::loader::DEFAULT_SETTINGS;
-use editor_config::rules::EventKind;
-use editor_config::settings::{RevealScope, SidebarMode, SidebarReveal, SymbolMode, TrashMode};
-use editor_config::{CommandRegistry, Config, Platform, RuleSet, Settings};
+use gasp_config::commands::{BUILTIN_COMMANDS, PLATFORM_COMMANDS};
+use gasp_config::keys::KeyChord;
+use gasp_config::layout::SlotContent;
+use gasp_config::loader::DEFAULT_SETTINGS;
+use gasp_config::rules::EventKind;
+use gasp_config::settings::{RevealScope, SidebarMode, SidebarReveal, SymbolMode, TrashMode};
+use gasp_config::{CommandRegistry, Config, Platform, RuleSet, Settings};
 
 /// Every row of PLAN.md's default keymap, both halves of paired rows included.
 const KEYMAP: &[(&str, &str)] = &[

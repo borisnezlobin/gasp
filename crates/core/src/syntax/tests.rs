@@ -1138,7 +1138,7 @@ Then **bold** and *em* with $a_i^2$ and a footnote[^1].\n\n$$\n\\sum_{k=1}^{n} \
     text
 }
 
-/// Run with `cargo test --release -p editor-core -- --ignored --nocapture parse_speed`.
+/// Run with `cargo test --release -p gasp-core -- --ignored --nocapture parse_speed`.
 #[test]
 #[ignore = "benchmark"]
 fn parse_speed() {

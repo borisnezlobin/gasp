@@ -14,7 +14,7 @@ pub use snippets::SnippetStep;
 
 use std::sync::Arc;
 
-use editor_snippets::{Replacements, SnippetEngine};
+use gasp_snippets::{Replacements, SnippetEngine};
 
 use crate::pipeline::{ContextFilter, Pipeline, PipelineError, step_names};
 

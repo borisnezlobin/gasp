@@ -1,5 +1,5 @@
 [package]
-name = "editor-math"
+name = "gasp-math"
 description = "LaTeX to Typst conversion and math layout for the editor."
 version.workspace = true
 edition.workspace = true

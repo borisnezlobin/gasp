@@ -5,11 +5,11 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use editor_mcp::Context;
-use editor_mcp::bridge::endpoint::{Endpoint, EndpointInfo};
-use editor_mcp::bridge::listener::BridgeListener;
-use editor_mcp::bridge::{Buffer, CursorState, EditorState, PaneState, Request, TabState};
-use editor_mcp::tool::Output;
+use gasp_mcp::Context;
+use gasp_mcp::bridge::endpoint::{Endpoint, EndpointInfo};
+use gasp_mcp::bridge::listener::BridgeListener;
+use gasp_mcp::bridge::{Buffer, CursorState, EditorState, PaneState, Request, TabState};
+use gasp_mcp::tool::Output;
 use serde_json::{Value, json};
 
 /// What the fake app has open: path → (text, unsaved).
@@ -101,7 +101,7 @@ fn setup() -> (tempfile::TempDir, tempfile::TempDir, Endpoint, Context) {
 }
 
 fn call(context: &Context, name: &str, arguments: Value) -> Result<Output, String> {
-    let tools = editor_mcp::tools::all();
+    let tools = gasp_mcp::tools::all();
     let tool = tools.iter().find(|tool| tool.name == name).unwrap();
     tool.call(context, arguments)
         .map_err(|error| error.message().to_string())

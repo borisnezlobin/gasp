@@ -345,7 +345,7 @@ mod tests {
         for name in [
             ".git",
             ".obsidian",
-            editor_config::CONFIG_DIR,
+            gasp_config::CONFIG_DIR,
             ".trash",
             ".DS_Store",
         ] {

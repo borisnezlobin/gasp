@@ -3,7 +3,7 @@
 
 use gpui::{Context, Entity, Window};
 
-pub use editor_vault::knowledge::links::{WEB_SCHEMES, resolve_note, split_target};
+pub use gasp_vault::knowledge::links::{WEB_SCHEMES, resolve_note, split_target};
 
 use super::{OpenIn, Workspace};
 use crate::editor::EditorView;

@@ -174,7 +174,7 @@ impl<'a> Converter<'a> {
     pub(super) fn math(&mut self, latex: &str, display: bool) {
         self.before_inline();
         let start = self.out.len();
-        match editor_math::latex_to_typst(latex, display) {
+        match gasp_math::latex_to_typst(latex, display) {
             Ok(equation) => {
                 self.out
                     .push_str(&format!("#m({});", escape::string(&equation)));

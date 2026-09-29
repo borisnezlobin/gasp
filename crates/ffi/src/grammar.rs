@@ -13,14 +13,14 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use editor_config::settings::{EnglishVariant, GrammarSettings};
-use editor_prose::projection::Piece;
-use editor_prose::vocabulary::{
+use gasp_config::settings::{EnglishVariant, GrammarSettings};
+use gasp_prose::projection::Piece;
+use gasp_prose::vocabulary::{
     IGNORED_FILE, NOTES_TO_LEARN, ignored_file_text, learn, parse_ignored,
 };
-use editor_prose::{CheckOptions, Checker, English, Flag, FlagKind, Purpose, Unit, units};
-use editor_search::engine::load_vault;
-use editor_vault::files::atomic_write;
+use gasp_prose::{CheckOptions, Checker, English, Flag, FlagKind, Purpose, Unit, units};
+use gasp_search::engine::load_vault;
+use gasp_vault::files::atomic_write;
 
 use crate::document::NoteDocument;
 use crate::offsets::{TextRange, Utf16Offsets};

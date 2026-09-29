@@ -5,14 +5,14 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::UNIX_EPOCH;
 
-use editor_config::loader::CONFIG_DIR;
-use editor_config::store::save;
-use editor_config::{Config, ConfigLoader};
-use editor_vault::build::{build_index, scan};
-use editor_vault::entries::{EntryKind, display_name, is_hidden, natural_cmp};
-use editor_vault::files::atomic_write;
-use editor_vault::index::{LinkIndex, is_note_path};
-use editor_vault::link_update::{file_name, parent_dir};
+use gasp_config::loader::CONFIG_DIR;
+use gasp_config::store::save;
+use gasp_config::{Config, ConfigLoader};
+use gasp_vault::build::{build_index, scan};
+use gasp_vault::entries::{EntryKind, display_name, is_hidden, natural_cmp};
+use gasp_vault::files::atomic_write;
+use gasp_vault::index::{LinkIndex, is_note_path};
+use gasp_vault::link_update::{file_name, parent_dir};
 
 use crate::commands::{self, CommandInfo, KeyBinding};
 use crate::display::{DisplayState, SharedDisplay, SymbolVisibility};

@@ -15,15 +15,15 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use editor_config::settings::{EnglishVariant, GrammarSettings};
-use editor_prose::vocabulary::{NOTES_TO_LEARN, ignored_file_text, learn, parse_ignored};
-use editor_prose::{CheckOptions, Checker, English, Flag, Unit};
 use futures::channel::oneshot;
+use gasp_config::settings::{EnglishVariant, GrammarSettings};
+use gasp_prose::vocabulary::{NOTES_TO_LEARN, ignored_file_text, learn, parse_ignored};
+use gasp_prose::{CheckOptions, Checker, English, Flag, Unit};
 use gpui::{App, AppContext, Global};
 
 use crate::note_texts::NoteTexts;
 
-pub use editor_prose::vocabulary::IGNORED_FILE;
+pub use gasp_prose::vocabulary::IGNORED_FILE;
 
 /// How long after a vault opens the checker starts building, so it
 /// doesn't compete with the first frames.

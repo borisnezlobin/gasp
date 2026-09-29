@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn finds_images_in_attachment_folder() {
-        let dir = std::env::temp_dir().join(format!("editor-export-images-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("gasp-export-images-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("images")).unwrap();
         std::fs::write(dir.join("images/pic.png"), b"png").unwrap();
         let mut resolver = ImageResolver::new(Some(dir.clone()), None);
@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn finds_bare_names_anywhere_in_the_vault() {
-        let root = std::env::temp_dir().join(format!("editor-export-vault-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("gasp-export-vault-{}", std::process::id()));
         for dir in ["notes", "assets/deep", "zz", ".hidden"] {
             std::fs::create_dir_all(root.join(dir)).unwrap();
         }

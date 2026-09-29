@@ -64,7 +64,7 @@ fn cache_path(url: &str) -> Option<PathBuf> {
     let mut hasher = DefaultHasher::new();
     url.hash(&mut hasher);
     let dir = dirs::cache_dir()?
-        .join(editor_config::APP_FOLDER)
+        .join(gasp_config::APP_FOLDER)
         .join("link-cards");
     Some(dir.join(format!("{:016x}", hasher.finish())))
 }

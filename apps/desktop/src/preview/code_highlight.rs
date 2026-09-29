@@ -14,13 +14,13 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::ops::{Range, RangeInclusive};
 use std::sync::Arc;
 
-use editor_core::render::{LinePlan, LineStyle};
-use editor_core::syntax::NodeKind;
+use gasp_core::render::{LinePlan, LineStyle};
+use gasp_core::syntax::NodeKind;
 use syntect::parsing::{ParseState, ScopeStack, SyntaxReference, SyntaxSet};
 
 use super::source::Source;
 
-pub use editor_highlight::{CodeKind, load_syntaxes};
+pub use gasp_highlight::{CodeKind, load_syntaxes};
 
 /// Byte ranges of one line, relative to its start, and what they are.
 /// Text outside every range is plain.
@@ -190,7 +190,7 @@ impl CodeHighlighter {
     /// the background before redrawing. True once per load.
     pub fn take_load_request(&mut self) -> bool {
         let wanted =
-            self.wants_syntaxes && !self.loading && editor_highlight::loaded_syntaxes().is_none();
+            self.wants_syntaxes && !self.loading && gasp_highlight::loaded_syntaxes().is_none();
         self.loading |= wanted;
         wanted
     }
@@ -230,7 +230,7 @@ impl CodeHighlighter {
         block: &BlockLines<'a, F>,
         index: usize,
     ) -> Option<LineSpans> {
-        let Some(syntaxes) = editor_highlight::loaded_syntaxes() else {
+        let Some(syntaxes) = gasp_highlight::loaded_syntaxes() else {
             self.wants_syntaxes = true;
             return None;
         };
@@ -425,7 +425,7 @@ fn highlight_line(
     stack: &mut ScopeStack,
     syntaxes: &SyntaxSet,
 ) -> LineSpans {
-    editor_highlight::highlight_line(text, state, stack, syntaxes).into()
+    gasp_highlight::highlight_line(text, state, stack, syntaxes).into()
 }
 
 /// The spans for a planned line when it is code inside a fenced block
@@ -684,7 +684,7 @@ mod tests {
     #[test]
     fn nothing_before_the_grammars_load_but_a_request() {
         let mut code = CodeHighlighter::default();
-        if editor_highlight::loaded_syntaxes().is_none() {
+        if gasp_highlight::loaded_syntaxes().is_none() {
             let block = BlockLines {
                 language: "rust",
                 start: 0,

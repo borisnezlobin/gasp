@@ -3,7 +3,7 @@
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use editor_vault::files::atomic_write_bytes;
+use gasp_vault::files::atomic_write_bytes;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;
@@ -228,7 +228,7 @@ mod tests {
         assert_eq!(moved["updated_notes"], json!(["Note.md"]));
         let note = std::fs::read_to_string(dir.path().join("Note.md")).unwrap();
         assert_eq!(note, "![[chart.png]] and ![](img/chart.png)\n");
-        let settings = editor_config::store::settings_path(dir.path());
+        let settings = gasp_config::store::settings_path(dir.path());
         std::fs::create_dir_all(settings.parent().unwrap()).unwrap();
         std::fs::write(settings, "[files]\ntrash = \"vault\"\n").unwrap();
         call(

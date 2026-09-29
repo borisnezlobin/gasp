@@ -1,7 +1,7 @@
 //! Keyboard-first checks from PLAN.md: reachability, reserved shortcuts and conflicts.
 
-use editor_config::keymap::{key_conflicts, reserved_bindings, unreachable_commands};
-use editor_config::{CommandRegistry, Platform, RuleSet};
+use gasp_config::keymap::{key_conflicts, reserved_bindings, unreachable_commands};
+use gasp_config::{CommandRegistry, Platform, RuleSet};
 
 const DESKTOP: [Platform; 3] = [Platform::Macos, Platform::Windows, Platform::Linux];
 
@@ -45,7 +45,7 @@ fn commands_left_out_of_the_palette_have_keys() {
 #[test]
 fn a_command_with_neither_key_nor_palette_entry_is_caught() {
     let mut registry = CommandRegistry::<()>::with_builtins();
-    registry.declare(editor_config::CommandInfo {
+    registry.declare(gasp_config::CommandInfo {
         id: "hidden.thing".into(),
         title: "Hidden thing".into(),
         category: "Test".into(),

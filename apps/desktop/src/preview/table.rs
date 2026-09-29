@@ -13,11 +13,11 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::ops::Range;
 use std::sync::Arc;
 
-use editor_core::render::{
+use gasp_core::render::{
     LinePlan, RenderInput, RevealSettings, StyleKey, TableRowPlan, plan_lines,
 };
-use editor_core::syntax::{Alignment, NodeKind};
-use editor_core::table::table_node_at;
+use gasp_core::syntax::{Alignment, NodeKind};
+use gasp_core::table::table_node_at;
 use gpui::{Pixels, px};
 
 use crate::line_layout::{GridCell, GridLine, PieceContent, VisualRow};
