@@ -49,14 +49,38 @@ extension EditingController: MathImagesObserver {
         redrawQueued = true
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.redrawDelay) { [weak self] in
             guard let self else { return }
-            let arrived = ArrivedMedia(math: arrivedMath, images: arrivedImages, cards: cardImagesArrived)
+            let arrived = ArrivedMedia(math: arrivedMath, images: [], cards: cardImagesArrived)
+            let images = arrivedImages
             arrivedMath = []
             arrivedImages = []
             cardImagesArrived = false
             redrawQueued = false
+            redrawLines(showing: images)
+            guard !arrived.math.isEmpty || arrived.cards else { return }
             styler.forgetLines { [media] line in line.widgets.contains { arrived.isShown(by: $0, media: media) } }
             restyle(edited: nil)
         }
+    }
+
+    /// Draws again the lines showing `images`. Their pictures take their
+    /// pixels as they draw, and their size came from the file's header, so
+    /// nothing needs restyling.
+    private func redrawLines(showing images: Set<URL>) {
+        guard !images.isEmpty, let manager = textView.textLayoutManager,
+              let content = manager.textContentManager else { return }
+        let shows = ArrivedMedia(math: [], images: images, cards: false)
+        let plan = styler.shown
+        let lines = plan.indices.filter { index in
+            plan.unmoved(index).widgets.contains { shows.isShown(by: $0, media: media) }
+        }
+        for index in lines {
+            let line = plan.range(of: index)
+            guard let start = content.location(content.documentRange.location, offsetBy: line.location),
+                  let end = content.location(start, offsetBy: max(line.length, 1)),
+                  let range = NSTextRange(location: start, end: end) else { continue }
+            manager.invalidateLayout(for: range)
+        }
+        manager.textViewportLayoutController.layoutViewport()
     }
 
     /// The key a math widget renders with, at the size its line's text is.
