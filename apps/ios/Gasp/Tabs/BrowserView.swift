@@ -102,6 +102,7 @@ struct BrowserView: View {
     /// in the sync setup, and `-syncStart YES` clones straight away.
     private func openLaunchLink() async {
         let arguments = UserDefaults.standard
+        PerformanceProbe.shared.start(model: model)
         if let link = arguments.string(forKey: "open"), let url = URL(string: link) { open(url) }
         openSyncSetupFromArguments(arguments)
         // The note's text view joins the window a moment after launch.
