@@ -61,6 +61,7 @@ const KEYMAP: &[(&str, &str)] = &[
     ("Mod+\\", "sidebar.files.toggle"),
     ("Mod+Shift+E", "file-tree.focus"),
     ("Mod+Shift+A", "sidebar.right.focus"),
+    ("Alt+Shift+T", "toolbar.focus"),
     ("Mod+Alt+Left", "pane.focus-left"),
     ("Mod+Alt+Right", "pane.focus-right"),
     ("Mod+Alt+Up", "pane.focus-up"),
@@ -256,7 +257,7 @@ fn every_default_rule_names_a_registered_command() {
 
 #[test]
 fn command_titles_are_plain_sentence_case() {
-    const PROPER: &[&str] = &["Markdown"];
+    const PROPER: &[&str] = &["Markdown", "HTML", "PDF"];
     for spec in BUILTIN_COMMANDS {
         let mut words = spec.title.split(' ');
         let first = words.next().unwrap();
@@ -363,4 +364,27 @@ fn default_layout_has_every_slot_and_no_ribbon() {
         layout.find("editor").unwrap().content,
         SlotContent::Component("editor".into())
     );
+}
+
+#[test]
+fn built_in_toolbars_name_only_registered_commands() {
+    let known = gasp_config::config_files::known_commands();
+    let (toolbars, warnings) =
+        gasp_config::toolbars::build_toolbars("toolbars.toml", None, &known).unwrap();
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(toolbars, Config::defaults().toolbars);
+}
+
+#[test]
+fn every_command_has_its_own_icon() {
+    let platform = PLATFORM_COMMANDS
+        .iter()
+        .filter_map(|id| gasp_config::commands::command_spec(id));
+    let defaulted: Vec<&str> = BUILTIN_COMMANDS
+        .iter()
+        .chain(platform)
+        .filter(|spec| spec.icon == gasp_config::commands::DEFAULT_ICON)
+        .map(|spec| spec.id)
+        .collect();
+    assert!(defaulted.is_empty(), "{defaulted:?}");
 }

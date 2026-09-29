@@ -27,6 +27,9 @@ use crate::ui::{Tooltip, keycap};
 impl SettingsView {
     /// Title, description and notes for a row.
     pub(super) fn row_text(&self, row: &ControlRow) -> AnyElement {
+        if row.is_toolbar_row() {
+            return self.toolbar_row_text(row);
+        }
         let description = match row {
             ControlRow::Shortcut(shortcut) => self.shortcut_default(shortcut),
             _ => {
@@ -51,6 +54,7 @@ impl SettingsView {
             ControlRow::Font(slot) => Some(theme_key(slot.token())),
             ControlRow::Accent => Some(theme_key(self.accent_token())),
             ControlRow::Shortcut(shortcut) => Some(shortcut.id.clone()),
+            _ if row.is_toolbar_row() => Some(self.toolbar_row_error_key(row)),
             _ => None,
         }
     }
@@ -152,6 +156,10 @@ impl SettingsView {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
+        if row.is_toolbar_row() {
+            let control = self.toolbar_control(index, row, focused, cx);
+            return Some(self.with_error_note(row, control));
+        }
         let control = match row {
             ControlRow::Setting(item) => self.setting_control(index, item, focused, cx),
             ControlRow::MapAdd(map) => self.map_add_control(index, map, row, focused, cx),
@@ -161,14 +169,7 @@ impl SettingsView {
                 let typing = self.hex_field.focus_handle(cx).is_focused(window);
                 self.accent_control(focused && !typing, typing, cx)
             }
-            ControlRow::Vault => self.vault_control(focused, cx),
-            ControlRow::IconCredit => self.icon_credit_control(focused),
-            // The Snippets page's rows are drawn above.
-            ControlRow::Version
-            | ControlRow::SnippetsFile
-            | ControlRow::Snippet(_)
-            | ControlRow::SnippetEditor
-            | ControlRow::Replacement(_) => return None,
+            ControlRow::Vault | ControlRow::IconCredit => self.general_control(row, focused, cx),
             ControlRow::Shortcut(shortcut) => self.shortcut_control(shortcut, focused, cx),
             ControlRow::SyncRemote => return self.remote_control(row, focused),
             ControlRow::SyncAccount => self.account_control(focused, cx),
@@ -176,18 +177,38 @@ impl SettingsView {
             ControlRow::ListEntry { list, value } => {
                 self.list_entry_control(list, value, focused, cx)
             }
+            // The version has no control, and the Snippets page's rows
+            // are drawn above.
+            _ => return None,
         };
-        // An error hangs under the control rather than pushing rows down.
+        Some(self.with_error_note(row, control))
+    }
+
+    /// A row's control with the error from its last write hung under it,
+    /// rather than pushing the rows below down.
+    fn with_error_note(&self, row: &ControlRow, control: AnyElement) -> AnyElement {
         let note = self
             .row_error(row)
             .map(|message| control_note(message, &self.style));
-        Some(
-            div()
-                .relative()
-                .child(control)
-                .children(note)
-                .into_any_element(),
-        )
+        div()
+            .relative()
+            .child(control)
+            .children(note)
+            .into_any_element()
+    }
+
+    /// The General page's buttons: open another vault, or the app icon's
+    /// source.
+    fn general_control(
+        &self,
+        row: &ControlRow,
+        focused: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        match row {
+            ControlRow::Vault => self.vault_control(focused, cx),
+            _ => self.icon_credit_control(focused),
+        }
     }
 
     fn setting_control(
@@ -257,7 +278,7 @@ impl SettingsView {
 
     /// A dropdown button for row `index`, with its menu hung under it
     /// while open.
-    fn dropdown(
+    pub(super) fn dropdown(
         &self,
         index: usize,
         id: String,
@@ -334,7 +355,7 @@ impl SettingsView {
         .flex_shrink();
         let status = match (self.menu_loading(), menu.shown.is_empty()) {
             (true, _) => Some("Loading fonts…"),
-            (false, true) => Some("No fonts match."),
+            (false, true) => Some(menu.nothing_matches()),
             (false, false) => None,
         };
         let status = status.map(|text| {
@@ -384,7 +405,8 @@ impl SettingsView {
         let label = div().child(menu.label(option));
         let label = match menu.target {
             MenuTarget::Font(_) => label.font_family(SharedString::from(option.to_string())),
-            MenuTarget::Choice(_) | MenuTarget::MapAdd(_) => label,
+            MenuTarget::ToolbarAdd(_) => self.picker_row_label(option, label, cx),
+            _ => label,
         };
         let value = option.to_string();
         let selector = format!("menu-option-{option}");

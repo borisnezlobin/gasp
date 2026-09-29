@@ -431,7 +431,9 @@ impl SettingsView {
         let dense = self.current_section() == Some(Page::Shortcuts)
             || matches!(
                 layout.rows[index],
-                ControlRow::Snippet(_) | ControlRow::Replacement(_)
+                ControlRow::Snippet(_)
+                    | ControlRow::Replacement(_)
+                    | ControlRow::ToolbarItem { .. }
             );
         let content = self.render_row(index, &layout.rows[index], window, cx);
         card_row(index, first, last, dense, content, &style)
@@ -453,6 +455,9 @@ impl SettingsView {
             return self.render_snippet_editor(window, cx);
         }
         let focused = self.rings(SettingsFocus::Control(index), window, cx);
+        if matches!(row, ControlRow::ToolbarItem { .. }) {
+            return self.render_toolbar_item_row(index, row, focused, cx);
+        }
         if row.is_typing_row() {
             return self.render_typing_row(index, row, focused, window, cx);
         }

@@ -53,6 +53,7 @@ pub mod table_edit;
 pub mod text_input;
 pub mod text_offsets;
 pub mod theme;
+pub mod toolbar;
 pub mod trace;
 pub mod typing;
 pub mod ui;

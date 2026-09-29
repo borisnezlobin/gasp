@@ -33,7 +33,7 @@ use crate::workspace::{OpenIn, Workspace};
 const RECENT_COMMANDS: usize = 8;
 
 /// Commands this module gives a handler, for the menus.
-pub const WIRED_COMMANDS: [&str; 23] = [
+pub const WIRED_COMMANDS: [&str; 26] = [
     "palette.open",
     "switcher.open",
     "outline.jump-to-heading",
@@ -44,6 +44,9 @@ pub const WIRED_COMMANDS: [&str; 23] = [
     "search.open",
     "settings.open",
     "app.export",
+    "export.html",
+    "export.pdf",
+    "toolbar.customize",
     "app.print",
     "file-tree.reveal-active",
     "file-tree.focus",
@@ -132,6 +135,13 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     workspace.on_command("search.open", open_vault_search);
     workspace.on_command("settings.open", open_settings);
     workspace.on_command("app.export", open_export);
+    workspace.on_command("export.html", |ws, window, cx| {
+        export_now(ws, export_ui::ExportFormat::Html, window, cx)
+    });
+    workspace.on_command("export.pdf", |ws, window, cx| {
+        export_now(ws, export_ui::ExportFormat::Pdf, window, cx)
+    });
+    workspace.on_command("toolbar.customize", open_toolbar_settings);
     workspace.on_command("app.print", print_note);
     workspace.on_command("file-tree.reveal-active", reveal_active);
 }
@@ -703,6 +713,44 @@ fn open_export(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     let vault = workspace.vault().to_path_buf();
     workspace.toggle_modal(window, cx, |_, cx| {
         ExportDialog::new(text, path, cx).with_vault_root(vault)
+    });
+}
+
+/// Opens the export dialog already exporting as `format`.
+fn export_now(
+    workspace: &mut Workspace,
+    format: export_ui::ExportFormat,
+    window: &mut Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    if workspace.active_modal::<ExportDialog>().is_none() {
+        open_export(workspace, window, cx);
+    }
+    if let Some(dialog) = workspace.active_modal::<ExportDialog>() {
+        dialog.update(cx, |dialog, cx| dialog.export_as(format, cx));
+    }
+}
+
+/// `toolbar.customize`: the settings screen's Toolbars page, with the
+/// picker of things to add open when a toolbar's add button asked.
+fn open_toolbar_settings(
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    let adding_to = workspace.take_toolbar_to_add_to();
+    open_settings_at(
+        workspace,
+        crate::settings_view::model::TOOLBARS_SECTION,
+        window,
+        cx,
+    );
+    let (Some(settings), Some(toolbar)) = (workspace.active_modal::<SettingsView>(), adding_to)
+    else {
+        return;
+    };
+    settings.update(cx, |settings, cx| {
+        settings.start_adding_to(&toolbar, window, cx)
     });
 }
 

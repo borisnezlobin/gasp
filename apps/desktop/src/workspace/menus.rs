@@ -40,6 +40,8 @@ const FILE: &[Entry] = &[
     Separator,
     Command("app.print"),
     Command("app.export"),
+    Command("export.html"),
+    Command("export.pdf"),
     Command("sync.now"),
     Separator,
     Command("tab.reopen"),
@@ -67,6 +69,8 @@ const EDIT: &[Entry] = &[
 const VIEW: &[Entry] = &[
     Command("sidebar.files.toggle"),
     Command("file-tree.focus"),
+    Command("toolbar.focus"),
+    Command("toolbar.customize"),
     Separator,
     Command("sidebar.right.toggle"),
     Command("sidebar.backlinks"),

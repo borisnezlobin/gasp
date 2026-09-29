@@ -121,6 +121,44 @@ fn with_current_config_dir(globs: &[Value]) -> Vec<Value> {
     carried
 }
 
+const MOBILE_TOOLBAR_KEY: &str = "mobile.toolbar";
+const KEYBOARD_ITEMS_KEY: &str = "toolbar.keyboard.items";
+
+/// Moves the iPhone keyboard bar's commands from `mobile.toolbar` in
+/// `settings.toml`, where they used to live, to the `keyboard` toolbar's
+/// items in `toolbars.toml`. When `toolbars.toml` already lists the
+/// keyboard bar's items, those win and the old key is only removed.
+/// Answers whether anything moved.
+pub fn migrate_mobile_toolbar(vault: &Path) -> io::Result<bool> {
+    let settings_file = settings_path(vault);
+    let Ok(mut settings) = SettingsFile::load(&settings_file) else {
+        return Ok(false);
+    };
+    let Some(items) = settings.get(MOBILE_TOOLBAR_KEY) else {
+        return Ok(false);
+    };
+    let toolbars_file = crate::toolbar_files::toolbars_path(vault);
+    let mut toolbars = SettingsFile::load(&toolbars_file).map_err(io::Error::other)?;
+    if toolbars.get(KEYBOARD_ITEMS_KEY).is_none() {
+        toolbars
+            .set(KEYBOARD_ITEMS_KEY, &items)
+            .map_err(io::Error::other)?;
+        save(&toolbars_file, &toolbars.to_string())?;
+    }
+    settings.remove(MOBILE_TOOLBAR_KEY);
+    save(&settings_file, &settings.to_string())?;
+    Ok(true)
+}
+
+/// [`migrate_mobile_toolbar`], saying on stderr what it did.
+pub fn migrate_mobile_toolbar_and_log(vault: &Path) {
+    match migrate_mobile_toolbar(vault) {
+        Ok(true) => eprintln!("moved mobile.toolbar to the keyboard toolbar in toolbars.toml"),
+        Ok(false) => {}
+        Err(error) => eprintln!("could not move mobile.toolbar to toolbars.toml: {error}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -205,6 +243,48 @@ mod tests {
             ]))
         );
         assert!(file.to_string().starts_with("# mine\n"));
+    }
+
+    #[test]
+    fn the_mobile_toolbar_setting_moves_to_the_keyboard_toolbar() {
+        let vault = tempfile::tempdir().unwrap();
+        write(
+            &settings_path(vault.path()),
+            "# phone\n[files]\ntrash = \"vault\"\n\n[mobile]\ntoolbar = [\"format.bold\", \"edit.undo\"]\n",
+        );
+        assert!(migrate_mobile_toolbar(vault.path()).unwrap());
+        let settings = fs::read_to_string(settings_path(vault.path())).unwrap();
+        assert!(!settings.contains("mobile"), "{settings}");
+        assert!(settings.starts_with("# phone\n[files]\n"), "{settings}");
+        let toolbars = crate::toolbar_files::load_toolbars(vault.path());
+        let keyboard: Vec<&str> = toolbars.get("keyboard").unwrap().commands().collect();
+        assert_eq!(keyboard, ["format.bold", "edit.undo"]);
+        assert!(!migrate_mobile_toolbar(vault.path()).unwrap());
+    }
+
+    #[test]
+    fn keyboard_items_already_in_toolbars_win() {
+        let vault = tempfile::tempdir().unwrap();
+        write(
+            &settings_path(vault.path()),
+            "[mobile]\ntoolbar = [\"format.bold\"]\n",
+        );
+        let toolbars_file = crate::toolbar_files::toolbars_path(vault.path());
+        write(
+            &toolbars_file,
+            "[toolbar.keyboard]\nitems = [\"edit.redo\"]\n",
+        );
+        assert!(migrate_mobile_toolbar(vault.path()).unwrap());
+        assert_eq!(
+            fs::read_to_string(toolbars_file).unwrap(),
+            "[toolbar.keyboard]\nitems = [\"edit.redo\"]\n"
+        );
+        assert_eq!(
+            fs::read_to_string(settings_path(vault.path()))
+                .unwrap()
+                .trim(),
+            ""
+        );
     }
 
     #[test]

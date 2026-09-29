@@ -8,7 +8,8 @@ protocol EditingHost: AnyObject {
     var keyBindings: [KeyBinding] { get }
     /// Opens where a tapped link goes.
     func follow(link target: String, from session: EditingController)
-    var toolbar: [CommandInfo] { get }
+    /// The bar above the software keyboard, from toolbars.toml.
+    var keyboardToolbar: KeyboardToolbar { get }
 }
 
 /// One open note: keeps the core's copy in step with the text view,
@@ -27,6 +28,9 @@ final class EditingController: NSObject, UITextViewDelegate {
     private(set) var tokens: Tokens
     private(set) var styler: PlanStyler
     let media: NoteMedia
+    /// The bar above the software keyboard, kept while it's turned off so
+    /// turning it back on brings it back.
+    private var accessoryBar: AccessoryBar?
     var prose = ProseMarks()
     var code: CodeColors
     var codeColouring: DispatchWorkItem?
@@ -109,9 +113,12 @@ final class EditingController: NSObject, UITextViewDelegate {
             host?.keyBindings ?? [], action: #selector(EditorTextView.runBoundKey(_:))
         )
         textView.runBoundCommand = { [weak self] command in self?.host?.run(command) }
-        textView.inputAccessoryView = AccessoryBar(
-            commands: host?.toolbar ?? [], tokens: tokens
-        ) { [weak self] command in self?.host?.run(command) }
+        let toolbar = host?.keyboardToolbar ?? KeyboardToolbar(enabled: false, labels: .icons, entries: [])
+        let bar = AccessoryBar(toolbar: toolbar, tokens: tokens) { [weak self] command in
+            self?.host?.run(command)
+        }
+        accessoryBar = bar
+        textView.inputAccessoryView = toolbar.enabled ? bar : nil
         applyColors()
         installTapHandling()
     }
@@ -135,8 +142,15 @@ final class EditingController: NSObject, UITextViewDelegate {
         columnWidthChanged()
     }
 
-    func showToolbar(_ commands: [CommandInfo]) {
-        (textView.inputAccessoryView as? AccessoryBar)?.show(commands)
+    /// Shows the keyboard toolbar anew, after toolbars.toml changed; a
+    /// toolbar that's been turned off takes the bar away.
+    func showToolbar(_ toolbar: KeyboardToolbar) {
+        accessoryBar?.show(toolbar)
+        let wanted: UIView? = toolbar.enabled ? accessoryBar : nil
+        if textView.inputAccessoryView !== wanted {
+            textView.inputAccessoryView = wanted
+            textView.reloadInputViews()
+        }
     }
 
     func setReadableWidth(_ enabled: Bool) {

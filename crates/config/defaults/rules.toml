@@ -299,6 +299,13 @@ on   = "key"
 keys = "Mod+Shift+A"
 do   = "sidebar.right.focus"
 
+# Moves the keyboard into the toolbars; pressed again, to the next one.
+[[rule]]
+id   = "key.toolbar.focus"
+on   = "key"
+keys = "Alt+Shift+T"
+do   = "toolbar.focus"
+
 [[rule]]
 id   = "key.pane.focus-left"
 on   = "key"

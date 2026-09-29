@@ -434,6 +434,16 @@ impl ExportDialog {
         ExportFormat::ALL[self.selected]
     }
 
+    /// Exports as `format` at once, as `export.html` and `export.pdf` do,
+    /// skipping the choice.
+    pub fn export_as(&mut self, format: ExportFormat, cx: &mut Context<Self>) {
+        self.selected = ExportFormat::ALL
+            .iter()
+            .position(|known| *known == format)
+            .unwrap_or(0);
+        self.start_export(cx);
+    }
+
     pub fn state(&self) -> &ExportState {
         &self.state
     }

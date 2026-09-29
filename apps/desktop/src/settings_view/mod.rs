@@ -5,7 +5,8 @@
 //! every change straight away (settings to `.gasp/settings.toml`, fonts
 //! and the accent colour to `.gasp/theme.toml`, shortcut changes to
 //! `.gasp/rules.toml`, snippets to `.gasp/snippets.txt` and
-//! replacements to `.gasp/replacements.toml`) and emits [`SettingsEvent::Changed`]. It asks the
+//! replacements to `.gasp/replacements.toml`, toolbars to
+//! `.gasp/toolbars.toml`) and emits [`SettingsEvent::Changed`]. It asks the
 //! host to run commands, such as opening another vault, with
 //! [`SettingsRequest`]. Escape and the close button emit `DismissEvent`.
 
@@ -23,6 +24,8 @@ pub mod snippet_look;
 mod snippet_rows;
 pub mod snippets_page;
 mod sync_page;
+mod toolbar_rows;
+pub mod toolbars_page;
 mod view;
 
 pub use gasp_config::{config_files, store};
