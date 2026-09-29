@@ -18,7 +18,7 @@ The workspace, CI and the synthetic corpus exist, the Linux-runnable Phase 0 spi
 | 3 Sync and travel check | sync built in the app (status bar, popover, settings page, conflict resolver) and syncing the owner's vault on `master`, with `main` merged in one way; a conflict waits in the resolver while every other note keeps syncing; travel check not started |
 | 4 Search and prose | vault search with an in-memory index (not Tantivy yet), sentence-length highlighting, grammar layers 1 and 2 (Harper's mechanical checks and vault-learned spelling); the local grammar model and OCR aren't started |
 | 5 Export | PDF (Typst) and HTML for the website built; the website still needs `crates/export/assets/article.css` and its drop-cap script updated |
-| 6 MCP and headless modes | MCP server built (`gasp mcp`): note, attachment, link, config and render tools, plus a bridge to the running app for its state, commands and unsaved notes. The other headless modes and app screenshots aren't started |
+| 6 MCP and headless modes | MCP server built (`gasp mcp`): note, attachment, link, config and render tools, plus a bridge to the running app for its state, commands and unsaved notes. `gasp --snapshot` draws a note's editor to a PNG with no window shown (macOS). The other headless modes aren't started |
 | 7 iPhone | built as a browser on the core (UniFFI, SwiftUI, TextKit 2): tabs with an overview, an edge-swipe sidebar (search, files, outline, links, tags), live preview from the core's planner with math rendered by Typst, vault images, link cards with their image and coloured code, wide tables as a sideways-scrolling grid with cell editing, heading and callout folding, the grammar checker's underlines and cards, footnote cards, OCR of images and PDFs in search, reading positions kept per note, the keyboard bar from `mobile.toolbar`, find and replace, and every registry command but panes through the palette, the bar or hardware keys (`UIKeyCommand`). Syncs with GitHub like the desktop (setup, the tab bar indicator, the resolver, sync settings; on open, foreground, background, a background refresh and after edits), verified against local repositories. Runs in the simulator; not yet run on the owner's iPhone |
 | 8 Plugins and agents | not started |
 
@@ -53,6 +53,8 @@ Steps marked **[Mac]** need the owner's machine or a macOS runner.
 ```
 cargo run -p gasp-desktop -- <vault folder>     # the desktop app
 cargo run -p gasp-desktop -- mcp <vault folder> # the MCP server on stdio
+cargo run -p gasp-desktop -- --snapshot <note> <out.png> [--width N --height N --theme light|dark --cursor LINE:COL]
+                                                  # the note's editor drawn to a PNG, no window shown
 cargo test --workspace                            # every crate's tests
 python3 scripts/check-complexity.py               # the complexity limit
 ```
@@ -591,7 +593,11 @@ and for Claude Desktop, in `claude_desktop_config.json`:
 }
 ```
 
-Still to do in this phase: screenshots of the running app, plugin tools (Phase 8), and the other headless modes (replaying keystrokes, a perf trace, dumping the layout tree).
+**Snapshots.** `gasp --snapshot <note> <out.png> [--width N] [--height N] [--theme light|dark] [--cursor LINE:COL]` draws a note's editor pane as the app would show it and writes a PNG, without a window appearing, a Dock icon, or the app taking focus, so an agent can look at its work while the owner keeps working. The note is a path to a Markdown file (`.md` may be left off); its vault is found as `gasp <note>` finds it, and the vault's theme and settings are read, and nothing in the vault or the app's own folders is written: no folder migration, no saving, syncing, watching or MCP bridge (a link card's image can still land in the image cache, as it does whenever a card is drawn). The window defaults to 900 by 700 and the image is at the display's backing scale (twice that on a Retina display). `--cursor` puts the caret at a line and column counted from one, with a couple of lines above it in view and the editor focused, so the caret and the table editor's marks show; without it the caret sits after the frontmatter as a note opens.
+
+How it works, in `apps/desktop/src/snapshot/`: the app runs with its activation policy held at "prohibited" (GPUI's application class gets a `setActivationPolicy:` that always asks for it), and opens its window with `show: false`, so AppKit never orders it in and never starts its display link. The view's `CAMetalLayer` is switched to a subclass whose `nextDrawable` keeps the last drawable it handed out, with `framebufferOnly` off so its texture can be read. Frames are asked for by sending the view `displayLayer:`, which runs GPUI's own frame callback, every 30 ms until none has been drawn for 400 ms (math, images and code colours arrive a moment after the text; the limit is 30 s). The last drawable's texture is blitted into shared memory and saved. It needs no Screen Recording permission, since it never reads the screen. It's macOS only for now; Linux could do the same with Blade's Vulkan texture, or a window under Xvfb.
+
+Still to do in this phase: the whole workspace in a snapshot (tabs, sidebars, status bar) rather than the editor pane, plugin tools (Phase 8), and the other headless modes (replaying keystrokes, a perf trace, dumping the layout tree).
 
 ### Phase 7: iPhone
 
