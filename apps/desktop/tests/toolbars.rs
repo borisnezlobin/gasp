@@ -233,7 +233,7 @@ fn reveal_bottom_bar(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) 
     let edge = gpui::point(status.center().x, status.top() - gpui::px(2.));
     cx.simulate_mouse_move(edge, None, Modifiers::none());
     cx.executor().advance_clock(Duration::from_millis(300));
-    assert_eq!(docked(workspace, cx), ["status", "writing"]);
+    assert_eq!(docked(workspace, cx), ["writing", "status"]);
 }
 
 fn rest(cx: &mut VisualTestContext, x: f32, y: f32) {

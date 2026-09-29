@@ -172,6 +172,9 @@ impl LeftPanel {
 
     /// Shows the panel for now: pinned unless it reveals on hover.
     pub fn show(&mut self) {
+        // The pointer (or the keyboard) that showed it is using it, so
+        // leaving before the panel is first drawn still counts as leaving.
+        self.in_use = true;
         if self.reveal == SidebarReveal::Hover {
             self.revealed = true;
         } else {

@@ -19,11 +19,19 @@ thread_local! {
     /// How many window moves the tab bar has started on this thread, for
     /// tests, which each run on their own.
     static STARTED: Cell<usize> = const { Cell::new(0) };
+    /// Whether moves only count, for GPUI's test windows, which have no
+    /// AppKit window to move.
+    static ONLY_COUNT: Cell<bool> = const { Cell::new(false) };
 }
 
 /// How many window moves have started so far on this thread.
 pub fn moves_started() -> usize {
     STARTED.get()
+}
+
+/// From now on, on this thread, moves are counted and nothing is moved.
+pub fn only_count_moves() {
+    ONLY_COUNT.set(true);
 }
 
 /// Stops a press on the app's own view from moving the window, from now
@@ -42,6 +50,9 @@ pub fn start(window: &mut Window) {
         return;
     }
     STARTED.set(STARTED.get() + 1);
+    if ONLY_COUNT.get() {
+        return;
+    }
     #[cfg(target_os = "macos")]
     if let Some(view) = crate::look_up::native_view(window) {
         macos::drag_window(view);
