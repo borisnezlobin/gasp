@@ -11,9 +11,9 @@ struct BlockFallbacks {
     private(set) var cardImages: [Int: CardImage] = [:]
 
     /// `isRendered` says whether a `$$` block's TeX is ready to draw.
-    init(plan: NotePlan, text: NSString, isRendered: (String) -> Bool = { _ in false }) {
-        for (index, line) in plan.lines.enumerated() {
-            for widget in line.widgets {
+    init(plan: ShownPlan, text: NSString, isRendered: (String) -> Bool = { _ in false }) {
+        for index in plan.blockLines {
+            for widget in plan[index].widgets {
                 switch widget.kind {
                 case .mathBlock(let tex) where !isRendered(tex):
                     mark(widget.range, from: index, in: plan) { _ in .mathSource }
@@ -31,9 +31,9 @@ struct BlockFallbacks {
     }
 
     /// Whether the line takes room, whatever the plan said.
-    func isShown(_ index: Int, in plan: NotePlan) -> Bool {
+    func isShown(_ index: Int, in plan: ShownPlan) -> Bool {
         switch presentation(of: index) {
-        case .asPlanned: !plan.lines[index].collapsed
+        case .asPlanned: !plan.unmoved(index).collapsed
         case .collapsed: false
         default: true
         }
@@ -45,21 +45,28 @@ struct BlockFallbacks {
     }
 
     private mutating func mark(
-        _ range: TextRange, from first: Int, in plan: NotePlan, inside: (LinePlan) -> LinePresentation
+        _ range: TextRange, from first: Int, in plan: ShownPlan, inside: (LinePlan) -> LinePresentation
     ) {
-        let covered = plan.lines[first...].prefix { $0.range.start < range.end }
+        let covered = Self.lines(of: range, from: first, in: plan)
         guard covered.count > 1 else { return }
-        for index in covered.indices {
-            let isFence = index == covered.startIndex || index == covered.endIndex - 1
-            presentations[index] = isFence ? .collapsed : inside(plan.lines[index])
+        for index in covered {
+            let isFence = index == covered.lowerBound || index == covered.upperBound - 1
+            presentations[index] = isFence ? .collapsed : inside(plan[index])
         }
+    }
+
+    /// The lines from `first` that start before `range` ends.
+    private static func lines(of range: TextRange, from first: Int, in plan: ShownPlan) -> Range<Int> {
+        var end = first
+        while end < plan.count, plan.start(of: end) < Int(range.end) { end += 1 }
+        return first..<end
     }
 
     /// Finds the card's `image:` line and gives its address to the
     /// card's shown lines.
-    private mutating func noteCardImage(_ range: TextRange, from first: Int, in plan: NotePlan, text: NSString) {
-        let covered = plan.lines[first...].prefix { $0.range.start < range.end }
-        let address = covered.lazy.compactMap { Self.value(of: "image", in: $0, text: text) }.first
+    private mutating func noteCardImage(_ range: TextRange, from first: Int, in plan: ShownPlan, text: NSString) {
+        let covered = Self.lines(of: range, from: first, in: plan)
+        let address = covered.lazy.compactMap { Self.value(of: "image", in: plan[$0], text: text) }.first
         guard let address, let url = URL(string: address), url.scheme?.hasPrefix("http") == true else { return }
         let shown = covered.indices.filter(isCardLine)
         for index in shown {
@@ -100,12 +107,12 @@ struct CardImage {
 /// The decoration a line's layout fragment draws, which depends on whether
 /// the lines around it belong to the same block.
 struct BlockNeighbours {
-    let plan: NotePlan
+    let plan: ShownPlan
     let fallbacks: BlockFallbacks
     let index: Int
 
     func decoration(tokens: Tokens) -> BlockDecoration? {
-        let line = plan.lines[index]
+        let line = plan.unmoved(index)
         let shape = LineShape(line.decorations)
         if line.widgets.contains(where: { $0.kind == .horizontalRule }) {
             return BlockDecoration(.rule, color: tokens.color(\.divider))
@@ -138,15 +145,15 @@ struct BlockNeighbours {
     /// a card too.
     private func isCardNeighbour(step: Int) -> Bool {
         var neighbour = index + step
-        while plan.lines.indices.contains(neighbour), !fallbacks.isShown(neighbour, in: plan) {
+        while plan.indices.contains(neighbour), !fallbacks.isShown(neighbour, in: plan) {
             neighbour += step
         }
-        return plan.lines.indices.contains(neighbour) && fallbacks.isCardLine(neighbour)
+        return plan.indices.contains(neighbour) && fallbacks.isCardLine(neighbour)
     }
 
     private func shownLine(_ index: Int) -> LinePlan? {
-        guard plan.lines.indices.contains(index), fallbacks.isShown(index, in: plan) else { return nil }
-        return plan.lines[index]
+        guard plan.indices.contains(index), fallbacks.isShown(index, in: plan) else { return nil }
+        return plan.unmoved(index)
     }
 
     private func isCode(_ index: Int) -> Bool {

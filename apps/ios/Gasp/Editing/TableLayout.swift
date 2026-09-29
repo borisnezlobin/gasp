@@ -12,14 +12,17 @@ struct TableLayout {
 
     /// Lays out the tables with a restyled row, and answers the wide ones'
     /// grids by where each table starts.
-    func layOut(_ plan: NotePlan, restyled: Set<Int>) -> [UInt32: TableGridModel] {
-        let rows = plan.lines.enumerated().filter { $0.element.tableRow != nil }
-        let tables = Dictionary(grouping: rows) { $0.element.tableRow?.tableStart ?? 0 }
+    func layOut(_ plan: ShownPlan, restyled: IndexSet) -> [UInt32: TableGridModel] {
+        let restyledTables = Set(restyled.intersection(plan.tableRows).compactMap { plan.tableStart(of: $0) })
+        guard !restyledTables.isEmpty else { return [:] }
+        let rows = plan.tableRows.filter { plan.tableStart(of: $0).map(restyledTables.contains) ?? false }
+        let tables = Dictionary(grouping: rows) { plan.tableStart(of: $0) ?? 0 }
         var grids: [UInt32: TableGridModel] = [:]
-        for (start, table) in tables where table.contains(where: { restyled.contains($0.offset) }) {
-            let header = table.first { $0.element.tableRow?.index == 0 && restyled.contains($0.offset) }
-            if let header { embolden(header.element) }
-            grids[start] = layOut(table: table.map(\.element))
+        for (start, table) in tables {
+            let lines = table.map { plan[$0] }
+            let header = table.first { plan.unmoved($0).tableRow?.index == 0 && restyled.contains($0) }
+            if let header { embolden(plan[header]) }
+            grids[start] = layOut(table: lines)
         }
         return grids
     }

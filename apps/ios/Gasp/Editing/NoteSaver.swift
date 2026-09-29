@@ -7,8 +7,9 @@ final class NoteSaver {
     private let vault: VaultFolder
     var path: String
     private static let disk = DispatchQueue(label: "com.borisnezlobin.gasp.save")
-    private var unsavedText: String?
-    private var afterSave: (() -> Void)?
+    /// Reads the text to save, once there's text waiting.
+    private var unsavedText: (() -> String)?
+    private var afterSave: ((String) -> Void)?
     private var timer: DispatchWorkItem?
     private static let quietPeriod: TimeInterval = 0.8
 
@@ -17,10 +18,11 @@ final class NoteSaver {
         self.path = path
     }
 
-    /// Saves `text` once typing stops, then runs `afterSave` on the main
-    /// thread.
-    func schedule(_ text: String, afterSave: @escaping () -> Void) {
-        unsavedText = text
+    /// Saves the text `read` gives once typing stops, then runs
+    /// `afterSave` with it on the main thread. The text is read only then,
+    /// so typing never copies the note.
+    func schedule(_ read: @escaping () -> String, afterSave: @escaping (String) -> Void) {
+        unsavedText = read
         self.afterSave = afterSave
         timer?.cancel()
         let timer = DispatchWorkItem { [weak self] in self?.flush() }
@@ -43,14 +45,15 @@ final class NoteSaver {
     /// Saves anything still waiting, now.
     func flush() {
         timer?.cancel()
-        guard let text = unsavedText else { return }
+        guard let read = unsavedText else { return }
         unsavedText = nil
+        let text = read()
         let (vault, path, afterSave) = (vault, path, afterSave)
         Self.disk.async {
             do {
                 try vault.saveNote(path: path, text: text)
                 DispatchQueue.main.async {
-                    afterSave?()
+                    afterSave?(text)
                     NotificationCenter.default.post(name: .vaultEdited, object: nil)
                 }
             } catch {

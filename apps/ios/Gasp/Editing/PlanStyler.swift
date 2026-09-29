@@ -2,25 +2,29 @@ import UIKit
 
 /// Applies the core's render plan to the text storage as attributes: fonts
 /// and colours for styled runs, hidden markup, widgets and block
-/// decorations. Only lines whose plan changed are restyled.
+/// decorations. The core sends only the lines that may have changed, and
+/// only those whose plan did change, or that an edit touched, are
+/// restyled.
 final class PlanStyler {
     private let tokens: Tokens
-    private var appliedLines: [LinePlan] = []
-    private var appliedFolds: [UInt32: Bool] = [:]
+    private(set) var shown = ShownPlan()
+    /// Whether the next update restyles every line whatever it says.
+    private var restylesAll = true
     /// Lines to restyle next time whatever their plan says.
     private var forcedLines = IndexSet()
     /// The text column's width, which decides whether a table fits as a grid.
     private var columnWidth: CGFloat = .greatestFiniteMagnitude
     /// Rendered math and the vault's images for the note.
     var media: NoteMedia?
-    /// Headings that fold, by line, and whether each is folded.
-    var headingFolds: [UInt32: Bool] = [:]
     /// Wide tables drawn as a scrolling grid, by where each starts.
     private(set) var gridTables: [UInt32: TableGridModel] = [:]
 
     init(tokens: Tokens) {
         self.tokens = tokens
     }
+
+    /// Whether the styler holds no plan, so the core should send all of it.
+    var needsWholePlan: Bool { shown.count == 0 }
 
     /// A new column width changes how tables lay out, so the next plan
     /// restyles every line.
@@ -32,19 +36,17 @@ final class PlanStyler {
 
     /// Makes the next plan restyle every line.
     func forgetApplied() {
-        appliedLines = []
+        restylesAll = true
     }
 
     /// Makes the next plan restyle the lines `matching` says, and every
     /// line their widgets reach, such as a `$$` block's.
     func forgetLines(matching: (LinePlan) -> Bool) {
-        let reached = appliedLines.filter(matching).flatMap { $0.widgets.map(\.range.nsRange) }
-        for (index, line) in appliedLines.enumerated() {
-            let range = line.range.nsRange
-            let touched = reached.contains { widget in
-                NSIntersectionRange(widget, range).length > 0 || NSLocationInRange(range.location, widget)
+        for index in shown.indices where matching(shown.unmoved(index)) {
+            forcedLines.insert(index)
+            for widget in shown[index].widgets {
+                forcedLines.insert(integersIn: shown.lines(touching: widget.range.nsRange))
             }
-            if touched || matching(line) { forcedLines.insert(index) }
         }
     }
 
@@ -54,85 +56,94 @@ final class PlanStyler {
         return look.attributes(tokens).merging([.paragraphStyle: paragraphStyle(LineShape([]), look)]) { $1 }
     }
 
-    /// Restyles every line whose plan differs from the last one applied, or
-    /// that overlaps `edited`, and tints the sentences and marks the
-    /// grammar flags and colour the code on those lines.
-    func apply(_ plan: NotePlan, prose: ProseMarks, code: CodeColors, to storage: NSTextStorage, edited: NSRange?) {
+    /// Takes the core's update and restyles the lines whose plan changed
+    /// or that `edited` touches, then tints the sentences, marks the
+    /// grammar flags and colours the code on those lines. Answers false,
+    /// restyling nothing, when the update doesn't fit what's shown, so the
+    /// whole plan should be asked for.
+    func apply(
+        _ update: PlanUpdate, prose: ProseMarks, code: CodeColors, to storage: NSTextStorage, edited: NSRange?
+    ) -> Bool {
+        guard let changed = shown.apply(update) else { return false }
+        guard shown.count > 0, shown.end(of: shown.count - 1) <= storage.length else {
+            shown = ShownPlan()
+            return false
+        }
+        var lines = restylesAll ? IndexSet(shown.indices) : changed.union(forcedLines)
+        lines.formUnion(gridRowsMoved(by: update.splice))
+        if let edited { lines.insert(integersIn: shown.lines(touching: edited)) }
+        restyle(withWholeTables(lines), prose: prose, code: code, storage: storage)
+        restylesAll = false
+        forcedLines = []
+        return true
+    }
+
+    private func restyle(_ restyled: IndexSet, prose: ProseMarks, code: CodeColors, storage: NSTextStorage) {
         let text = storage.string as NSString
-        let fallbacks = BlockFallbacks(plan: plan, text: text) { [media, tokens] tex in
+        let fallbacks = BlockFallbacks(plan: shown, text: text) { [media, tokens] tex in
             media?.math(MathKey(tex: tex, display: true, fontSize: tokens.bodySize)) != nil
         }
-        let restyled = withWholeTables(
-            Set(plan.lines.indices.filter { needsStyling($0, plan.lines[$0], edited) }), plan: plan
-        )
-        for index in restyled.sorted() {
-            let line = plan.lines[index]
-            let paragraph = paragraphRange(plan, index, length: storage.length)
+        for index in restyled {
+            let line = shown[index]
+            let paragraph = paragraphRange(index, length: storage.length)
             var styler = LineStyler(tokens: tokens, storage: storage, text: text, line: line)
             styler.media = media
-            styler.fold = headingFolds[line.line]
+            styler.fold = line.headingFold
             styler.cardImage = fallbacks.cardImages[index]
             styler.style(paragraph: paragraph, presentation: fallbacks.presentation(of: index))
         }
-        decorateBlocks(plan, fallbacks: fallbacks, restyled: restyled, storage: storage)
+        decorateBlocks(fallbacks: fallbacks, restyled: restyled, storage: storage)
         let tables = TableLayout(tokens: tokens, storage: storage, columnWidth: columnWidth)
-        keepGrids(tables.layOut(plan, restyled: restyled), plan: plan, restyled: restyled)
-        let restyledRanges = restyled.map { plan.lines[$0].range.nsRange }
-        code.paint(within: restyledRanges, storage: storage)
+        keepGrids(tables.layOut(shown, restyled: restyled), restyled: restyled)
+        let restyledRanges = restyled.map { shown.range(of: $0) }
+        let codeLines = restyled.filter { LineShape(shown.unmoved($0).decorations).isCode }
+        code.paint(within: codeLines.map { shown.range(of: $0) }, storage: storage)
         SentenceTinter(tokens: tokens, storage: storage).tint(prose.tints, within: restyledRanges)
         prose.mark(within: restyledRanges, storage: storage)
-        appliedLines = plan.lines
-        appliedFolds = headingFolds
-        forcedLines = []
+    }
+
+    /// A wide table's grid holds the offsets of its cells, so after an
+    /// edit that moved text, the rows of the tables after it are laid out
+    /// again.
+    private func gridRowsMoved(by splice: PlanSplice?) -> IndexSet {
+        guard let splice, splice.shift != 0, !gridTables.isEmpty else { return [] }
+        return IndexSet(shown.tableRows.filter { $0 >= Int(splice.at) })
     }
 
     /// `lines` and every row of a table one of them is in, since a table's
     /// columns are laid out from all its rows at once.
-    private func withWholeTables(_ lines: Set<Int>, plan: NotePlan) -> Set<Int> {
-        let tables = Set(lines.compactMap { plan.lines[$0].tableRow?.tableStart })
+    private func withWholeTables(_ lines: IndexSet) -> IndexSet {
+        let tables = Set(lines.intersection(shown.tableRows).compactMap { shown.tableStart(of: $0) })
         guard !tables.isEmpty else { return lines }
-        let rows = plan.lines.indices.filter { index in
-            plan.lines[index].tableRow.map { tables.contains($0.tableStart) } ?? false
-        }
-        return lines.union(rows)
+        let rows = shown.tableRows.filter { index in shown.tableStart(of: index).map(tables.contains) ?? false }
+        return lines.union(IndexSet(rows))
     }
 
     /// The grids of tables laid out again replace their old ones; tables
     /// that are gone or fit now lose theirs.
-    private func keepGrids(_ laidOut: [UInt32: TableGridModel], plan: NotePlan, restyled: Set<Int>) {
-        let redone = Set(restyled.compactMap { plan.lines[$0].tableRow?.tableStart })
-        let present = Set(plan.lines.compactMap { $0.tableRow?.tableStart })
+    private func keepGrids(_ laidOut: [UInt32: TableGridModel], restyled: IndexSet) {
+        let redone = Set(restyled.intersection(shown.tableRows).compactMap { shown.tableStart(of: $0) })
+        let present = Set(shown.tableRows.compactMap { shown.tableStart(of: $0) })
         gridTables = gridTables
             .filter { present.contains($0.key) && !redone.contains($0.key) }
             .merging(laidOut) { $1 }
     }
 
-    private func needsStyling(_ index: Int, _ line: LinePlan, _ edited: NSRange?) -> Bool {
-        guard index < appliedLines.count, appliedLines[index] == line, !forcedLines.contains(index),
-              appliedFolds[line.line] == headingFolds[line.line] else { return true }
-        guard let edited else { return false }
-        let range = line.range.nsRange
-        return NSIntersectionRange(range, edited).length > 0 || NSLocationInRange(edited.location, range)
-            || edited.location == NSMaxRange(range)
-    }
-
-    private func paragraphRange(_ plan: NotePlan, _ index: Int, length: Int) -> NSRange {
-        let start = Int(plan.lines[index].range.start)
-        let next = index + 1 < plan.lines.count ? Int(plan.lines[index + 1].range.start) : length
+    private func paragraphRange(_ index: Int, length: Int) -> NSRange {
+        let start = shown.start(of: index)
+        let next = index + 1 < shown.count ? shown.start(of: index + 1) : length
         let end = min(max(next, start), length)
         return NSRange(location: min(start, length), length: end - min(start, length))
     }
 
     /// Code blocks and callouts draw rounded ends, so a line's decoration
     /// depends on its neighbours; lines next to a restyled one are redone.
-    private func decorateBlocks(
-        _ plan: NotePlan, fallbacks: BlockFallbacks, restyled: Set<Int>, storage: NSTextStorage
-    ) {
+    private func decorateBlocks(fallbacks: BlockFallbacks, restyled: IndexSet, storage: NSTextStorage) {
         let touched = Set(restyled.flatMap { [$0 - 1, $0, $0 + 1] })
-        for index in touched.sorted() where plan.lines.indices.contains(index) {
-            let paragraph = paragraphRange(plan, index, length: storage.length)
+        for index in touched.sorted() where shown.indices.contains(index) {
+            let paragraph = paragraphRange(index, length: storage.length)
             guard paragraph.length > 0 else { continue }
-            let neighbours = BlockNeighbours(plan: plan, fallbacks: fallbacks, index: index)
+            let neighbours = BlockNeighbours(plan: shown, fallbacks: fallbacks, index: index)
             if let decoration = neighbours.decoration(tokens: tokens) {
                 storage.addAttribute(.blockDecoration, value: decoration, range: paragraph)
             } else {
