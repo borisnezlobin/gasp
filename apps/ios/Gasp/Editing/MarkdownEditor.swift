@@ -77,11 +77,14 @@ final class EditorTextView: UITextView {
         runBoundCommand?(id)
     }
 
+    /// A new width restyles the note before the text is laid out, so the
+    /// text is laid out once, styled for the width it has.
     override func layoutSubviews() {
+        if bounds.width != laidOutWidth {
+            laidOutWidth = bounds.width
+            widthDidChange?()
+        }
         super.layoutSubviews()
         didLayout?()
-        guard bounds.width != laidOutWidth else { return }
-        laidOutWidth = bounds.width
-        widthDidChange?()
     }
 }

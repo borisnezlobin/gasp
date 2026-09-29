@@ -82,12 +82,43 @@ struct Tokens {
     }
 
     private static func font(family: String, size: CGFloat, bold: Bool, italic: Bool) -> UIFont {
+        FontCache.shared.font(FontCache.Key(family: family, size: size, bold: bold, italic: italic)) {
+            makeFont(family: family, size: size, bold: bold, italic: italic)
+        }
+    }
+
+    private static func makeFont(family: String, size: CGFloat, bold: Bool, italic: Bool) -> UIFont {
         let base = UIFont(name: family, size: size) ?? .systemFont(ofSize: size)
         var traits = base.fontDescriptor.symbolicTraits
         if bold { traits.insert(.traitBold) }
         if italic { traits.insert(.traitItalic) }
         guard let styled = base.fontDescriptor.withSymbolicTraits(traits) else { return base }
         return UIFont(descriptor: styled, size: size)
+    }
+}
+
+/// Fonts made once for each family, size and style, since styling a note
+/// asks for the same few thousands of times.
+private final class FontCache {
+    static let shared = FontCache()
+
+    struct Key: Hashable {
+        let family: String
+        let size: CGFloat
+        let bold: Bool
+        let italic: Bool
+    }
+
+    private var fonts: [Key: UIFont] = [:]
+    private let lock = NSLock()
+
+    func font(_ key: Key, make: () -> UIFont) -> UIFont {
+        lock.lock()
+        defer { lock.unlock() }
+        if let font = fonts[key] { return font }
+        let font = make()
+        fonts[key] = font
+        return font
     }
 }
 
