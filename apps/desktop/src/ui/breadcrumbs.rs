@@ -5,6 +5,8 @@ use std::rc::Rc;
 
 use gpui::{App, ElementId, SharedString, Window, div, prelude::*};
 
+use crate::ui::Selectable;
+
 use super::ui_theme;
 
 type CrumbHandler = Rc<dyn Fn(&mut Window, &mut App)>;
@@ -64,7 +66,7 @@ impl RenderOnce for Breadcrumbs {
             let selector = format!("crumb-{}", crumb.label);
             let step = div()
                 .id(ElementId::NamedInteger(self.id.clone(), index as u64))
-                .debug_selector(|| selector)
+                .selector(|| selector)
                 .flex()
                 .min_w_0()
                 .px(theme.space_xs)

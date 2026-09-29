@@ -17,6 +17,7 @@ use super::controls::{button, control_note, field_box, segment, segmented, toggl
 use super::snippets_page::{SNIPPETS_KEY, add_snippet, capitalised, test_context};
 use super::view::{ControlRow, SettingsFocus, SettingsView};
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
+use crate::ui::Selectable;
 
 /// A text field of the snippet editor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -547,7 +548,7 @@ impl SettingsView {
         };
         let style = &self.style;
         let stop = button("insert-stop", "Add a tab stop ●", false, false, style)
-            .debug_selector(|| "insert-stop".to_string())
+            .selector(|| "insert-stop".to_string())
             .on_click(cx.listener(|view, _: &ClickEvent, window, cx| view.insert_stop(window, cx)));
         // A new snippet has no row above it to say what's open.
         let title = editor
@@ -555,7 +556,7 @@ impl SettingsView {
             .is_none()
             .then(|| div().font_weight(style.strong_weight).child("New snippet"));
         div()
-            .debug_selector(|| "snippet-editor".to_string())
+            .selector(|| "snippet-editor".to_string())
             .w_full()
             .flex()
             .flex_col()
@@ -701,7 +702,7 @@ impl SettingsView {
             style,
         )
         .track_focus(editor.control(OptionControl::Place))
-        .debug_selector(|| "snippet-place".to_string())
+        .selector(|| "snippet-place".to_string())
     }
 
     fn fire_control(
@@ -726,7 +727,7 @@ impl SettingsView {
         let focused = self.rings_control(editor, OptionControl::Fire, window, cx);
         segmented("snippet-fire", segments.collect::<Vec<_>>(), focused, style)
             .track_focus(editor.control(OptionControl::Fire))
-            .debug_selector(|| "snippet-fire".to_string())
+            .selector(|| "snippet-fire".to_string())
     }
 
     /// A switch with its label beside it; clicking either flips it.
@@ -748,7 +749,7 @@ impl SettingsView {
         div()
             .id(id.clone())
             .track_focus(editor.control(control))
-            .debug_selector(move || id.to_string())
+            .selector(move || id.to_string())
             .flex()
             .items_center()
             .gap(style.control_gap)
@@ -786,7 +787,7 @@ impl SettingsView {
             .map(|result| {
                 let (before, after) = result.text.split_at(result.caret);
                 div()
-                    .debug_selector(|| "snippet-test-result".to_string())
+                    .selector(|| "snippet-test-result".to_string())
                     .flex()
                     .items_center()
                     .font_family(style.code_font_family.clone())
@@ -818,18 +819,18 @@ impl SettingsView {
         let style = &self.style;
         let delete = editor.line.map(|_| {
             button("delete-snippet", "Delete snippet", false, false, style)
-                .debug_selector(|| "delete-snippet".to_string())
+                .selector(|| "delete-snippet".to_string())
                 .on_click(
                     cx.listener(|view, _: &ClickEvent, window, cx| view.delete_snippet(window, cx)),
                 )
         });
         let cancel = button("cancel-snippet", "Cancel", false, false, style)
-            .debug_selector(|| "cancel-snippet".to_string())
+            .selector(|| "cancel-snippet".to_string())
             .on_click(cx.listener(|view, _: &ClickEvent, window, cx| {
                 view.close_snippet_editor(window, cx)
             }));
         let save = button("save-snippet", "Save", true, false, style)
-            .debug_selector(|| "save-snippet".to_string())
+            .selector(|| "save-snippet".to_string())
             .on_click(
                 cx.listener(|view, _: &ClickEvent, window, cx| view.save_snippet(window, cx)),
             );

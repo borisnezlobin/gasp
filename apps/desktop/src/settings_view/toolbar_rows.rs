@@ -24,6 +24,7 @@ use super::toolbars_page::{
 };
 use super::view::{ControlRow, SettingsFocus, SettingsView};
 use crate::icons::{IconName, icon};
+use crate::ui::Selectable;
 use crate::ui::{Tooltip, keycap};
 
 /// An item being dragged to a new place, on its toolbar or another.
@@ -192,7 +193,7 @@ impl SettingsView {
             focused,
             &self.style,
         )
-        .debug_selector(move || selector)
+        .selector(move || selector)
         .tooltip(
             Tooltip::new(
                 if toolbar.enabled {
@@ -233,7 +234,7 @@ impl SettingsView {
                 false,
                 &self.style,
             )
-            .debug_selector(move || selector)
+            .selector(move || selector)
             .text_color(self.style.warning)
             .on_click(click)
             .into_any_element();
@@ -244,7 +245,7 @@ impl SettingsView {
             self.style.text_muted,
             &self.style,
         )
-        .debug_selector(move || selector)
+        .selector(move || selector)
         .tooltip(Tooltip::new("Remove this toolbar", None).builder())
         .on_click(click)
         .into_any_element()
@@ -293,7 +294,7 @@ impl SettingsView {
                     chosen,
                     &self.style,
                 )
-                .debug_selector(move || selector)
+                .selector(move || selector)
                 .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
                     view.choose_toolbar_field(&target, field, &value, cx)
                 }))
@@ -327,7 +328,7 @@ impl SettingsView {
                     on.contains(&context),
                     &self.style,
                 )
-                .debug_selector(move || selector)
+                .selector(move || selector)
                 .when(ringed, |chip| chip.shadow(vec![self.style.focus()]))
                 .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
                     view.toggle_toolbar_context(&target, context, cx)
@@ -374,7 +375,7 @@ impl SettingsView {
                 color,
                 &self.style,
             )
-            .debug_selector(move || selector)
+            .selector(move || selector)
             .tooltip(Tooltip::new(label.to_owned(), None).builder())
             .when(enabled, |button| {
                 button.on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
@@ -393,7 +394,7 @@ impl SettingsView {
             self.style.text_muted,
             &self.style,
         )
-        .debug_selector(move || selector)
+        .selector(move || selector)
         .tooltip(Tooltip::new("Take off the toolbar", None).builder())
         .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
             cx.stop_propagation();
@@ -442,7 +443,7 @@ impl SettingsView {
             focused,
             &self.style,
         )
-        .debug_selector(|| "new-toolbar".to_owned())
+        .selector(|| "new-toolbar".to_owned())
         .on_click(cx.listener(|view, _: &ClickEvent, window, cx| view.new_toolbar(window, cx)))
         .into_any_element()
     }
@@ -455,7 +456,7 @@ impl SettingsView {
             "Reset toolbars"
         };
         button("reset-toolbars", label, false, focused, &self.style)
-            .debug_selector(|| "reset-toolbars".to_owned())
+            .selector(|| "reset-toolbars".to_owned())
             .when(armed, |button| button.text_color(self.style.warning))
             .on_click(cx.listener(|view, _: &ClickEvent, _, cx| view.press_reset_toolbars(cx)))
             .into_any_element()

@@ -9,6 +9,7 @@ use gpui::{
 
 use crate::picker::shortcut::Shortcut;
 use crate::theme::UiTheme;
+use crate::ui::Selectable;
 use crate::ui::hints::{command_title, shortcut};
 use crate::ui::{keycap, ui_theme};
 
@@ -152,7 +153,7 @@ impl ShortcutsHelp {
         let selector = format!("help-{}", row.id);
         div()
             .id(ElementId::NamedInteger("help-row".into(), index as u64))
-            .debug_selector(|| selector)
+            .selector(|| selector)
             .flex()
             .flex_row()
             .items_center()

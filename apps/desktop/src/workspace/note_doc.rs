@@ -246,8 +246,10 @@ impl NoteDoc {
     fn write(&mut self, cx: &mut Context<Self>) -> io::Result<()> {
         let text = self.current_text(cx);
         let contents = self.line_ending.apply(&text);
-        crate::recovery::before_save(&self.path, &self.saved_text, cx);
-        atomic_write(&self.path, &contents)?;
+        if crate::sandbox::writes_allowed() {
+            crate::recovery::before_save(&self.path, &self.saved_text, cx);
+            atomic_write(&self.path, &contents)?;
+        }
         self.saved_text = text;
         self.disk_text = contents;
         self.dirty = false;

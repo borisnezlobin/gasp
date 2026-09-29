@@ -13,6 +13,7 @@ use super::view::{ControlRow, SettingsView, add_field_key};
 use crate::icons::IconName;
 use crate::sync::SyncService;
 use crate::sync::credentials::store_name;
+use crate::ui::Selectable;
 
 /// The key the repository field is kept and reports errors under.
 pub(super) const REMOTE_FIELD: &str = "sync.remote";
@@ -222,15 +223,15 @@ impl SettingsView {
         let style = &self.style;
         if self.signed_in_cache {
             return button("sign-out", "Sign out", false, focused, style)
-                .debug_selector(|| "sign-out".to_string())
+                .selector(|| "sign-out".to_string())
                 .on_click(cx.listener(|view, _: &ClickEvent, _, cx| view.sign_out(cx)))
                 .into_any_element();
         }
         let create = button("new-token", "Create a token", false, false, style)
-            .debug_selector(|| "new-token".to_string())
-            .on_click(|_: &ClickEvent, _, cx| cx.open_url(NEW_TOKEN_URL));
+            .selector(|| "new-token".to_string())
+            .on_click(|_: &ClickEvent, _, cx| crate::sandbox::open_url(NEW_TOKEN_URL, cx));
         let paste = button("paste-token", "Paste token", true, focused, style)
-            .debug_selector(|| "paste-token".to_string())
+            .selector(|| "paste-token".to_string())
             .on_click(cx.listener(|view, _: &ClickEvent, _, cx| view.paste_token(cx)));
         div()
             .flex()
@@ -278,7 +279,7 @@ impl SettingsView {
             style.text_muted,
             style,
         )
-        .debug_selector(|| selector)
+        .selector(|| selector)
         .when(focused, |remove| remove.shadow(vec![style.focus()]))
         .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
             cx.stop_propagation();

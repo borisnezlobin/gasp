@@ -13,6 +13,7 @@ use super::ui_theme;
 use crate::icons::{IconName, icon};
 use crate::keymap::RunCommand;
 use crate::picker::shortcut::Shortcut;
+use crate::ui::Selectable;
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
@@ -156,7 +157,7 @@ impl RenderOnce for IconButton {
         let has_attached = self.attached.is_some();
         div()
             .id(ElementId::Name(self.id.clone()))
-            .debug_selector(|| selector)
+            .selector(|| selector)
             .relative()
             .flex()
             .flex_none()

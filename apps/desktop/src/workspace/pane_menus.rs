@@ -523,7 +523,7 @@ fn file_items(path: PathBuf) -> Vec<MenuItem> {
     vec![
         copy_path_item(path.clone()),
         MenuItem::action("Open in default app", move |_, cx| {
-            cx.open_with_system(&path)
+            crate::sandbox::open_with_system(&path, cx)
         })
         .with_icon(IconName::ArrowSquareOut),
     ]

@@ -36,6 +36,9 @@ mod platform {
         window: &mut Window,
         cx: &mut App,
     ) -> Task<anyhow::Result<()>> {
+        if crate::sandbox::blocks("the print panel") {
+            return Task::ready(Ok(()));
+        }
         // `Window::window_handle` is GPUI's own handle; this is the
         // platform's.
         let view = HasWindowHandle::window_handle(window)
@@ -75,7 +78,7 @@ mod platform {
         });
         cx.spawn(async move |cx| {
             writing.await?;
-            cx.update(|cx| cx.open_with_system(&print_path))?;
+            cx.update(|cx| crate::sandbox::open_with_system(&print_path, cx))?;
             Ok(())
         })
     }

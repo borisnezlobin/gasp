@@ -19,6 +19,7 @@ use super::snippets_page::{ReplacementRow, SnippetRow};
 use super::view::{ControlRow, SettingsFocus, SettingsView};
 use crate::icons::{IconName, icon};
 use crate::preview::math::{MathKey, MathState};
+use crate::ui::Selectable;
 use crate::ui::Tooltip;
 use crate::ui::keycap::{Glyph, keycap_glyphs};
 
@@ -113,7 +114,7 @@ impl SettingsView {
                 .into_any_element(),
         };
         let example = div()
-            .debug_selector(|| "snippets-example".to_string())
+            .selector(|| "snippets-example".to_string())
             .flex()
             .items_center()
             .gap(style.control_gap)
@@ -139,7 +140,7 @@ impl SettingsView {
             focused,
             &style,
         )
-        .debug_selector(|| "add-snippet".to_string())
+        .selector(|| "add-snippet".to_string())
         .on_click(cx.listener(|view, _: &ClickEvent, window, cx| {
             view.open_snippet_editor(None, window, cx)
         }));
@@ -166,7 +167,7 @@ impl SettingsView {
             false,
             &style,
         )
-        .debug_selector(move || format!("toggle-snippet-{line}"))
+        .selector(move || format!("toggle-snippet-{line}"))
         .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
             cx.stop_propagation();
             view.toggle_snippet(line, cx)
@@ -175,7 +176,7 @@ impl SettingsView {
         let hover = style.card_hover;
         let plate = div()
             .id(SharedString::from(format!("snippet-row-{line}")))
-            .debug_selector(move || format!("snippet-row-{line}"))
+            .selector(move || format!("snippet-row-{line}"))
             .mx(-(style.card_padding_x - style.plate_inset))
             .my(-(style.list_row_padding_y - style.plate_inset))
             .px(style.card_padding_x - style.plate_inset)
@@ -217,7 +218,7 @@ impl SettingsView {
             focused,
             &style,
         )
-        .debug_selector(move || format!("toggle-replacement-{index}"))
+        .selector(move || format!("toggle-replacement-{index}"))
         .on_click(
             cx.listener(move |view, _: &ClickEvent, _, cx| view.toggle_replacement(index, cx)),
         );
@@ -315,7 +316,7 @@ impl SettingsView {
         let selector = format!("{name}-keys");
         let chip = self
             .key_chip(SharedString::from(selector.clone()))
-            .debug_selector(move || selector.clone());
+            .selector(move || selector.clone());
         let chip = match &look.trigger {
             TriggerLook::Keys(pieces) => {
                 chip.children(pieces.iter().map(|piece| key_piece(piece, style)))
@@ -375,7 +376,7 @@ impl SettingsView {
             Some(Drawn::Image(image)) => {
                 let name = name.to_string();
                 div()
-                    .debug_selector(move || format!("{name}-math"))
+                    .selector(move || format!("{name}-math"))
                     .child(image)
                     .into_any_element()
             }
@@ -460,7 +461,7 @@ fn mark(
     let hover = style.card_hover;
     let element = content
         .id(SharedString::from(id.clone()))
-        .debug_selector(move || id.clone())
+        .selector(move || id.clone())
         .flex_none()
         .min_w(style.indicator_size)
         .h(style.indicator_size)
@@ -512,7 +513,7 @@ fn result_pieces(
     };
     let name = name.to_string();
     div()
-        .debug_selector(move || format!("{name}-result"))
+        .selector(move || format!("{name}-result"))
         .flex()
         .flex_col()
         .font_family(font)
@@ -540,7 +541,7 @@ fn result_piece(piece: &ResultPiece, style: &crate::theme::SettingsTheme) -> Any
             .child(text.clone())
             .into_any_element(),
         ResultPiece::Slot | ResultPiece::Break => div()
-            .debug_selector(|| "snippet-slot".to_string())
+            .selector(|| "snippet-slot".to_string())
             .flex_none()
             .w(style.slot_width)
             .h(style.slot_height)

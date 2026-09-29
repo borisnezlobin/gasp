@@ -22,6 +22,7 @@ use super::view::{ControlRow, SettingsFocus, SettingsView, theme_key};
 use crate::icons::IconName;
 use crate::picker::shortcut::Shortcut;
 use crate::theme::parse_color;
+use crate::ui::Selectable;
 use crate::ui::{Tooltip, keycap};
 
 impl SettingsView {
@@ -247,7 +248,7 @@ impl SettingsView {
         let selector = format!("reset-{key}");
         let id = SharedString::from(selector.clone());
         icon_button(id, IconName::ArrowCounterClockwise, style.text_muted, style)
-            .debug_selector(|| selector)
+            .selector(|| selector)
             .tooltip(Tooltip::new("Reset to default", None).builder())
             .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
                 cx.stop_propagation();
@@ -271,7 +272,7 @@ impl SettingsView {
             focused,
             &self.style,
         )
-        .debug_selector(|| format!("toggle-{key}"))
+        .selector(|| format!("toggle-{key}"))
         .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| view.toggle(&item, cx)))
         .into_any_element()
     }
@@ -288,7 +289,7 @@ impl SettingsView {
     ) -> AnyElement {
         let selector = id.clone();
         let button = dropdown_button(SharedString::from(id), label, focused, &self.style)
-            .debug_selector(|| selector)
+            .selector(|| selector)
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .on_click(cx.listener(move |view, _: &ClickEvent, window, cx| {
                 let open = view.menu.as_ref().is_some_and(|menu| menu.row == index);
@@ -335,7 +336,7 @@ impl SettingsView {
     fn render_menu(&self, cx: &mut Context<Self>) -> Stateful<Div> {
         let style = &self.style;
         let panel = menu_panel(style)
-            .debug_selector(|| "settings-menu".to_string())
+            .selector(|| "settings-menu".to_string())
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .text_size(style.small_text_size);
         let Some(menu) = self.menu.as_ref() else {
@@ -360,7 +361,7 @@ impl SettingsView {
         };
         let status = status.map(|text| {
             div()
-                .debug_selector(|| "settings-menu-status".to_string())
+                .selector(|| "settings-menu-status".to_string())
                 .flex_none()
                 .p(style.control_gap)
                 .text_color(style.text_muted)
@@ -417,7 +418,7 @@ impl SettingsView {
             position == menu.highlighted,
             &self.style,
         )
-        .debug_selector(|| selector)
+        .selector(|| selector)
         .on_click(
             cx.listener(move |view, _: &ClickEvent, window, cx| view.pick(&value, window, cx)),
         )
@@ -442,7 +443,7 @@ impl SettingsView {
             let id = format!("{id}-{}", item.key);
             let selector = id.clone();
             icon_button(SharedString::from(id), name, style.text_muted, style)
-                .debug_selector(|| selector)
+                .selector(|| selector)
                 .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
                     view.step_number(&item, direction, cx)
                 }))
@@ -556,7 +557,7 @@ impl SettingsView {
             let chosen = hex.eq_ignore_ascii_case(&current);
             let selector = format!("swatch-{hex}");
             swatch(SharedString::from(selector.clone()), color, chosen, style)
-                .debug_selector(|| selector)
+                .selector(|| selector)
                 .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
                     view.write_token(token, Some(hex), cx)
                 }))
@@ -600,7 +601,7 @@ impl SettingsView {
             focused,
             &self.style,
         )
-        .debug_selector(|| "open-vault".to_string())
+        .selector(|| "open-vault".to_string())
         .on_click(cx.listener(|view, _: &ClickEvent, _, cx| view.request_command("vault.open", cx)))
         .into_any_element()
     }
@@ -613,8 +614,8 @@ impl SettingsView {
             focused,
             &self.style,
         )
-        .debug_selector(|| "view-icon-source".to_string())
-        .on_click(|_: &ClickEvent, _, cx| cx.open_url(ICON_SOURCE_URL))
+        .selector(|| "view-icon-source".to_string())
+        .on_click(|_: &ClickEvent, _, cx| crate::sandbox::open_url(ICON_SOURCE_URL, cx))
         .into_any_element()
     }
 
@@ -648,14 +649,13 @@ impl SettingsView {
             );
             let command = shortcut.id.clone();
             let key = key.clone();
-            chip.debug_selector(|| format!("key-{id}")).child(
-                remove.debug_selector(|| selector).on_click(cx.listener(
+            chip.selector(|| format!("key-{id}"))
+                .child(remove.selector(|| selector).on_click(cx.listener(
                     move |view, _: &ClickEvent, _, cx| {
                         cx.stop_propagation();
                         view.remove_key(&command, &key, cx)
                     },
-                )),
-            )
+                )))
         });
         let caps: Vec<_> = caps.collect();
         let unbound = (shortcut.keys.is_empty() && !capturing).then(|| {
@@ -680,7 +680,7 @@ impl SettingsView {
                 style.text_muted,
                 style,
             )
-            .debug_selector(|| selector)
+            .selector(|| selector)
             .tooltip(Tooltip::new("Add a shortcut", None).builder())
             .when(focused, |add| {
                 add.bg(style.control_background).shadow(vec![style.focus()])
@@ -707,7 +707,7 @@ impl SettingsView {
     pub(super) fn capture_box(&self, prompt: &str, cx: &mut Context<Self>) -> AnyElement {
         let style = &self.style;
         let cancel = small_icon_button("cancel-capture", IconName::X, style)
-            .debug_selector(|| "cancel-capture".to_string())
+            .selector(|| "cancel-capture".to_string())
             .tooltip(Tooltip::new("Stop waiting for keys", None).builder())
             .on_click(cx.listener(|view, _: &ClickEvent, _, cx| {
                 cx.stop_propagation();

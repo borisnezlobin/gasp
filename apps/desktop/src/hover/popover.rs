@@ -12,6 +12,7 @@ use crate::editor::EditorView;
 use crate::frame::FrameLayout;
 use crate::icons::IconName;
 use crate::theme::UiTheme;
+use crate::ui::Selectable;
 use crate::ui::{Button, IconButton, popover, truncated};
 
 impl EditorView {
@@ -51,7 +52,7 @@ impl EditorView {
         };
         let body = body
             .id("hover-preview")
-            .debug_selector(|| "hover-preview".into())
+            .selector(|| "hover-preview".into())
             .occlude()
             .on_hover(
                 cx.listener(|view, hovered: &bool, _, cx| view.hover_popover_hovered(*hovered, cx)),

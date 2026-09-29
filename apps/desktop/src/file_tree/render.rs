@@ -15,6 +15,7 @@ use super::model::Row;
 use super::view::{DisplayRow, EditTarget, FileTree};
 use crate::icons::{IconName, icon};
 use crate::theme::UiTheme;
+use crate::ui::Selectable;
 use crate::ui::menu::{menu_icon, menu_row};
 use crate::ui::{Button, popover, ui_theme};
 
@@ -234,7 +235,7 @@ impl FileTree {
         let selector = format!("tree-row-{}", row.entry.label());
         self.row_shell(row.depth, state, ui)
             .id(("file-tree-row", index))
-            .debug_selector(|| selector)
+            .selector(|| selector)
             .children(content)
             .children(menu)
             .on_click(cx.listener(move |tree, event: &ClickEvent, window, cx| {
@@ -360,7 +361,7 @@ impl FileTree {
                 false,
                 &ui,
             )
-            .debug_selector(|| format!("tree-menu-{}", item.label()))
+            .selector(|| format!("tree-menu-{}", item.label()))
             .hover(|style| style.bg(ui.menu_highlight))
             .child(menu_icon(Some(item.icon()), false, &ui))
             .child(item.label())

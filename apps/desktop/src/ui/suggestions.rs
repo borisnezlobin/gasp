@@ -12,6 +12,7 @@ use super::menu::menu_row;
 use super::{Truncated, popover, truncated};
 use crate::picker::match_ranges;
 use crate::theme::UiTheme;
+use crate::ui::Selectable;
 
 /// One row: a label with its matched characters, and an optional detail
 /// on the right, such as the folder a note is in.
@@ -74,7 +75,7 @@ pub fn suggestion_list<V: 'static>(
                 false,
                 theme,
             )
-            .debug_selector(|| selector)
+            .selector(|| selector)
             .gap(theme.space_lg)
             .pl(theme.menu_row_padding_x + theme.space_lg * row.indent as f32)
             .on_mouse_down(

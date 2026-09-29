@@ -18,6 +18,7 @@ use crate::commands::handles;
 use crate::icons::IconName;
 use crate::picker::shortcut::Shortcut;
 use crate::theme::UiTheme;
+use crate::ui::Selectable;
 use crate::ui::hints::{chord, command_title, shortcut};
 use crate::ui::keycap::{Glyph, glyphs, keycap_glyphs};
 use crate::ui::{truncated, ui_theme};
@@ -377,7 +378,7 @@ impl Workspace {
         });
         let sheet = crate::ui::dialog(&ui)
             .id("shortcut-sheet")
-            .debug_selector(|| "shortcut-sheet".to_owned())
+            .selector(|| "shortcut-sheet".to_owned())
             .w(ui.sheet_width)
             .max_h_full()
             .overflow_hidden()
@@ -429,7 +430,7 @@ fn palette_hint(ui: &UiTheme, cx: &App) -> Option<AnyElement> {
     let key = shortcut("palette.open", cx)?;
     Some(
         div()
-            .debug_selector(|| "shortcut-sheet-palette".to_owned())
+            .selector(|| "shortcut-sheet-palette".to_owned())
             .flex_none()
             .flex()
             .items_center()

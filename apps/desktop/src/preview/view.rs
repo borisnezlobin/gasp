@@ -10,6 +10,7 @@ use gasp_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{AppContext, Context};
 
 use crate::editor::{EditorEvent, EditorView};
+use crate::pending_renders::PendingRender;
 use crate::preview::code_highlight::load_syntaxes;
 use crate::preview::links::link_target_at;
 use crate::preview::reveal::reveal_settings;
@@ -108,12 +109,14 @@ impl EditorView {
         if !self.code.take_load_request() {
             return;
         }
+        let pending = PendingRender::start();
         let load = cx.background_spawn(async {
             load_syntaxes();
         });
         cx.spawn(async move |this, cx| {
             load.await;
             this.update(cx, |_, cx| cx.notify()).ok();
+            drop(pending);
         })
         .detach();
     }
@@ -123,6 +126,7 @@ impl EditorView {
     fn start_code_jobs(&mut self, cx: &mut Context<Self>) {
         for job in self.code.take_jobs() {
             let run = cx.background_spawn(async move { job.run() });
+            let pending = PendingRender::start();
             cx.spawn(async move |this, cx| {
                 let done = run.await;
                 this.update(cx, |view, cx| {
@@ -130,6 +134,7 @@ impl EditorView {
                     cx.notify();
                 })
                 .ok();
+                drop(pending);
             })
             .detach();
         }
@@ -143,6 +148,7 @@ impl EditorView {
                 let image = crate::link_cards::images::load(&request);
                 (request.url, image)
             });
+            let pending = PendingRender::start();
             cx.spawn(async move |this, cx| {
                 let (url, image) = download.await;
                 this.update(cx, |view, cx| {
@@ -150,6 +156,7 @@ impl EditorView {
                     cx.notify();
                 })
                 .ok();
+                drop(pending);
             })
             .detach();
         }
@@ -202,6 +209,7 @@ impl EditorView {
     /// background thread, redrawing when one finishes.
     pub(crate) fn start_math_renders(&mut self, cx: &mut Context<Self>) {
         for request in self.math.take_requests() {
+            let pending = PendingRender::start();
             cx.spawn(async move |this, cx| {
                 let key = request.key.clone();
                 let render = cx.background_executor().spawn(async move { request.run() });
@@ -211,6 +219,7 @@ impl EditorView {
                     cx.notify();
                 })
                 .ok();
+                drop(pending);
             })
             .detach();
         }

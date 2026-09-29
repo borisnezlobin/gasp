@@ -386,12 +386,15 @@ impl EditorView {
 
     /// `note.import-image`: picks image files and embeds them at the cursor.
     pub(crate) fn import_image(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let picked = cx.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: true,
-            prompt: Some("Insert".into()),
-        });
+        let picked = crate::sandbox::prompt_for_paths(
+            PathPromptOptions {
+                files: true,
+                directories: false,
+                multiple: true,
+                prompt: Some("Insert".into()),
+            },
+            cx,
+        );
         cx.spawn_in(window, async move |this, cx| {
             let Ok(Ok(Some(paths))) = picked.await else {
                 return;

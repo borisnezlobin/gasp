@@ -13,6 +13,7 @@ use gpui::{
 
 use super::pane::{DropState, Pane, PaneEvent, PaneMenu, TabTarget};
 use super::pane_tree::{DropZone, Rect};
+use crate::ui::Selectable;
 use crate::ui::{MenuAnchor, popover, ui_theme};
 
 /// A tab being dragged: where it comes from, and what its stand-in shows.
@@ -239,7 +240,7 @@ impl Pane {
             );
         let catcher = div()
             .id("pane-drop-zone")
-            .debug_selector(|| "pane-drop-zone".to_owned())
+            .selector(|| "pane-drop-zone".to_owned())
             .absolute()
             .inset_0()
             .p(ui.space_sm)

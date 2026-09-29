@@ -110,6 +110,9 @@ fn open_started_vault_window(
     note: Option<PathBuf>,
     cx: &mut App,
 ) -> anyhow::Result<WindowHandle<Workspace>> {
+    if crate::sandbox::blocks("opening another window") {
+        anyhow::bail!("a snapshot run keeps to one window");
+    }
     let options = window_options(&start.config.device, cx);
     let window = {
         let _span = trace::span("open-window");
@@ -136,6 +139,9 @@ fn remember_vault(vault: PathBuf, cx: &mut App) {
 
 /// Opens the empty state, which asks for a folder.
 pub fn open_welcome_window(cx: &mut App) -> anyhow::Result<()> {
+    if crate::sandbox::blocks("opening another window") {
+        anyhow::bail!("a snapshot run keeps to one window");
+    }
     let options = window_options(&DeviceSettings::default(), cx);
     let window = cx.open_window(options, |window, cx| cx.new(|cx| Welcome::new(window, cx)))?;
     window.update(cx, |_, window, cx| {
@@ -156,7 +162,7 @@ pub fn build_workspace(
     build_started_workspace(VaultStart::load(vault), note, window, cx)
 }
 
-fn build_started_workspace(
+pub(crate) fn build_started_workspace(
     start: VaultStart,
     note: Option<&Path>,
     window: &mut Window,
@@ -180,8 +186,12 @@ fn build_started_workspace(
     {
         eprintln!("could not open {}: {error}", note.display());
     }
-    workspace.watch_vault(window, cx);
-    workspace.start_mcp_bridge(window, cx);
+    if crate::sandbox::writes_allowed() {
+        workspace.watch_vault(window, cx);
+    }
+    if crate::sandbox::reaches_outside() {
+        workspace.start_mcp_bridge(window, cx);
+    }
     trace::mark("workspace-built");
     workspace
 }
@@ -218,7 +228,7 @@ fn window_options(device: &DeviceSettings, cx: &App) -> WindowOptions {
 /// On macOS the app draws under a hidden title bar, with the window
 /// buttons centred in the tab bar's row. Elsewhere the system's title bar
 /// stays.
-fn titlebar() -> TitlebarOptions {
+pub(crate) fn titlebar() -> TitlebarOptions {
     let hidden = cfg!(target_os = "macos");
     TitlebarOptions {
         title: None,
@@ -409,7 +419,7 @@ impl Workspace {
 
     /// `vault.open`: asks for a folder and opens it in a new window.
     pub(crate) fn prompt_for_vault(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let chosen = cx.prompt_for_paths(folder_prompt());
+        let chosen = crate::sandbox::prompt_for_paths(folder_prompt(), cx);
         let task = cx.spawn_in(window, async move |_, cx| {
             let Ok(Ok(Some(paths))) = chosen.await else {
                 return;

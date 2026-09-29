@@ -6,30 +6,21 @@
 //! are made readable, so once the frames settle the last one is copied
 //! into memory. Frames are asked for by sending the view `displayLayer:`,
 //! the message AppKit sends when a layer needs drawing, so no display
-//! link and no visible window are needed. The app never takes a Dock icon
-//! or focus: its activation policy is held at "prohibited".
-//!
-//! Messages go through `Message::send_message` rather than `msg_send!`,
-//! whose expansion tests a `cargo-clippy` feature this crate doesn't have.
+//! link and no visible window are needed.
 
 #![allow(unsafe_code)]
 
-use std::any::Any;
 use std::cell::{Cell, RefCell};
 
 use image::RgbaImage;
 use metal::foreign_types::ForeignTypeRef;
 use metal::{MTLBlitOption, MTLOrigin, MTLResourceOptions, MTLSize, MetalDrawable};
 use objc::runtime::{Class, Imp, NO, Object, Sel, class_addMethod, object_getClass};
-use objc::{Message, MessageArguments};
 
-/// GPUI's application class, registered when the binary loads.
-const APP_CLASS: &str = "GPUIApplication";
+use super::appkit::send;
+
 /// The layer class the snapshot switches GPUI's layer to.
 const CAPTURING_LAYER_CLASS: &str = "GaspSnapshotLayer";
-/// `NSApplicationActivationPolicyProhibited`: no Dock icon, no menu bar,
-/// never the active app.
-const ACTIVATION_POLICY_PROHIBITED: isize = 2;
 const BYTES_PER_PIXEL: u64 = 4;
 
 unsafe extern "C" {
@@ -45,44 +36,6 @@ unsafe extern "C" {
 thread_local! {
     static LAST_DRAWABLE: RefCell<Option<MetalDrawable>> = const { RefCell::new(None) };
     static FRAMES_DRAWN: Cell<u64> = const { Cell::new(0) };
-}
-
-/// Keeps the app out of the Dock and from ever becoming active, whatever
-/// GPUI asks for when it finishes launching. Call before the app runs.
-pub fn keep_app_in_background() {
-    let Some(class) = Class::get(APP_CLASS) else {
-        return;
-    };
-    // SAFETY: the method has the signature its type encoding (`v@:q`)
-    // gives: `-(void)setActivationPolicy:(NSInteger)`. GPUI's class only
-    // inherits it from NSApplication, so adding it overrides that.
-    unsafe {
-        let method: extern "C" fn(&Object, Sel, isize) = set_activation_policy;
-        let imp = std::mem::transmute::<extern "C" fn(&Object, Sel, isize), Imp>(method);
-        class_addMethod(
-            class as *const Class as *mut Class,
-            Sel::register("setActivationPolicy:"),
-            imp,
-            c"v@:q".as_ptr(),
-        );
-    }
-}
-
-extern "C" fn set_activation_policy(app: &Object, _: Sel, _asked: isize) {
-    let Some(superclass) = Class::get("NSApplication") else {
-        return;
-    };
-    // SAFETY: NSApplication answers `setActivationPolicy:` with a BOOL,
-    // and `app` is the live application object AppKit called us with.
-    let _: bool = unsafe {
-        objc::__send_super_message(
-            app,
-            superclass,
-            Sel::register("setActivationPolicy:"),
-            (ACTIVATION_POLICY_PROHIBITED,),
-        )
-    }
-    .unwrap_or(false);
 }
 
 /// The view a window draws into, set up to keep what it draws.
@@ -183,6 +136,7 @@ extern "C" fn next_drawable(layer: &Object, _: Sel) -> *mut Object {
     let kept = unsafe { metal::MetalDrawableRef::from_ptr(drawable.cast()) }.to_owned();
     LAST_DRAWABLE.with(|last| *last.borrow_mut() = Some(kept));
     FRAMES_DRAWN.with(|frames| frames.set(frames.get() + 1));
+    crate::ui::selector::frame_presented();
     drawable
 }
 
@@ -225,16 +179,4 @@ fn read_texture(texture: &metal::TextureRef) -> Result<RgbaImage, String> {
     let size = |pixels: u64| u32::try_from(pixels).map_err(|error| error.to_string());
     RgbaImage::from_raw(size(width)?, size(height)?, rgba)
         .ok_or_else(|| "the frame's size didn't match its pixels".to_owned())
-}
-
-/// Sends `selector` to `receiver` with `args`, answering what it returns.
-///
-/// # Safety
-///
-/// `receiver` is a live object, and `args` and `R` match the method's
-/// declaration.
-unsafe fn send<A: MessageArguments, R: Any>(receiver: *mut Object, selector: &str, args: A) -> R {
-    // SAFETY: as the caller promises.
-    let sent = unsafe { (*receiver).send_message(Sel::register(selector), args) };
-    sent.unwrap_or_else(|error| panic!("{selector} failed: {error:?}"))
 }

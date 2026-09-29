@@ -11,6 +11,7 @@ use gpui::{
 use super::{AddToToolbar, FocusStop, PressToolbarItem, add_key, button_label, item_key};
 use crate::icons::{IconName, icon};
 use crate::theme::UiTheme;
+use crate::ui::Selectable;
 use crate::ui::Tooltip;
 use crate::workspace::status::StatusInfo;
 
@@ -278,7 +279,7 @@ fn button_box(id: &str, look: ButtonLook, theme: &UiTheme) -> Stateful<Div> {
     let selector = id.to_owned();
     div()
         .id(ElementId::Name(id.to_owned().into()))
-        .debug_selector(move || selector)
+        .selector(move || selector)
         .relative()
         .flex()
         .flex_none()

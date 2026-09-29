@@ -20,6 +20,7 @@ use crate::icons::{IconName, icon};
 use crate::keymap::RunCommand;
 use crate::picker::shortcut::Shortcut;
 use crate::theme::UiTheme;
+use crate::ui::Selectable;
 
 /// What choosing an item does. It runs after the menu has closed and focus
 /// is back where it was.
@@ -408,7 +409,7 @@ impl DropdownMenu {
             disabled,
             theme,
         )
-        .debug_selector(|| selector)
+        .selector(|| selector)
         .relative()
         .on_hover(cx.listener(move |menu, hovered: &bool, window, cx| {
             if *hovered {

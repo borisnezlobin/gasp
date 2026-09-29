@@ -672,7 +672,11 @@ impl FileTree {
             return;
         };
         let next = self.selected_index();
-        match ops::trash(self.model.root(), &path, self.options.trash) {
+        match ops::trash(
+            self.model.root(),
+            &path,
+            crate::sandbox::trash_mode(self.options.trash),
+        ) {
             Ok(()) => {
                 self.model.refresh();
                 self.reselect_near(next, cx);
@@ -727,7 +731,7 @@ impl FileTree {
             MenuItem::NewNote => self.start_create(EntryKind::Note, window, cx),
             MenuItem::NewFolder => self.start_create(EntryKind::Folder, window, cx),
             MenuItem::Rename => self.start_rename(window, cx),
-            MenuItem::Reveal => cx.reveal_path(&path),
+            MenuItem::Reveal => crate::sandbox::reveal_path(&path, cx),
             MenuItem::CopyPath => cx.write_to_clipboard(ClipboardItem::new_string(
                 path.to_string_lossy().into_owned(),
             )),

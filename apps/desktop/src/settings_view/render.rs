@@ -16,6 +16,7 @@ use super::view::{Card, ControlRow, ListShows, PaneLayout, SettingsFocus, Settin
 use crate::icons::{IconName, icon};
 use crate::picker::shortcut::Shortcut;
 use crate::theme::SettingsTheme;
+use crate::ui::Selectable;
 use crate::ui::keycap;
 
 /// The modal's size: a share of the window, up to the theme's maximums.
@@ -197,6 +198,7 @@ impl SettingsView {
         let hover = style.hover;
         div()
             .id(("settings-section", index))
+            .selector(|| format!("settings-section-{}", spec.id))
             .flex_none()
             .h(style.nav_item_height)
             .px(style.control_gap)
@@ -251,7 +253,7 @@ impl SettingsView {
         )
         .size_full();
         let close = icon_button("settings-close", IconName::X, style.text_muted, &style)
-            .debug_selector(|| "settings-close".to_string())
+            .selector(|| "settings-close".to_string())
             .on_click(cx.listener(|_, _: &ClickEvent, _, cx| cx.emit(DismissEvent)));
         div()
             .id("settings-pane")
@@ -342,7 +344,7 @@ impl SettingsView {
                 .child(
                     div()
                         .id("appearance-preview")
-                        .debug_selector(|| "appearance-preview".to_string())
+                        .selector(|| "appearance-preview".to_string())
                         .w_full()
                         .max_w(style.content_max_width)
                         .h(style.preview_height)
@@ -398,7 +400,7 @@ impl SettingsView {
                 .into_any_element(),
         };
         let clear = button("clear-search", "Clear search", false, false, style)
-            .debug_selector(|| "clear-search".to_string())
+            .selector(|| "clear-search".to_string())
             .on_click(cx.listener(|view, _: &ClickEvent, window, cx| {
                 view.set_query("", cx);
                 view.focus_search(window, cx);

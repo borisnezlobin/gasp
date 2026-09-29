@@ -113,7 +113,9 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     });
     workspace.set_reading_probe(reading, cx);
     install_file_tree(workspace, window, cx);
-    install_sync(workspace, window, cx);
+    if crate::sandbox::reaches_outside() {
+        install_sync(workspace, window, cx);
+    }
     crate::knowledge::install(workspace, window, cx);
     crate::prose::commands::install(workspace, cx);
     crate::recovery::install(workspace, cx);

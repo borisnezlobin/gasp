@@ -38,6 +38,9 @@ pub fn install() {
 /// Moves the window with the pointer, from a press that's being handled
 /// now.
 pub fn start(window: &mut Window) {
+    if crate::sandbox::blocks("moving the window") {
+        return;
+    }
     STARTED.set(STARTED.get() + 1);
     #[cfg(target_os = "macos")]
     if let Some(view) = crate::look_up::native_view(window) {
@@ -49,6 +52,9 @@ pub fn start(window: &mut Window) {
 
 /// Zooms or minimizes the window, as a title bar's double click does.
 pub fn double_click(window: &mut Window) {
+    if crate::sandbox::blocks("zooming the window") {
+        return;
+    }
     #[cfg(target_os = "macos")]
     window.titlebar_double_click();
     #[cfg(not(target_os = "macos"))]

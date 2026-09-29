@@ -208,7 +208,7 @@ pub(crate) fn save_with<T: Send + 'static>(
     write: impl FnOnce(&Path) -> anyhow::Result<T> + Send + 'static,
     cx: &mut App,
 ) -> Task<anyhow::Result<Option<(PathBuf, T)>>> {
-    let chosen = cx.prompt_for_new_path(folder, Some(name));
+    let chosen = crate::sandbox::prompt_for_new_path(folder, Some(name), cx);
     let executor = cx.background_executor().clone();
     cx.spawn(async move |_| {
         let chosen = chosen
@@ -467,7 +467,7 @@ impl ExportDialog {
         match &self.state {
             ExportState::Choosing | ExportState::Failed(_) => self.start_export(cx),
             ExportState::Article(_) => self.copy_html(cx),
-            ExportState::Saved(saved) => cx.open_with_system(&saved.path),
+            ExportState::Saved(saved) => crate::sandbox::open_with_system(&saved.path, cx),
             ExportState::Exporting(_) => {}
         }
     }
@@ -607,7 +607,7 @@ impl ExportDialog {
         let page = standalone_page(&article.export);
         let path = std::env::temp_dir().join(format!("{}.html", article.export.slug));
         match std::fs::write(&path, page) {
-            Ok(()) => cx.open_with_system(&path),
+            Ok(()) => crate::sandbox::open_with_system(&path, cx),
             Err(error) => {
                 if let ExportState::Article(article) = &mut self.state {
                     article.status = Some(format!("Couldn’t write the preview: {error}").into());
@@ -833,12 +833,12 @@ impl ExportDialog {
                     .pt(ui.space_lg)
                     .child(
                         Button::new("export-reveal", "Show in folder")
-                            .on_click(move |_, _, cx| cx.reveal_path(&reveal)),
+                            .on_click(move |_, _, cx| crate::sandbox::reveal_path(&reveal, cx)),
                     )
                     .child(
                         Button::new("export-open", "Open")
                             .primary()
-                            .on_click(move |_, _, cx| cx.open_with_system(&path)),
+                            .on_click(move |_, _, cx| crate::sandbox::open_with_system(&path, cx)),
                     ),
             )
             .into_any_element()

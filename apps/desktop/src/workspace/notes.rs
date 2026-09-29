@@ -300,7 +300,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> io::Result<()> {
-        match self.config.settings.files.trash {
+        match crate::sandbox::trash_mode(self.config.settings.files.trash) {
             TrashMode::System => trash::delete(path).map_err(io::Error::other)?,
             TrashMode::Vault => move_to_vault_trash(&self.vault, path)?,
             TrashMode::Delete => std::fs::remove_file(path)?,

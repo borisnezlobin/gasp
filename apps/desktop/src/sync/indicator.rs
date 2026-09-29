@@ -13,6 +13,7 @@ use super::state::{self, SyncPhase, SyncRun, ago, file_list};
 use crate::icons::{IconName, icon};
 use crate::settings_view::controls::{button, inert_button};
 use crate::theme::{SettingsTheme, UiTheme};
+use crate::ui::Selectable;
 use crate::ui::{Tooltip, ui_theme};
 
 /// How many files each recent sync lists before "and N more".
@@ -154,7 +155,7 @@ impl SyncIndicator {
         let shortcut = crate::ui::hints::shortcut("sync.now", cx);
         div()
             .id("sync-indicator-button")
-            .debug_selector(|| "sync-indicator-button".to_owned())
+            .selector(|| "sync-indicator-button".to_owned())
             .flex()
             .items_center()
             .justify_center()
@@ -238,7 +239,7 @@ impl SyncIndicator {
             );
         div()
             .id("sync-popover")
-            .debug_selector(|| "sync-popover".to_owned())
+            .selector(|| "sync-popover".to_owned())
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(|indicator, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key == "escape" {
@@ -283,7 +284,7 @@ impl SyncIndicator {
             ),
         };
         let main = main
-            .debug_selector(|| "sync-popover-action".to_owned())
+            .selector(|| "sync-popover-action".to_owned())
             .on_click(cx.listener(move |indicator, _: &ClickEvent, window, cx| {
                 indicator.act(action, window, cx)
             }));
@@ -295,7 +296,7 @@ impl SyncIndicator {
                 false,
                 style,
             )
-            .debug_selector(|| "sync-popover-settings".to_owned())
+            .selector(|| "sync-popover-settings".to_owned())
             .on_click(cx.listener(|indicator, _: &ClickEvent, window, cx| {
                 indicator.act(Action::Settings, window, cx)
             }))

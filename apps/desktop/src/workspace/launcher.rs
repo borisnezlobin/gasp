@@ -17,6 +17,7 @@ use super::files::{note_title, notes_by_recency};
 use crate::icons::{IconName, icon};
 use crate::keymap::RunCommand;
 use crate::theme::UiTheme;
+use crate::ui::Selectable;
 use crate::ui::{keycap, truncated, ui_theme};
 
 /// Notes the launcher lists at most.
@@ -214,7 +215,7 @@ fn render_action(
     let ui = ui_theme(cx);
     list_row(&ui)
         .id(id)
-        .debug_selector(move || format!("launcher-{id}"))
+        .selector(move || format!("launcher-{id}"))
         .text_color(ui.text_muted)
         .hover(|style| style.bg(ui.row_hover))
         .on_click(move |_, window, cx| {

@@ -187,6 +187,9 @@ pub fn load(vault: &Path, device_id: &str) -> LoadedStats {
 /// Writes this device's file, through a temporary file so a crash never
 /// leaves half of one.
 pub fn save(path: &Path, file: &StatsFile) -> io::Result<()> {
+    if !crate::sandbox::writes_allowed() {
+        return Ok(());
+    }
     if let Some(folder) = path.parent() {
         std::fs::create_dir_all(folder)?;
     }

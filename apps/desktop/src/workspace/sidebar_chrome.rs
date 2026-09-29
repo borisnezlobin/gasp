@@ -14,6 +14,7 @@ use super::state::AppState;
 use super::window::open_vault_window;
 use crate::file_tree::{EntryKind, FileTree, SortOrder};
 use crate::icons::{IconName, icon};
+use crate::ui::Selectable;
 use crate::ui::{IconButton, MenuAnchor, MenuItem, Tooltip, ui_theme};
 
 pub const SORT_KEY: &str = "sidebar-sort";
@@ -149,7 +150,7 @@ impl Workspace {
         let open = vault_menu.is_some();
         let vault = div()
             .id(VAULT_KEY)
-            .debug_selector(|| VAULT_KEY.to_owned())
+            .selector(|| VAULT_KEY.to_owned())
             .relative()
             .flex()
             .flex_row()

@@ -13,6 +13,7 @@ use super::popover::Popover;
 use crate::icons::{IconName, icon};
 use crate::picker::shortcut::Shortcut;
 use crate::theme::{KeycapTheme, SettingsTheme};
+use crate::ui::Selectable;
 use crate::ui::{Tooltip, keycap};
 
 /// A row with its text on the left and its control on the right. The
@@ -35,14 +36,14 @@ pub fn two_column_row(
         .gap(style.row_gap)
         .child(
             div()
-                .debug_selector(|| format!("settings-text-{name}"))
+                .selector(|| format!("settings-text-{name}"))
                 .flex_1()
                 .min_w(style.text_min_width)
                 .child(text),
         )
         .children(control.map(|control| {
             div()
-                .debug_selector(|| format!("settings-control-{name}"))
+                .selector(|| format!("settings-control-{name}"))
                 .flex_initial()
                 .min_w_0()
                 .flex()
