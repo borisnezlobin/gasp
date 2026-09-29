@@ -31,6 +31,9 @@ focus-ring  = "{color.accent}"
 shadow      = "rgba(0, 0, 0, 0.12)"
 syncing     = "{color.gray-600}"
 conflict    = "#c62828"
+# The red caret in the app icon, which the welcome tour uses as its mark:
+# small marks only, never a fill.
+caret-mark  = "#c8283c"
 highlight   = "#fff59d"
 link        = "{color.accent}"
 # A link's underline, quieter than the link so text stays even.
@@ -182,6 +185,7 @@ selection   = "#3d3a35"
 hover       = "#262522"
 shadow      = "rgba(0, 0, 0, 0.45)"
 conflict    = "#ec6a5e"
+caret-mark  = "#f0616f"
 highlight   = "#4f4418"
 link-underline = "rgba(235, 231, 224, 0.4)"
 app-background = "#151412"
@@ -339,6 +343,21 @@ sm   = 4
 md   = 6
 lg   = 10
 pill = 999
+
+# The welcome tour: the size of its title and its whales, and how long
+# its motions take. The whale breaches in, swims from step to step, and
+# a pressed shortcut's picture plays for `press`.
+[tour]
+title-size   = 150
+heading-size = 34
+breach-width = 380
+swimmer-width = 132
+sea-line     = 6
+caret-width  = 2
+breach-rise  = 1400
+swim         = 900
+step-enter   = 360
+press        = 700
 
 # Notes embedded with ![[…]]: the most of a note a card shows, in lines of
 # body text. Open the note to read the rest.

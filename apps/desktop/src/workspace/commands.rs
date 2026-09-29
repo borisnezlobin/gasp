@@ -14,7 +14,7 @@ type Handler = fn(&mut Workspace, &mut Window, &mut Context<Workspace>);
 
 const TAB_GO_PREFIX: &str = "tab.go-";
 
-const HANDLERS: [(&str, Handler); 35] = [
+const HANDLERS: [(&str, Handler); 36] = [
     ("tab.new", |ws, window, cx| ws.new_tab(window, cx)),
     ("tab.close", |ws, window, cx| {
         ws.close_active_tab(window, cx)
@@ -109,6 +109,12 @@ const HANDLERS: [(&str, Handler); 35] = [
     }),
     ("help.shortcuts", |ws, window, cx| {
         ws.toggle_help(window, cx)
+    }),
+    ("help.tour", |_, _, cx| {
+        let recent = super::state::AppState::recent_vaults();
+        if let Err(error) = super::window::open_tour_window(true, recent, cx) {
+            crate::notices::problem(format!("Couldn’t open the tour: {error}"), cx);
+        }
     }),
     ("file-tree.new-folder", |ws, window, cx| {
         ws.new_folder_in_tree(window, cx)

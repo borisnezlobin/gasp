@@ -387,6 +387,8 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("vault.open", "Open another vault", "App").icon("vault"),
     spec("vault.switch", "Switch vault", "App").icon("caret-up-down"),
     spec("help.shortcuts", "Show keyboard shortcuts", "App").icon("question"),
+    #[cfg(not(target_os = "ios"))]
+    spec("help.tour", "Take the welcome tour", "App").icon("compass"),
     spec("file-tree.new-folder", "New folder", "Notes and navigation").icon("folder-plus"),
     spec(
         "file-tree.sort",

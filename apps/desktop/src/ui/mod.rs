@@ -141,6 +141,7 @@ impl ThemeGlobal {
         let palette = Palette::from_tokens(tokens);
         let ui = UiTheme {
             toolbar: crate::theme::ToolbarTheme::from_tokens(tokens),
+            tour: crate::theme::TourTheme::from_tokens(tokens),
             ..UiTheme::themed(&palette, &installed)
         };
         let input = InputTheme {

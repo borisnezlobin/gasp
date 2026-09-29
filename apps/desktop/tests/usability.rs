@@ -371,32 +371,87 @@ fn one_command_switches_between_light_and_dark(cx: &mut TestAppContext) {
     assert!(settings.contains(expected), "{settings}");
 }
 
-#[gpui::test]
-fn the_welcome_screen_offers_a_new_vault_and_walks_by_keyboard(cx: &mut TestAppContext) {
-    use gasp_desktop::workspace::welcome::{Welcome, WelcomeChoice};
-    let recent = vec![std::path::PathBuf::from("/notes/Work")];
-    let (welcome, cx) =
-        cx.add_window_view(move |window, cx| Welcome::with_recent(recent.clone(), window, cx));
+fn open_tour(
+    cx: &mut TestAppContext,
+    whole: bool,
+    recent: Vec<std::path::PathBuf>,
+) -> (Entity<gasp_desktop::tour::Tour>, &mut VisualTestContext) {
+    use gasp_desktop::tour::Tour;
+    cx.update(|cx| {
+        bind_keys(cx);
+        features::bind_view_keys(cx);
+    });
+    let (tour, cx) = cx.add_window_view(move |window, cx| {
+        if whole {
+            Tour::whole(recent.clone(), window, cx)
+        } else {
+            Tour::pick_a_vault(recent.clone(), window, cx)
+        }
+    });
     cx.run_until_parked();
-    let choices = welcome.read_with(cx, |welcome, _| welcome.choices());
+    (tour, cx)
+}
+
+#[gpui::test]
+fn the_tour_walks_by_keyboard_and_plays_each_shortcut(cx: &mut TestAppContext) {
+    use gasp_desktop::tour::{SHORTCUT_COMMANDS, Step};
+    let (tour, cx) = open_tour(cx, true, Vec::new());
+    let step = |cx: &mut VisualTestContext| tour.read_with(cx, |tour, _| tour.step());
+    assert_eq!(step(cx), Step::Hello);
+    cx.simulate_keystrokes("left");
+    assert_eq!(
+        step(cx),
+        Step::Hello,
+        "there's nothing before the first step"
+    );
+    cx.simulate_keystrokes("enter");
+    assert_eq!(step(cx), Step::Writing);
+    cx.simulate_input("x");
+    assert_eq!(step(cx), Step::Writing, "the practice note takes typing");
+    cx.update(|window, cx| tour.update(cx, |tour, cx| tour.advance(window, cx)));
+    assert_eq!(step(cx), Step::Shortcuts);
+    for (index, command) in SHORTCUT_COMMANDS.iter().enumerate() {
+        press(cx, command);
+        let pressed = tour.read_with(cx, |tour, _| tour.pressed_shortcut());
+        assert_eq!(pressed, Some(index), "{command}");
+    }
+    cx.simulate_keystrokes("right");
+    assert_eq!(step(cx), Step::Vault);
+    cx.simulate_keystrokes("escape");
+    assert_eq!(
+        step(cx),
+        Step::Shortcuts,
+        "Escape on a choice step goes back"
+    );
+    cx.simulate_keystrokes("escape");
+    assert_eq!(step(cx), Step::Vault, "Escape elsewhere skips to the vault");
+}
+
+#[gpui::test]
+fn choosing_a_vault_offers_a_new_one_first_and_walks_by_keyboard(cx: &mut TestAppContext) {
+    use gasp_desktop::tour::{Step, VaultChoice};
+    let recent = vec![std::path::PathBuf::from("/notes/Work")];
+    let (tour, cx) = open_tour(cx, false, recent);
+    let (step, choices) = tour.read_with(cx, |tour, _| (tour.step(), tour.vault_choices()));
+    assert_eq!(step, Step::Vault);
     assert_eq!(
         choices,
         vec![
-            WelcomeChoice::OpenFolder,
-            WelcomeChoice::NewVault,
-            WelcomeChoice::Recent("/notes/Work".into()),
+            VaultChoice::NewVault,
+            VaultChoice::OpenFolder,
+            VaultChoice::Sample,
+            VaultChoice::Recent("/notes/Work".into()),
         ]
     );
-    let selected =
-        |cx: &mut VisualTestContext| welcome.read_with(cx, |welcome, _| welcome.selected());
+    let selected = |cx: &mut VisualTestContext| tour.read_with(cx, |tour, _| tour.selected());
     cx.simulate_keystrokes("tab");
     assert_eq!(selected(cx), 1);
-    cx.simulate_keystrokes("down");
-    assert_eq!(selected(cx), 2, "the recent vaults are reachable too");
+    cx.simulate_keystrokes("up up");
+    assert_eq!(selected(cx), 3, "the recent vaults are reachable too");
     cx.simulate_keystrokes("down");
     assert_eq!(selected(cx), 0);
     cx.simulate_keystrokes("shift-tab");
-    assert_eq!(selected(cx), 2);
+    assert_eq!(selected(cx), 3);
 }
 
 #[gpui::test]

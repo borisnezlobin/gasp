@@ -12,8 +12,8 @@ use std::path::{Path, PathBuf};
 
 use gasp_config::config_files::known_commands;
 use gpui::{
-    App, AppContext, Application, AsyncApp, Bounds, Modifiers, MouseButton, Pixels, PlatformInput,
-    Point, WindowBounds, WindowHandle, WindowOptions, point, px, size,
+    AnyWindowHandle, App, AppContext, Application, AsyncApp, Bounds, Entity, Modifiers,
+    MouseButton, Pixels, PlatformInput, Point, WindowBounds, WindowOptions, point, px, size,
 };
 use serde_json::json;
 
@@ -84,7 +84,7 @@ fn start(
     note: Option<&Path>,
     scratch: &ScratchFolder,
     cx: &mut App,
-) -> Result<(WindowHandle<Workspace>, LayerCapture, NativePointer), String> {
+) -> Result<(AnyWindowHandle, LayerCapture, NativePointer), String> {
     crate::keymap::bind_keys(cx);
     crate::features::bind_view_keys(cx);
     crate::workspace::prompt::use_in_window_prompts(cx);
@@ -105,14 +105,23 @@ fn start(
         ..Default::default()
     };
     let note = note.map(Path::to_path_buf);
-    let window = cx
-        .open_window(options, move |window, cx| {
+    let window = if request.tour {
+        cx.open_window(options, |window, cx| {
+            cx.new(|cx| crate::tour::Tour::whole(Vec::new(), window, cx))
+        })
+        .map(Into::into)
+    } else {
+        cx.open_window(options, move |window, cx| {
             cx.new(|cx| build_started_workspace(start, note.as_deref(), window, cx))
         })
-        .map_err(|error| error.to_string())?;
-    let view = window
-        .update(cx, |workspace, window, cx| {
-            workspace.focus_active(window, cx);
+        .map(Into::into)
+    }
+    .map_err(|error: anyhow::Error| error.to_string())?;
+    let view = cx
+        .update_window(window, |root, window, cx| {
+            if let Ok(workspace) = root.downcast::<Workspace>() {
+                workspace.update(cx, |workspace, cx| workspace.focus_active(window, cx));
+            }
             crate::look_up::native_view(window)
         })
         .map_err(|error| error.to_string())?
@@ -148,7 +157,7 @@ fn finish(scratch: &ScratchFolder, keep_temp: bool, outcome: Result<(), String>)
 }
 
 struct ScriptRunner {
-    window: WindowHandle<Workspace>,
+    window: AnyWindowHandle,
     capture: LayerCapture,
     scratch: ScratchFolder,
     out: PathBuf,
@@ -171,9 +180,7 @@ impl ScriptRunner {
 
     fn close(&self, outcome: Result<(), String>, cx: &mut AsyncApp) -> ! {
         if crate::sandbox::writes_allowed() {
-            let _ = self
-                .window
-                .update(cx, |workspace, _, cx| workspace.prepare_to_close(cx));
+            let _ = self.update(cx, |workspace, _, cx| workspace.prepare_to_close(cx));
         }
         finish(&self.scratch, self.keep_temp, outcome)
     }
@@ -236,9 +243,18 @@ impl ScriptRunner {
         cx: &mut AsyncApp,
         change: impl FnOnce(&mut Workspace, &mut gpui::Window, &mut gpui::Context<Workspace>) -> R,
     ) -> Result<R, String> {
-        self.window
-            .update(cx, change)
-            .map_err(|error| format!("the window closed: {error}"))
+        let workspace = self.workspace(cx)?;
+        cx.update_window(self.window, |_, window, cx| {
+            workspace.update(cx, |workspace, cx| change(workspace, window, cx))
+        })
+        .map_err(|error| format!("the window closed: {error}"))
+    }
+
+    /// The window's workspace, once it shows a vault rather than the tour.
+    fn workspace(&self, cx: &mut AsyncApp) -> Result<Entity<Workspace>, String> {
+        cx.update_window(self.window, |root, _, _| root.downcast::<Workspace>().ok())
+            .map_err(|error| format!("the window closed: {error}"))?
+            .ok_or_else(|| "the window shows the welcome tour, not a vault".to_owned())
     }
 
     /// Runs `change` on the window without holding the workspace, as the
@@ -248,7 +264,7 @@ impl ScriptRunner {
         cx: &mut AsyncApp,
         change: impl FnOnce(&mut gpui::Window, &mut App) -> R,
     ) -> Result<R, String> {
-        cx.update_window(self.window.into(), |_, window, cx| change(window, cx))
+        cx.update_window(self.window, |_, window, cx| change(window, cx))
             .map_err(|error| format!("the window closed: {error}"))
     }
 
@@ -264,6 +280,14 @@ impl ScriptRunner {
     /// Runs a command as its shortcut would: the workspace's own, or
     /// dispatched from where the keyboard is.
     fn run_command(&self, id: &str, cx: &mut AsyncApp) -> Result<(), String> {
+        if self.workspace(cx).is_err() {
+            let action = RunCommand {
+                id: id.to_owned().into(),
+            };
+            return self.with_window(cx, |window, cx| {
+                window.dispatch_action(Box::new(action), cx)
+            });
+        }
         self.update(cx, |workspace, window, cx| {
             if workspace.run_command(id, window, cx) {
                 return Ok(());

@@ -67,6 +67,17 @@ pub fn cache_folder() -> Option<PathBuf> {
     app_folder("cache", dirs::cache_dir)
 }
 
+/// Where new vaults go unless the user picks somewhere else: Documents,
+/// or the sandbox's own folder in a snapshot run.
+pub fn documents_folder() -> PathBuf {
+    match SANDBOX.get() {
+        Some(sandbox) => sandbox.data_root.join("documents"),
+        None => dirs::document_dir()
+            .or_else(dirs::home_dir)
+            .unwrap_or_default(),
+    }
+}
+
 fn app_folder(kind: &str, system: fn() -> Option<PathBuf>) -> Option<PathBuf> {
     match SANDBOX.get() {
         Some(sandbox) => Some(sandbox.data_root.join(kind)),

@@ -15,7 +15,6 @@ use super::files::{is_note, vault_for_note};
 use super::startup::{PendingStart, VaultStart};
 use super::state::{AppState, save_device, window_bounds, window_size, window_state};
 use super::watcher::{DiskChange, normalize, watch};
-use super::welcome::Welcome;
 use super::{OpenIn, Workspace};
 use crate::trace;
 
@@ -138,15 +137,33 @@ fn remember_vault(vault: PathBuf, cx: &mut App) {
         .detach();
 }
 
-/// Opens the empty state, which asks for a folder.
+/// Opens the window for a launch with no vault to reopen: the whole
+/// welcome tour the first time, or just choosing a vault once this Mac
+/// has opened one.
 pub fn open_welcome_window(cx: &mut App) -> anyhow::Result<()> {
+    let recent = AppState::recent_vaults();
+    let first_launch = recent.is_empty();
+    open_tour_window(first_launch, recent, cx)
+}
+
+/// Opens the welcome tour in a window of its own: all of it, or only
+/// choosing a vault.
+pub fn open_tour_window(whole: bool, recent: Vec<PathBuf>, cx: &mut App) -> anyhow::Result<()> {
     if crate::sandbox::blocks("opening another window") {
         anyhow::bail!("a snapshot run keeps to one window");
     }
     let options = window_options(&DeviceSettings::default(), cx);
-    let window = cx.open_window(options, |window, cx| cx.new(|cx| Welcome::new(window, cx)))?;
+    let window = cx.open_window(options, move |window, cx| {
+        cx.new(|cx| {
+            if whole {
+                crate::tour::Tour::whole(recent, window, cx)
+            } else {
+                crate::tour::Tour::pick_a_vault(recent, window, cx)
+            }
+        })
+    })?;
     window.update(cx, |_, window, cx| {
-        window.set_window_title("Open a vault");
+        window.set_window_title("Welcome to Gasp");
         crate::first_frame::release_when_presented(window, cx);
         cx.activate(true);
     })?;
