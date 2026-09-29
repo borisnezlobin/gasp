@@ -160,11 +160,11 @@ impl SettingsView {
         match keystroke.key.as_str() {
             "up" if !moves_item => self.step_control(index, -1, &rows, window, cx),
             "down" if !moves_item => self.step_control(index, 1, &rows, window, cx),
-            "enter" if row.uses_field() => {
+            "enter" if self.row_uses_field(&row) => {
                 self.set_focus(SettingsFocus::Control(index), window, cx)
             }
             "escape" => self.escape_control(cx),
-            _ if row.uses_field() => return false,
+            _ if self.row_uses_field(&row) => return false,
             _ => return self.edit_key(index, &row, keystroke, window, cx),
         }
         true
@@ -223,7 +223,7 @@ impl SettingsView {
             ControlRow::IconCredit => open_url_key(key, ICON_SOURCE_URL, cx),
             ControlRow::Shortcut(shortcut) => self.shortcut_key(row, &shortcut.id, key, window, cx),
             ControlRow::MapAdd(_) => self.menu_button_key(index, row, key, window, cx),
-            ControlRow::SyncAccount => self.account_key(key, cx),
+            ControlRow::SyncAccount | ControlRow::SyncRemote => self.sync_row_key(row, key, cx),
             ControlRow::ListEntry { list, value } => self.list_entry_key(list, value, key, cx),
             ControlRow::SnippetsFile | ControlRow::Snippet(_) | ControlRow::Replacement(_) => {
                 self.typing_row_key(row, key, window, cx)

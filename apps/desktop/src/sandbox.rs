@@ -87,6 +87,30 @@ pub fn blocks(action: impl Display) -> bool {
     true
 }
 
+/// Whether sync may be set up with `url`: in a snapshot run only a folder
+/// or a server on this machine, never one out on the network.
+pub fn allows_repository(url: &str) -> bool {
+    !is_active() || gasp_sync::url_is_local(url) || is_loopback(url)
+}
+
+fn is_loopback(url: &str) -> bool {
+    let Some((_, rest)) = url.split_once("://") else {
+        return false;
+    };
+    let authority = rest.split('/').next().unwrap_or_default();
+    let host = authority
+        .rsplit_once(':')
+        .filter(|(_, port)| port.chars().all(|c| c.is_ascii_digit()))
+        .map_or(authority, |(host, _)| host);
+    matches!(host, "127.0.0.1" | "localhost" | "[::1]")
+}
+
+/// Whether tokens may go to the system's credential store: never from a
+/// snapshot run, which keeps to its temporary folder.
+pub fn keeps_credentials() -> bool {
+    !is_active()
+}
+
 /// How a note is deleted: never into the system trash in a snapshot run,
 /// where the vault is a temporary copy.
 pub fn trash_mode(mode: TrashMode) -> TrashMode {

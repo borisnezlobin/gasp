@@ -180,6 +180,11 @@ const TOGGLE_DARK_MODE: CommandSpec = spec(
 const MOVE_NOTE: CommandSpec =
     spec("note.move", "Move note to a folder", "Notes and navigation").icon("folder");
 
+/// Connects a vault that isn't a git clone to a repository in place,
+/// which the desktop does; the phone sets up sync by cloning, from
+/// `sync.now`.
+const SET_UP_SYNC: CommandSpec = spec("sync.set-up", "Set up sync", "App").icon("cloud-arrow-up");
+
 /// Commands only some platforms have. The registry leaves them out
 /// elsewhere, but rules may still name them, as a vault's config goes
 /// from machine to machine.
@@ -195,6 +200,7 @@ pub const PLATFORM_COMMANDS: &[&str] = &[
     COPY_RICH_TEXT.id,
     TOGGLE_DARK_MODE.id,
     MOVE_NOTE.id,
+    SET_UP_SYNC.id,
 ];
 
 /// Every built-in command on this platform.
@@ -377,6 +383,8 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("export.pdf", "Export as PDF", "App").icon("file-pdf"),
     spec("sync.now", "Sync now", "App").icon("arrows-clockwise"),
     spec("sync.resolve-conflicts", "Resolve sync conflicts", "App").icon("git-merge"),
+    #[cfg(not(target_os = "ios"))]
+    SET_UP_SYNC,
     spec("settings.open", "Open settings", "App").icon("gear-six"),
     spec("toolbar.focus", "Focus toolbars", "Tabs and panels").icon("app-window"),
     spec("toolbar.customize", "Customize toolbars", "App").icon("sliders-horizontal"),
@@ -601,7 +609,7 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
 
 /// The commands in [`PLATFORM_COMMANDS`], described on every platform so
 /// a toolbar synced from another machine can still name them.
-const PLATFORM_SPECS: [CommandSpec; 11] = [
+const PLATFORM_SPECS: [CommandSpec; 12] = [
     LOOK_UP,
     HIDE_KEYBOARD,
     TAB_OVERVIEW,
@@ -613,6 +621,7 @@ const PLATFORM_SPECS: [CommandSpec; 11] = [
     COPY_RICH_TEXT,
     TOGGLE_DARK_MODE,
     MOVE_NOTE,
+    SET_UP_SYNC,
 ];
 
 /// A built-in command's description by id, on any platform.

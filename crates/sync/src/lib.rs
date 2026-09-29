@@ -19,6 +19,7 @@ pub mod phase;
 mod policy;
 mod runner;
 mod scheduler;
+mod setup;
 mod vault;
 
 pub use conflict::{ConflictHunk, ConflictedFile, MarkedHunk, MarkedText, Resolution, Segment};
@@ -33,13 +34,17 @@ pub use credentials::{
 };
 pub use device_files::{DEFAULT_DEVICE_ONLY_GLOBS, DeviceOnlyFiles};
 pub use error::{SyncError, SyncResult};
-pub use line_merge::{LineMerge, merge_lines};
+pub use line_merge::{LineMerge, merge_lines, merge_unrelated};
 pub use message::commit_message;
 pub use policy::{FileKind, classify};
 pub use runner::{drive, run_step};
 pub use scheduler::{
     FailureKind, MergeReport, Scheduler, SchedulerConfig, StepFailure, StepReport, SyncEvent,
     SyncEventKind, SyncStatus, SyncStep,
+};
+pub use setup::{
+    InPlaceSetup, STAGING_FOLDER, SetupReport, default_author, repository_url, set_up_in_place,
+    setup_problem, url_is_local, url_takes_token,
 };
 pub use vault::{
     Author, FALLBACK_AUTHOR_EMAIL, MergeOutcome, RepoProbe, Vault, VaultConfig, probe,

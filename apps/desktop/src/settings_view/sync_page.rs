@@ -7,7 +7,7 @@ use gasp_sync::Token;
 use gpui::{AnyElement, ClickEvent, ClipboardItem, Context, Entity, SharedString, div, prelude::*};
 use serde_json::Value;
 
-use super::controls::{button, field_box_in, icon_button};
+use super::controls::{button, field_box_in, icon_button, icon_label_button};
 use super::model::SettingItem;
 use super::view::{ControlRow, SettingsView, add_field_key};
 use crate::icons::IconName;
@@ -19,12 +19,13 @@ use crate::ui::Selectable;
 pub(super) const REMOTE_FIELD: &str = "sync.remote";
 /// The key token errors are reported under.
 pub(super) const TOKEN_KEY: &str = "sync.token";
+/// The command the repository row's button runs for a vault that doesn't sync.
+const SET_UP_COMMAND: &str = "sync.set-up";
 /// The account row's buttons while signed out, as the keyboard counts them.
 const CREATE_TOKEN: usize = 0;
 const PASTE_TOKEN: usize = 1;
 
-/// Where GitHub makes fine-grained tokens.
-pub const NEW_TOKEN_URL: &str = "https://github.com/settings/personal-access-tokens/new";
+pub use crate::sync::setup::NEW_TOKEN_URL;
 
 /// What an empty field shows.
 pub(super) fn placeholder(key: &str, adds: bool) -> &'static str {
@@ -84,7 +85,7 @@ impl SettingsView {
 
     pub(super) fn remote_description(&self) -> String {
         if self.sync_remote().is_none() {
-            return "This vault isn’t a git repository with a remote, so it doesn’t sync. Clone your notes repository into this folder to set it up.".to_string();
+            return "This vault doesn’t sync yet. Connect it to a GitHub repository to keep it the same on every device.".to_string();
         }
         "The HTTPS address of the GitHub repository this vault syncs with.".to_string()
     }
@@ -213,14 +214,39 @@ impl SettingsView {
 
     // ---- Controls ----
 
-    pub(super) fn remote_control(&self, row: &ControlRow, focused: bool) -> Option<AnyElement> {
-        self.sync_remote()?;
+    /// The repository's address in a field, or for a vault that doesn't
+    /// sync yet, the button that sets it up.
+    pub(super) fn remote_control(
+        &self,
+        row: &ControlRow,
+        focused: bool,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if self.sync_remote().is_none() {
+            return Some(self.set_up_control(focused, cx));
+        }
         let field = self.field_for(row)?;
         Some(
             field_box_in(field, None, self.field_state(row, focused), &self.style)
                 .w(self.style.field_width * 1.4)
                 .into_any_element(),
         )
+    }
+
+    fn set_up_control(&self, focused: bool, cx: &mut Context<Self>) -> AnyElement {
+        icon_label_button(
+            "set-up-sync",
+            IconName::CloudArrowUp,
+            "Set up sync",
+            true,
+            focused,
+            &self.style,
+        )
+        .selector(|| "set-up-sync".to_string())
+        .on_click(
+            cx.listener(|view, _: &ClickEvent, _, cx| view.request_command(SET_UP_COMMAND, cx)),
+        )
+        .into_any_element()
     }
 
     pub(super) fn account_control(&self, focused: bool, cx: &mut Context<Self>) -> AnyElement {
@@ -303,9 +329,32 @@ impl SettingsView {
 
     // ---- Keys ----
 
+    /// Keys on the repository or account row.
+    pub(super) fn sync_row_key(
+        &mut self,
+        row: &ControlRow,
+        key: &str,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        match row {
+            ControlRow::SyncRemote => self.remote_key(key, cx),
+            _ => self.account_key(key, cx),
+        }
+    }
+
+    /// Space or Enter on the repository row of a vault that doesn't sync
+    /// sets it up; with a repository, its field takes the keys.
+    fn remote_key(&mut self, key: &str, cx: &mut Context<Self>) -> bool {
+        let presses = self.sync_remote().is_none() && matches!(key, "space" | "enter");
+        if presses {
+            self.request_command(SET_UP_COMMAND, cx);
+        }
+        presses
+    }
+
     /// Space or Enter presses the button the keyboard is on; while signed
     /// out, Left and Right move between "Create a token" and "Paste token".
-    pub(super) fn account_key(&mut self, key: &str, cx: &mut Context<Self>) -> bool {
+    fn account_key(&mut self, key: &str, cx: &mut Context<Self>) -> bool {
         match (key, self.signed_in_cache) {
             ("space" | "enter", true) => self.sign_out(cx),
             ("space" | "enter", false) if self.sub_control == CREATE_TOKEN => {
