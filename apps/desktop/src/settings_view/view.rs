@@ -1014,13 +1014,17 @@ impl SettingsView {
         }
     }
 
-    /// Whether keyboard focus can land on `row` now: not on one with
-    /// nothing to operate, such as the repository row of a vault that
-    /// doesn't sync, where a focus would have nothing to ring.
+    /// Whether keyboard focus can land on `row` now.
     pub fn takes_focus(&self, row: &ControlRow) -> bool {
+        row.is_focusable()
+    }
+
+    /// Whether `row` is edited through a text field now: the repository
+    /// row of a vault that doesn't sync holds a button instead.
+    pub(super) fn row_uses_field(&self, row: &ControlRow) -> bool {
         match row {
             ControlRow::SyncRemote => self.sync_remote().is_some(),
-            _ => row.is_focusable(),
+            _ => row.uses_field(),
         }
     }
 

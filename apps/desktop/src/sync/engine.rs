@@ -39,6 +39,9 @@ pub enum Opened {
     Ready {
         engine: Arc<Engine>,
         signed_in: bool,
+        /// Notes already waiting for a person, such as those setting up
+        /// sync parked.
+        conflicts: Vec<ConflictedFile>,
     },
 }
 
@@ -96,6 +99,7 @@ pub fn open(root: &Path, settings: &SyncSettings, store: &dyn CredentialStore) -
     };
     // A token that can't be read is the same as none: sync asks to sign in.
     let token = store.load(&remote_url).ok().flatten();
+    let conflicts = vault.conflicts().unwrap_or_default();
     let signed_in = token.is_some();
     vault.set_token(token);
     let device = device_name();
@@ -111,6 +115,7 @@ pub fn open(root: &Path, settings: &SyncSettings, store: &dyn CredentialStore) -
     Opened::Ready {
         engine: Arc::new(engine),
         signed_in,
+        conflicts,
     }
 }
 
