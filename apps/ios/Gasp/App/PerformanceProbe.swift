@@ -23,6 +23,8 @@ final class PerformanceProbe {
 
     private let mode = UserDefaults.standard.string(forKey: "probe")
     private let notePath = UserDefaults.standard.string(forKey: "probeNote")
+    /// How long after launch a probe starts, 2 s or `-probeDelay` if longer.
+    private let startDelay = max(UserDefaults.standard.double(forKey: "probeDelay"), 2)
     private var ticker: FrameTicker?
     /// Set once the start page has drawn.
     var startPageShown = false
@@ -33,9 +35,9 @@ final class PerformanceProbe {
     func start(model: AppModel) {
         switch mode {
         case "launch": watchLaunch(model)
-        case "open": after(seconds: 2) { self.measureOpen(model) }
-        case "typing": after(seconds: 2) { self.measureTyping(model) }
-        case "scroll": after(seconds: 2) { self.measureScroll(model) }
+        case "open": after(seconds: startDelay) { self.measureOpen(model) }
+        case "typing": after(seconds: startDelay) { self.measureTyping(model) }
+        case "scroll": after(seconds: startDelay) { self.measureScroll(model) }
         default: break
         }
     }

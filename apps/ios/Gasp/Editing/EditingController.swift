@@ -94,7 +94,6 @@ final class EditingController: NSObject, UITextViewDelegate {
         textView.text = text
         pendingEdit = nil
         restorePosition()
-        restyle(edited: nil)
         prefetchMath()
         scheduleGrammarCheck()
         scheduleCodeColours()
