@@ -9,6 +9,11 @@
 #             "in-context" (with contexts = ["text", "math", "code", "table"])
 # style     = "icons" | "icons-and-labels" | "labels"
 # density   = "compact" | "comfortable"
+# surface   = "strip" | "overlay": at editor-top, editor-bottom, window-left
+#             and window-right, "strip" (the default) gives the bar a row or
+#             column of its own that the notes make room for, and "overlay"
+#             floats it over the note as a pill centred on that edge, taking
+#             no room. Other places ignore it.
 # items     = command ids, such as "format.bold", the status widgets
 #             ("word-count", "character-count", "reading-time", "edit-time",
 #             "cursor-position", "sync"), "separator", "spacer", or
@@ -27,8 +32,10 @@ style     = "icons"
 density   = "compact"
 items     = ["spacer", "word-count", "character-count", "reading-time", "edit-time", "cursor-position", "sync"]
 
+# Off until it's turned on in Settings > Toolbars.
 [toolbar.selection]
 title     = "Selection"
+enabled   = false
 place     = "selection"
 behaviour = "with-selection"
 style     = "icons"

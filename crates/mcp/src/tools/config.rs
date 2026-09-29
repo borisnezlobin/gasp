@@ -20,7 +20,7 @@ use gasp_config::settings::SettingsIndex;
 use gasp_config::store::{SETTINGS_FILE, SettingsFile, save, settings_path, write_setting};
 use gasp_config::toolbar_files::{TOOLBARS_FILE, item_names, load_toolbars, toolbars_path};
 use gasp_config::toolbars::{
-    Behaviour, ButtonStyle, Density, MENU_PREFIX, Place, SEPARATOR, SPACER, Toolbar,
+    Behaviour, ButtonStyle, Density, MENU_PREFIX, Place, SEPARATOR, SPACER, Surface, Toolbar,
     ToolbarContext, Widget, build_toolbars, choice_name,
 };
 use gasp_config::{CONFIG_DIR, Diagnostic, Platform, config_dir};
@@ -482,6 +482,7 @@ fn toolbar_json(toolbar: &Toolbar) -> Value {
         "contexts": toolbar.contexts.iter().map(|c| choice_name(*c)).collect::<Vec<_>>(),
         "style": choice_name(toolbar.style),
         "density": choice_name(toolbar.density),
+        "surface": choice_name(toolbar.surface),
         "items": item_names(&toolbar.items),
     })
 }
@@ -509,6 +510,7 @@ fn get_toolbars(context: &Context, _: NoArguments) -> ToolResult {
         "behaviours": Behaviour::ALL.map(choice_name),
         "styles": ButtonStyle::ALL.map(choice_name),
         "densities": Density::ALL.map(choice_name),
+        "surfaces": Surface::ALL.map(choice_name),
         "contexts": ToolbarContext::ALL.map(choice_name),
     })))
 }

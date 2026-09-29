@@ -69,6 +69,30 @@ impl Place {
     pub fn on_desktop(self) -> bool {
         !matches!(self, Place::Keyboard | Place::BrowserBar)
     }
+
+    /// Whether a bar here can float over the note as a pill instead of
+    /// taking a strip of its own.
+    pub fn can_overlay(self) -> bool {
+        matches!(
+            self,
+            Place::EditorTop | Place::EditorBottom | Place::WindowLeft | Place::WindowRight
+        )
+    }
+}
+
+/// What a docked bar sits on.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Surface {
+    /// A strip of its own beside the note, which the note makes room for.
+    #[default]
+    Strip,
+    /// A pill floating over the note's edge, taking no room.
+    Overlay,
+}
+
+impl Surface {
+    pub const ALL: [Surface; 2] = [Surface::Strip, Surface::Overlay];
 }
 
 /// When a toolbar shows.
@@ -289,6 +313,7 @@ pub struct ToolbarSpec {
     pub contexts: Option<Vec<ToolbarContext>>,
     pub style: Option<ButtonStyle>,
     pub density: Option<Density>,
+    pub surface: Option<Surface>,
     pub items: Option<Vec<String>>,
 }
 
@@ -329,6 +354,7 @@ impl ToolbarSpec {
             contexts,
             style,
             density,
+            surface,
             items,
         } = overlay.clone();
         self.title = title.or(self.title.take());
@@ -338,6 +364,7 @@ impl ToolbarSpec {
         self.contexts = contexts.or(self.contexts.take());
         self.style = style.or(self.style);
         self.density = density.or(self.density);
+        self.surface = surface.or(self.surface);
         self.items = items.or(self.items.take());
     }
 }
@@ -376,6 +403,8 @@ pub struct Toolbar {
     pub contexts: Vec<ToolbarContext>,
     pub style: ButtonStyle,
     pub density: Density,
+    /// Only for places that [`Place::can_overlay`]; the rest ignore it.
+    pub surface: Surface,
     pub items: Vec<ToolbarItem>,
     /// Whether the built-in file has it, so it's turned off rather than
     /// removed.
@@ -440,6 +469,11 @@ impl Toolbar {
                 .context
                 .is_some_and(|context| self.contexts.contains(&context)),
         }
+    }
+
+    /// Whether the bar floats over the note as a pill.
+    pub fn floats_over_note(&self) -> bool {
+        self.surface == Surface::Overlay && self.place.can_overlay()
     }
 
     /// The command ids on the toolbar, in order.
@@ -623,6 +657,7 @@ fn resolve_toolbar(id: &str, defaults: &ToolbarsFile, overlay: &ToolbarsFile) ->
         contexts: spec.contexts.unwrap_or_default(),
         style: spec.style.unwrap_or(ButtonStyle::Icons),
         density: spec.density.unwrap_or(Density::Compact),
+        surface: spec.surface.unwrap_or_default(),
         items: spec
             .items
             .unwrap_or_default()
@@ -709,6 +744,17 @@ mod tests {
         assert_eq!(status.items[1], ToolbarItem::Widget(Widget::WordCount));
         let selection = toolbars.get("selection").unwrap();
         assert_eq!(selection.behaviour, Behaviour::WithSelection);
+        assert!(
+            !selection.enabled,
+            "the selection bar waits to be turned on"
+        );
+        assert_eq!(toolbars.at(Place::Selection).count(), 0);
+        assert!(
+            toolbars
+                .toolbars
+                .iter()
+                .all(|t| t.surface == Surface::Strip)
+        );
         assert_eq!(
             selection.commands().collect::<Vec<_>>(),
             [
@@ -730,7 +776,7 @@ place = \"editor-bottom\"
 items = [\"export.html\", \"separator\", \"menu:insert\"]
 
 [toolbar.selection]
-enabled = false
+enabled = true
 
 [toolbar.alpha]
 place = \"window-left\"
@@ -750,9 +796,9 @@ place = \"window-left\"
             ]
         );
         let selection = toolbars.get("selection").unwrap();
-        assert!(!selection.enabled);
+        assert!(selection.enabled);
         assert_eq!(selection.items.len(), 5, "the other fields stay built in");
-        assert_eq!(toolbars.at(Place::Selection).count(), 0);
+        assert_eq!(toolbars.at(Place::Selection).count(), 1);
         let zeta = toolbars.get("zeta").unwrap();
         assert!(!zeta.built_in);
         assert_eq!(zeta.title, "zeta");
@@ -779,6 +825,7 @@ place = \"window-left\"
     #[test]
     fn behaviours_decide_when_a_toolbar_shows() {
         let mut toolbar = Toolbars::defaults().get("selection").unwrap().clone();
+        toolbar.enabled = true;
         let idle = ToolbarConditions::default();
         assert!(!toolbar.is_shown(&idle));
         let selecting = ToolbarConditions {
@@ -806,6 +853,34 @@ place = \"window-left\"
         assert!(toolbar.is_shown(&focused), "the keyboard keeps it up");
         toolbar.enabled = false;
         assert!(!toolbar.is_shown(&focused));
+    }
+
+    #[test]
+    fn a_bar_floats_over_the_note_only_where_it_can() {
+        let text = "\
+[toolbar.pill]
+place   = \"editor-bottom\"
+surface = \"overlay\"
+
+[toolbar.side]
+place   = \"window-left\"
+surface = \"overlay\"
+
+[toolbar.status]
+surface = \"overlay\"
+";
+        let (toolbars, _) = build_toolbars("toolbars.toml", Some(text), &[]).unwrap();
+        let pill = toolbars.get("pill").unwrap();
+        assert_eq!(pill.surface, Surface::Overlay);
+        assert!(pill.floats_over_note());
+        assert!(toolbars.get("side").unwrap().floats_over_note());
+        let status = toolbars.get("status").unwrap();
+        assert_eq!(status.surface, Surface::Overlay, "the file's value is kept");
+        assert!(!status.floats_over_note(), "the status bar stays a strip");
+        let bad = "[toolbar.pill]\nsurface = \"ceiling\"\n";
+        let errors = build_toolbars("toolbars.toml", Some(bad), &[]).unwrap_err();
+        assert_eq!(errors[0].line, 2);
+        assert_eq!(choice_name(Surface::Overlay), "overlay");
     }
 
     #[test]
