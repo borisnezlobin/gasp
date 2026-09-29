@@ -66,6 +66,7 @@ pub struct VaultFolder {
     pub(crate) display: SharedDisplay,
     /// Built the first time links or tags are asked for.
     index: Mutex<Option<LinkIndex>>,
+    pub(crate) search_notes: Mutex<gasp_search::engine::NoteCache>,
 }
 
 #[uniffi::export]
@@ -81,6 +82,7 @@ impl VaultFolder {
             display: SharedDisplay::new(DisplayState::from_settings(&config.settings)),
             config: Mutex::new(config),
             index: Mutex::new(None),
+            search_notes: Mutex::default(),
             root,
         }))
     }
