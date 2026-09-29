@@ -162,6 +162,15 @@ const IMPORT_OBSIDIAN: CommandSpec = spec(
 const COPY_RICH_TEXT: CommandSpec =
     spec("edit.copy-rich-text", "Copy as rich text", "Editing").icon("clipboard");
 
+/// Light or dark, whichever isn't showing, which the desktop writes as
+/// the theme setting.
+const TOGGLE_DARK_MODE: CommandSpec = spec(
+    "view.toggle-dark-mode",
+    "Switch light and dark mode",
+    "View",
+)
+.icon("palette");
+
 /// Commands only some platforms have. The registry leaves them out
 /// elsewhere, but rules may still name them, as a vault's config goes
 /// from machine to machine.
@@ -174,6 +183,7 @@ pub const PLATFORM_COMMANDS: &[&str] = &[
     RESTORE_DELETED.id,
     IMPORT_OBSIDIAN.id,
     COPY_RICH_TEXT.id,
+    TOGGLE_DARK_MODE.id,
 ];
 
 /// Every built-in command on this platform.
@@ -414,6 +424,8 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     IMPORT_OBSIDIAN,
     #[cfg(target_os = "macos")]
     COPY_RICH_TEXT,
+    #[cfg(not(target_os = "ios"))]
+    TOGGLE_DARK_MODE,
     spec("note.import-image", "Insert image from file", "Editing").icon("image"),
     spec("edit.paste-plain", "Paste as plain text", "Editing").icon("clipboard-text"),
     #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -574,7 +586,7 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
 
 /// The commands in [`PLATFORM_COMMANDS`], described on every platform so
 /// a toolbar synced from another machine can still name them.
-const PLATFORM_SPECS: [CommandSpec; 8] = [
+const PLATFORM_SPECS: [CommandSpec; 9] = [
     LOOK_UP,
     HIDE_KEYBOARD,
     FOLD_TOGGLE,
@@ -583,6 +595,7 @@ const PLATFORM_SPECS: [CommandSpec; 8] = [
     RESTORE_DELETED,
     IMPORT_OBSIDIAN,
     COPY_RICH_TEXT,
+    TOGGLE_DARK_MODE,
 ];
 
 /// A built-in command's description by id, on any platform.
