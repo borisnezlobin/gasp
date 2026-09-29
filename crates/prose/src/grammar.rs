@@ -11,16 +11,17 @@
 //! A [`Checker`] is slow to build (Harper compiles every rule), so build
 //! one per thread and keep it.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::ops::Range;
 use std::sync::Arc;
 
-use harper_core::linting::{LintGroup, LintKind, Suggestion};
+use harper_core::linting::{LintGroup, LintGroupConfig, LintKind, Suggestion};
 use harper_core::spell::FstDictionary;
-use harper_core::{Dialect, Document};
+use harper_core::{Dialect, Document, TokenStringExt};
 
 use crate::markdown::Unit;
 use crate::projection::Projection;
+use crate::spelling::Speller;
 
 /// What kind of problem a flag is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -110,10 +111,15 @@ pub struct CheckOptions {
     pub english: English,
 }
 
+/// The rule that finds misspellings.
+const SPELL_CHECK: &str = "SpellCheck";
+
 /// Runs the mechanical and spelling checks on units of prose.
 pub struct Checker {
+    /// Harper's mechanical rules. Spelling runs apart from them, through
+    /// `speller`.
     group: LintGroup,
-    dictionary: Arc<FstDictionary>,
+    speller: Speller,
     /// Lower-cased words the vault uses in several notes.
     known: Arc<HashSet<String>>,
     /// Lower-cased phrases the writer dismissed.
@@ -124,15 +130,17 @@ pub struct Checker {
 impl Checker {
     pub fn new(options: CheckOptions) -> Checker {
         let dictionary = FstDictionary::curated();
-        let mut group = LintGroup::new_curated(dictionary.clone(), options.english.dialect());
-        group.set_all_rules_to(Some(false));
-        for (rule, _) in RULES {
-            let on = *rule != "SpellCheck" || options.spelling;
-            group.config.set_rule_enabled(*rule, on);
+        let dialect = options.english.dialect();
+        let mut group = LintGroup::new_curated(dictionary.clone(), dialect);
+        // A rule missing from the config is off, and a small config is
+        // quick to hash, which Harper does for every chunk it checks.
+        group.config = LintGroupConfig::default();
+        for (rule, _) in RULES.iter().filter(|(rule, _)| *rule != SPELL_CHECK) {
+            group.config.set_rule_enabled(*rule, true);
         }
         Checker {
             group,
-            dictionary,
+            speller: Speller::new(dictionary, dialect),
             known: Arc::default(),
             ignored: Arc::default(),
             options,
@@ -157,16 +165,26 @@ impl Checker {
     pub fn check(&mut self, source: &str, unit: &Unit) -> Vec<Flag> {
         let projection = unit.project(source);
         let text = projection.text();
-        let document = Document::new_plain_english(text, self.dictionary.as_ref());
+        let document = Document::new_plain_english(text, self.speller.dictionary());
         let chars = CharOffsets::new(text);
-        let mut flags = Vec::new();
+        // Flags go in by rule name, as Harper orders its rules, so the
+        // first of two flags on the same range is the one Harper puts first.
+        let mut by_rule: BTreeMap<String, Vec<Flag>> = BTreeMap::new();
         for (rule, lints) in self.group.organized_lints(&document) {
-            for lint in lints {
-                let range = chars.bytes(lint.span.start..lint.span.end);
-                let flag = self.flag(&rule, &lint, range, source, &projection);
-                flags.extend(flag);
-            }
+            let flags = lints
+                .iter()
+                .filter_map(|lint| {
+                    let range = chars.bytes(lint.span.start..lint.span.end);
+                    self.flag(&rule, lint, range, source, &projection)
+                })
+                .collect();
+            by_rule.insert(rule, flags);
         }
+        if self.options.spelling {
+            let misspellings = self.misspellings(&document, &chars, source, &projection);
+            by_rule.insert(SPELL_CHECK.to_owned(), misspellings);
+        }
+        let mut flags: Vec<Flag> = by_rule.into_values().flatten().collect();
         flags.sort_by_key(|flag| (flag.range.start, flag.range.end));
         flags.dedup_by(|a, b| a.range == b.range);
         flags
@@ -181,6 +199,60 @@ impl Checker {
         source: &str,
         projection: &Projection,
     ) -> Option<Flag> {
+        let source_range = self.shown_range(rule, range, projection)?;
+        let original = &source[source_range.clone()];
+        Some(Flag {
+            range: source_range,
+            kind: match lint.lint_kind == LintKind::Spelling {
+                true => FlagKind::Spelling,
+                false => FlagKind::Mechanical,
+            },
+            rule: rule.to_owned(),
+            message: message_for(rule, &lint.message),
+            replacements: replacements(original, &lint.suggestions),
+        })
+    }
+
+    /// The words Harper's dictionary doesn't have that are worth flagging,
+    /// with suggestions looked up only for those.
+    fn misspellings(
+        &mut self,
+        document: &Document,
+        chars: &CharOffsets,
+        source: &str,
+        projection: &Projection,
+    ) -> Vec<Flag> {
+        let mut flags = Vec::new();
+        for word in document.iter_words() {
+            let spelled = document.get_span_content(&word.span);
+            if self.speller.knows(word, spelled) {
+                continue;
+            }
+            let range = chars.bytes(word.span.start..word.span.end);
+            let Some(source_range) = self.shown_range(SPELL_CHECK, range, projection) else {
+                continue;
+            };
+            let original = &source[source_range.clone()];
+            let suggestions = self.speller.suggestions(spelled);
+            flags.push(Flag {
+                range: source_range,
+                kind: FlagKind::Spelling,
+                rule: SPELL_CHECK.to_owned(),
+                message: message_for(SPELL_CHECK, ""),
+                replacements: replacements(original, &suggestions),
+            });
+        }
+        flags
+    }
+
+    /// Where in the note a lint from `rule` at `range` of the projected
+    /// text shows, unless it shouldn't.
+    fn shown_range(
+        &self,
+        rule: &str,
+        range: Range<usize>,
+        projection: &Projection,
+    ) -> Option<Range<usize>> {
         // Markup, code or a line break inside the range means the lint saw
         // something the note doesn't say.
         if range.is_empty()
@@ -191,9 +263,8 @@ impl Checker {
         }
         let text = projection.text();
         let word = &text[range.clone()];
-        let spelling = lint.lint_kind == LintKind::Spelling;
         let wanted = match rule {
-            "SpellCheck" => self.is_misspelling(text, range.clone()),
+            SPELL_CHECK => self.is_misspelling(text, range.clone()),
             "RepeatedWords" => !repeats_an_initial(word),
             "AnA" => word_follows(text, range.end),
             _ => true,
@@ -201,18 +272,7 @@ impl Checker {
         if !wanted || self.ignored.contains(&word.to_lowercase()) {
             return None;
         }
-        let source_range = projection.source_range(range);
-        let original = &source[source_range.clone()];
-        Some(Flag {
-            range: source_range,
-            kind: match spelling {
-                true => FlagKind::Spelling,
-                false => FlagKind::Mechanical,
-            },
-            rule: rule.to_owned(),
-            message: message_for(rule, &lint.message),
-            replacements: replacements(original, &lint.suggestions),
-        })
+        Some(projection.source_range(range))
     }
 
     /// Whether the word at `range` of `text` is worth flagging: not one
