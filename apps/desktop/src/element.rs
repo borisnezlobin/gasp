@@ -310,18 +310,7 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
         window.paint_quad(fill(*rect, *color).corner_radii(theme.radius_sm));
     }
     paint_text_backgrounds(frame, theme, window);
-    for (kind, rect) in &frame.highlights {
-        let color = match kind {
-            HighlightKind::SearchMatch => theme.search_match,
-            HighlightKind::ActiveSearchMatch => theme.active_search_match,
-            HighlightKind::FootnoteProblem => {
-                paint_problem_underline(*rect, theme, window);
-                continue;
-            }
-            HighlightKind::TabStop => theme.tab_stop,
-        };
-        window.paint_quad(fill(*rect, color).corner_radii(theme.radius_sm / 2.));
-    }
+    paint_highlights(frame, theme, window);
     let selection_color = match prepainted.tables.block {
         Some(_) => theme.table.selection,
         None => theme.selection,
@@ -351,6 +340,22 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
     }
     for placed in &frame.lines {
         paint_overlays(placed, frame.text_left, theme, window);
+    }
+}
+
+/// Find matches and tab stops as fills, footnote problems underlined.
+fn paint_highlights(frame: &FrameLayout, theme: &Theme, window: &mut Window) {
+    for (kind, rect) in &frame.highlights {
+        let color = match kind {
+            HighlightKind::SearchMatch => theme.search_match,
+            HighlightKind::ActiveSearchMatch => theme.active_search_match,
+            HighlightKind::FootnoteProblem => {
+                paint_problem_underline(*rect, theme, window);
+                continue;
+            }
+            HighlightKind::TabStop => theme.tab_stop,
+        };
+        window.paint_quad(fill(*rect, color).corner_radii(theme.radius_sm / 2.));
     }
 }
 
