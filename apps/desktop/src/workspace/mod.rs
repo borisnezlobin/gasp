@@ -27,6 +27,7 @@ pub mod menus;
 pub mod modal;
 pub mod note_doc;
 pub mod note_header;
+pub mod note_shape;
 mod notes;
 pub mod pane;
 mod pane_menus;

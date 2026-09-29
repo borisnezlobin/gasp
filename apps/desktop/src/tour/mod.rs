@@ -38,6 +38,11 @@ use crate::theme::UiTheme;
 use crate::ui::{Button, Selectable, ui_theme};
 
 pub use art::WhaleArt;
+
+/// A still whale, `width` wide.
+pub fn drawn_still(still: &std::sync::Arc<gpui::RenderImage>, width: Pixels) -> AnyElement {
+    art::drawn(still, 0, width).into_any_element()
+}
 pub use sample::{FIRST_NOTE, SAMPLE_VAULT_NAME, write_sample_vault};
 pub use shortcuts::SHORTCUT_COMMANDS;
 pub use vault_step::{NEW_VAULT_NAME, VaultChoice};
