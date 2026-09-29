@@ -14,12 +14,12 @@ The workspace, CI and the synthetic corpus exist, the Linux-runnable Phase 0 spi
 |---|---|
 | 0 Spikes | math, git, Typst PDF and GPUI run on Linux; the iPhone spikes need a macOS runner |
 | 1 Core | built: document, input pipeline, parser with Obsidian extensions, render planner, snippets, replacements, footnotes |
-| 2 Desktop editor | built: live preview, tabs and splits with drag to split, file tree, both sidebars (backlinks, outgoing links, outline, tags), palette, switcher, settings with editable shortcuts, light and dark themes, hover previews, emoji picker, link cards, code blocks, daily notes, templates, file recovery, edit time. Not yet built on macOS by CI's Metal step; the title bar and Keychain code are untested on a Mac |
+| 2 Desktop editor | built: live preview, tabs and splits with drag to split, file tree, both sidebars (backlinks, outgoing links, outline, tags), palette, switcher, settings with editable shortcuts, toolbars from `toolbars.toml` (the status bar is one) with a settings page, light and dark themes, hover previews, emoji picker, link cards, code blocks, daily notes, templates, file recovery, edit time. Not yet built on macOS by CI's Metal step; the title bar and Keychain code are untested on a Mac |
 | 3 Sync and travel check | sync built in the app (status bar, popover, settings page, conflict resolver) and syncing the owner's vault on `master`, with `main` merged in one way; a conflict waits in the resolver while every other note keeps syncing; travel check not started |
 | 4 Search and prose | vault search with an in-memory index (not Tantivy yet), sentence-length highlighting, grammar layers 1 and 2 (Harper's mechanical checks and vault-learned spelling); the local grammar model and OCR aren't started |
 | 5 Export | PDF (Typst) and HTML for the website built; the website still needs `crates/export/assets/article.css` and its drop-cap script updated |
 | 6 MCP and headless modes | MCP server built (`gasp mcp`): note, attachment, link, config and render tools, plus a bridge to the running app for its state, commands and unsaved notes. The other headless modes and app screenshots aren't started |
-| 7 iPhone | built as a browser on the core (UniFFI, SwiftUI, TextKit 2): tabs with an overview, an edge-swipe sidebar (search, files, outline, links, tags), live preview from the core's planner with math rendered by Typst, vault images, link cards with their image and coloured code, wide tables as a sideways-scrolling grid with cell editing, heading and callout folding, the grammar checker's underlines and cards, footnote cards, OCR of images and PDFs in search, reading positions kept per note, the keyboard bar from `mobile.toolbar`, find and replace, and every registry command but panes through the palette, the bar or hardware keys (`UIKeyCommand`). Syncs with GitHub like the desktop (setup, the tab bar indicator, the resolver, sync settings; on open, foreground, background, a background refresh and after edits), verified against local repositories. Runs in the simulator; not yet run on the owner's iPhone |
+| 7 iPhone | built as a browser on the core (UniFFI, SwiftUI, TextKit 2): tabs with an overview, an edge-swipe sidebar (search, files, outline, links, tags), live preview from the core's planner with math rendered by Typst, vault images, link cards with their image and coloured code, wide tables as a sideways-scrolling grid with cell editing, heading and callout folding, the grammar checker's underlines and cards, footnote cards, OCR of images and PDFs in search, reading positions kept per note, the keyboard bar (the `keyboard` toolbar in `toolbars.toml`), find and replace, and every registry command but panes through the palette, the bar or hardware keys (`UIKeyCommand`). Syncs with GitHub like the desktop (setup, the tab bar indicator, the resolver, sync settings; on open, foreground, background, a background refresh and after edits), verified against local repositories. Runs in the simulator; not yet run on the owner's iPhone |
 | 8 Plugins and agents | not started |
 
 Update this table, and the phase's section, when work lands.
@@ -247,6 +247,45 @@ Each built-in feature is one step. You can disable, reorder, replace or add step
 
 When rules aren't enough, a TypeScript plugin uses the same commands, events and pipeline steps. Plugins run in an embedded QuickJS engine, which works on iOS (Apple doesn't allow apps to compile code at runtime). Each plugin declares the permissions it wants, such as network access or writing outside the current note, and the app shows those before enabling it. A plugin can also replace a whole component by pointing a layout slot at its own implementation.
 
+### Toolbars
+
+A toolbar is data too: a `[toolbar.<id>]` table in `.gasp/toolbars.toml`, layered on the built-in `crates/config/defaults/toolbars.toml` the way settings are. A vault's table changes only the fields it names on a built-in toolbar, a new id adds a toolbar, and `enabled = false` turns one off. The built-in file has three: `status` (the status bar), `selection` (bold, italic, highlight, link and code, floating over selected text) and `keyboard` (the iPhone's bar above the keyboard).
+
+```toml
+[toolbar.status]                 # the built-in status bar, with Export as HTML at its left
+items = ["export.html", "spacer", "word-count", "character-count", "reading-time", "edit-time", "cursor-position", "sync"]
+
+[toolbar.writing]                # a new bar under the notes
+title     = "Writing"
+place     = "editor-bottom"
+behaviour = "hide-while-typing"
+style     = "icons-and-labels"
+density   = "compact"
+items     = ["format.bold", "format.italic", "separator", "format.bullet-list", "format.numbered-list", "edit.indent", "spacer", "menu:insert"]
+
+[toolbar.selection]
+enabled = false                  # no bar by the selection
+
+[menu.insert]                    # a dropdown any bar can hold as "menu:insert"
+title = "Insert"
+icon  = "plus"
+items = ["table.insert", "format.callout", "footnote.insert-or-jump"]
+
+[timing]
+hover-delay  = "150ms"           # before a bar shown on hover appears
+hide-delay   = "400ms"           # before it goes once the pointer leaves
+typing-pause = "1s"              # before a bar hidden while typing comes back
+```
+
+- **Place**: `status-bar`, `editor-top` and `editor-bottom` (above or below the notes, across every pane), `window-left` and `window-right`, `selection` (floating just above the selected text, or below it near the note's top), `cursor-line` (floating at the end of the cursor's line), and `keyboard` (the iPhone, read through the FFI's `keyboard_toolbar()`).
+- **Behaviour**: `always`, `on-hover` (a strip along its edge reveals it after `hover-delay`, floating over the edge rather than moving the notes), `hide-while-typing`, `with-selection`, and `in-context` with `contexts = ["text", "math", "code", "table"]`. A docked bar that's hidden keeps its room, so the notes never jump; a bar the keyboard is in always shows.
+- **Style**: `icons`, `icons-and-labels` or `labels`, and `compact` or `comfortable`. Sizes are the theme's `toolbar.` tokens (button sides, gaps, icon sizes, padding, the button radius, which plus the padding gives a floating bar concentric corners).
+- **Items**: any command id, shown with its icon from the registry (every command has a Phosphor icon there), a tooltip with its title and current shortcut, a disabled look where it can't run and a pressed look for a toggle that's on at the cursor (bold in bold text, the list kind in a list, from `gasp_core::commands::active_commands`); the status widgets `word-count`, `character-count`, `reading-time`, `edit-time`, `cursor-position` and `sync`; `separator`; `spacer`, which pushes what follows to the far end; and `menu:<id>`. Unknown commands and menus load with a warning.
+
+`toolbar.focus` (`Alt+Shift+T`) moves the keyboard into the first bar, and again to the next: arrows move between buttons, Home and End jump, Enter or Space presses, Tab and Shift+Tab change bar, and Escape goes back to the note. A pressed command runs as its key would, in the note. A right-click on a docked bar offers "Add to …", "Customize toolbars" and "Hide …"; the status bar's `+` (while the pointer is on it or the keyboard reaches it) and "Add to …" open the Toolbars settings page with that bar's picker open.
+
+The settings screen's **Toolbars** page lists every toolbar on its own card: a switch to turn it on or off (a bar the vault added also has a remove button, and a changed built-in one a reset), its place and "When it shows" as dropdowns, "Buttons show" and "Size" as segmented controls, the kinds of text for `in-context`, each item with its icon and shortcut, and "Add a button", a searchable picker of commands, widgets, separators, spacers and menus. Items reorder by dragging (onto another bar too) or with `Alt+Up` and `Alt+Down`, and `Delete` takes one off. "Add a toolbar" starts an empty one above the notes, and "Reset toolbars" (pressed twice) puts the built-in ones back. It writes with the same comment-keeping writers as the rest of the screen (`gasp_config::toolbar_files`), a built-in toolbar's field only while it differs, and changes apply at once. `gasp mcp` has `get_toolbars` and `set_toolbars`.
+
 ## Keyboard first
 
 Everything in the app can be done from the keyboard, and the mouse is optional. Concretely:
@@ -287,7 +326,7 @@ Verification covers this too: a CI test walks every command in the registry and 
 - **Tabs.** Opening a link uses a new tab, or switches to the tab that already has that note (replacing Opener).
 - **Pasting images** saves them to `./images` named after the note, the way Paste Image Rename is set up now.
 - **Look up** (macOS) shows the system dictionary popover for the word under a force click or three-finger tap, or at the cursor with `Ctrl+Cmd+D` and the right-click menu. GPUI 0.2.2 delivers neither pressure events nor `quickLookWithEvent:` to the app, so `apps/desktop/src/look_up/macos.rs` adds both methods to GPUI's `GPUIView` class at startup: a pressure event reaching stage 2 (the force click itself) and a Look up gesture each trigger it, and one arriving right after the other is dropped. The first build hooked only `quickLookWithEvent:`, and force click didn't work on the owner's Mac; the pressure route is untested on hardware. If it still fails, the next step is logging which of the two methods AppKit calls, and whether GPUI's own `mouseDown:` handling keeps pressure events from starting.
-- **The status bar** shows word count (for the selection when there is one), reading time and edit time.
+- **The status bar** shows word count (for the selection when there is one), reading time and edit time. It's the built-in `status` toolbar (see [Toolbars](#toolbars)), so commands, menus and separators can go on it too, from the `+` that shows while the pointer is on it.
 
 ### Default keymap
 
@@ -329,6 +368,7 @@ Verification covers this too: a CI test walks every command in the registry and 
 | `Ctrl+Tab` and `Ctrl+Shift+Tab` | Next and previous tab |
 | `Mod+\` | Toggle file sidebar |
 | `Mod+Shift+E` | Focus file tree |
+| `Alt+Shift+T` | Focus toolbars (again for the next one; arrows move, Enter presses, Tab to the next bar, Escape back to the note) |
 | `Mod+Alt+Left` and `Mod+Alt+Right` | Move focus between panes |
 | `Mod+Alt+Up` and `Mod+Alt+Down` | Move focus to the pane above or below |
 | `Mod+Alt+Shift` with an arrow | Move the tab to the pane that way, splitting one off if there's none |
@@ -605,7 +645,7 @@ This is the SwiftUI and TextKit 2 app on the same core, with your mobile toolbar
 | `GrammarChecker` | One per vault: Harper's mechanical checks and vault-learned spelling (the desktop's layers 1 and 2) on the paragraphs around what's on screen, cached per paragraph, with the vault's shared ignore file |
 | `ImageTexts` | The text Vision recognised in the vault's images and PDFs, cached on the device by file stamp; `VaultFolder::search_everything` adds the notes that embed a matching file to vault search |
 | Functions | `render_math` (LaTeX through `gasp-math` to coverage pixels the phone tints), `warm_up_math`, `code_color_token`, `config_folder` |
-| `VaultFolder` | Notes and folders; reading and atomic saving; the theme tokens and `appearance.base-font-size`, and any colour token by name; the file an image target names; the command registry as the phone sees it, the iOS key bindings and `mobile.toolbar`; making, renaming (with link updates) and trashing notes; daily notes, templates, attached images and link resolution; backlinks, outgoing links, tags and the desktop's search; settings from the schema and writing them back; open tabs and reading positions (cursor, top line, folded headings) in `device.toml`; recovery snapshots; HTML and PDF export |
+| `VaultFolder` | Notes and folders; reading and atomic saving; the theme tokens and `appearance.base-font-size`, and any colour token by name; the file an image target names; the command registry as the phone sees it, the iOS key bindings and the `keyboard` toolbar; making, renaming (with link updates) and trashing notes; daily notes, templates, attached images and link resolution; backlinks, outgoing links, tags and the desktop's search; settings from the schema and writing them back; open tabs and reading positions (cursor, top line, folded headings) in `device.toml`; recovery snapshots; HTML and PDF export |
 | `VaultSync` | The desktop's sync for one clone: its scheduler (the same 60-second idle debounce, retry and `sync.interval-minutes`), the commit, fetch, merge and push steps, the one-way merge of `sync.legacy-branch`, and the overview the indicator reads, in the desktop's phases and words; the notes waiting for a person, each place with its context, settled with this device, the other device, both or edited text; signing in and out with the token in the Keychain; changing the repository; following the sync settings. `set_up_sync` reads GitHub shorthand, clones (starting `master` from `main` when `master` doesn't exist yet) and keeps the token; `merge_note_edits` folds unsaved edits into a note a sync just wrote |
 
 To give the phone the desktop's behaviour rather than a copy of it, code that lived in the desktop app moved into shared crates: daily notes, templates, Moment.js dates, recovery snapshots, attachment naming and note link resolution into `gasp-vault`; the reveal settings for `markdown.symbols`, the link-card metadata parser and callout folds (now with heading folds, `render::folds`) into `gasp-core`; remembering note positions into `gasp-config`; the grammar ignore file's format into `gasp-prose`; the code highlighter's scope table into the new `gasp-highlight`; the Keychain store (now covering iOS, behind `gasp-sync`'s `keychain` feature) and the sync phases and their sentences (`gasp_sync::phase`) into `gasp-sync`. The desktop re-exports them. The search crate gained `ocr`, the cache of recognised text and its search. The registry gained `format.callout` (Obsidian's Insert callout, bound on the desktop too), `keyboard.hide` on iOS, Look up on iOS as well as macOS, and on iOS `fold.toggle` (`Cmd+Alt+[`), `fold.all` and `fold.unfold-all`.
@@ -623,7 +663,7 @@ To give the phone the desktop's behaviour rather than a copy of it, code that li
 
 - *Tabs.* Several notes stay open, each with its own editing session (cursor, scroll, undo) and back and forward history. The bar at the bottom names the note showing; swiping it moves to the neighbouring tab and tapping it opens the overview, a grid of note cards to switch to, close or add. A new tab opens on a search and the recent notes. Open tabs are saved per device in `.gasp/device.toml`, which never syncs. The bar hides while the keyboard is up.
 - *Sidebar.* A swipe in from the left edge (or the bar's sidebar button) slides it over the note, above a dimmed backdrop that a tap or swipe closes. It holds the vault search (by name, text, or `tag:`), the file tree, the note's outline, its backlinks and outgoing links, and the vault's tags, with new note, today's note and settings at its foot. There's no navigation stack, so nothing else claims that edge.
-- *Keyboard bar.* An `inputAccessoryView` above the software keyboard, scrolling sideways, whose buttons are the commands in the `mobile.toolbar` setting. The default is Obsidian's mobile toolbar after "hide the keyboard" (insert image, indent, outdent, callout, inline math, footnote, sentence highlighting, table), then find, undo, redo, bold, italic, highlight, link, inline code, task, and the palette. Reorder or trim it in `.gasp/settings.toml`; the desktop's settings screen leaves this setting out.
+- *Keyboard bar.* An `inputAccessoryView` above the software keyboard, scrolling sideways, whose buttons are the `keyboard` toolbar's items in `toolbars.toml` (commands, separators, spacers and menus; the status widgets are left out), read through the FFI's `keyboard_toolbar()`. The default is Obsidian's mobile toolbar after "hide the keyboard" (insert image, indent, outdent, callout, inline math, footnote, sentence highlighting, table), then find, undo, redo, bold, italic, highlight, link, inline code, task, and the palette. Reorder or trim it on the desktop's Toolbars settings page or in `.gasp/toolbars.toml`; `enabled = false` takes the bar away and `style` can add labels. A vault's old `mobile.toolbar` setting moves there the first time the vault opens.
 - *Palette.* Every command the phone has, searchable, grouped by category, with its hardware key.
 - *Find.* UIKit's find navigator, with next, previous and replace.
 - *Hardware keyboard.* The desktop keymap's iOS bindings become `UIKeyCommand`s on the text view, which answer first while a note is edited (Command-B, I and U also come through UIKit's own formatting actions), and hidden SwiftUI shortcut buttons elsewhere, which list the keys in the overlay shown while Command is held. Arrows, deleting and plain Tab and Escape stay with the text view.
