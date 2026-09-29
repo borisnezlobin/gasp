@@ -132,7 +132,7 @@ final class CommandRunner: EditingHost {
             let destination = try session.vault.resolveLink(fromPath: session.path, target: target)
             open(destination, from: session)
         } catch {
-            workspace.tell(error.localizedDescription)
+            workspace.tell(error.shownMessage)
         }
     }
 

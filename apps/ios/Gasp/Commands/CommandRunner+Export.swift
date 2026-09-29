@@ -52,7 +52,7 @@ extension CommandRunner {
             try exported.bytes.write(to: url)
             workspace.sheet = .share(url)
         } catch {
-            workspace.tell(error.localizedDescription)
+            workspace.tell(error.shownMessage)
         }
     }
 
@@ -68,7 +68,7 @@ extension CommandRunner {
             printer.printingItem = exported.bytes
             printer.present(animated: true)
         } catch {
-            workspace.tell(error.localizedDescription)
+            workspace.tell(error.shownMessage)
         }
     }
 }

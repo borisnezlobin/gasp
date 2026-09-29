@@ -123,7 +123,7 @@ struct SyncSetupView: View {
             model.openSyncedVault(at: folder)
             dismiss()
         case .failure(let error):
-            problem = error.localizedDescription
+            problem = error.shownMessage
         }
     }
 }

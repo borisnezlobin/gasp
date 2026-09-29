@@ -16,6 +16,8 @@ final class SyncCenter {
     private(set) var overview: SyncOverview?
     private(set) var conflicts: [ConflictNote] = []
     private(set) var isRunning = false
+    /// How many syncs have finished since launch.
+    @ObservationIgnored private(set) var finishedSyncs = 0
 
     /// Notes a sync or a resolution changed on disk, for open notes to reload.
     @ObservationIgnored var onNotesChanged: (([String]) -> Void)?
@@ -180,6 +182,7 @@ final class SyncCenter {
 
     private func finish(_ outcome: SyncOutcome, overview: SyncOverview, conflicts: [ConflictNote]) {
         stopProgress()
+        finishedSyncs += 1
         publish(overview, conflicts: conflicts)
         let waiting = conflicts.map(\.path)
         if !outcome.received.isEmpty || !waiting.isEmpty {

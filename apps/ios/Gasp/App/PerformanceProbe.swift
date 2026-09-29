@@ -17,6 +17,9 @@ import UIKit
 /// - `-probe scroll -probeNote <path>`: the note scrolled top to bottom at
 ///   a steady speed, with the time between frames and the work in each.
 ///
+/// - `-probe sync`: from the process starting to the end of the sync
+///   the app runs as it opens, for the synced notes.
+///
 /// Every run ends with `probe memory`, the app's footprint in megabytes.
 final class PerformanceProbe {
     static let shared = PerformanceProbe()
@@ -35,6 +38,7 @@ final class PerformanceProbe {
     func start(model: AppModel) {
         switch mode {
         case "launch": watchLaunch(model)
+        case "sync": watchLaunchSync(model)
         case "open": after(seconds: startDelay) { self.measureOpen(model) }
         case "typing": after(seconds: startDelay) { self.measureTyping(model) }
         case "scroll": after(seconds: startDelay) { self.measureScroll(model) }
@@ -48,6 +52,14 @@ final class PerformanceProbe {
         let started = Self.processStart()
         tick(until: { self.pageIsUsable(model) }, then: {
             Self.report("launch-to-usable-ms", (Self.now() - started) * 1000)
+            Self.reportMemory()
+        })
+    }
+
+    private func watchLaunchSync(_ model: AppModel) {
+        let started = Self.processStart()
+        tick(until: { model.sync.finishedSyncs > 0 }, then: {
+            Self.report("launch-to-synced-ms", (Self.now() - started) * 1000)
             Self.reportMemory()
         })
     }
