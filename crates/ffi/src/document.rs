@@ -192,7 +192,7 @@ impl NoteDocument {
         let parsed = self.lock();
         parsed
             .tree
-            .preorder()
+            .block_preorder()
             .into_iter()
             .map(|id| parsed.tree.node(id))
             .filter_map(|node| match node.kind {
