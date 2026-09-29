@@ -102,3 +102,46 @@ fn reopening_a_vault_leaves_its_settings_files_alone() {
     assert_eq!(local.get_string("core.eol").unwrap(), "lf");
     assert_eq!(local.get_i64("pack.deltaCacheSize").unwrap(), 512 * 1024);
 }
+
+#[test]
+fn a_fast_forward_writes_every_changed_file_and_keeps_local_edits() {
+    let world = World::seeded(&[
+        ("kept.md", b"kept\n"),
+        ("edited.md", b"one\n"),
+        ("Old folder/gone.md", b"gone\n"),
+        ("moved.md", b"moving\n"),
+        ("becomes a folder", b"a file for now\n"),
+    ]);
+    let laptop = world.device("laptop");
+    let phone = world.device("phone");
+    write(&phone, "edited.md", b"one, then two\n");
+    write(
+        &phone,
+        "New folder/Pasted image [1] *.png",
+        b"\x89PNG pixels",
+    );
+    std::fs::remove_file(phone.root().join("Old folder/gone.md")).unwrap();
+    std::fs::rename(phone.root().join("moved.md"), phone.root().join("here.md")).unwrap();
+    std::fs::remove_file(phone.root().join("becomes a folder")).unwrap();
+    write(&phone, "becomes a folder/inside.md", b"inside\n");
+    sync(&phone, "phone");
+    write(&laptop, "kept.md", b"kept, edited on the laptop\n");
+    write(&laptop, "draft.md", b"not committed yet\n");
+
+    laptop.fetch().unwrap();
+    let outcome = laptop.merge(&author("laptop")).unwrap();
+    assert_eq!(outcome, gasp_sync::MergeOutcome::FastForward);
+    let on_disk = |path: &str| std::fs::read(laptop.root().join(path)).ok();
+    assert_eq!(on_disk("edited.md").unwrap(), b"one, then two\n");
+    assert_eq!(
+        on_disk("New folder/Pasted image [1] *.png").unwrap(),
+        b"\x89PNG pixels"
+    );
+    assert!(!laptop.root().join("Old folder").exists());
+    assert_eq!(on_disk("moved.md"), None);
+    assert_eq!(on_disk("here.md").unwrap(), b"moving\n");
+    assert_eq!(on_disk("becomes a folder/inside.md").unwrap(), b"inside\n");
+    assert_eq!(on_disk("kept.md").unwrap(), b"kept, edited on the laptop\n");
+    assert_eq!(on_disk("draft.md").unwrap(), b"not committed yet\n");
+    assert_eq!(laptop.unpushed_changes().unwrap(), 2);
+}

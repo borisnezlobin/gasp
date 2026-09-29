@@ -461,7 +461,9 @@ impl Vault {
     pub fn fetch(&self) -> SyncResult<()> {
         let mut remote = self.repo.find_remote(&self.config.remote)?;
         let mut options = FetchOptions::new();
-        options.remote_callbacks(remote_callbacks(self.token.as_ref()));
+        options
+            .remote_callbacks(remote_callbacks(self.token.as_ref()))
+            .update_fetchhead(false);
         let branches =
             std::iter::once(self.config.branch.as_str()).chain(self.config.active_legacy());
         let refspecs: Vec<String> = branches
@@ -570,10 +572,26 @@ impl Vault {
         merged
     }
 
+    /// Moves the branch to `target`, writing only the files that differ
+    /// between the two commits rather than checking the whole work tree.
     fn fast_forward(&self, target: Oid) -> SyncResult<()> {
         let commit = self.repo.find_commit(target)?;
-        self.repo
-            .checkout_tree(commit.as_object(), Some(CheckoutBuilder::new().safe()))?;
+        let mut checkout = CheckoutBuilder::new();
+        checkout.safe();
+        let differing = match self.local_head()? {
+            Some(head) => Some(self.differing_paths(&head.tree()?, &commit.tree()?)?),
+            None => None,
+        };
+        if let Some(paths) = &differing {
+            checkout.disable_pathspec_match(true);
+            for path in paths {
+                checkout.path(path);
+            }
+        }
+        if differing.is_none_or(|paths| !paths.is_empty()) {
+            self.repo
+                .checkout_tree(commit.as_object(), Some(&mut checkout))?;
+        }
         let local_ref = self.config.local_ref();
         self.repo
             .reference(&local_ref, target, true, "sync: fast-forward")?;
@@ -913,6 +931,28 @@ impl Vault {
             .filter(|path| !device_only.matches(path))
             .map(Path::to_owned)
             .collect();
+        Ok(paths)
+    }
+
+    /// Every path whose entry differs between two trees, on either side.
+    fn differing_paths(
+        &self,
+        old: &git2::Tree<'_>,
+        new: &git2::Tree<'_>,
+    ) -> SyncResult<Vec<PathBuf>> {
+        let mut options = DiffOptions::new();
+        options.include_typechange(true);
+        let diff = self
+            .repo
+            .diff_tree_to_tree(Some(old), Some(new), Some(&mut options))?;
+        let mut paths = Vec::new();
+        for delta in diff.deltas() {
+            let (old_path, new_path) = (delta.old_file().path(), delta.new_file().path());
+            paths.extend(old_path.map(Path::to_owned));
+            if new_path != old_path {
+                paths.extend(new_path.map(Path::to_owned));
+            }
+        }
         Ok(paths)
     }
 }
