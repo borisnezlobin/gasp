@@ -1,4 +1,4 @@
-# Built-in rules. A vault's .editor/rules.toml can add rules, replace one by
+# Built-in rules. A vault's .gasp/rules.toml can add rules, replace one by
 # giving the same id, or remove one with `delete = true`.
 
 # ---- Default keymap. Mod is Cmd on macOS and iOS, Ctrl elsewhere. ----
