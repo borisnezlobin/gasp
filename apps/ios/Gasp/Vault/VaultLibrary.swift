@@ -31,6 +31,8 @@ final class VaultLibrary {
     private(set) var commands: [CommandInfo] = []
     private(set) var toolbar: [CommandInfo] = []
     private(set) var keyBindings: [KeyBinding] = []
+    /// Light, dark or the phone's own, from `appearance.theme`.
+    private(set) var appearance: Appearance = .system
     private(set) var problem: String?
     /// Bumped whenever the vault's config is read again, so views that
     /// depend on it redraw.
@@ -108,6 +110,7 @@ final class VaultLibrary {
         commands = vault.commands()
         toolbar = vault.toolbar()
         keyBindings = vault.keyBindings()
+        appearance = vault.appearance()
         configGeneration += 1
     }
 }

@@ -11,9 +11,19 @@ struct GaspApp: App {
             BrowserView()
                 .environment(model)
                 .tint(model.library.tokens.swiftUIColor(\.accent))
-                .onAppear { Self.styleNavigationBars(model.library.tokens) }
+                .onAppear {
+                    Self.styleNavigationBars(model.library.tokens)
+                    model.library.appearance.apply()
+                }
+                // A change in settings, or one a sync brings in, restyles
+                // the app at once.
+                .onChange(of: model.library.appearance) { _, appearance in appearance.apply() }
         }
-        .onChange(of: scenePhase) { _, phase in model.sceneChanged(to: phase) }
+        .onChange(of: scenePhase) { _, phase in
+            model.sceneChanged(to: phase)
+            // A window made after launch takes the setting too.
+            if phase == .active { model.library.appearance.apply() }
+        }
         .backgroundTask(.appRefresh(SyncCenter.refreshTaskIdentifier)) {
             await model.sync.syncInBackgroundRefresh()
         }
