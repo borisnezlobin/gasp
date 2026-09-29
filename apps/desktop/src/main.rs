@@ -10,6 +10,11 @@ use gasp_desktop::trace;
 use gasp_desktop::workspace::state::{AppState, migrate_app_folders};
 use gasp_desktop::workspace::window::LaunchTarget;
 
+#[cfg(target_os = "macos")]
+#[global_allocator]
+static ALLOCATOR: gasp_desktop::allocator::ReturningAllocator =
+    gasp_desktop::allocator::ReturningAllocator;
+
 fn main() -> ExitCode {
     trace::init();
     env_logger::init();
