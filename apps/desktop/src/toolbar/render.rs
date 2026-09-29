@@ -1,0 +1,491 @@
+//! Drawing a toolbar: its bar, and each item as a button, a status
+//! widget, a separator, a spacer or a menu button. Sizes come from the
+//! theme's `toolbar.` tokens, colours from the UI theme's controls.
+
+use gasp_config::toolbars::{Density, Toolbar, ToolbarItem, ToolbarMenu, Widget};
+use gpui::{
+    AnyElement, AnyView, App, BoxShadow, Div, ElementId, MouseButton, Pixels, SharedString,
+    Stateful, div, prelude::*,
+};
+
+use super::{AddToToolbar, FocusStop, PressToolbarItem, add_key, button_label, item_key};
+use crate::icons::{IconName, icon};
+use crate::theme::UiTheme;
+use crate::ui::Tooltip;
+use crate::workspace::status::StatusInfo;
+
+/// What a bar sits in, which sets its shape and sizes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BarFrame {
+    /// The row along the window's bottom, as tall as it's always been.
+    StatusBar,
+    /// A strip above or below the notes.
+    Row,
+    /// A strip down a side of the window.
+    Column,
+    /// A bar floating over the note, or one shown on hover over an edge.
+    Floating,
+}
+
+impl BarFrame {
+    fn is_column(self) -> bool {
+        self == BarFrame::Column
+    }
+}
+
+/// What a bar's items show now.
+pub struct BarState<'a> {
+    pub status: Option<&'a StatusInfo>,
+    pub sync: Option<AnyView>,
+    /// Toggle commands that are on where the cursor is.
+    pub active: &'a [&'static str],
+    /// Where the keyboard is in this bar, if it's here.
+    pub focus: Option<FocusStop>,
+    /// Whether a command can run now; the rest are drawn disabled.
+    pub can_run: &'a dyn Fn(&str) -> bool,
+    pub menus: &'a [ToolbarMenu],
+    pub frame: BarFrame,
+}
+
+/// The sizes one bar's items share.
+#[derive(Clone, Copy, Debug)]
+struct Metrics {
+    side: Pixels,
+    icon: Pixels,
+    text: Pixels,
+    gap: Pixels,
+}
+
+fn metrics(frame: BarFrame, density: Density, theme: &UiTheme) -> Metrics {
+    let tokens = &theme.toolbar;
+    let (side, icon, text) = match (frame, density) {
+        // The status bar keeps its height, so its buttons fit inside it.
+        (BarFrame::StatusBar, _) => (
+            theme.status_height - theme.space_xs * 2.,
+            theme.small_icon_size,
+            theme.small_font_size,
+        ),
+        (_, Density::Compact) => (
+            tokens.compact_button,
+            tokens.compact_icon,
+            theme.small_font_size,
+        ),
+        (_, Density::Comfortable) => (
+            tokens.comfortable_button,
+            tokens.comfortable_icon,
+            theme.font_size,
+        ),
+    };
+    Metrics {
+        side,
+        icon,
+        text,
+        gap: tokens.gap(density),
+    }
+}
+
+/// The bar itself, before its items: laid out for `frame`.
+pub fn bar(frame: BarFrame, density: Density, theme: &UiTheme) -> Div {
+    let m = metrics(frame, density, theme);
+    let padding = theme.toolbar.padding;
+    match frame {
+        BarFrame::StatusBar => div()
+            .flex()
+            .flex_row()
+            .flex_none()
+            .items_center()
+            .gap(theme.status_gap)
+            .h(theme.status_height)
+            .px(theme.space_lg)
+            .text_size(theme.small_font_size)
+            .text_color(theme.text_faint),
+        BarFrame::Row => div()
+            .flex()
+            .flex_row()
+            .flex_none()
+            .items_center()
+            .gap(m.gap)
+            .h(m.side + padding * 2.)
+            .px(theme.space_md),
+        BarFrame::Column => div()
+            .flex()
+            .flex_col()
+            .flex_none()
+            .items_center()
+            .gap(m.gap)
+            .w(m.side + padding * 2.)
+            .py(theme.space_md),
+        BarFrame::Floating => floating_surface(div().flex().flex_row().items_center(), theme)
+            .gap(m.gap)
+            .p(padding),
+    }
+}
+
+/// A surface that floats: the menu fill, its shadow and hairline ring,
+/// and corners concentric with the buttons inside.
+pub fn floating_surface(element: Div, theme: &UiTheme) -> Div {
+    element
+        .rounded(theme.toolbar.bar_radius())
+        .bg(theme.menu_background)
+        .shadow(theme.menu_shadows())
+        .text_size(theme.small_font_size)
+        .text_color(theme.text_muted)
+}
+
+/// Every item of `toolbar`, drawn for `state`. `attached` gives the open
+/// menu for an item's key, drawn in the item's box. `add`, the button
+/// that adds to the bar, goes just before its first spacer, where it moves
+/// nothing, or else at the end.
+pub fn bar_items(
+    toolbar: &Toolbar,
+    state: &BarState<'_>,
+    attached: &mut dyn FnMut(&str) -> Option<AnyElement>,
+    mut add: Option<AnyElement>,
+    cx: &mut App,
+) -> Vec<AnyElement> {
+    let theme = crate::ui::ui_theme(cx);
+    let m = metrics(state.frame, toolbar.density, &theme);
+    let mut elements = Vec::new();
+    let mut buttons: Vec<AnyElement> = Vec::new();
+    for (index, item) in toolbar.items.iter().enumerate() {
+        let key = item_key(&toolbar.id, index);
+        let focused = state.focus == Some(FocusStop::Item(index));
+        let element = match item {
+            ToolbarItem::Command(id) => {
+                let look = ButtonLook::for_command(id, state, focused);
+                Some(command_button(
+                    &key, toolbar, index, id, look, m, &theme, cx,
+                ))
+            }
+            ToolbarItem::Menu(id) => {
+                let open = attached(&key);
+                menu_button(
+                    &key,
+                    toolbar,
+                    index,
+                    state.menus.iter().find(|menu| menu.id == *id),
+                    focused,
+                    open,
+                    m,
+                    &theme,
+                )
+            }
+            _ => None,
+        };
+        if let Some(button) = element {
+            buttons.push(button);
+            continue;
+        }
+        flush_buttons(&mut elements, &mut buttons, state.frame, m);
+        if *item == ToolbarItem::Spacer {
+            elements.extend(add.take());
+        }
+        elements.extend(passive_item(item, state, m, &theme));
+    }
+    flush_buttons(&mut elements, &mut buttons, state.frame, m);
+    elements.extend(add);
+    elements
+}
+
+/// Buttons side by side sit closer together in the status bar than its
+/// widgets do, so a run of them is grouped there.
+fn flush_buttons(
+    elements: &mut Vec<AnyElement>,
+    buttons: &mut Vec<AnyElement>,
+    frame: BarFrame,
+    m: Metrics,
+) {
+    if buttons.is_empty() {
+        return;
+    }
+    if frame != BarFrame::StatusBar {
+        elements.append(buttons);
+        return;
+    }
+    let group = div()
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(m.gap)
+        .children(std::mem::take(buttons));
+    elements.push(group.into_any_element());
+}
+
+/// A widget, separator or spacer.
+fn passive_item(
+    item: &ToolbarItem,
+    state: &BarState<'_>,
+    m: Metrics,
+    theme: &UiTheme,
+) -> Option<AnyElement> {
+    match item {
+        ToolbarItem::Widget(Widget::Sync) => state.sync.clone().map(AnyView::into_any_element),
+        ToolbarItem::Widget(widget) => {
+            let text = state.status?.widget_text(*widget)?;
+            Some(
+                div()
+                    .flex_none()
+                    .child(SharedString::from(text))
+                    .into_any_element(),
+            )
+        }
+        ToolbarItem::Separator => Some(separator(state.frame, m, theme)),
+        ToolbarItem::Spacer => Some(div().flex_1().into_any_element()),
+        ToolbarItem::Command(_) | ToolbarItem::Menu(_) => None,
+    }
+}
+
+fn separator(frame: BarFrame, m: Metrics, theme: &UiTheme) -> AnyElement {
+    let line = div().flex_none().bg(theme.menu_separator);
+    let length = m.side * 0.6;
+    let width = theme.toolbar.separator_width;
+    let line = if frame.is_column() {
+        line.h(width).w(length)
+    } else {
+        line.w(width).h(length)
+    };
+    line.into_any_element()
+}
+
+/// How a command's button looks now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ButtonLook {
+    pub active: bool,
+    pub disabled: bool,
+    pub focused: bool,
+}
+
+impl ButtonLook {
+    fn for_command(id: &str, state: &BarState<'_>, focused: bool) -> ButtonLook {
+        ButtonLook {
+            active: state.active.contains(&id),
+            disabled: !(state.can_run)(id),
+            focused,
+        }
+    }
+}
+
+/// The fill and ring of a toolbar button in its state: a toggle that's on
+/// gets the "on" fill with a hairline ring, keyboard focus the focus ring.
+fn button_box(id: &str, look: ButtonLook, theme: &UiTheme) -> Stateful<Div> {
+    let mut shadows: Vec<BoxShadow> = Vec::new();
+    if look.active {
+        shadows.push(theme.ring(theme.menu_ring));
+    }
+    if look.focused {
+        shadows.push(theme.focus());
+    }
+    let selector = id.to_owned();
+    div()
+        .id(ElementId::Name(id.to_owned().into()))
+        .debug_selector(move || selector)
+        .relative()
+        .flex()
+        .flex_none()
+        .items_center()
+        .justify_center()
+        .rounded(theme.toolbar.button_radius)
+        .when(look.active, |button| {
+            button.bg(crate::theme::over(
+                theme.control_active,
+                theme.menu_background,
+            ))
+        })
+        .when(!shadows.is_empty(), |button| button.shadow(shadows))
+        .when(!look.disabled, |button| {
+            button
+                .cursor_pointer()
+                .hover(|style| style.bg(theme.control_hover))
+                .active(|style| style.bg(theme.control_pressed))
+        })
+}
+
+fn icon_color(look: ButtonLook, theme: &UiTheme) -> gpui::Hsla {
+    match (look.disabled, look.active) {
+        (true, _) => theme.icon_disabled,
+        (false, true) => theme.icon_active,
+        (false, false) => theme.icon,
+    }
+}
+
+fn text_color(look: ButtonLook, theme: &UiTheme) -> gpui::Hsla {
+    match (look.disabled, look.active) {
+        (true, _) => theme.icon_disabled,
+        (false, true) => theme.text,
+        (false, false) => theme.text_muted,
+    }
+}
+
+/// A button's icon and label, as `style` says.
+fn button_face(
+    button: Stateful<Div>,
+    icon_name: IconName,
+    label: Option<String>,
+    look: ButtonLook,
+    m: Metrics,
+    theme: &UiTheme,
+) -> Stateful<Div> {
+    let button = match &label {
+        Some(_) => button
+            .h(m.side)
+            .px(theme.toolbar.padding * 2.)
+            .gap(theme.toolbar.label_gap),
+        None => button.size(m.side),
+    };
+    button
+        .child(
+            icon(icon_name)
+                .size(m.icon)
+                .text_color(icon_color(look, theme)),
+        )
+        .children(label.map(|text| {
+            div()
+                .text_size(m.text)
+                .text_color(text_color(look, theme))
+                .whitespace_nowrap()
+                .child(text)
+        }))
+}
+
+/// Presses an item from a click, keeping the keyboard where it was so a
+/// command reaches the note.
+fn on_press(button: Stateful<Div>, toolbar: &str, index: usize, disabled: bool) -> Stateful<Div> {
+    if disabled {
+        return button;
+    }
+    let toolbar: SharedString = toolbar.to_owned().into();
+    button
+        .on_mouse_down(MouseButton::Left, |_, window, _| window.prevent_default())
+        .on_click(move |_, window, cx| {
+            cx.stop_propagation();
+            let press = PressToolbarItem {
+                toolbar: toolbar.clone(),
+                index,
+                by_pointer: true,
+            };
+            window.dispatch_action(Box::new(press), cx);
+        })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn command_button(
+    key: &str,
+    toolbar: &Toolbar,
+    index: usize,
+    id: &str,
+    look: ButtonLook,
+    m: Metrics,
+    theme: &UiTheme,
+    cx: &App,
+) -> AnyElement {
+    let title = crate::ui::hints::command_title(id);
+    let label = toolbar.style.shows_label().then(|| button_label(&title));
+    let shows_icon = toolbar.style.shows_icon();
+    let face = if shows_icon {
+        button_face(
+            button_box(key, look, theme),
+            IconName::for_command(id),
+            label,
+            look,
+            m,
+            theme,
+        )
+    } else {
+        label_only(
+            button_box(key, look, theme),
+            label.unwrap_or_default(),
+            look,
+            m,
+            theme,
+        )
+    };
+    on_press(face, &toolbar.id, index, look.disabled)
+        .tooltip(Tooltip::for_command(id, cx).builder())
+        .into_any_element()
+}
+
+fn label_only(
+    button: Stateful<Div>,
+    label: String,
+    look: ButtonLook,
+    m: Metrics,
+    theme: &UiTheme,
+) -> Stateful<Div> {
+    button
+        .h(m.side)
+        .px(theme.toolbar.padding * 2.)
+        .text_size(m.text)
+        .text_color(text_color(look, theme))
+        .whitespace_nowrap()
+        .child(label)
+}
+
+/// A menu's button: its icon and a caret, pressed in while its menu is
+/// open. `None` when the menu doesn't exist.
+#[allow(clippy::too_many_arguments)]
+fn menu_button(
+    key: &str,
+    toolbar: &Toolbar,
+    index: usize,
+    menu: Option<&ToolbarMenu>,
+    focused: bool,
+    open: Option<AnyElement>,
+    m: Metrics,
+    theme: &UiTheme,
+) -> Option<AnyElement> {
+    let menu = menu?;
+    let look = ButtonLook {
+        active: open.is_some(),
+        disabled: false,
+        focused,
+    };
+    let label = toolbar.style.shows_label().then(|| menu.title.clone());
+    let icon_name = IconName::from_name(&menu.icon).unwrap_or(IconName::DotsThree);
+    let base = button_box(key, look, theme);
+    let face = if toolbar.style.shows_icon() {
+        button_face(base, icon_name, label, look, m, theme)
+            .w_auto()
+            .px(theme.toolbar.padding)
+    } else {
+        label_only(base, label.unwrap_or_default(), look, m, theme)
+    };
+    let face = face.gap(theme.toolbar.padding).child(
+        icon(IconName::CaretDown)
+            .size(m.icon * 0.6)
+            .text_color(icon_color(look, theme)),
+    );
+    let has_open = open.is_some();
+    let button = on_press(face, &toolbar.id, index, false)
+        .when(!has_open, |button| {
+            button.tooltip(Tooltip::new(menu.title.clone(), None).builder())
+        })
+        .children(open);
+    Some(button.into_any_element())
+}
+
+/// The small button that adds to a bar, shown while the pointer is on
+/// the bar or the keyboard is on the button.
+pub fn add_button(toolbar: &Toolbar, focused: bool, frame: BarFrame, cx: &mut App) -> AnyElement {
+    let theme = crate::ui::ui_theme(cx);
+    let m = metrics(frame, toolbar.density, &theme);
+    let look = ButtonLook {
+        active: false,
+        disabled: false,
+        focused,
+    };
+    let target: SharedString = toolbar.id.clone().into();
+    let tooltip = format!("Add to {}", toolbar.title.to_lowercase());
+    button_box(&add_key(&toolbar.id), look, &theme)
+        .size(m.side)
+        .child(icon(IconName::Plus).size(m.icon).text_color(theme.icon))
+        .on_mouse_down(MouseButton::Left, |_, window, _| window.prevent_default())
+        .on_click(move |_, window, cx| {
+            cx.stop_propagation();
+            let add = AddToToolbar {
+                toolbar: target.clone(),
+            };
+            window.dispatch_action(Box::new(add), cx);
+        })
+        .tooltip(Tooltip::new(tooltip, None).builder())
+        .into_any_element()
+}

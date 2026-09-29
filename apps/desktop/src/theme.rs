@@ -2109,6 +2109,78 @@ pub struct UiTheme {
     pub overlay_shadow: Hsla,
     /// The print dialog and its page preview.
     pub print: PrintTheme,
+    /// Toolbars' sizes, from the theme's `toolbar.` tokens.
+    pub toolbar: ToolbarTheme,
+}
+
+/// Sizes for toolbars, read from the theme's `toolbar.` tokens so a vault
+/// can change them. Colours come from [`UiTheme`]'s controls.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ToolbarTheme {
+    pub compact_button: Pixels,
+    pub comfortable_button: Pixels,
+    pub compact_gap: Pixels,
+    pub comfortable_gap: Pixels,
+    pub compact_icon: Pixels,
+    pub comfortable_icon: Pixels,
+    /// Inside a bar that floats or runs down a window edge.
+    pub padding: Pixels,
+    pub button_radius: Pixels,
+    /// Between a button's icon and its label.
+    pub label_gap: Pixels,
+    /// Between a floating bar and the text it belongs to.
+    pub float_gap: Pixels,
+    /// How near its edge the pointer comes before a bar shown on hover appears.
+    pub hover_edge: Pixels,
+    pub separator_width: Pixels,
+}
+
+impl Default for ToolbarTheme {
+    fn default() -> Self {
+        Self::from_tokens(&Config::defaults().theme)
+    }
+}
+
+impl ToolbarTheme {
+    pub fn from_tokens(tokens: &Tokens) -> Self {
+        let read = TokenReader { tokens };
+        let size = |name: &str, default: f32| px(read.number(name, default));
+        ToolbarTheme {
+            compact_button: size("toolbar.compact-button", 26.),
+            comfortable_button: size("toolbar.comfortable-button", 32.),
+            compact_gap: size("toolbar.compact-gap", 2.),
+            comfortable_gap: size("toolbar.comfortable-gap", 6.),
+            compact_icon: size("toolbar.compact-icon", 16.),
+            comfortable_icon: size("toolbar.comfortable-icon", 18.),
+            padding: size("toolbar.padding", 4.),
+            button_radius: size("toolbar.button-radius", 6.),
+            label_gap: size("toolbar.label-gap", 6.),
+            float_gap: size("toolbar.float-gap", 8.),
+            hover_edge: size("toolbar.hover-edge", 10.),
+            separator_width: size("toolbar.separator-width", 1.),
+        }
+    }
+
+    /// A button's side at `density`.
+    pub fn button(&self, density: gasp_config::toolbars::Density) -> Pixels {
+        match density {
+            gasp_config::toolbars::Density::Compact => self.compact_button,
+            gasp_config::toolbars::Density::Comfortable => self.comfortable_button,
+        }
+    }
+
+    /// The space between buttons at `density`.
+    pub fn gap(&self, density: gasp_config::toolbars::Density) -> Pixels {
+        match density {
+            gasp_config::toolbars::Density::Compact => self.compact_gap,
+            gasp_config::toolbars::Density::Comfortable => self.comfortable_gap,
+        }
+    }
+
+    /// A floating bar's corners: concentric with its buttons'.
+    pub fn bar_radius(&self) -> Pixels {
+        self.button_radius + self.padding
+    }
 }
 
 impl Default for UiTheme {
@@ -2287,6 +2359,7 @@ impl UiTheme {
             note_background: p.background,
             overlay_shadow: p.shadow,
             print: PrintTheme::from_palette(p),
+            toolbar: ToolbarTheme::default(),
         }
     }
 }

@@ -156,9 +156,10 @@ impl SettingsView {
             self.set_focus(SettingsFocus::Sections, window, cx);
             return false;
         };
+        let moves_item = keystroke.modifiers.alt && matches!(row, ControlRow::ToolbarItem { .. });
         match keystroke.key.as_str() {
-            "up" => self.step_control(index, -1, &rows, window, cx),
-            "down" => self.step_control(index, 1, &rows, window, cx),
+            "up" if !moves_item => self.step_control(index, -1, &rows, window, cx),
+            "down" if !moves_item => self.step_control(index, 1, &rows, window, cx),
             "enter" if row.uses_field() => {
                 self.set_focus(SettingsFocus::Control(index), window, cx)
             }
@@ -225,6 +226,7 @@ impl SettingsView {
             ControlRow::SnippetsFile | ControlRow::Snippet(_) | ControlRow::Replacement(_) => {
                 self.typing_row_key(row, key, window, cx)
             }
+            _ if row.is_toolbar_row() => self.toolbar_key(index, row, keystroke, window, cx),
             _ => false,
         };
         handled || self.type_to_search(keystroke, window, cx)

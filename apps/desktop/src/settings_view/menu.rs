@@ -2,6 +2,7 @@
 //! Escape closes, and a font menu filters as you type.
 
 use std::cell::Cell;
+use std::collections::HashMap;
 
 use gasp_config::schema::SettingKind;
 use gpui::{
@@ -13,6 +14,7 @@ use super::config_files::default_token;
 use super::model::{
     FontSlot, SettingItem, choice_label, filter_fonts, font_choices, map_name_label, map_names,
 };
+use super::toolbars_page::{ToolbarField, toolbar_choice_label};
 use super::view::{ControlRow, SettingsView};
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
 
@@ -23,6 +25,13 @@ pub enum MenuTarget {
     Font(FontSlot),
     /// Adds an entry to a map setting whose names are a fixed list.
     MapAdd(SettingItem),
+    /// One of a toolbar's dropdown choices.
+    ToolbarField {
+        toolbar: String,
+        field: ToolbarField,
+    },
+    /// Adds an item to a toolbar, from a searchable list.
+    ToolbarAdd(String),
 }
 
 /// An open dropdown menu.
@@ -35,8 +44,10 @@ pub struct OpenMenu {
     /// The options the filter lets through, in order.
     pub shown: Vec<String>,
     pub highlighted: usize,
-    /// The filter field, for font menus.
+    /// The filter field, for font menus and the toolbar picker.
     pub filter: Option<Entity<TextInput>>,
+    /// Each option's label, for menus whose labels need the view.
+    pub labels: HashMap<String, String>,
     /// The options' list, which builds only the options in view.
     pub scroll: UniformListScrollHandle,
     /// How many options the frame last drawn built: only those in view,
@@ -52,6 +63,27 @@ impl OpenMenu {
             MenuTarget::Choice(_) => choice_label(option),
             MenuTarget::Font(_) => option.to_string(),
             MenuTarget::MapAdd(ref map) => map_name_label(&map.key, option),
+            MenuTarget::ToolbarField { .. } => toolbar_choice_label(option),
+            MenuTarget::ToolbarAdd(_) => self
+                .labels
+                .get(option)
+                .cloned()
+                .unwrap_or_else(|| option.to_string()),
+        }
+    }
+
+    /// What the menu says when its filter lets nothing through.
+    pub fn nothing_matches(&self) -> &'static str {
+        match self.target {
+            MenuTarget::Font(_) => "No fonts match.",
+            _ => "Nothing matches.",
+        }
+    }
+
+    fn filter_placeholder(target: &MenuTarget) -> &'static str {
+        match target {
+            MenuTarget::ToolbarAdd(_) => "Find a command",
+            _ => "Find a font",
         }
     }
 }
@@ -66,6 +98,13 @@ impl SettingsView {
                     .then(|| MenuTarget::Choice(item.clone()))
             }
             ControlRow::MapAdd(map) => map_names(&map.key).map(|_| MenuTarget::MapAdd(map.clone())),
+            ControlRow::ToolbarField { toolbar, field } => {
+                field.is_dropdown().then(|| MenuTarget::ToolbarField {
+                    toolbar: toolbar.clone(),
+                    field: *field,
+                })
+            }
+            ControlRow::ToolbarAdd(toolbar) => Some(MenuTarget::ToolbarAdd(toolbar.clone())),
             _ => None,
         }
     }
@@ -79,7 +118,11 @@ impl SettingsView {
                 .unwrap_or_default()
                 .to_string(),
             MenuTarget::Font(slot) => self.token(slot.token()).unwrap_or_default(),
-            MenuTarget::MapAdd(_) => String::new(),
+            MenuTarget::ToolbarField { toolbar, field } => self
+                .toolbar(toolbar)
+                .map(|toolbar| field.value(toolbar))
+                .unwrap_or_default(),
+            MenuTarget::MapAdd(_) | MenuTarget::ToolbarAdd(_) => String::new(),
         }
     }
 
@@ -109,8 +152,17 @@ impl SettingsView {
         let options = self.menu_choices(&target, &current);
         let highlighted = options.iter().position(|o| *o == current).unwrap_or(0);
         let (filter, subscriptions) = match target {
-            MenuTarget::Font(_) => self.menu_filter(window, cx),
-            MenuTarget::Choice(_) | MenuTarget::MapAdd(_) => (None, Vec::new()),
+            MenuTarget::Font(_) | MenuTarget::ToolbarAdd(_) => {
+                self.menu_filter(OpenMenu::filter_placeholder(&target), window, cx)
+            }
+            _ => (None, Vec::new()),
+        };
+        let labels = match &target {
+            MenuTarget::ToolbarAdd(_) => options
+                .iter()
+                .map(|option| (option.clone(), self.picker_label(option)))
+                .collect(),
+            _ => HashMap::new(),
         };
         self.menu = Some(OpenMenu {
             row: index,
@@ -119,6 +171,7 @@ impl SettingsView {
             options,
             highlighted,
             filter,
+            labels,
             scroll: UniformListScrollHandle::new(),
             built: Cell::new(0),
             _subscriptions: subscriptions,
@@ -140,6 +193,8 @@ impl SettingsView {
                 font_choices(names, current, &built_in)
             }
             MenuTarget::MapAdd(map) => self.names_to_add(&map.key),
+            MenuTarget::ToolbarField { field, .. } => field.options(),
+            MenuTarget::ToolbarAdd(toolbar) => self.picker_options(toolbar),
         }
     }
 
@@ -202,12 +257,13 @@ impl SettingsView {
 
     fn menu_filter(
         &mut self,
+        placeholder: &'static str,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> (Option<Entity<TextInput>>, Vec<Subscription>) {
         let field = cx.new(|cx| {
             TextInput::new(window, cx)
-                .with_placeholder("Find a font")
+                .with_placeholder(placeholder)
                 .with_style(TextInputStyle::Query)
         });
         window.focus(&field.focus_handle(cx));
@@ -225,8 +281,12 @@ impl SettingsView {
         match event {
             TextInputEvent::Changed => {
                 let query = field.read(cx).text().to_string();
-                if let Some(menu) = self.menu.as_mut() {
-                    menu.shown = filter_fonts(&menu.options, &query);
+                let shown = self.menu.as_ref().map(|menu| match menu.target {
+                    MenuTarget::ToolbarAdd(_) => self.filter_picker(&menu.options, &query),
+                    _ => filter_fonts(&menu.options, &query),
+                });
+                if let (Some(menu), Some(shown)) = (self.menu.as_mut(), shown) {
+                    menu.shown = shown;
                     menu.highlighted = 0;
                 }
                 self.scroll_menu(ScrollStrategy::Top);
@@ -292,6 +352,10 @@ impl SettingsView {
             MenuTarget::Choice(item) => self.choose(item, option, cx),
             MenuTarget::Font(slot) => self.set_font(*slot, option, cx),
             MenuTarget::MapAdd(map) => self.add_map_entry(&map.key, option, cx),
+            MenuTarget::ToolbarField { toolbar, field } => {
+                self.choose_toolbar_field(toolbar, *field, option, cx)
+            }
+            MenuTarget::ToolbarAdd(toolbar) => self.add_toolbar_item(toolbar, option, cx),
         }
         cx.notify();
     }

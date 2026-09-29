@@ -27,6 +27,7 @@ use super::model::{
 use super::snippet_editor::SnippetEditor;
 use super::snippets_page::{ReplacementRow, SnippetRow, TypingLists};
 use super::store::{SettingsFile, settings_path};
+use super::toolbars_page::ToolbarField;
 use crate::editor::EditorView;
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
 use crate::theme::{ACCENT_CHOICES, DARK_ACCENT_CHOICES, KeycapTheme, SettingsTheme, Theme};
@@ -96,6 +97,24 @@ pub enum ControlRow {
     /// The editor open on a snippet, drawn under its row.
     SnippetEditor,
     Replacement(ReplacementRow),
+    /// A toolbar's name and switch, by id.
+    ToolbarHeader(String),
+    /// One of a toolbar's choices.
+    ToolbarField {
+        toolbar: String,
+        field: ToolbarField,
+    },
+    /// The kinds of text a toolbar shown in context shows in.
+    ToolbarContexts(String),
+    /// Item `index` of a toolbar.
+    ToolbarItem {
+        toolbar: String,
+        index: usize,
+    },
+    /// The picker that adds to a toolbar.
+    ToolbarAdd(String),
+    NewToolbar,
+    ResetToolbars,
 }
 
 impl ControlRow {
@@ -165,6 +184,13 @@ impl ControlRow {
             | ControlRow::Snippet(_)
             | ControlRow::SnippetEditor
             | ControlRow::Replacement(_) => self.typing_title(),
+            ControlRow::ToolbarHeader(id)
+            | ControlRow::ToolbarContexts(id)
+            | ControlRow::ToolbarAdd(id)
+            | ControlRow::ToolbarItem { toolbar: id, .. }
+            | ControlRow::ToolbarField { toolbar: id, .. } => id.clone(),
+            ControlRow::NewToolbar => "Add a toolbar".to_string(),
+            ControlRow::ResetToolbars => "Reset toolbars".to_string(),
         }
     }
 }
@@ -269,6 +295,13 @@ pub struct SettingsView {
     /// Appearance page's controls: the screen covers the notes, so a
     /// change shows here as it's made.
     pub(super) preview: Option<Entity<EditorView>>,
+    /// The vault's toolbars, for the Toolbars page.
+    pub(super) toolbars: gasp_config::Toolbars,
+    /// A row whose button asks once more before it removes or resets:
+    /// the first press arms it.
+    pub(super) armed_row: Option<ControlRow>,
+    /// Which kind of text the keyboard is on in a toolbar's contexts row.
+    pub(super) context_chip: usize,
     pub(super) _subscriptions: Vec<Subscription>,
 }
 
@@ -366,8 +399,12 @@ impl SettingsView {
             snippet_editor: None,
             math: Default::default(),
             preview: None,
+            toolbars: gasp_config::Toolbars::defaults(),
+            armed_row: None,
+            context_chip: 0,
             _subscriptions: Vec::new(),
         };
+        view.toolbars = gasp_config::toolbar_files::load_toolbars(&view.vault_root);
         view.typing_lists = TypingLists::load(&view.vault_root);
         view.restyle();
         let mut subscriptions = view.watch_inputs(window, cx);
@@ -521,6 +558,7 @@ impl SettingsView {
         }
         self.tokens = config_files::load_tokens(&self.vault_root);
         self.typing_lists = TypingLists::load(&self.vault_root);
+        self.toolbars = gasp_config::toolbar_files::load_toolbars(&self.vault_root);
         self.invalidate_layouts();
         self.restyle();
         self.set_rules(&config_files::load_rules(&self.vault_root), cx);
@@ -733,6 +771,10 @@ impl SettingsView {
             self.shortcut_cards(query, &mut layout);
             return layout;
         }
+        if page == Page::Toolbars {
+            self.toolbar_cards(query, &mut layout);
+            return layout;
+        }
         for card in page_cards(page, &self.items) {
             let rows = card
                 .iter()
@@ -838,6 +880,7 @@ impl SettingsView {
             ControlRow::Snippet(_) | ControlRow::SnippetEditor | ControlRow::Replacement(_) => {
                 String::new()
             }
+            _ => self.toolbar_row_description(row),
         }
     }
 
@@ -854,6 +897,7 @@ impl SettingsView {
         self.menu = None;
         if focus != self.focus {
             self.error = None;
+            self.armed_row = None;
         }
         self.focus = focus;
         match focus {
