@@ -403,7 +403,7 @@ fn a_shown_list_marker_is_named_so_the_text_after_it_can_stay_put() {
     assert_eq!(marker_of(&selections), [Some("- [x] "), None, None]);
     let on_number = text.find("one").unwrap();
     assert_eq!(
-        marker_of(&[on_number..on_number]),
+        marker_of(&[on_number..on_number; 1]),
         [None, Some("1. "), None]
     );
 }

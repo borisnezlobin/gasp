@@ -597,6 +597,15 @@ This is the GPUI app with the file sidebar, tabs, quick switcher, command palett
 - Menus and their options have concentric radii, the snippet slot's outline is square-cornered, the section list fits "Snippets and replacements", the add-button picker says "Pick a button", and the status widgets say what they count.
 - GPUI draws a shadow's spread with the element's own radius, so focus rings on radius-6 controls (buttons, fields, dropdowns) are still 2 px short of concentric.
 
+**Editor audit.** The editor and its overlays (selection, reveal, widgets, tables, links, floating toolbars, find, suggestions, prose cards, scrolling) were walked with `gasp --snapshot`; each fix has a test.
+
+- The bar by the selection is laid out before it's placed, so it sits a gap above the first selected row on screen, flips below the last one near the pane's top, and stays inside the pane at its edges or when the selection fills it; a selection begun at a line's end is placed by the text it covers (`toolbar/floating.rs` tests).
+- A list or task marker shown at the cursor sits in its bullet's room, flush against the text (the planner's `LinePlan::shown_marker`), so a list item's text no longer shifts or rewraps as the caret enters it (`live_preview.rs`, `render/tests.rs`).
+- Scroll anchoring: lines above the first one in view that change height as they're laid out (an estimate replaced, an image or equation arriving) move the scroll with them, so scrolling up onto a tall line no longer jumps (`live_preview.rs`).
+- The find bar's current match is drawn over the selection, in a deeper amber than the others; it used to read grey. Replace opened with an empty query types into the query (`find_bar.rs`, `element.rs`).
+- `Alt+Shift+T` goes to the bar by the selection before the docked bars (`toolbars.rs`).
+- Still open: heading folds have no desktop control or visible folded state, and a callout's fold has no key, so `fold.toggle` stays iPhone-only; showing a block's source (math, code, callouts, images) still moves what's below by the source's height; a shown task marker (`- [ ] `) is wider than the box and nudges its text; an image found through the vault index first draws the placeholder's size for a frame; flags from a check that finished before the vault's words loaded wait for the next redraw.
+
 ### Phase 3: sync, then travel check
 
 This builds git sync, the conflict resolver and the setup flow, and replaces `vault-sync` on the Mac. It's done when you've installed the app on the Windows/Ubuntu laptop, synced the vault on both systems, and edited offline and merged. This is the checkpoint that has to pass before your next trip. The app is only for you for now, so desktop builds are signed for personal use and there's no store listing.
