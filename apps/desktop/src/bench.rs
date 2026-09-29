@@ -33,6 +33,9 @@ pub struct BenchConfig {
     /// Whether sentence tints and grammar flags are on, to measure what
     /// they cost.
     pub prose: bool,
+    /// Draw into a window that's never shown, asking for each frame
+    /// instead of waiting for the display (macOS).
+    pub hidden: bool,
 }
 
 impl Default for BenchConfig {
@@ -45,6 +48,7 @@ impl Default for BenchConfig {
             in_math: false,
             in_table: false,
             prose: true,
+            hidden: false,
         }
     }
 }
@@ -271,10 +275,7 @@ mod tests {
             warmup: 1,
             keystrokes: 2,
             scroll_pages: 1,
-            in_code: false,
-            in_math: false,
-            in_table: false,
-            prose: true,
+            ..BenchConfig::default()
         });
         let steps: Vec<BenchStep> = (0..5).map(|_| bench.next_step()).collect();
         let checkpoints: Vec<Option<Checkpoint>> =

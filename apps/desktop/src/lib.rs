@@ -34,6 +34,7 @@ pub mod metrics;
 pub mod navigation;
 pub mod note;
 pub mod note_texts;
+pub mod open_bench;
 pub mod outline;
 pub mod palette;
 pub mod paste;

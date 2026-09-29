@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use gasp_config::command_name;
 
 use crate::bench::BenchConfig;
+use crate::open_bench::OpenBenchConfig;
 use crate::snapshot::{SnapshotRequest, WindowSnapshotRequest};
 
 pub const USAGE: &str = concat!(
@@ -12,9 +13,11 @@ pub const USAGE: &str = concat!(
     command_name!(),
     " [PATH]\n       ",
     command_name!(),
-    " --bench-layout PATH [--keystrokes N] [--scroll-pages N] [--in-code] [--in-math] [--in-table] [--no-prose]\n       ",
+    " --bench-layout PATH [--keystrokes N] [--scroll-pages N] [--in-code] [--in-math] [--in-table] [--no-prose] [--hidden]\n       ",
     command_name!(),
     " --bench-index VAULT\n       ",
+    command_name!(),
+    " --bench-open VAULT [--notes N] [--hidden]\n       ",
     command_name!(),
     " --snapshot NOTE OUT.png [--width N] [--height N] [--theme light|dark] [--cursor LINE:COL]\n       ",
     command_name!(),
@@ -33,7 +36,9 @@ math block, where snippets and the math helpers do the most work, and
 --in-table in the first body cell of the first table. --no-prose turns sentence
 tints and grammar flags off, to measure what they cost. With
 EDITOR_TRACE_KEYS=1 it also lists where each keystroke's time went. On
-Linux without a display, run it under xvfb-run.
+Linux without a display, run it under xvfb-run. --hidden (macOS) draws
+into a window that's never shown, asking for each frame itself, so it
+runs while the screen is locked or asleep.
 
 --snapshot draws NOTE's editor, as its vault's theme and settings
 show it, into OUT.png without showing a window or taking focus. The
@@ -52,6 +57,12 @@ copy and the app's own folders are removed at the end unless
 --bench-index builds VAULT's link index and prints how long that, a
 save, a backlinks list, an unlinked-mentions search and a rename take.
 
+--bench-open opens a copy of VAULT in the whole window, opens its N
+longest notes (30 unless --notes says) one after another, then switches
+between tabs, and prints how long each took to reach the screen and to
+finish drawing its equations and code. --hidden works as for
+--bench-layout.
+
 mcp serves VAULT (the last vault when left out) to an agent over MCP on
 stdin and stdout. Its tools read and change notes, attachments and the
 vault's config whether or not the app is running; with the app open on
@@ -67,6 +78,11 @@ pub enum Command {
         config: BenchConfig,
     },
     BenchIndex(PathBuf),
+    /// `gasp --bench-open VAULT`: opening and switching notes, timed.
+    BenchOpen {
+        vault: PathBuf,
+        config: OpenBenchConfig,
+    },
     /// `gasp --snapshot NOTE OUT.png`: a note drawn to a PNG with no window
     /// shown.
     Snapshot(SnapshotRequest),
@@ -87,6 +103,7 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
             [vault] => Ok(Command::BenchIndex(PathBuf::from(vault))),
             _ => Err("--bench-index needs one vault".to_owned()),
         },
+        Some("--bench-open") => parse_bench_open(&args[1..]),
         Some("--snapshot") => parse_snapshot(&args[1..]),
         Some("mcp") => parse_mcp(&args[1..]),
         Some(flag) if flag.starts_with("--") => Err(format!("unknown option {flag}")),
@@ -213,25 +230,51 @@ fn parse_line_column(value: &str) -> Result<(usize, usize), String> {
     Ok((number(line)?, number(column)?))
 }
 
+fn parse_bench_open(args: &[String]) -> Result<Command, String> {
+    let vault = args.first().ok_or("--bench-open needs a vault")?;
+    let mut config = OpenBenchConfig::default();
+    let mut rest = args[1..].iter().map(String::as_str);
+    while let Some(flag) = rest.next() {
+        match flag {
+            "--hidden" => config.hidden = true,
+            "--notes" => {
+                let count = rest.next().ok_or("--notes needs a number")?;
+                config.notes = count
+                    .parse::<usize>()
+                    .ok()
+                    .filter(|&count| count >= 1)
+                    .ok_or_else(|| format!("--notes needs a number, not {count}"))?;
+            }
+            _ => return Err(format!("unknown option {flag}")),
+        }
+    }
+    Ok(Command::BenchOpen {
+        vault: PathBuf::from(vault),
+        config,
+    })
+}
+
+/// Turns one of the bench's switches on.
+type TurnOn = fn(&mut BenchConfig);
+
+/// The bench's switches, which take no value, and what each turns on.
+const BENCH_SWITCHES: [(&str, TurnOn); 5] = [
+    ("--in-code", |config| config.in_code = true),
+    ("--in-math", |config| config.in_math = true),
+    ("--in-table", |config| config.in_table = true),
+    ("--no-prose", |config| config.prose = false),
+    ("--hidden", |config| config.hidden = true),
+];
+
 fn parse_bench(args: &[String]) -> Result<Command, String> {
     let path = args.first().ok_or("--bench-layout needs a path")?;
     let mut config = BenchConfig::default();
     let mut rest: Vec<String> = args[1..].to_vec();
-    if let Some(at) = rest.iter().position(|arg| arg == "--in-code") {
-        rest.remove(at);
-        config.in_code = true;
-    }
-    if let Some(at) = rest.iter().position(|arg| arg == "--in-math") {
-        rest.remove(at);
-        config.in_math = true;
-    }
-    if let Some(at) = rest.iter().position(|arg| arg == "--in-table") {
-        rest.remove(at);
-        config.in_table = true;
-    }
-    if let Some(at) = rest.iter().position(|arg| arg == "--no-prose") {
-        rest.remove(at);
-        config.prose = false;
+    for (switch, turn_on) in BENCH_SWITCHES {
+        if let Some(at) = rest.iter().position(|arg| arg == switch) {
+            rest.remove(at);
+            turn_on(&mut config);
+        }
     }
     for pair in rest.chunks(2) {
         let [flag, value] = pair else {
@@ -296,11 +339,33 @@ mod tests {
         assert!(config.in_code);
         assert_eq!(config.keystrokes, 5);
         assert!(config.prose);
-        let parsed = parse(&args(&["--bench-layout", "c", "--no-prose"]));
+        assert!(!config.hidden);
+        let parsed = parse(&args(&["--bench-layout", "c", "--no-prose", "--hidden"]));
         let Ok(Command::Bench { config, .. }) = parsed else {
             panic!("expected a bench command");
         };
         assert!(!config.prose);
+        assert!(config.hidden);
+    }
+
+    #[test]
+    fn bench_open_takes_a_vault_and_options() {
+        let parsed = parse(&args(&["--bench-open", "v"]));
+        assert_eq!(
+            parsed,
+            Ok(Command::BenchOpen {
+                vault: PathBuf::from("v"),
+                config: OpenBenchConfig::default()
+            })
+        );
+        let parsed = parse(&args(&["--bench-open", "v", "--notes", "5", "--hidden"]));
+        let Ok(Command::BenchOpen { config, .. }) = parsed else {
+            panic!("expected an open bench");
+        };
+        assert_eq!((config.notes, config.hidden), (5, true));
+        assert!(parse(&args(&["--bench-open"])).is_err());
+        assert!(parse(&args(&["--bench-open", "v", "--notes", "0"])).is_err());
+        assert!(parse(&args(&["--bench-open", "v", "--wat"])).is_err());
     }
 
     #[test]
