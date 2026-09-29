@@ -37,7 +37,7 @@ pub use plan::{
 pub use recovery::{SnapshotInfo, use_data_folder};
 pub use settings::{SettingControl, SettingItem, SettingValue};
 pub use sync::{SyncOutcome, SyncOverview, SyncPhaseKind, SyncRunSummary, VaultSync};
-pub use sync_conflicts::{ConflictNote, ConflictPlace, PlaceChoice};
+pub use sync_conflicts::{ConflictNote, ConflictPlace, PlaceChoice, merge_note_edits};
 pub use sync_setup::{SyncSetup, repository_url, set_up_sync};
 pub use theme::{Palette, Spacing, ThemeColor, ThemeTokens, Typography, built_in_theme};
 pub use vault::{NoteSummary, OpenTabs, VaultError, VaultFolder};

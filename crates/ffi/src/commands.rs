@@ -8,8 +8,8 @@ use editor_config::rules::Rule;
 use editor_config::{Config, Platform};
 
 /// Commands the phone leaves out: it shows one note at a time, so there are
-/// no panes to split or move tabs between, and it doesn't sync yet.
-const NOT_ON_THE_PHONE: &[&str] = &["pane.", "sync."];
+/// no panes to split or move tabs between.
+const NOT_ON_THE_PHONE: &[&str] = &["pane."];
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct CommandInfo {
@@ -166,11 +166,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn panes_and_sync_stay_off_the_phone() {
+    fn panes_stay_off_the_phone_and_sync_is_on_it() {
         let commands = command_infos(&Config::defaults());
         assert!(commands.iter().any(|info| info.id == "format.bold"));
         assert!(!commands.iter().any(|info| info.id.starts_with("pane.")));
-        assert!(!commands.iter().any(|info| info.id == "sync.now"));
+        assert!(commands.iter().any(|info| info.id == "sync.now"));
     }
 
     #[test]

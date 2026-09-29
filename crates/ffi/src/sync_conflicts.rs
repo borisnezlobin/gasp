@@ -69,7 +69,10 @@ fn note(file: &ConflictedFile) -> ConflictNote {
 fn last_lines(text: &str) -> String {
     let lines: Vec<&str> = text.trim_end_matches('\n').lines().collect();
     let start = lines.len().saturating_sub(CONTEXT_LINES);
-    lines[start..].join("\n")
+    lines[start..]
+        .join("\n")
+        .trim_start_matches('\n')
+        .to_owned()
 }
 
 fn resolution(choice: PlaceChoice, hunk: &ConflictHunk) -> Resolution {
@@ -89,6 +92,17 @@ fn ending_like(mut text: String, hunk: &ConflictHunk) -> String {
         text.push('\n');
     }
     text
+}
+
+/// Folds edits made in an open note since `base` (the text last saved)
+/// into `synced`, the text a sync just wrote, line by line with the sync
+/// merge policy. `None` when both changed the same lines.
+#[uniffi::export]
+pub fn merge_note_edits(base: String, edited: String, synced: String) -> Option<String> {
+    match editor_sync::merge_lines(&base, &edited, &synced) {
+        editor_sync::LineMerge::Clean(merged) => Some(merged),
+        editor_sync::LineMerge::Conflicted(_) => None,
+    }
 }
 
 fn refused(message: &str) -> VaultError {
@@ -191,8 +205,24 @@ mod tests {
         assert_eq!(note.title, "Today");
         assert_eq!(note.path, "Daily/Today.md");
         assert_eq!(note.places[0].context, "two\nthree");
+        assert_eq!(last_lines("# Title\n\n- apples\n"), "- apples");
         assert_eq!(note.places[0].this_device, "phone\n");
         assert_eq!(note.version, file.marked_text().text);
+    }
+
+    #[test]
+    fn unsaved_edits_fold_into_what_sync_wrote() {
+        let merged = merge_note_edits(
+            "a\nb\nc\n".into(),
+            "a\nb, edited here\nc\n".into(),
+            "a\nb\nc\nd from the laptop\n".into(),
+        );
+        assert_eq!(
+            merged.as_deref(),
+            Some("a\nb, edited here\nc\nd from the laptop\n")
+        );
+        let clash = merge_note_edits("a\n".into(), "phone\n".into(), "laptop\n".into());
+        assert_eq!(clash, None);
     }
 
     #[test]
