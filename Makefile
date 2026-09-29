@@ -9,6 +9,9 @@ IOS_BUILD := target/ios-derived
 # survives rebuilds instead of asking again after every one.
 DEV_SIGNING_ID ?= Apple Development: boris.nezlobin@gmail.com (XY4F56L5NQ)
 BUNDLE_ID := com.borisnezlobin.gasp
+# The paid team signs for a year; the free personal team (3N3S6262N2) works until Xcode has
+# the paid account, but its installs stop opening after 7 days.
+IOS_TEAM ?= K2MB68Z582
 
 .PHONY: help build run dmg dmg-local icon ios-core ios-project ios-sim ios-phone
 
@@ -50,6 +53,6 @@ ios-phone: ios-project
 	@test -n "$(IPHONE)" || { echo "No unlocked iPhone found. Plug it in and unlock it."; exit 1; }
 	xcodebuild -project apps/ios/Gasp.xcodeproj -scheme Gasp -configuration Release \
 		-destination 'generic/platform=iOS' -derivedDataPath $(IOS_BUILD) \
-		-allowProvisioningUpdates -allowProvisioningDeviceRegistration build
+		-allowProvisioningUpdates -allowProvisioningDeviceRegistration DEVELOPMENT_TEAM=$(IOS_TEAM) build
 	xcrun devicectl device install app --device $(IPHONE) $(IOS_BUILD)/Build/Products/Release-iphoneos/Gasp.app
 	xcrun devicectl device process launch --device $(IPHONE) com.borisnezlobin.gasp
