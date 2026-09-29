@@ -171,6 +171,12 @@ palette! {
     math_bracket_1 = "color.math.bracket-1",
     math_bracket_2 = "color.math.bracket-2",
     math_bracket_3 = "color.math.bracket-3",
+    /// Tables drawn as grids: see [`TableTheme`].
+    table_rule = "color.table.rule",
+    table_header = "color.table.header",
+    table_header_rule = "color.table.header-rule",
+    table_selection = "color.table.selection",
+    table_active = "color.table.active",
     /// This device's version in a note's sync conflict.
     this_device = "color.this-device",
     /// The other device's version in a note's sync conflict.
@@ -365,22 +371,31 @@ pub struct Theme {
 }
 
 /// How a table drawn as a grid looks: its cells, header and rules, and
-/// the table editor's marks — the ring on the cell being edited, the drag
-/// handles and what a drag shows.
+/// the table editor's marks — the cell being edited, the drag handles and
+/// what a drag shows. Built from the `table.*`, `color.table.*` and
+/// `opacity.table-*` tokens.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TableTheme {
     /// Room between a cell's edges and its text.
     pub cell_padding_x: Pixels,
     pub cell_padding_y: Pixels,
+    /// The least a column is wide and a row is tall, padding included,
+    /// so an empty cell is still a place to click and type.
+    pub min_column_width: Pixels,
+    pub min_row_height: Pixels,
     /// The fill behind the header row.
     pub header_fill: Hsla,
-    /// The line under each row.
+    /// The rules around and between cells.
     pub rule: Hsla,
-    pub rule_thickness: Pixels,
-    /// The ring around the cell the caret is in: the focus ring's colour,
-    /// so it reads as where the keyboard is without shouting.
+    pub rule_width: Pixels,
+    /// The heavier rule under the header row.
+    pub header_rule: Hsla,
+    pub header_rule_width: Pixels,
+    /// The cell the caret is in: a tint and a ring inside its square
+    /// edges, both in the accent.
+    pub active_fill: Hsla,
     pub active_ring: Hsla,
-    pub ring_width: Pixels,
+    pub active_ring_width: Pixels,
     /// Selected cells, and a row or column picked by its handle.
     pub selection: Hsla,
     /// The handle beside a row or above a column: its side, its gap from
@@ -403,8 +418,8 @@ pub struct TableTheme {
     /// fill with a shadow, a little faded.
     pub drag_fill: Hsla,
     pub drag_shadow: Hsla,
-    /// The card's edge, which the shadow alone doesn't show on a dark
-    /// page.
+    /// The card's edge, a hairline drawn as a shadow, which the shadow
+    /// alone doesn't show on a dark page.
     pub drag_ring: Hsla,
     pub drag_shadow_blur: Pixels,
     pub drag_opacity: f32,
@@ -419,16 +434,22 @@ pub struct TableTheme {
 }
 
 impl TableTheme {
+    /// The built-in look, before the tokens' sizes are read.
     fn from_palette(p: &Palette) -> Self {
         Self {
-            cell_padding_x: px(8.),
+            cell_padding_x: px(12.),
             cell_padding_y: px(4.),
-            header_fill: p.surface,
-            rule: p.divider,
-            rule_thickness: px(1.),
-            active_ring: p.focus(),
-            ring_width: px(2.),
-            selection: p.selection,
+            min_column_width: px(128.),
+            min_row_height: px(38.4),
+            header_fill: p.table_header,
+            rule: p.table_rule,
+            rule_width: px(1.),
+            header_rule: p.table_header_rule,
+            header_rule_width: px(1.5),
+            active_fill: with_alpha(p.table_active, 0.06),
+            active_ring: with_alpha(p.table_active, 0.5),
+            active_ring_width: px(2.),
+            selection: p.table_selection,
             handle_size: px(16.),
             handle_gap: px(4.),
             handle_radius: px(4.),
@@ -443,12 +464,37 @@ impl TableTheme {
             drag_ring: p.popover_ring,
             drag_shadow_blur: px(12.),
             drag_opacity: 0.85,
-            drag_source_veil: Hsla {
-                a: 0.6,
-                ..p.background
-            },
+            drag_source_veil: with_alpha(p.background, 0.6),
             drag_threshold: px(4.),
             autoscroll_band: px(32.),
+        }
+    }
+
+    /// The look `tokens` describe, with minimums measured in lines of
+    /// `line_height`. Missing tokens keep the built-in values.
+    fn from_tokens(read: &TokenReader<'_>, p: &Palette, line_height: Pixels) -> Self {
+        let built_in = Self::from_palette(p);
+        let length = |name: &str, fallback: Pixels| px(read.number(name, f32::from(fallback)));
+        let lines = |name: &str, fallback: f32| line_height * read.number(name, fallback);
+        let tint =
+            |name: &str, fallback: f32| with_alpha(p.table_active, read.number(name, fallback));
+        Self {
+            cell_padding_x: length("table.cell-padding-x", built_in.cell_padding_x),
+            cell_padding_y: length("table.cell-padding-y", built_in.cell_padding_y),
+            min_column_width: lines("table.min-column-width", 5.),
+            min_row_height: lines("table.min-row-height", 1.5),
+            rule_width: length("table.rule-width", built_in.rule_width),
+            header_rule_width: length("table.header-rule-width", built_in.header_rule_width),
+            active_fill: tint("opacity.table-active-fill", 0.06),
+            active_ring: tint("opacity.table-active-ring", 0.5),
+            active_ring_width: length("table.active-ring-width", built_in.active_ring_width),
+            handle_size: length("table.handle-size", built_in.handle_size),
+            handle_gap: length("table.handle-gap", built_in.handle_gap),
+            handle_radius: length("table.handle-radius", built_in.handle_radius),
+            drop_indicator_width: length("table.drop-line-width", built_in.drop_indicator_width),
+            drag_shadow_blur: length("table.drag-shadow-blur", built_in.drag_shadow_blur),
+            drag_opacity: read.number("opacity.table-drag", built_in.drag_opacity),
+            ..built_in
         }
     }
 
@@ -456,8 +502,11 @@ impl TableTheme {
         Self {
             cell_padding_x: self.cell_padding_x * zoom,
             cell_padding_y: self.cell_padding_y * zoom,
-            rule_thickness: self.rule_thickness * zoom,
-            ring_width: self.ring_width * zoom,
+            min_column_width: self.min_column_width * zoom,
+            min_row_height: self.min_row_height * zoom,
+            rule_width: self.rule_width * zoom,
+            header_rule_width: self.header_rule_width * zoom,
+            active_ring_width: self.active_ring_width * zoom,
             handle_size: self.handle_size * zoom,
             handle_gap: self.handle_gap * zoom,
             handle_radius: self.handle_radius * zoom,
@@ -472,6 +521,14 @@ impl TableTheme {
 impl Default for TableTheme {
     fn default() -> Self {
         Self::from_palette(Palette::builtin())
+    }
+}
+
+/// `color` with its opacity multiplied by `alpha`.
+fn with_alpha(color: Hsla, alpha: f32) -> Hsla {
+    Hsla {
+        a: color.a * alpha,
+        ..color
     }
 }
 
@@ -535,11 +592,12 @@ impl Theme {
     pub fn from_tokens(tokens: &Tokens, base_font_points: u32) -> Self {
         let read = TokenReader { tokens };
         let base = px(base_font_points.max(1) as f32 * PIXELS_PER_POINT);
-        let colors = read_colors(&Palette::from_tokens(tokens));
+        let palette = Palette::from_tokens(tokens);
+        let colors = read_colors(&palette);
         let scale = |name: &str, default: f32| base * read.number(name, default);
         let space = |name: &str, default: f32| px(read.number(name, default));
         let heading = |level: usize, default: f32| scale(&format!("font.scale.h{level}"), default);
-        Self {
+        let mut theme = Self {
             body_font_family: read.text("font.text", "Charter").into(),
             ui_font_family: read.text("font.ui", "Charter").into(),
             code_font_family: read.text("font.code", "Courier New").into(),
@@ -608,7 +666,10 @@ impl Theme {
             checkbox_border_width: px(1.5),
             tab_columns: 4,
             ..colors
-        }
+        };
+        let line_height = theme.body_line_height();
+        theme.table = TableTheme::from_tokens(&read, &palette, line_height);
+        theme
     }
 
     /// A copy with every size multiplied by `zoom`, for view zoom.

@@ -64,6 +64,8 @@ raw-window-handle = "0.6"
 # Objective-C runtime. GPUI already builds it on macOS.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc = "0.2"
+# Reading back a frame for `--snapshot`. GPUI already builds this version.
+metal = "0.29"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 x11rb = "0.13"

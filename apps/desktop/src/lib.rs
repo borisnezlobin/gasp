@@ -43,6 +43,7 @@ pub mod print;
 pub mod prose;
 pub mod recovery;
 pub mod settings_view;
+pub mod snapshot;
 pub mod stats;
 pub mod styling;
 pub mod suggest;
