@@ -45,6 +45,7 @@ struct BrowserSheets: ViewModifier {
         switch sheet {
         case .palette: CommandPalette()
         case .settings: SettingsScreen()
+        case .toolbars: ToolbarSettingsSheet()
         case .templates: TemplatePicker()
         case .recovery(let path): RecoverySheet(path: path)
         case .share(let url): ShareSheet(items: [url])

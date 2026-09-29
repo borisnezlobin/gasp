@@ -18,9 +18,11 @@ struct BrowserView: View {
                 TabBarView()
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            undoPill
             NoticeView(message: workspace.notice, tokens: tokens)
         }
         .animation(.snappy(duration: 0.25), value: workspace.keyboardShown)
+        .animation(.snappy(duration: 0.2), value: model.tabs.activeSession?.editState.isEditing)
         .overlay { SidebarOverlay() }
         .overlay { if workspace.overviewOpen { TabOverview().transition(.opacity) } }
         .animation(.snappy(duration: 0.25), value: workspace.overviewOpen)
@@ -41,6 +43,18 @@ struct BrowserView: View {
         .onChange(of: model.library.configGeneration) { model.runner.refreshSessions() }
         .onOpenURL(perform: open)
         .task { await openLaunchLink() }
+    }
+
+    /// Undo and redo, over the note's right edge just above the keyboard,
+    /// while the note is typed in.
+    @ViewBuilder private var undoPill: some View {
+        if let session = model.tabs.activeSession, session.editState.isEditing {
+            UndoPill(state: session.editState, tokens: tokens) { model.runner.run($0) }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, tokens.spacing.lg)
+                .padding(.bottom, tokens.spacing.sm)
+                .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottomTrailing)))
+        }
     }
 
     /// A new identity whenever the tab or its note changes, so the page is
@@ -81,17 +95,19 @@ struct BrowserView: View {
     }
 
     /// `-open gasp://open?path=…` on the command line opens a note at
-    /// launch, and `-run <command>` runs a command (or `overview` shows
-    /// the tabs, `sync-details` the sync sheet), as `xcrun simctl launch`
-    /// passes them. `-syncRepository`, `-syncBranch` and `-syncToken` fill
+    /// launch, `-editing YES` puts the cursor in it with the keyboard up,
+    /// and `-run <command>` runs a command (or `overview` shows the tabs,
+    /// `sync-details` the sync sheet), as `xcrun simctl launch` passes
+    /// them. `-syncRepository`, `-syncBranch` and `-syncToken` fill
     /// in the sync setup, and `-syncStart YES` clones straight away.
     private func openLaunchLink() async {
         let arguments = UserDefaults.standard
         if let link = arguments.string(forKey: "open"), let url = URL(string: link) { open(url) }
         openSyncSetupFromArguments(arguments)
-        guard let command = arguments.string(forKey: "run") else { return }
         // The note's text view joins the window a moment after launch.
         try? await Task.sleep(for: .milliseconds(600))
+        if arguments.bool(forKey: "editing") { model.tabs.activeSession?.textView.becomeFirstResponder() }
+        guard let command = arguments.string(forKey: "run") else { return }
         switch command {
         case "overview": workspace.overviewOpen = true
         case "sync-details": workspace.sheet = .syncDetails

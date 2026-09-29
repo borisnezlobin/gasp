@@ -72,7 +72,8 @@ private struct SectionPicker: View {
     }
 }
 
-/// New note, today's note and settings, at the sidebar's foot.
+/// New note, today's note, sync's state (for the synced vault) and
+/// settings, at the sidebar's foot.
 private struct SidebarActions: View {
     @Environment(AppModel.self) private var model
     let tokens: Tokens
@@ -82,6 +83,7 @@ private struct SidebarActions: View {
             ActionChip(title: "New note", symbol: "square.and.pencil", tokens: tokens) { run("note.new") }
             ActionChip(title: "Today", symbol: "calendar", tokens: tokens) { run("daily.open") }
             Spacer()
+            SyncIndicator()
             BarButton(symbol: "gearshape", label: "Settings", tokens: tokens) { run("settings.open") }
         }
         .padding(.bottom, tokens.spacing.sm)
