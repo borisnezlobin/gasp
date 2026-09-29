@@ -376,7 +376,8 @@ fn search_finds_theme_rows_and_shortcuts(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("secondary-a");
     cx.simulate_input("command palette");
     let (sections, rows) = view.read_with(cx, |view, _| (view.visible_sections(), view.rows()));
-    assert_eq!(sections, [Page::Shortcuts]);
+    // The keyboard bar holds the palette button, so its toolbar matches too.
+    assert_eq!(sections, [Page::Shortcuts, Page::Toolbars]);
     assert!(
         rows.iter()
             .any(|row| matches!(row, ControlRow::Shortcut(s) if s.id == "palette.open"))

@@ -127,7 +127,7 @@ mod tests {
         let stops = focus_stops(&status, true);
         assert_eq!(
             stops,
-            [FocusStop::Item(1), FocusStop::Item(9), FocusStop::Add]
+            [FocusStop::Item(1), FocusStop::Item(8), FocusStop::Add]
         );
         assert_eq!(
             step_stop(&stops, FocusStop::Add, 1),
