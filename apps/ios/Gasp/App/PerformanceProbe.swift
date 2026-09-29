@@ -151,9 +151,9 @@ final class PerformanceProbe {
     /// Whether the text styled a line at a time as it changed looks the
     /// same as the text styled afresh from a whole plan.
     private static func checkStyling(_ session: EditingController) {
-        let kept = fingerprint(session.textView.textStorage)
+        let kept = fingerprint(session.textView.textStorage) + gridFingerprint(session)
         session.use(session.tokens)
-        let fresh = fingerprint(session.textView.textStorage)
+        let fresh = fingerprint(session.textView.textStorage) + gridFingerprint(session)
         let differing = zip(kept, fresh).filter { $0 != $1 }.count + abs(kept.count - fresh.count)
         report("styling-matches-fresh", differing == 0 ? "yes" : "no, \(differing) runs differ")
         guard let first = zip(kept, fresh).first(where: { $0 != $1 }) else { return }
@@ -168,6 +168,17 @@ final class PerformanceProbe {
         var (red, green, blue, alpha) = (CGFloat(0), CGFloat(0), CGFloat(0), CGFloat(0))
         color.resolvedColor(with: .current).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
         return String(format: "%.3f %.3f %.3f %.3f", red, green, blue, alpha)
+    }
+
+    /// Each wide table's grid: where it starts and where its rows and
+    /// cells are.
+    private static func gridFingerprint(_ session: EditingController) -> [String] {
+        session.styler.gridTables.sorted { $0.key < $1.key }.map { start, model in
+            let rows = model.rows.map { row in
+                "\(row.line) \(row.cells.map { "\($0.range)" }.joined(separator: ","))"
+            }
+            return "grid \(start): \(rows.joined(separator: " | "))"
+        }
     }
 
     /// Each run of attributes, as text: where it is and what it holds.
