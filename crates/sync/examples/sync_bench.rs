@@ -7,7 +7,9 @@
 //! `cargo run --release -p gasp-sync --example sync_bench [-- --quick]`
 //!
 //! `--quick` (or `GASP_SYNC_BENCH_QUICK=1`) keeps every file but makes the
-//! binaries a tenth of their size, for a fast look while working.
+//! binaries a tenth of their size, for a fast look while working. The
+//! budgets are about three times what an M-series Mac measures at full
+//! size, for slower CI machines.
 
 use std::fs;
 use std::path::Path;
@@ -109,7 +111,11 @@ fn set_up(root: &Path, shape: Shape, report: &mut Report) -> Devices {
     report.note_count("files in the vault", files as f64);
     report.note_bytes("bytes in the vault", bytes as f64);
     report.note_time("first commit of the whole vault", first_commit.median());
-    report.note_time("first push of the whole vault", first_push.median());
+    report.time(
+        "first push of the whole vault",
+        first_push.median(),
+        Duration::from_secs(60),
+    );
     report.note_time("clone onto the phone", clone.median());
     report.note_count(
         "commits since the legacy branch last moved",
@@ -366,16 +372,16 @@ fn measure_quiet_vault(devices: &Devices, shape: Shape, report: &mut Report) {
     let push = Samples::collect(shape.runs, || mac.push().expect("push"));
     let cycle = Samples::collect(shape.runs, || app_sync(mac, mac_author));
     let allocations = cycle_allocations(mac, mac_author);
-    report.time("open the vault", open.median(), ms(30));
-    report.time("status, nothing changed", status.median(), ms(30));
-    report.time("commit, nothing changed", commit.median(), ms(30));
-    report.time("fetch, nothing new", fetch.median(), ms(30));
-    report.time("merge, up to date", merge.median(), ms(10));
-    report.time("push, nothing new", push.median(), ms(30));
-    report.time("sync with nothing to do", cycle.median(), ms(100));
+    report.time("open the vault", open.median(), ms(1));
+    report.time("status, nothing changed", status.median(), ms(8));
+    report.time("commit, nothing changed", commit.median(), ms(8));
+    report.time("fetch, nothing new", fetch.median(), ms(3));
+    report.time("merge, up to date", merge.median(), ms(1));
+    report.time("push, nothing new", push.median(), ms(8));
+    report.time("sync with nothing to do", cycle.median(), ms(10));
     report.note_time("sync with nothing to do, p95", cycle.p95());
     let (per_cycle, bytes_per_cycle) = allocations.per_operation(ALLOCATION_RUNS);
-    report.count("allocations per sync with nothing to do", per_cycle, 5000.);
+    report.count("allocations per sync with nothing to do", per_cycle, 200.);
     report.note_bytes(
         "bytes allocated per sync with nothing to do",
         bytes_per_cycle,
@@ -416,10 +422,10 @@ fn measure_local_edits(devices: &Devices, shape: Shape, report: &mut Report) {
         );
         cycle.time(|| app_sync(mac, mac_author));
     }
-    report.time("status, one note edited", status.median(), ms(30));
-    report.time("commit one edited note", commit.median(), ms(40));
-    report.time("push one commit", push.median(), ms(40));
-    report.time("sync one edited note", cycle.median(), ms(120));
+    report.time("status, one note edited", status.median(), ms(8));
+    report.time("commit one edited note", commit.median(), ms(16));
+    report.time("push one commit", push.median(), ms(20));
+    report.time("sync one edited note", cycle.median(), ms(45));
 }
 
 /// The phone pushed a note: the Mac fetches it and fast-forwards.
@@ -441,8 +447,8 @@ fn measure_remote_edits(devices: &Devices, shape: Shape, report: &mut Report) {
         let outcome = merge.time(|| mac.merge(mac_author).expect("merge"));
         assert_eq!(outcome, MergeOutcome::FastForward);
     }
-    report.time("fetch one new commit", fetch.median(), ms(40));
-    report.time("merge, fast-forward of one note", merge.median(), ms(40));
+    report.time("fetch one new commit", fetch.median(), ms(18));
+    report.time("merge, fast-forward of one note", merge.median(), ms(12));
 }
 
 /// Both devices edited different notes: a real merge commit.
@@ -471,8 +477,8 @@ fn measure_diverged_merges(devices: &Devices, shape: Shape, report: &mut Report)
         push.time(|| mac.push().expect("push"));
         catch_up(phone, phone_author);
     }
-    report.time("merge, both devices edited", merge.median(), ms(60));
-    report.time("push a merge commit", push.median(), ms(40));
+    report.time("merge, both devices edited", merge.median(), ms(25));
+    report.time("push a merge commit", push.median(), ms(25));
 }
 
 /// A 2 MB photo pasted into a note on the Mac, then brought to the phone.
@@ -498,12 +504,12 @@ fn measure_pasted_photos(devices: &Devices, shape: Shape, report: &mut Report) {
         phone.fetch().expect("fetch");
         merge.time(|| phone.merge(phone_author).expect("merge"));
     }
-    report.time("commit a pasted 2 MB photo", commit.median(), ms(120));
-    report.time("push a pasted 2 MB photo", push.median(), ms(150));
+    report.time("commit a pasted 2 MB photo", commit.median(), ms(150));
+    report.time("push a pasted 2 MB photo", push.median(), ms(250));
     report.time(
         "fast-forward bringing in a 2 MB photo",
         merge.median(),
-        ms(80),
+        ms(25),
     );
 }
 
