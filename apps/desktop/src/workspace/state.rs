@@ -1,27 +1,38 @@
 //! State that belongs to this device and never syncs.
 //!
 //! - The last vault opened lives in `state.toml` in the platform's config
-//!   folder (such as `~/.config/editor` on Linux), because it's about the
+//!   folder (such as `~/.config/gasp` on Linux), because it's about the
 //!   machine rather than any vault.
 //! - Each vault's window size and position and its open tabs live in the
-//!   vault's `.editor/device.toml`, which the config crate defines and
+//!   vault's `.gasp/device.toml`, which the config crate defines and
 //!   never syncs.
 
+use std::collections::BTreeSet;
 use std::io;
 use std::path::{Path, PathBuf};
 
 use editor_config::device::{DeviceSettings, WindowState};
+use editor_config::migration::migrate_app_folder_and_log;
+use editor_config::{APP_FOLDER, CONFIG_DIR};
 use gpui::{Bounds, Pixels, WindowBounds, point, px, size};
 use serde::{Deserialize, Serialize};
 
 use super::files::atomic_write;
 
-/// The app's folder inside the platform config folder.
-const APP_DIR: &str = "editor";
 const STATE_FILE: &str = "state.toml";
-/// The vault's config folder and its device-local file.
-const CONFIG_DIR: &str = ".editor";
 const DEVICE_FILE: &str = "device.toml";
+
+/// Moves the app's folders from the names an earlier version used, in
+/// the platform's config and data folders (one and the same on macOS).
+pub fn migrate_app_folders() {
+    let bases: BTreeSet<PathBuf> = [dirs::config_dir(), dirs::data_local_dir()]
+        .into_iter()
+        .flatten()
+        .collect();
+    for base in bases {
+        migrate_app_folder_and_log(&base);
+    }
+}
 
 /// Device-wide state.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -38,7 +49,7 @@ pub const MAX_RECENT_VAULTS: usize = 10;
 impl AppState {
     /// Where the state file lives on this platform.
     pub fn default_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|dir| dir.join(APP_DIR).join(STATE_FILE))
+        dirs::config_dir().map(|dir| dir.join(APP_FOLDER).join(STATE_FILE))
     }
 
     /// Reads the state, or the default when there's none or it's unreadable.
@@ -99,12 +110,12 @@ impl AppState {
     }
 }
 
-/// `<vault>/.editor/device.toml`.
+/// `<vault>/.gasp/device.toml`.
 pub fn device_path(vault: &Path) -> PathBuf {
     vault.join(CONFIG_DIR).join(DEVICE_FILE)
 }
 
-/// Writes the vault's device file, creating `.editor/` if needed.
+/// Writes the vault's device file, creating `.gasp/` if needed.
 pub fn save_device(vault: &Path, device: &DeviceSettings) -> io::Result<()> {
     let path = device_path(vault);
     if let Some(dir) = path.parent() {

@@ -3,6 +3,9 @@
 
 use std::path::{Path, PathBuf};
 
+use editor_config::CONFIG_DIR;
+use editor_config::names::LEGACY_CONFIG_DIR;
+
 pub use editor_vault::files::atomic_write;
 
 /// The extension every note has.
@@ -11,8 +14,9 @@ pub const NOTE_EXTENSION: &str = "md";
 /// The name new notes start from.
 pub const UNTITLED: &str = "Untitled";
 
-/// Folders that mark a vault root.
-const VAULT_MARKERS: [&str; 2] = [".obsidian", ".editor"];
+/// Folders that mark a vault root, the legacy config folder included
+/// until the vault is opened and it moves.
+const VAULT_MARKERS: [&str; 3] = [".obsidian", CONFIG_DIR, LEGACY_CONFIG_DIR];
 
 /// Characters a note title can't contain, because file systems or links
 /// reserve them.
@@ -61,7 +65,7 @@ pub fn is_note(path: &Path) -> bool {
 }
 
 /// Whether `path` is inside a hidden folder or is itself hidden, such as
-/// `.editor/device.toml` or a save's temporary file.
+/// `.gasp/device.toml` or a save's temporary file.
 pub fn is_hidden(path: &Path, vault: &Path) -> bool {
     let relative = path.strip_prefix(vault).unwrap_or(path);
     relative
@@ -127,7 +131,7 @@ pub fn renamed_path(path: &Path, title: &str) -> PathBuf {
 }
 
 /// The vault a note belongs to: the nearest folder above it that has
-/// `.obsidian` or `.editor`, or else the note's own folder.
+/// `.obsidian` or `.gasp`, or else the note's own folder.
 pub fn vault_for_note(note: &Path) -> PathBuf {
     let parent = note.parent().unwrap_or(Path::new("."));
     parent
@@ -243,7 +247,10 @@ mod tests {
     #[test]
     fn hidden_paths_are_recognised() {
         let vault = Path::new("/v");
-        assert!(is_hidden(Path::new("/v/.editor/device.toml"), vault));
+        assert!(is_hidden(
+            &vault.join(CONFIG_DIR).join("device.toml"),
+            vault
+        ));
         assert!(is_hidden(Path::new("/v/notes/.a.md.1.tmp"), vault));
         assert!(!is_hidden(Path::new("/v/notes/a.md"), vault));
     }

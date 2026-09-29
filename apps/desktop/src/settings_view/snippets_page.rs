@@ -1,6 +1,6 @@
 //! The Snippets and replacements page: every snippet in the vault's
-//! `.editor/snippets.txt` (or the built-in list) and every replacement in
-//! `.editor/replacements.toml`, grouped as their files group them, each
+//! `.gasp/snippets.txt` (or the built-in list) and every replacement in
+//! `.gasp/replacements.toml`, grouped as their files group them, each
 //! with a switch. A snippet opens in place into an editor with a test box
 //! that shows what typing gives as you type. Changes are written straight
 //! away and reported as `snippets` or `replacements`.
@@ -22,6 +22,8 @@ use super::view::{ControlRow, PaneLayout, SettingsEvent, SettingsView};
 
 pub use editor_config::config_files::{REPLACEMENTS_FILE, SNIPPETS_FILE};
 use editor_config::config_files::{replacements_path, snippets_path};
+
+const SNIPPETS_IN_VAULT: &str = concat!(editor_config::config_dir!(), "/snippets.txt");
 
 /// The key a snippet change is reported and its errors kept under.
 pub const SNIPPETS_KEY: &str = "snippets";
@@ -319,9 +321,9 @@ impl SettingsView {
             return format!("The file can’t be read, so nothing here changes it: {problem}");
         }
         if self.typing_lists.snippets_from_vault {
-            "Saved in .editor/snippets.txt, so they sync with your notes.".to_string()
+            format!("Saved in {SNIPPETS_IN_VAULT}, so they sync with your notes.")
         } else {
-            "Built in. Your first change saves a copy to .editor/snippets.txt.".to_string()
+            format!("Built in. Your first change saves a copy to {SNIPPETS_IN_VAULT}.")
         }
     }
 

@@ -1,5 +1,5 @@
-//! Changing values: settings go to `.editor/settings.toml` and theme
-//! tokens to `.editor/theme.toml`, each reported as it's written.
+//! Changing values: settings go to `.gasp/settings.toml` and theme
+//! tokens to `.gasp/theme.toml`, each reported as it's written.
 
 use editor_config::schema::SettingKind;
 use editor_config::theme::{Theme as Tokens, TokenValue};

@@ -1,4 +1,4 @@
-//! The app's end of the bridge `editor mcp` talks to: what the window
+//! The app's end of the bridge `gasp mcp` talks to: what the window
 //! shows, running commands, opening notes, and changing notes that have
 //! unsaved edits so the change is one undoable edit.
 //!
@@ -53,7 +53,7 @@ pub(crate) struct McpBridge {
 }
 
 impl Workspace {
-    /// Starts answering `editor mcp` once the first frame is on screen,
+    /// Starts answering `gasp mcp` once the first frame is on screen,
     /// if the `mcp.enabled` setting is on.
     pub fn start_mcp_bridge(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.mcp.window = Some(window.window_handle());
@@ -111,7 +111,7 @@ impl Workspace {
             Ok(listener) => listener,
             Err(error) => {
                 // Such as a second window on the same vault: the first answers.
-                eprintln!("editor mcp bridge not started: {error}");
+                eprintln!("gasp mcp bridge not started: {error}");
                 return None;
             }
         };
@@ -135,7 +135,7 @@ impl Workspace {
         })
     }
 
-    /// Answers one request from `editor mcp`.
+    /// Answers one request from `gasp mcp`.
     pub fn answer_mcp(
         &mut self,
         request: Request,

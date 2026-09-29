@@ -26,7 +26,9 @@ pub fn default_store() -> Arc<dyn CredentialStore> {
     {
         let folder = dirs::config_dir().unwrap_or_else(std::env::temp_dir);
         Arc::new(FileStore::new(
-            folder.join("editor").join("credentials.toml"),
+            folder
+                .join(editor_config::APP_FOLDER)
+                .join("credentials.toml"),
         ))
     }
 }
@@ -141,7 +143,7 @@ mod tests {
     #[test]
     fn the_file_store_round_trips_and_only_its_owner_can_read_it() {
         let dir = tempfile::tempdir().unwrap();
-        let store = FileStore::new(dir.path().join("editor/credentials.toml"));
+        let store = FileStore::new(dir.path().join("app/credentials.toml"));
         let url = "https://example.invalid/notes.git";
         assert_eq!(store.load(url).unwrap(), None);
         store.save(url, &Token::new("synthetic-token")).unwrap();

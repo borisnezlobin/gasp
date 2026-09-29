@@ -2,6 +2,7 @@
 //! with the owner's Latex Suite and Smart Typography settings as the
 //! migrator converts them from `reference/obsidian`.
 
+use editor_config::CONFIG_DIR;
 use std::path::{Path, PathBuf};
 
 use std::cell::RefCell;
@@ -19,14 +20,14 @@ use editor_desktop::settings_view::{ControlRow, SettingsEvent, SettingsView};
 use editor_desktop::text_input;
 use gpui::{Entity, Focusable, TestAppContext, VisualTestContext};
 
-/// A vault whose `.editor` folder is what the migrator makes of the
+/// A vault whose `.gasp` folder is what the migrator makes of the
 /// owner's `.obsidian` settings.
 fn migrated_vault() -> tempfile::TempDir {
     let reference = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/obsidian");
     let vault = tempfile::tempdir().expect("a temp vault");
     let migration = editor_migrate::migrate_obsidian(&reference).expect("the reference migrates");
     migration
-        .write_to(&vault.path().join(".editor"))
+        .write_to(&vault.path().join(CONFIG_DIR))
         .expect("the migrated files write");
     vault
 }
@@ -386,7 +387,7 @@ fn type_into(
 }
 
 fn snippets_file(vault: &tempfile::TempDir) -> String {
-    fs::read_to_string(vault.path().join(".editor/snippets.txt")).unwrap_or_default()
+    fs::read_to_string(vault.path().join(CONFIG_DIR).join("snippets.txt")).unwrap_or_default()
 }
 
 #[gpui::test]
@@ -653,7 +654,7 @@ fn a_replacement_switches_off_in_its_file(cx: &mut TestAppContext) {
         |row| matches!(row, ControlRow::Replacement(row) if row.from == "--"),
     );
     cx.simulate_keystrokes("space");
-    let text = fs::read_to_string(vault.path().join(".editor/replacements.toml")).unwrap();
+    let text = fs::read_to_string(vault.path().join(CONFIG_DIR).join("replacements.toml")).unwrap();
     let table = editor_snippets::Replacements::from_toml(&text).unwrap();
     let dash = table
         .entries

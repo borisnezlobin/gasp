@@ -357,7 +357,7 @@ fn run_after_modal_closes(id: String, window: &mut Window, cx: &mut gpui::Contex
 
 /// Saves a new key rule in the vault's rules.toml and binds it now.
 fn bind_user_key(vault: &Path, command: &str, chord: &str, cx: &mut App) -> std::io::Result<()> {
-    let rules_file = vault.join(".editor").join("rules.toml");
+    let rules_file = editor_config::config_files::rules_path(vault);
     let mut text = std::fs::read_to_string(&rules_file).unwrap_or_default();
     if !text.is_empty() && !text.ends_with('\n') {
         text.push('\n');

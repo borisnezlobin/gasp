@@ -15,6 +15,8 @@ use gpui::{
 };
 use tempfile::TempDir;
 
+const VAULT_SETTINGS: &str = concat!(editor_config::config_dir!(), "/settings.toml");
+
 fn vault_with(notes: &[(&str, &str)]) -> TempDir {
     let vault = tempfile::tempdir().unwrap();
     for (name, text) in notes {
@@ -442,7 +444,7 @@ fn escape_reverts_the_title_and_tab_leaves_it_renamed(cx: &mut TestAppContext) {
 fn deleting_asks_then_moves_the_note_away(cx: &mut TestAppContext) {
     let vault = vault_with(&[
         ("a.md", ""),
-        (".editor/settings.toml", "[files]\ntrash = \"vault\"\n"),
+        (VAULT_SETTINGS, "[files]\ntrash = \"vault\"\n"),
     ]);
     let (workspace, cx) = open_workspace(cx, vault.path());
     open(&workspace, cx, "a.md", OpenIn::ActiveTab);
@@ -579,7 +581,7 @@ fn the_left_panel_toggles_and_takes_focus(cx: &mut TestAppContext) {
     let vault = vault_with(&[
         ("a.md", ""),
         (
-            ".editor/settings.toml",
+            VAULT_SETTINGS,
             "[sidebar.files]\nreveal = \"toggle\"\nmode = \"push\"\n",
         ),
     ]);

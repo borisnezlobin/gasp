@@ -1,5 +1,5 @@
 //! Edit-time tracking in a real workspace: typing counts, the time lands
-//! in this device's file under `.editor/stats/`, other devices' files add
+//! in this device's file under `.gasp/stats/`, other devices' files add
 //! to it, Chronotyper's frontmatter is the starting value, and the status
 //! bar says it.
 
