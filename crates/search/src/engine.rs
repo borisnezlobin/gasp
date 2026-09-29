@@ -15,6 +15,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::SystemTime;
 
 use gasp_config::CONFIG_DIR;
+use memchr::memmem::Finder;
 use rayon::prelude::*;
 
 use crate::fold::OffsetMap;
@@ -69,11 +70,15 @@ impl Note {
         }
     }
 
-    /// Every match of the folded `query` in the note, in order, as ranges
-    /// in its text.
-    pub(crate) fn matches<'a>(&'a self, query: &'a str) -> impl Iterator<Item = Range<usize>> + 'a {
-        self.folded.match_indices(query).map(move |(start, found)| {
-            let folded = start..start + found.len();
+    /// Every match of the folded query `finder` looks for (which isn't
+    /// empty) in the note, in order and apart, as ranges in its text.
+    pub(crate) fn matches<'a>(
+        &'a self,
+        finder: &'a Finder<'a>,
+    ) -> impl Iterator<Item = Range<usize>> + 'a {
+        let length = finder.needle().len();
+        finder.find_iter(self.folded.as_bytes()).map(move |start| {
+            let folded = start..start + length;
             match &self.offsets {
                 Some(offsets) => offsets.original(folded),
                 None => folded,
@@ -328,6 +333,7 @@ pub fn search(
     if query.is_empty() {
         return Vec::new();
     }
+    let finder = Finder::new(&query);
     let searched: Result<Vec<Option<NoteResult>>, Stale> = notes
         .par_iter()
         .with_min_len(NOTES_PER_TASK)
@@ -335,7 +341,7 @@ pub fn search(
             if generation.load(Ordering::Relaxed) != current {
                 return Err(Stale);
             }
-            Ok(search_note(note, &query))
+            Ok(search_note(note, &query, &finder))
         })
         .collect();
     let Ok(searched) = searched else {
@@ -351,8 +357,8 @@ pub fn search(
     results
 }
 
-fn search_note(note: &Note, query: &str) -> Option<NoteResult> {
-    let mut matches = note.matches(query).peekable();
+fn search_note(note: &Note, query: &str, finder: &Finder) -> Option<NoteResult> {
+    let mut matches = note.matches(finder).peekable();
     let in_body = matches.peek().is_some();
     let score = score(&note.fields, in_body, query);
     if score == 0 {
@@ -483,7 +489,8 @@ mod tests {
         for text in ["Plain CAT — cat, Cat", "Café CAFE café", "İstanbul cat"] {
             let note = Note::new(PathBuf::from("n.md"), text.to_owned());
             for query in ["cat", "cafe", "istanbul"] {
-                let found: Vec<_> = note.matches(query).collect();
+                let finder = Finder::new(query);
+                let found: Vec<_> = note.matches(&finder).collect();
                 assert_eq!(found, fold(text).find_all(query), "{text}");
             }
         }

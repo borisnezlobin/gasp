@@ -31,7 +31,7 @@ static ALLOCATOR: CountingAllocator = CountingAllocator;
 /// The larger vault is this many copies of the corpus.
 const COPIES: usize = 5;
 /// How many times each query is typed; every keystroke is one sample.
-const TYPING_ROUNDS: usize = 5;
+const TYPING_ROUNDS: usize = 9;
 /// Runs of each whole-vault operation.
 const BUILD_RUNS: usize = 10;
 /// The note the incremental update edits.

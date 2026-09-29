@@ -9,6 +9,8 @@ use std::ops::Range;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use memchr::memmem::Finder;
+
 use super::engine::{Note, NoteResult, TAG_WEIGHT, fold, line_hits};
 
 /// The tag a query asks for, without its `#`: the query is `tag:name`,
@@ -68,11 +70,12 @@ fn tag_matches(note: &Note, name: &str) -> Vec<Range<usize>> {
     let text = &*note.text;
     let front = frontmatter_end(text);
     let written = format!("#{name}");
+    let (written, name) = (Finder::new(&written), Finder::new(name));
     let in_body = note.matches(&written).filter(|range| {
         range.start >= front && ends_tag(text, range.end) && starts_word(text, range.start)
     });
     let in_front = note
-        .matches(name)
+        .matches(&name)
         .filter(|range| range.end <= front && ends_tag(text, range.end));
     let mut matches: Vec<Range<usize>> = in_front.chain(in_body).collect();
     matches.sort_by_key(|range| range.start);
