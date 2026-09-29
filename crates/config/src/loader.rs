@@ -1,4 +1,4 @@
-//! Loading the `.editor/` folder: built-in defaults with the user's files layered on top.
+//! Loading the `.gasp/` folder: built-in defaults with the user's files layered on top.
 //!
 //! Each file is loaded on its own. When one has an error, its diagnostics are reported
 //! and that part of the config keeps its last good version.
@@ -20,8 +20,7 @@ use crate::settings::Settings;
 use crate::theme::{Theme, TokenSet};
 use crate::typing::{TypingTables, build_replacements, build_snippets};
 
-/// The config folder's name inside a vault.
-pub const CONFIG_DIR: &str = ".editor";
+pub use crate::names::CONFIG_DIR;
 
 pub const DEFAULT_SETTINGS: &str = include_str!("../defaults/settings.toml");
 pub const DEFAULT_THEME: &str = include_str!("../defaults/theme.toml");
@@ -232,8 +231,10 @@ impl ConfigLoader {
         }
     }
 
-    /// A loader for `<vault>/.editor`.
+    /// A loader for `<vault>/.gasp`, where a legacy `.gasp` folder is
+    /// moved first.
     pub fn for_vault(vault: &Path) -> ConfigLoader {
+        crate::migration::migrate_config_dir_and_log(vault);
         ConfigLoader::new(vault.join(CONFIG_DIR))
     }
 
@@ -311,7 +312,7 @@ mod tests {
     #[test]
     fn file_names_round_trip() {
         for file in ConfigFile::ALL {
-            let path = Path::new("vault/.editor").join(file.file_name());
+            let path = Path::new("vault").join(CONFIG_DIR).join(file.file_name());
             assert_eq!(ConfigFile::from_path(&path), Some(file));
         }
         assert_eq!(ConfigFile::from_path(Path::new("notes.md")), None);

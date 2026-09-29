@@ -1,8 +1,9 @@
 //! Drives the settings screen through GPUI's test platform on a temporary
 //! vault: layout, keyboard navigation, toggles, dropdowns, numbers, text,
 //! search, resets, theme fonts and colours, and keyboard shortcuts, and
-//! what ends up in `.editor/settings.toml`, `theme.toml` and `rules.toml`.
+//! what ends up in `.gasp/settings.toml`, `theme.toml` and `rules.toml`.
 
+use editor_config::CONFIG_DIR;
 use std::cell::RefCell;
 use std::fs;
 use std::path::Path;
@@ -39,12 +40,12 @@ fn vault(settings: Option<&str>) -> TempDir {
 }
 
 fn write_config(root: &Path, file: &str, text: &str) {
-    fs::create_dir_all(root.join(".editor")).unwrap();
-    fs::write(root.join(".editor").join(file), text).unwrap();
+    fs::create_dir_all(root.join(CONFIG_DIR)).unwrap();
+    fs::write(root.join(CONFIG_DIR).join(file), text).unwrap();
 }
 
 fn read_config(root: &Path, file: &str) -> String {
-    fs::read_to_string(root.join(".editor").join(file)).unwrap_or_default()
+    fs::read_to_string(root.join(CONFIG_DIR).join(file)).unwrap_or_default()
 }
 
 fn read_settings(root: &Path) -> String {

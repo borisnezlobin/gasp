@@ -375,11 +375,11 @@ impl Default for RecoverySettings {
     }
 }
 
-/// Agents' access to the running app through `editor mcp`.
+/// Agents' access to the running app through `gasp mcp`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
 pub struct McpSettings {
-    /// Whether the app answers `editor mcp` about its tabs, cursor and
+    /// Whether the app answers `gasp mcp` about its tabs, cursor and
     /// commands. The server's file tools work either way.
     pub enabled: bool,
 }
@@ -431,9 +431,11 @@ impl ThemeChoice {
 }
 
 /// Files that stay on the device where they're written, as globs relative
-/// to the vault root.
+/// to the vault root. The legacy config folder's device file stays in the
+/// list for one release, while other devices may still sync the old name.
 pub const DEFAULT_DEVICE_ONLY: &[&str] = &[
-    ".editor/device.toml",
+    concat!(crate::config_dir!(), "/device.toml"),
+    concat!(crate::names::legacy_config_dir!(), "/device.toml"),
     ".obsidian/workspace*.json",
     "**/.DS_Store",
     ".trash/**",

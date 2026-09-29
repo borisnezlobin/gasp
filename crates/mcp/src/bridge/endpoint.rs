@@ -11,8 +11,6 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// The app's folder inside the runtime or data folder.
-const APP_DIR: &str = "editor";
 const BRIDGE_DIR: &str = "mcp";
 
 /// What the app writes beside its socket.
@@ -36,7 +34,7 @@ impl Endpoint {
     pub fn for_vault(vault: &Path) -> Option<Endpoint> {
         let base = dirs::runtime_dir().or_else(dirs::data_local_dir)?;
         Some(Endpoint::in_dir(
-            &base.join(APP_DIR).join(BRIDGE_DIR),
+            &base.join(editor_config::APP_FOLDER).join(BRIDGE_DIR),
             vault,
         ))
     }

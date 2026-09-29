@@ -20,9 +20,12 @@ pub fn tools() -> Vec<ToolSpec> {
     vec![
         ToolSpec::reads(
             "list_notes",
-            "List the vault's notes (Markdown files), sorted by path, with size and \
-             modification time (Unix seconds). Hidden folders such as .git, .editor and \
-             .trash are never listed.",
+            concat!(
+                "List the vault's notes (Markdown files), sorted by path, with size and \
+                 modification time (Unix seconds). Hidden folders such as .git, ",
+                editor_config::config_dir!(),
+                " and .trash are never listed."
+            ),
             list_notes,
         ),
         ToolSpec::reads(
@@ -370,17 +373,21 @@ fn delete_note(context: &Context, args: PathArgs) -> ToolResult {
 
 #[cfg(test)]
 mod tests {
+    use editor_config::CONFIG_DIR;
+    use editor_config::store::{SETTINGS_FILE, settings_path};
+
     use super::*;
     use crate::tools::testing::{call, call_err, text, vault};
 
     #[test]
     fn list_and_filter_notes() {
+        let settings_file = format!("{CONFIG_DIR}/{SETTINGS_FILE}");
         let (_dir, context) = vault(&[
             ("A.md", "a"),
             ("Projects/Plan.md", "p"),
             ("Projects/Deep/Plan 2.md", "p"),
             ("Projects/image.png", "x"),
-            (".editor/settings.toml", ""),
+            (settings_file.as_str(), ""),
         ]);
         let listing = call(&context, "list_notes", json!({}));
         let paths: Vec<&str> = listing["files"]
@@ -523,7 +530,7 @@ mod tests {
         assert_eq!(index, "See [[Big plan]] and [p](Projects/Big%20plan.md).\n");
         let error = call_err(&context, "move_note", json!({"from": "Plan", "to": "X"}));
         assert!(error.contains("doesn't exist"));
-        let settings = dir.path().join(".editor/settings.toml");
+        let settings = settings_path(dir.path());
         std::fs::create_dir_all(settings.parent().unwrap()).unwrap();
         std::fs::write(settings, "[files]\nupdate-links-on-rename = false\n").unwrap();
         let moved = call(
@@ -543,7 +550,7 @@ mod tests {
     #[test]
     fn deleting_never_deletes_for_good() {
         let (dir, context) = vault(&[("Old.md", "old"), ("Keep.md", "keep")]);
-        let settings = dir.path().join(".editor/settings.toml");
+        let settings = settings_path(dir.path());
         std::fs::create_dir_all(settings.parent().unwrap()).unwrap();
         std::fs::write(&settings, "[files]\ntrash = \"delete\"\n").unwrap();
         let deleted = call(&context, "delete_note", json!({"path": "Old"}));

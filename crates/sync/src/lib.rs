@@ -27,7 +27,10 @@ pub use conflict::{ConflictHunk, ConflictedFile, MarkedHunk, MarkedText, Resolut
     any(target_os = "macos", target_os = "ios", target_os = "windows")
 ))]
 pub use credentials::KeychainStore;
-pub use credentials::{CredentialStore, InMemoryCredentialStore, KEYCHAIN_SERVICE, Token};
+pub use credentials::{
+    CredentialStore, InMemoryCredentialStore, KEYCHAIN_SERVICE, LEGACY_KEYCHAIN_SERVICE,
+    MigratingStore, Token,
+};
 pub use device_files::{DEFAULT_DEVICE_ONLY_GLOBS, DeviceOnlyFiles};
 pub use error::{SyncError, SyncResult};
 pub use line_merge::{LineMerge, merge_lines};
@@ -38,4 +41,7 @@ pub use scheduler::{
     FailureKind, MergeReport, Scheduler, SchedulerConfig, StepFailure, StepReport, SyncEvent,
     SyncEventKind, SyncStatus, SyncStep,
 };
-pub use vault::{Author, MergeOutcome, RepoProbe, Vault, VaultConfig, probe, set_remote_url};
+pub use vault::{
+    Author, FALLBACK_AUTHOR_EMAIL, MergeOutcome, RepoProbe, Vault, VaultConfig, probe,
+    set_remote_url,
+};

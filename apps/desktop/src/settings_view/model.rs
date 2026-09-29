@@ -131,7 +131,11 @@ const TEXTS: &[(&str, &str, &str)] = &[
     (
         "mcp.enabled",
         "Let agents use the app",
-        "Agents connected through editor mcp can see your tabs and cursor, run commands and edit open notes. They can read and change the vault's files either way.",
+        concat!(
+            "Agents connected through ",
+            editor_config::command_name!(),
+            " mcp can see your tabs and cursor, run commands and edit open notes. They can read and change the vault's files either way."
+        ),
     ),
     (
         "editor.show-inline-title",

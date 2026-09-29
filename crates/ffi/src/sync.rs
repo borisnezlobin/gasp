@@ -203,7 +203,7 @@ fn open_clone(
     vault.set_token(token);
     let author = probe
         .author
-        .unwrap_or_else(|| Author::new(device, "editor@localhost"));
+        .unwrap_or_else(|| Author::new(device, editor_sync::FALLBACK_AUTHOR_EMAIL));
     Opened::Ready {
         clone: OpenClone { vault, author },
         remote_url,

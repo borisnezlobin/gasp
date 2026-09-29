@@ -42,7 +42,7 @@ impl DiskChange {
 }
 
 /// The changes one notify event describes, leaving out hidden files such
-/// as our own temporary files and `.editor/`.
+/// as our own temporary files and `.gasp/`.
 pub fn classify(event: &Event, vault: &Path) -> Vec<DiskChange> {
     let visible: Vec<&PathBuf> = event
         .paths
@@ -145,10 +145,8 @@ mod tests {
             EventKind::Modify(ModifyKind::Data(DataChange::Content)),
             &["/v/a.md"],
         );
-        let hidden = event(
-            EventKind::Create(CreateKind::File),
-            &["/v/.editor/device.toml"],
-        );
+        let device_file = format!("/v/{}/device.toml", editor_config::CONFIG_DIR);
+        let hidden = event(EventKind::Create(CreateKind::File), &[&device_file]);
         let batch: Vec<DiskChange> = [removed, written, moved, hidden]
             .iter()
             .flat_map(|event| classify(event, vault))

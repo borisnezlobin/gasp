@@ -18,7 +18,7 @@ actions!(
 );
 
 /// The app's name in the menu bar.
-pub const APP_NAME: &str = "Editor";
+pub const APP_NAME: &str = editor_config::APP_NAME;
 
 /// One entry in a menu table.
 enum Entry {

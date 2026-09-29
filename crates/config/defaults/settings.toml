@@ -1,4 +1,4 @@
-# Built-in settings. A vault's .editor/settings.toml layers on top of this file.
+# Built-in settings. A vault's .gasp/settings.toml layers on top of this file.
 
 [sidebar.files]
 reveal = "hover"      # "always" | "toggle" | "hover"
@@ -58,7 +58,7 @@ interval-minutes = 5   # between snapshots of a note you're editing
 keep-days        = 7
 
 [mcp]
-enabled = true   # the running app answers `editor mcp` about its tabs, cursor and commands
+enabled = true   # the running app answers `gasp mcp` about its tabs, cursor and commands
 
 [appearance]
 base-font-size = 12
@@ -69,7 +69,7 @@ auto             = true
 interval-minutes = 5
 branch           = "master"   # the branch this app commits to and pushes
 legacy-branch    = "main"     # merged into branch one way until older tools retire; "" turns it off
-device-only      = [".editor/device.toml", ".obsidian/workspace*.json", "**/.DS_Store", ".trash/**"]
+device-only      = [".gasp/device.toml", ".editor/device.toml", ".obsidian/workspace*.json", "**/.DS_Store", ".trash/**"]
 
 [mobile]
 # The bar above the iPhone's keyboard: command ids, in order. It scrolls

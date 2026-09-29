@@ -3,8 +3,8 @@
 //! Every tool takes vault-relative paths with `/` separators. A path that
 //! could reach outside the vault is refused before anything touches the
 //! disk: absolute paths, `..`, and symbolic links that lead out. Hidden
-//! files and folders (`.git`, `.editor`, `.obsidian`, `.trash`) are off
-//! limits too; the settings tools reach `.editor` on their own terms, and
+//! files and folders (`.git`, `.gasp`, `.obsidian`, `.trash`) are off
+//! limits too; the settings tools reach `.gasp` on their own terms, and
 //! nothing ever reaches `.git`.
 
 use std::io;
@@ -227,7 +227,8 @@ mod tests {
     #[test]
     fn hidden_folders_are_off_limits() {
         let (_dir, root) = vault();
-        for hidden in [".git/config", ".editor/settings.toml", "Notes/.hidden.md"] {
+        let settings = format!("{}/settings.toml", editor_config::CONFIG_DIR);
+        for hidden in [".git/config", &settings, "Notes/.hidden.md"] {
             let error = resolve(&root, hidden).unwrap_err();
             assert!(error.message().contains("hidden"), "{hidden}: {error:?}");
         }

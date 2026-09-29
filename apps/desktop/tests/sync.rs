@@ -3,6 +3,7 @@
 //! vault the window has open; the other is driven straight through the
 //! engine. Nothing here touches a real repository or the network.
 
+use editor_config::CONFIG_DIR;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -595,7 +596,7 @@ fn the_sync_page_edits_device_only_files(cx: &mut TestAppContext) {
         settings.remove_list_entry(list, ".trash/**", cx);
     });
     cx.run_until_parked();
-    let text = std::fs::read_to_string(laptop.join(".editor/settings.toml")).unwrap();
+    let text = std::fs::read_to_string(laptop.join(CONFIG_DIR).join("settings.toml")).unwrap();
     assert!(text.contains("device-only"), "{text}");
     assert!(!text.contains(".trash"), "{text}");
     let now = cx.read(|cx| {

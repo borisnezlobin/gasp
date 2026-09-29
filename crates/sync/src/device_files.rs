@@ -7,17 +7,22 @@ use crate::error::{SyncError, SyncResult};
 
 /// Files that belong to one device and never sync, as globs relative to the vault root.
 ///
-/// Per-device stats under `.editor/stats/` are deliberately absent: each
+/// Per-device stats under `.gasp/stats/` are deliberately absent: each
 /// device writes its own file there and those files do sync.
-pub const DEFAULT_DEVICE_ONLY_GLOBS: &[&str] = &[
-    ".editor/device.toml",
-    ".obsidian/workspace*.json",
-    "**/.DS_Store",
-    ".trash/**",
-];
+pub const DEFAULT_DEVICE_ONLY_GLOBS: &[&str] = editor_config::settings::DEFAULT_DEVICE_ONLY;
 
-const EXCLUDE_BEGIN: &str = "# editor: device-only files (managed, do not edit)";
-const EXCLUDE_END: &str = "# editor: end of device-only files";
+const EXCLUDE_BEGIN: &str = concat!(
+    "# ",
+    editor_config::command_name!(),
+    ": device-only files (managed, do not edit)"
+);
+const EXCLUDE_END: &str = concat!(
+    "# ",
+    editor_config::command_name!(),
+    ": end of device-only files"
+);
+const LEGACY_EXCLUDE_BEGIN: &str = "# editor: device-only files (managed, do not edit)";
+const LEGACY_EXCLUDE_END: &str = "# editor: end of device-only files";
 
 /// The set of device-only globs, matched against `/`-separated vault paths.
 #[derive(Debug, Clone)]
@@ -112,8 +117,8 @@ fn without_managed_block(text: &str) -> String {
     let mut inside = false;
     for line in text.lines() {
         match line {
-            EXCLUDE_BEGIN => inside = true,
-            EXCLUDE_END => inside = false,
+            EXCLUDE_BEGIN | LEGACY_EXCLUDE_BEGIN => inside = true,
+            EXCLUDE_END | LEGACY_EXCLUDE_END => inside = false,
             _ if !inside => {
                 kept.push_str(line);
                 kept.push('\n');
@@ -126,33 +131,37 @@ fn without_managed_block(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use editor_config::CONFIG_DIR;
+    use editor_config::names::LEGACY_CONFIG_DIR;
+
     use super::*;
 
     #[test]
     fn default_globs_match_device_files_but_not_stats() {
         let device = DeviceOnlyFiles::default();
         let never_sync = [
-            ".editor/device.toml",
-            ".obsidian/workspace.json",
-            ".obsidian/workspace-mobile.json",
-            ".DS_Store",
-            "notes/deep/.DS_Store",
-            ".trash/old note.md",
+            format!("{CONFIG_DIR}/device.toml"),
+            format!("{LEGACY_CONFIG_DIR}/device.toml"),
+            ".obsidian/workspace.json".into(),
+            ".obsidian/workspace-mobile.json".into(),
+            ".DS_Store".into(),
+            "notes/deep/.DS_Store".into(),
+            ".trash/old note.md".into(),
         ];
         for path in never_sync {
             assert!(
-                device.matches(Path::new(path)),
+                device.matches(Path::new(&path)),
                 "{path} should be device-only"
             );
         }
         let syncs = [
-            ".editor/stats/laptop.json",
-            ".editor/settings.toml",
-            ".obsidian/app.json",
-            "notes/a.md",
+            format!("{CONFIG_DIR}/stats/laptop.json"),
+            format!("{CONFIG_DIR}/settings.toml"),
+            ".obsidian/app.json".into(),
+            "notes/a.md".into(),
         ];
         for path in syncs {
-            assert!(!device.matches(Path::new(path)), "{path} should sync");
+            assert!(!device.matches(Path::new(&path)), "{path} should sync");
         }
     }
 
@@ -162,12 +171,27 @@ mod tests {
         assert_eq!(
             device.exclude_lines(),
             vec![
-                "/.editor/device.toml",
-                "/.obsidian/workspace*.json",
-                ".DS_Store",
-                "/.trash/**"
+                format!("/{CONFIG_DIR}/device.toml"),
+                format!("/{LEGACY_CONFIG_DIR}/device.toml"),
+                "/.obsidian/workspace*.json".into(),
+                ".DS_Store".into(),
+                "/.trash/**".into()
             ]
         );
+    }
+
+    #[test]
+    fn a_legacy_managed_block_is_replaced_rather_than_kept() {
+        let legacy = format!(
+            "# user line\n{LEGACY_EXCLUDE_BEGIN}\n/{LEGACY_CONFIG_DIR}/device.toml\n{LEGACY_EXCLUDE_END}\n"
+        );
+        let merged = DeviceOnlyFiles::default().merged_exclude(&legacy);
+        assert!(merged.starts_with("# user line\n"));
+        assert!(!merged.contains(LEGACY_EXCLUDE_BEGIN));
+        assert!(!merged.contains(LEGACY_EXCLUDE_END));
+        assert_eq!(merged.matches(EXCLUDE_BEGIN).count(), 1);
+        assert_eq!(merged.matches(EXCLUDE_END).count(), 1);
+        assert!(merged.contains(&format!("/{CONFIG_DIR}/device.toml\n")));
     }
 
     #[test]

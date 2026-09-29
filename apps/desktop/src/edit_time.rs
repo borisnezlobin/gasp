@@ -1,6 +1,6 @@
 //! Edit-time tracking (PLAN.md): how long each note has been edited. It
 //! replaces Chronotyper without touching frontmatter. Each device keeps
-//! its own file under `.editor/stats/`, named by an id kept in its
+//! its own file under `.gasp/stats/`, named by an id kept in its
 //! `device.toml`, so two devices never write the same file and sync never
 //! sees a conflict; the app sums every device's file. A note's
 //! `edited_seconds` frontmatter from Chronotyper is its starting value,
@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 pub const IDLE_GAP: Duration = Duration::from_secs(60);
 
 /// Where each device's file lives, from the vault root.
-pub const STATS_DIR: &str = ".editor/stats";
+pub const STATS_DIR: &str = concat!(editor_config::config_dir!(), "/stats");
 
 /// How long after an edit the device's file is written.
 pub const SAVE_DELAY: Duration = Duration::from_secs(5);

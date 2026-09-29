@@ -10,15 +10,15 @@ IOS_BUILD := target/ios-derived
 
 help:
 	@echo "make run         Build and open the desktop app on your last vault"
-	@echo "make dmg         Signed, notarized Editor.dmg for other Macs (target/package/)"
-	@echo "make dmg-local   Unsigned Editor.dmg that only runs on this Mac"
+	@echo "make dmg         Signed, notarized Gasp.dmg for other Macs (target/package/)"
+	@echo "make dmg-local   Unsigned Gasp.dmg that only runs on this Mac"
 	@echo "make icon        Rebuild AppIcon.icns from the whale render"
 	@echo "make ios-sim     Build the iPhone app and run it in the simulator (no window)"
 	@echo "make ios-phone   Build the iPhone app and install it on the plugged-in iPhone"
 
 run:
 	cargo build --release -p editor-desktop
-	./target/release/editor
+	./target/release/gasp
 
 dmg:
 	DEVELOPER_ID="$(DEVELOPER_ID)" NOTARY_PROFILE="$(NOTARY_PROFILE)" scripts/package-macos.sh
@@ -40,8 +40,8 @@ ios-sim: ios-project
 
 ios-phone: ios-project
 	@test -n "$(IPHONE)" || { echo "No unlocked iPhone found. Plug it in and unlock it."; exit 1; }
-	xcodebuild -project apps/ios/Editor.xcodeproj -scheme Editor -configuration Release \
+	xcodebuild -project apps/ios/Gasp.xcodeproj -scheme Gasp -configuration Release \
 		-destination 'generic/platform=iOS' -derivedDataPath $(IOS_BUILD) \
 		-allowProvisioningUpdates -allowProvisioningDeviceRegistration build
-	xcrun devicectl device install app --device $(IPHONE) $(IOS_BUILD)/Build/Products/Release-iphoneos/Editor.app
-	xcrun devicectl device process launch --device $(IPHONE) com.borisnezlobin.editor
+	xcrun devicectl device install app --device $(IPHONE) $(IOS_BUILD)/Build/Products/Release-iphoneos/Gasp.app
+	xcrun devicectl device process launch --device $(IPHONE) com.borisnezlobin.gasp
