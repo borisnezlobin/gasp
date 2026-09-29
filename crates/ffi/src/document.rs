@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use gasp_core::link_card::meta::card_from_html;
 use gasp_core::link_card::{card_replacement, url_on_line};
 use gasp_core::render::folds::Folds;
-use gasp_core::render::{RenderInput, reveal_settings};
+use gasp_core::render::{KeptPlan, RenderInput, reveal_settings};
 use gasp_core::syntax::{self, Edit, NodeKind, SyntaxTree, WikiInfo};
 use gasp_core::table::Table;
 use gasp_prose::segment::Thresholds;
@@ -35,6 +35,9 @@ pub(crate) struct ParsedText {
     /// The sentence tints of this text, kept for cursor moves, with the
     /// thresholds they were measured against.
     tints: Option<(Thresholds, Vec<SentenceTint>)>,
+    /// The last whole-note plan, so a cursor move plans only the blocks
+    /// it leaves and enters.
+    kept_plan: KeptPlan,
 }
 
 impl ParsedText {
@@ -46,6 +49,7 @@ impl ParsedText {
             source_table: None,
             folds: Folds::default(),
             tints: None,
+            kept_plan: KeptPlan::default(),
         }
     }
 
@@ -59,6 +63,7 @@ impl ParsedText {
         self.text = text;
         self.source_table = None;
         self.tints = None;
+        self.kept_plan.forget();
     }
 
     fn sentence_tints(&mut self, thresholds: Thresholds) -> Vec<SentenceTint> {
@@ -140,16 +145,26 @@ impl NoteDocument {
         let mut settings = reveal_settings(&self.display.lock().symbols);
         settings.source_table = parsed.source_table.as_ref().map(|table| table.start);
         let selections = [selected];
-        let mut plan = gasp_core::render::plan(&RenderInput {
-            text: &parsed.text,
-            tree: &parsed.tree,
+        let ParsedText {
+            text,
+            tree,
+            offsets,
+            folds,
+            kept_plan,
+            ..
+        } = &mut *parsed;
+        let lines = kept_plan.plan(&RenderInput {
+            text,
+            tree,
             selections: &selections,
             settings: &settings,
         });
-        parsed
-            .folds
-            .apply(&mut plan.lines, &parsed.tree, &selections);
-        note_plan(plan, &parsed.offsets)
+        if folds.is_empty() {
+            return note_plan(lines, offsets);
+        }
+        let mut folded = lines.to_vec();
+        folds.apply(&mut folded, tree, &selections);
+        note_plan(&folded, offsets)
     }
 
     /// Runs the editing command `id` on `selection`.
@@ -410,6 +425,27 @@ mod tests {
         for (old, new) in cases {
             let edit = changed_span(old, new).unwrap();
             assert_eq!(apply(old, &edit, new), new, "{old:?} → {new:?}");
+        }
+    }
+
+    #[test]
+    fn plans_after_cursor_moves_and_edits_match_fresh_ones() {
+        let text = "# Title *em*\n\nText **bold** $x^2$ [link](https://a.org)\n\n- one\n- two\n\n\
+                    > [!note]- Folded\n> body\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nlast";
+        let document = NoteDocument::new(text.into());
+        document.toggle_fold(text.find("> [!note]").unwrap() as u32);
+        let utf16_len = text.encode_utf16().count() as u32;
+        for step in 0..=utf16_len {
+            if step == 20 {
+                document.update(text.replacen("Text", "Text more", 1));
+            }
+            let selection = TextRange {
+                start: step,
+                end: (step + step % 3 * 4).min(utf16_len),
+            };
+            let fresh = NoteDocument::new(document.text());
+            fresh.lock().folds = document.lock().folds.clone();
+            assert_eq!(document.plan(selection), fresh.plan(selection), "{step}");
         }
     }
 
