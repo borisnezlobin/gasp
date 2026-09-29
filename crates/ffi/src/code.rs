@@ -63,7 +63,7 @@ pub fn code_color_token(color: CodeColor) -> String {
 fn code_blocks(document: &NoteDocument) -> Vec<Block> {
     let parsed = document.lock();
     let tree = &parsed.tree;
-    tree.preorder()
+    tree.block_preorder()
         .into_iter()
         .filter_map(|id| {
             let node = tree.node(id);
