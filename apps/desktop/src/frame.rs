@@ -63,6 +63,14 @@ pub struct FrameLayout {
 }
 
 impl FrameLayout {
+    /// Swaps the pictures on every line for `stand_in`: see
+    /// [`VisualLine::forget_pictures`].
+    pub fn forget_pictures(&mut self, stand_in: &std::sync::Arc<gpui::RenderImage>) {
+        for placed in &mut self.lines {
+            placed.visual.forget_pictures(stand_in);
+        }
+    }
+
     pub fn line(&self, line: usize) -> Option<&PlacedLine> {
         self.lines.iter().find(|placed| placed.visual.line == line)
     }

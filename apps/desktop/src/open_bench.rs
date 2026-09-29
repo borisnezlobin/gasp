@@ -33,6 +33,8 @@ const SETTLE_LIMIT: Duration = Duration::from_secs(20);
 const SWITCH_TABS: usize = 8;
 /// Switches made between those tabs.
 const SWITCHES: usize = 48;
+/// Frames drawn after lingering, for [`crate::atlas`] to look a few times.
+const SWEEP_FRAMES: usize = 100;
 
 /// What to open.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -41,6 +43,9 @@ pub struct OpenBenchConfig {
     pub notes: usize,
     /// Draw into a window that's never shown (macOS).
     pub hidden: bool,
+    /// Keep the window open this long after switching, then report the
+    /// memory again, as after hidden tabs let go of their pictures.
+    pub linger: Option<Duration>,
 }
 
 impl Default for OpenBenchConfig {
@@ -48,6 +53,7 @@ impl Default for OpenBenchConfig {
         Self {
             notes: 30,
             hidden: false,
+            linger: None,
         }
     }
 }
@@ -74,6 +80,13 @@ impl OpenResults {
         .filter_map(|(name, samples)| Some(format!("{name}: {}", samples.summary()?)))
         .collect::<Vec<_>>()
         .join("\n")
+    }
+}
+
+/// Prints the app's memory, as `memory: 64.2 MB` plus `when`.
+fn print_memory(when: &str) {
+    if let Some(bytes) = crate::memory::footprint_bytes() {
+        println!("memory{when}: {:.1} MB", bytes as f64 / 1e6);
     }
 }
 
@@ -115,6 +128,17 @@ pub fn run(vault: &Path, config: OpenBenchConfig) -> Result<(), String> {
             cx.spawn(async move |cx| {
                 let results = measure(window, notes, cx).await;
                 println!("{}", results.report());
+                print_memory("");
+                if let Some(linger) = config.linger {
+                    cx.background_executor().timer(linger).await;
+                    // Enough frames for the atlas to let go of what
+                    // nothing holds any more.
+                    for _ in 0..SWEEP_FRAMES {
+                        window.update(cx, |_, window, _| window.refresh()).ok();
+                        next_frame(window, cx).await;
+                    }
+                    print_memory(&format!(" after {}s", linger.as_secs()));
+                }
                 scratch.remove();
                 cx.update(|cx| cx.quit()).ok();
             })

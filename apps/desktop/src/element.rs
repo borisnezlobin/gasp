@@ -155,19 +155,10 @@ impl Element for EditorElement {
             if crate::first_frame::is_waiting() {
                 let view = cx.entity().downgrade();
                 crate::first_frame::defer(move |cx| {
-                    view.update(cx, |view, cx| {
-                        view.start_math_renders(cx);
-                        view.start_code_loads(cx);
-                        view.start_remote_images(cx);
-                        view.find_vault_images(cx);
-                    })
-                    .ok();
+                    view.update(cx, |view, cx| view.start_loads(cx)).ok();
                 });
             } else {
-                view.start_math_renders(cx);
-                view.start_code_loads(cx);
-                view.start_remote_images(cx);
-                view.find_vault_images(cx);
+                view.start_loads(cx);
             }
             drop(phase);
             let copy_button = view.copy_button_for(&frame, bounds).map(|button| {
@@ -237,6 +228,7 @@ impl Element for EditorElement {
             window.request_animation_frame();
         }
         EditorView::schedule_bench_step(&self.view, window, cx);
+        crate::atlas::sweep(window, cx);
     }
 }
 
@@ -340,7 +332,7 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
         paint_table_drag(drag, &context, window, cx);
     }
     for placed in &frame.lines {
-        paint_overlays(placed, frame.text_left, theme, window);
+        paint_overlays(placed, frame.text_left, theme, window, cx);
     }
 }
 
@@ -730,6 +722,7 @@ fn paint_piece(
             });
         }
         PieceContent::Image { image, radius } => {
+            crate::atlas::painted(image, cx);
             report(window.paint_image(bounds, (*radius).into(), image.clone(), 0, false));
         }
         PieceContent::Icon { path, color } => {
@@ -840,7 +833,13 @@ fn paint_table_drag(
 }
 
 /// Math previews float above the row they point at, over earlier lines.
-fn paint_overlays(placed: &PlacedLine, text_left: Pixels, theme: &Theme, window: &mut Window) {
+fn paint_overlays(
+    placed: &PlacedLine,
+    text_left: Pixels,
+    theme: &Theme,
+    window: &mut Window,
+    cx: &mut App,
+) {
     let visual = &placed.visual;
     for overlay in &visual.overlays {
         let Some(row) = visual
@@ -862,6 +861,7 @@ fn paint_overlays(placed: &PlacedLine, text_left: Pixels, theme: &Theme, window:
             point(x + padding, y + padding),
             size(overlay.width, overlay.height),
         );
+        crate::atlas::painted(&overlay.image, cx);
         report(window.paint_image(
             image_bounds,
             Corners::default(),
