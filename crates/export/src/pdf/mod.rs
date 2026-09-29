@@ -289,8 +289,9 @@ fn failing_math(
     failing
 }
 
-/// The body with the equations in `replaced` shown as source, plus the range
-/// of every equation call in the result.
+/// The body with the equations in `replaced` shown as source and the others
+/// evaluated with just the part of the mitex scope they name, plus the
+/// range of every equation call in the result.
 fn substitute_math(body: &TypstBody, replaced: &BTreeSet<usize>) -> (String, Vec<Range<usize>>) {
     let mut markup = String::with_capacity(body.markup.len());
     let mut ranges = Vec::with_capacity(body.math.len());
@@ -301,13 +302,28 @@ fn substitute_math(body: &TypstBody, replaced: &BTreeSet<usize>) -> (String, Vec
         if replaced.contains(&index) {
             markup.push_str(&format!("#math-error({});", escape::string(&site.latex)));
         } else {
-            markup.push_str(&body.markup[site.range.clone()]);
+            push_scoped_call(&mut markup, &body.markup[site.range.clone()]);
         }
         ranges.push(start..markup.len());
         copied = site.range.end;
     }
     markup.push_str(&body.markup[copied..]);
     (markup, ranges)
+}
+
+/// Copies the equation call `#m("…");` into `markup` with the scope its
+/// equation needs, which Typst evaluates much faster than the whole scope.
+fn push_scoped_call(markup: &mut String, call: &str) {
+    match call
+        .strip_prefix("#m(")
+        .and_then(|call| call.strip_suffix(");"))
+    {
+        Some(equation) => {
+            let scope = gasp_math::mitex_scope_for(equation);
+            markup.push_str(&format!("#m({equation}, scope: {scope});"));
+        }
+        None => markup.push_str(call),
+    }
 }
 
 /// A finished export.
