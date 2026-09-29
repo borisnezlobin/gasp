@@ -20,7 +20,11 @@ A new tab is a home screen, as in Obsidian's mobile app: a short column of large
 ## 2. Settings
 
 Screenshots from the owner show:
-- **Theme said "Light" while the app was dark.** The app never reads `appearance.theme`: `Tokens` always follows the phone's trait (`apps/ios/Gasp/Theme/Tokens.swift`). Apply `vault.appearance()` with `.preferredColorScheme` / `overrideUserInterfaceStyle` on every window and sheet, and update it when the setting changes.
+- **Theme said "Light" while the app was dark.** The app never read `appearance.theme`, so every colour followed the phone's own mode. **Written but not yet compiled or run** (commit "iPhone: the Theme setting picks light or dark"; it was written on Linux):
+  - `VaultLibrary.appearance` is read with the rest of the config.
+  - `Appearance.apply()` (in `Theme/Tokens.swift`) sets `overrideUserInterfaceStyle` on every window, and `GaspApp` calls it on appear, when the setting changes and when the app becomes active.
+
+  Build it first. Then check in the simulator: Light while the simulator is dark, Dark while it's light, System following the simulator's toggle, the choice kept after a relaunch, and a change synced from the desktop. Look at sheets, context menus and the keyboard, not only the editor.
 - **Values are indistinguishable from placeholders.** "Folder" and "Template" show grey placeholder text in the value's place, so you can't tell what's set, what's editable or what's a hint. The stepper sits on top of the description text. The spacing is uneven.
 - **Every row has a sentence under it.** Much of it explains things that shouldn't need explaining, and some of it is confusing to someone who doesn't know the feature, e.g. "sentences with more words than this are long".
 - **The mobile toolbar setting is a raw list of command IDs** (`keyboard.hide`, `note.import-image`, …) typed into a text field. No one can be expected to edit that.

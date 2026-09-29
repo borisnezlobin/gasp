@@ -36,6 +36,8 @@ final class VaultLibrary {
     /// The bar at the bottom of the screen: the `browser-bar` toolbar.
     private(set) var browserBar = PhoneToolbar(enabled: true, labels: .icons, entries: [.spacer])
     private(set) var keyBindings: [KeyBinding] = []
+    /// Light, dark or the phone's own, from `appearance.theme`.
+    private(set) var appearance: Appearance = .system
     private(set) var problem: String?
     /// Bumped whenever the vault's config is read again, so views that
     /// depend on it redraw.
@@ -117,6 +119,7 @@ final class VaultLibrary {
         keyboardToolbar = vault.keyboardToolbar()
         browserBar = vault.browserBar()
         keyBindings = vault.keyBindings()
+        appearance = vault.appearance()
         configGeneration += 1
     }
 }
