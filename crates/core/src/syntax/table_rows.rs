@@ -10,7 +10,7 @@ use std::ops::Range;
 
 use super::kinds::NodeKind;
 use super::tree::{LineIndex, Node, NodeId, SyntaxTree};
-use super::{Edit, build, process};
+use super::{Edit, Reparsed, build, process};
 
 /// Text that can change how the rest of the note parses, which the
 /// general reparse handles.
@@ -30,21 +30,22 @@ struct EditedRow {
 
 impl SyntaxTree {
     /// Reparses the table row an edit is on, when that's all it can
-    /// change. Answers whether it did.
-    pub(super) fn reparse_table_row(&mut self, new_text: &str, edit: &Edit) -> bool {
-        let Some(edited) = self.edited_row(new_text, edit) else {
-            return false;
-        };
+    /// change. Answers the table's lines before and after, when it did.
+    pub(super) fn reparse_table_row(&mut self, new_text: &str, edit: &Edit) -> Option<Reparsed> {
+        let edited = self.edited_row(new_text, edit)?;
         let line_text = &new_text[edited.line.clone()];
         if RISKY.iter().any(|risky| line_text.contains(risky)) {
-            return false;
+            return None;
         }
-        let Some(nodes) = self.parse_row(new_text, &edited) else {
-            return false;
-        };
+        let nodes = self.parse_row(new_text, &edited)?;
+        let table = self.node(edited.table).range.clone();
+        let start = self.lines.line_start(self.lines.line_of(table.start));
         self.splice_row(&edited, nodes, edit, new_text.len());
         self.lines.edit(new_text, edit);
-        true
+        Some(Reparsed::Blocks {
+            old: start..table.end,
+            new: start..self.node(edited.table).range.end,
+        })
     }
 
     /// The row an edit is on, when the edit stays on its line and the
