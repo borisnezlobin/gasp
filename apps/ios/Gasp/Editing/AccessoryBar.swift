@@ -5,7 +5,9 @@ import UIKit
 /// as the toolbar says), separators as thin lines and menus as buttons
 /// that open a menu of commands, in a row that scrolls sideways when they
 /// don't fit. The button that hides the keyboard stays put at the right
-/// end, and the row fades out as it passes under it.
+/// end, and the row fades out as it passes under it. Toggles that are on
+/// where the cursor is show pressed, and commands that would change
+/// nothing there are greyed out.
 final class AccessoryBar: UIInputView {
     /// Holds the scrolling row, and fades it out at its right edge.
     private let rail = UIView()
@@ -14,6 +16,8 @@ final class AccessoryBar: UIInputView {
     private let fade = CAGradientLayer()
     private let run: (String) -> Void
     private let tokens: Tokens
+    /// The command buttons on the bar, by command.
+    private var commandButtons: [String: UIButton] = [:]
     private static let height: CGFloat = 46
     private static let buttonSide: CGFloat = 44
     private static let hideCommand = "keyboard.hide"
@@ -46,6 +50,7 @@ final class AccessoryBar: UIInputView {
     /// Replaces what's on the bar, after toolbars.toml changed.
     func show(_ toolbar: PhoneToolbar) {
         row.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        commandButtons = [:]
         for entry in toolbar.entries {
             row.addArrangedSubview(view(for: entry, labels: toolbar.labels))
         }
@@ -141,10 +146,25 @@ final class AccessoryBar: UIInputView {
         }
     }
 
+    /// Shows which commands are on and which would do nothing where the
+    /// cursor is now.
+    func show(_ states: CommandStates) {
+        let pressed = Set(states.pressed)
+        let unavailable = Set(states.unavailable)
+        for (command, button) in commandButtons {
+            button.isSelected = pressed.contains(command)
+            button.isEnabled = !unavailable.contains(command)
+        }
+    }
+
     private func styled(_ button: UIButton, title: String, labelled: Bool) -> UIButton {
         button.configurationUpdateHandler = { [tokens] button in
-            let fill = button.isHighlighted ? tokens.color(\.fillStrong) : .clear
+            let fill: UIColor = button.isHighlighted ? tokens.color(\.fillStrong)
+                : button.isSelected ? tokens.color(\.fill) : .clear
+            let ink: KeyPath<Palette, ThemeColor> = !button.isEnabled ? \.iconDisabled
+                : button.isSelected ? \.accent : \.icon
             button.configuration?.background.backgroundColor = fill
+            button.configuration?.baseForegroundColor = tokens.color(ink)
         }
         button.accessibilityLabel = title
         // A labelled button is as wide as its label on one line, neither
@@ -167,6 +187,8 @@ final class AccessoryBar: UIInputView {
             configuration: configuration(title: title, symbol: symbol),
             primaryAction: UIAction { [weak self] _ in self?.run(command.id) }
         )
+        button.changesSelectionAsPrimaryAction = false
+        commandButtons[command.id] = button
         return styled(button, title: command.title, labelled: title != nil)
     }
 

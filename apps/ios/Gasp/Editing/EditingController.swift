@@ -272,6 +272,7 @@ final class EditingController: NSObject, UITextViewDelegate {
         editState.follow(textView.undoManager)
         editState.isEditing = true
         textView.contentInset.bottom = UndoPill.clearance
+        showCommandStates()
     }
 
     func textViewDidEndEditing(_ textView: UITextView) {
@@ -323,6 +324,14 @@ final class EditingController: NSObject, UITextViewDelegate {
         isRestyling = false
         fetchMissingMedia()
         updateTableGrids()
+        showCommandStates()
+    }
+
+    /// Presses the keyboard bar's toggles that are on at the cursor and
+    /// greys out the commands that would do nothing there.
+    private func showCommandStates() {
+        guard textView.isFirstResponder, let accessoryBar else { return }
+        accessoryBar.show(document.commandStates(selection: selection))
     }
 
     private func applyPlan(to storage: NSTextStorage, edited: NSRange?, whole: Bool) -> Bool {
