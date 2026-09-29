@@ -139,10 +139,25 @@ example  = "#744dee"
 quote    = "#6b6b6b"
 custom   = "#0868d3"
 
+# Tables drawn as grids: the rules around and between cells, the header
+# row's fill and the heavier rule under it, and cells selected together.
+# The cell being edited is tinted with `active` at
+# opacity.table-active-fill and ringed with it at opacity.table-active-ring.
+[color.table]
+rule        = "{color.divider}"
+header      = "{color.fill-faint}"
+header-rule = "rgba(0, 0, 0, 0.18)"
+selection   = "{color.selection}"
+active      = "{color.accent}"
+
 [opacity]
 callout = 0.1
 # A file tree entry that's been cut and waits to be pasted.
 cut     = 0.5
+table-active-fill = 0.06
+table-active-ring = 0.5
+# A table's row or column while it's dragged by its handle.
+table-drag = 0.85
 
 # The dark palette: warm near-black surfaces that get lighter as they rise
 # (window, sidebar, note, code, popover, tooltip), off-white text, and an
@@ -240,8 +255,12 @@ example  = "#a88ef8"
 quote    = "#a8a39b"
 custom   = "#5ea4f2"
 
+[dark.color.table]
+header-rule = "rgba(255, 255, 255, 0.2)"
+
 [dark.opacity]
 callout = 0.13
+table-active-fill = 0.1
 
 [font]
 text = "Charter"
@@ -300,6 +319,24 @@ sm   = 4
 md   = 6
 lg   = 10
 pill = 999
+
+# Tables drawn as grids. Lengths are pixels; the least a column or a row
+# takes is in lines of body text, so it grows with the base font size.
+[table]
+cell-padding-x    = "{space.lg}"
+cell-padding-y    = "{space.sm}"
+min-column-width  = 5
+min-row-height    = 1.5
+rule-width        = 1
+header-rule-width = 1.5
+active-ring-width = 2
+# The handles beside a row and above a column, and the line where a
+# dragged one would drop.
+handle-size       = "{size.icon}"
+handle-gap        = "{space.sm}"
+handle-radius     = "{radius.sm}"
+drop-line-width   = 2
+drag-shadow-blur  = 12
 
 [shadow]
 popover = "0 4px 16px {color.shadow}"

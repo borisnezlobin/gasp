@@ -154,7 +154,9 @@ impl LineLayouter<'_, '_> {
     ) -> (Vec<VisualRow>, GridLine) {
         let columns = self.columns(row);
         let look = &self.theme().table;
-        let (pad_x, pad_y) = (look.cell_padding_x, look.cell_padding_y);
+        // A one-line row sits centred in the least height a row takes.
+        let centring = (look.min_row_height - self.line_height()) / 2.;
+        let (pad_x, pad_y) = (look.cell_padding_x, look.cell_padding_y.max(centring));
         let top = self.frame.pad_top + self.frame.decor.margin_top;
         let left = self.frame.left;
         let line_start = self.plan.range.start;
@@ -285,12 +287,16 @@ impl LineLayouter<'_, '_> {
                 least[column] = least[column].max(*narrowest);
             }
         }
-        let padding = self.theme().table.cell_padding_x * 2.;
-        let padded = |widths: Vec<Pixels>| -> Vec<Pixels> {
-            widths.into_iter().map(|width| width + padding).collect()
+        let look = &self.theme().table;
+        let padding = look.cell_padding_x * 2.;
+        let padded = |widths: Vec<Pixels>, least: Pixels| -> Vec<Pixels> {
+            let pad = |width: Pixels| (width + padding).max(least);
+            widths.into_iter().map(pad).collect()
         };
+        let natural = padded(natural, look.min_column_width);
+        let least = padded(least, px(0.));
         let available = self.context.column_width - self.frame.right - self.frame.left;
-        let widths = fit_widths(&padded(natural), &padded(least), available);
+        let widths = fit_widths(&natural, &least, available);
         let columns = Arc::new(Columns::from_widths(widths));
         self.resources
             .tables
