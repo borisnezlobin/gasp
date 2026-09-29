@@ -155,7 +155,7 @@ pub struct Workspace {
     edit_time: crate::edit_time::EditTime,
     /// Whether a write of this device's edit times is on its way.
     edit_time_save_pending: bool,
-    /// Answers `editor mcp` about this window.
+    /// Answers `gasp mcp` about this window.
     mcp: mcp::McpBridge,
     _subscriptions: Vec<Subscription>,
 }
@@ -181,7 +181,7 @@ impl HasMenuSlot for Workspace {
 
 impl Workspace {
     /// A workspace on `vault` with one empty tab. Reads the vault's config
-    /// from `.editor/`. Call [`Workspace::watch_vault`] to follow changes
+    /// from `.gasp/`. Call [`Workspace::watch_vault`] to follow changes
     /// on disk and [`Workspace::restore_session`] to reopen saved tabs.
     pub fn new(vault: &Path, window: &mut Window, cx: &mut Context<Self>) -> Self {
         Self::from_start(VaultStart::load(vault), window, cx)

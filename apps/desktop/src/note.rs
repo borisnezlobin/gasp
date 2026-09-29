@@ -60,7 +60,7 @@ pub fn join_until(texts: &[String], min_lines: usize) -> String {
 }
 
 /// Every Markdown file under `root`, sorted, skipping hidden folders such
-/// as `.git`, `.obsidian`, `.editor` and `.trash`.
+/// as `.git`, `.obsidian`, `.gasp` and `.trash`.
 pub fn markdown_files(root: &Path) -> io::Result<Vec<PathBuf>> {
     let mut found = Vec::new();
     let mut pending = vec![root.to_path_buf()];

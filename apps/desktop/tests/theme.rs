@@ -1,6 +1,7 @@
 //! Light and dark mode: the `appearance.theme` setting, following the
 //! system, and every surface repainting when the mode changes.
 
+use editor_config::CONFIG_DIR;
 use std::path::Path;
 
 use editor_config::RuleSet;
@@ -23,7 +24,7 @@ fn vault(settings: &str) -> TempDir {
 }
 
 fn write_settings(vault: &Path, settings: &str) {
-    let path = vault.join(".editor/settings.toml");
+    let path = vault.join(CONFIG_DIR).join("settings.toml");
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(path, settings).unwrap();
 }
@@ -178,7 +179,7 @@ fn fonts_listed_after_startup_leave_installed_theme_fonts_alone(cx: &mut TestApp
 fn fonts_listed_after_startup_replace_missing_theme_fonts(cx: &mut TestAppContext) {
     let vault = vault("");
     std::fs::write(
-        vault.path().join(".editor/theme.toml"),
+        vault.path().join(CONFIG_DIR).join("theme.toml"),
         "[font]\ncode = \"Missing Mono\"\n",
     )
     .unwrap();

@@ -1,6 +1,7 @@
 //! The standalone views wired into a real workspace: each shortcut opens
 //! its view, and the view's choice reaches the workspace.
 
+use editor_config::CONFIG_DIR;
 use std::path::Path;
 
 use editor_config::{Platform, RuleSet};
@@ -227,7 +228,7 @@ fn escape_from_a_revealed_file_tree_hides_it_and_returns_to_the_note(cx: &mut Te
 #[gpui::test]
 fn the_appearance_page_previews_a_change_as_it_is_made(cx: &mut TestAppContext) {
     let vault = vault_with(&[("Note.md", "text")]);
-    let settings = vault.path().join(".editor/settings.toml");
+    let settings = vault.path().join(CONFIG_DIR).join("settings.toml");
     std::fs::create_dir_all(settings.parent().unwrap()).unwrap();
     std::fs::write(&settings, "[appearance]\nbase-font-size = 24\n").unwrap();
     let (workspace, cx) = open_workspace(cx, vault.path());

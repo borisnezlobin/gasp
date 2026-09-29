@@ -16,7 +16,6 @@ use crate::workspace::prompt::use_in_window_prompts;
 use crate::workspace::window::{LaunchTarget, open_target};
 
 const BENCH_WINDOW_SIZE: (f32, f32) = (900., 700.);
-const BENCH_WINDOW_TITLE: &str = "Editor";
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 const WAKE_DELAY: Duration = Duration::from_millis(500);
 const BENCH_TIMEOUT: Duration = Duration::from_secs(600);
@@ -103,7 +102,7 @@ pub fn launch_bench(note: LoadedNote, bench: BenchConfig) {
             }
         };
         let started = window.update(cx, |view, window, cx| {
-            window.set_window_title(BENCH_WINDOW_TITLE);
+            window.set_window_title(editor_config::APP_NAME);
             window.focus(&view.focus_handle);
             view.set_log_timings(false);
             if !bench.prose {
@@ -116,7 +115,7 @@ pub fn launch_bench(note: LoadedNote, bench: BenchConfig) {
             cx.activate(true);
         });
         if let Err(error) = started {
-            eprintln!("could not start the editor: {error}");
+            eprintln!("could not start {}: {error}", editor_config::APP_NAME);
         }
     });
 }

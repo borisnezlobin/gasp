@@ -321,7 +321,7 @@ impl Workspace {
             .join("/")
     }
 
-    /// Reopens the tabs saved in `.editor/device.toml`.
+    /// Reopens the tabs saved in `.gasp/device.toml`.
     pub fn restore_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let device = self.config.device.clone();
         if let Some(layout) = &device.panes {

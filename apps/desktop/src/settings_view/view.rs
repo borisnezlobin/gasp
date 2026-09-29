@@ -35,9 +35,9 @@ use crate::theme::{ACCENT_CHOICES, DARK_ACCENT_CHOICES, KeycapTheme, SettingsThe
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SettingsEvent {
     /// Something was written: a setting's dotted key such as `files.trash`
-    /// (`.editor/settings.toml`), `theme.` and a token such as
-    /// `theme.font.text` (`.editor/theme.toml`), or `rules`
-    /// (`.editor/rules.toml`).
+    /// (`.gasp/settings.toml`), `theme.` and a token such as
+    /// `theme.font.text` (`.gasp/theme.toml`), or `rules`
+    /// (`.gasp/rules.toml`).
     Changed(String),
 }
 
@@ -299,7 +299,7 @@ pub(super) fn theme_key(token: &str) -> String {
 
 impl SettingsView {
     /// A settings screen for the vault at `vault_root`, reading its
-    /// settings, theme and key rules from `.editor/`.
+    /// settings, theme and key rules from `.gasp/`.
     pub fn new(
         vault_root: impl Into<PathBuf>,
         window: &mut Window,

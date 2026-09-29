@@ -2,6 +2,7 @@
 //! grammar checker's flags with Accept and Ignore, and recovering an
 //! earlier version of a note from its snapshots.
 
+use editor_config::CONFIG_DIR;
 use std::path::Path;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -43,7 +44,7 @@ fn vault_with(text: &str) -> TempDir {
 /// they start off.
 fn vault_with_tints(text: &str) -> TempDir {
     let vault = vault_with(text);
-    let config = vault.path().join(".editor");
+    let config = vault.path().join(CONFIG_DIR);
     std::fs::create_dir_all(&config).unwrap();
     std::fs::write(
         config.join("settings.toml"),
@@ -134,7 +135,8 @@ fn sentences_are_tinted_by_length_and_the_key_toggles_them(cx: &mut TestAppConte
     assert!(!editor.read_with(cx, |view, _| view.is_highlighting_sentences()));
     cx.run_until_parked();
     assert!(tinted(&editor, cx).is_empty());
-    let settings = std::fs::read_to_string(vault.path().join(".editor/settings.toml")).unwrap();
+    let settings =
+        std::fs::read_to_string(vault.path().join(CONFIG_DIR).join("settings.toml")).unwrap();
     // Off is the default, so the setting leaves the file.
     assert!(!settings.contains("enabled = true"), "{settings}");
     press(cx, "prose.toggle-sentence-highlighting");
@@ -241,7 +243,8 @@ fn flags_underline_problems_and_accept_or_ignore_them(cx: &mut TestAppContext) {
     editor.update(cx, |view, cx| view.ignore_flag(&flag, cx));
     cx.run_until_parked();
     assert!(editor.read_with(cx, |view, _| view.shown_flags().is_empty()));
-    let ignored = std::fs::read_to_string(vault.path().join(".editor/prose/ignored.txt")).unwrap();
+    let ignored =
+        std::fs::read_to_string(vault.path().join(CONFIG_DIR).join("prose/ignored.txt")).unwrap();
     assert!(ignored.lines().any(|line| line == "mispeled"), "{ignored}");
 }
 

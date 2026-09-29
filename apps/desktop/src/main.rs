@@ -1,16 +1,18 @@
 use std::process::ExitCode;
 
+use editor_config::COMMAND_NAME;
 use editor_desktop::app::{has_display, launch, launch_bench};
 use editor_desktop::bench::BenchConfig;
 use editor_desktop::cli::{self, Command, USAGE};
 use editor_desktop::note::{self, LONG_NOTE_LINES};
 use editor_desktop::trace;
-use editor_desktop::workspace::state::AppState;
+use editor_desktop::workspace::state::{AppState, migrate_app_folders};
 use editor_desktop::workspace::window::LaunchTarget;
 
 fn main() -> ExitCode {
     trace::init();
     env_logger::init();
+    migrate_app_folders();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let command = match cli::parse(&args) {
         Ok(command) => command,
@@ -34,21 +36,21 @@ fn main() -> ExitCode {
     }
 }
 
-/// `editor mcp`: serves the vault until the client hangs up. Nothing
+/// `gasp mcp`: serves the vault until the client hangs up. Nothing
 /// here starts GPUI, so the server answers within milliseconds.
 fn mcp(vault: Option<std::path::PathBuf>) -> ExitCode {
     let Some(vault) = vault.or_else(AppState::last_vault) else {
-        eprintln!("editor mcp: no vault given and none opened before; pass its folder");
+        eprintln!("{COMMAND_NAME} mcp: no vault given and none opened before; pass its folder");
         return ExitCode::from(2);
     };
     if !vault.is_dir() {
-        eprintln!("editor mcp: {} isn't a folder", vault.display());
+        eprintln!("{COMMAND_NAME} mcp: {} isn't a folder", vault.display());
         return ExitCode::from(2);
     }
     match editor_mcp::serve_stdio(&vault) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("editor mcp: {error}");
+            eprintln!("{COMMAND_NAME} mcp: {error}");
             ExitCode::from(1)
         }
     }
