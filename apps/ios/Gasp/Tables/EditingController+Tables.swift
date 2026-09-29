@@ -9,15 +9,23 @@ extension EditingController: TableGridHost {
     /// too wide, then places them.
     func updateTableGrids() {
         let models = styler.gridTables
+        for (old, new) in styler.movedGrids {
+            guard let grid = tableGrids.removeValue(forKey: old) else { continue }
+            grid.tableStart = new
+            tableGrids[new] = grid
+        }
         for (start, grid) in tableGrids where models[start] == nil {
             grid.removeFromSuperview()
             tableGrids[start] = nil
         }
         for (start, model) in models {
-            let grid = tableGrids[start] ?? makeGrid(start, model)
+            let existing = tableGrids[start]
+            let grid = existing ?? makeGrid(start, model)
             grid.model = model
             tableGrids[start] = grid
-            place(grid)
+            // Grids that only moved are placed with the rest once the text
+            // is laid out again.
+            if existing == nil || styler.laidOutGrids.contains(start) { place(grid) }
         }
     }
 

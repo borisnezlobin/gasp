@@ -23,6 +23,22 @@ struct TableGridModel {
         rows.map(\.cells.count).max() ?? 0
     }
 
+    /// The same grid for its table after text before it grew by `shift`.
+    func moved(by shift: Int) -> TableGridModel {
+        let rows = rows.map { row in
+            Row(
+                line: NSRange(location: row.line.location + shift, length: row.line.length),
+                header: row.header,
+                cells: row.cells.map { cell in
+                    let range = NSRange(location: cell.range.location + shift, length: cell.range.length)
+                    return Cell(range: range, text: cell.text)
+                },
+                alignments: row.alignments
+            )
+        }
+        return TableGridModel(rows: rows)
+    }
+
     func cell(_ row: Int, _ column: Int) -> Cell? {
         guard rows.indices.contains(row), rows[row].cells.indices.contains(column) else { return nil }
         return rows[row].cells[column]
@@ -55,7 +71,8 @@ enum CellMove {
 /// over the rows it stands for. A tap on a cell edits it in place; a long
 /// press offers the table editor's row, column and table commands.
 final class TableGridView: UIScrollView, UIContextMenuInteractionDelegate {
-    let tableStart: UInt32
+    /// Where the table starts, which moves as text before it changes.
+    var tableStart: UInt32
     weak var host: TableGridHost?
     /// What the grid draws; it's drawn at its rows' place by `update`.
     var model: TableGridModel

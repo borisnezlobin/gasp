@@ -5,6 +5,9 @@ import SwiftUI
 /// every tab), and the sidebar slides in over the note from the left edge.
 struct BrowserView: View {
     @Environment(AppModel.self) private var model
+    /// The hardware keyboard's shortcuts join after the first frame, as
+    /// building them would hold it up.
+    @State private var shortcutsReady = false
 
     private var tokens: Tokens { model.library.tokens }
     private var workspace: Workspace { model.workspace }
@@ -27,10 +30,12 @@ struct BrowserView: View {
         .overlay { if workspace.overviewOpen { TabOverview().transition(.opacity) } }
         .animation(.snappy(duration: 0.25), value: workspace.overviewOpen)
         .background {
-            KeyCommands(
-                bindings: model.library.keyBindings,
-                commands: model.library.commands
-            ) { model.runner.run($0) }
+            if shortcutsReady {
+                KeyCommands(
+                    bindings: model.library.keyBindings,
+                    commands: model.library.commands
+                ) { model.runner.run($0) }
+            }
         }
         .modifier(BrowserSheets())
         .modifier(BrowserPrompts())
@@ -103,6 +108,7 @@ struct BrowserView: View {
     private func openLaunchLink() async {
         let arguments = UserDefaults.standard
         PerformanceProbe.shared.start(model: model)
+        shortcutsReady = true
         if let link = arguments.string(forKey: "open"), let url = URL(string: link) { open(url) }
         openSyncSetupFromArguments(arguments)
         // The note's text view joins the window a moment after launch.
