@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Builds Editor.app for Apple Silicon and Intel Macs, signs it, and packages it as a .dmg.
+# Builds Gasp.app for Apple Silicon and Intel Macs, signs it, and packages it as a .dmg.
 #
 #   scripts/package-macos.sh
 #
@@ -11,9 +11,9 @@
 
 set -euo pipefail
 
-APP_NAME="Editor"
-BUNDLE_ID="com.borisnezlobin.editor"
-EXECUTABLE="editor"
+APP_NAME="Gasp"
+BUNDLE_ID="com.borisnezlobin.gasp"
+EXECUTABLE="gasp"
 MINIMUM_MACOS="12.0"
 TARGETS=(aarch64-apple-darwin x86_64-apple-darwin)
 
