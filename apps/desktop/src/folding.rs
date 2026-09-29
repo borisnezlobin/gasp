@@ -310,6 +310,10 @@ impl EditorView {
         }
         let pointer = self.pointer_at;
         let hovered = pointer.and_then(|at| self.foldable_line_at(frame, at));
+        if hovered.is_none() && self.folds.folded_heading_count() == 0 {
+            self.fold_ui.chevrons.clear();
+            return Vec::new();
+        }
         let chevrons: Vec<FoldChevron> = frame
             .lines
             .iter()
@@ -342,7 +346,23 @@ impl EditorView {
             .iter()
             .find(|placed| placed.top <= position.y && position.y < placed.bottom())?;
         let line = placed.visual.line;
+        if !self.is_heading_line(placed.visual.start) {
+            return None;
+        }
         self.foldable_heading(line).map(|_| line)
+    }
+
+    /// Whether the line starting at `line_start` is a heading, asked of
+    /// the syntax tree without working out every section, so typing with
+    /// the pointer over the text costs nothing.
+    fn is_heading_line(&self, line_start: usize) -> bool {
+        let tree = self.source.tree();
+        let line = self.source.line_of(line_start);
+        tree.path_at(line_start).into_iter().any(|id| {
+            let node = tree.node(id);
+            matches!(node.kind, gasp_core::syntax::NodeKind::Heading { .. })
+                && self.source.line_of(node.range.start) == line
+        })
     }
 
     /// Follows the pointer over headings, redrawing when the chevron
