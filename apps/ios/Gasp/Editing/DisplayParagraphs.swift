@@ -39,10 +39,13 @@ final class DisplayParagraphs: NSObject, NSTextContentStorageDelegate {
         shouldEnumerate textElement: NSTextElement,
         options: NSTextContentManager.EnumerationOptions = []
     ) -> Bool {
-        guard let paragraph = textElement as? NSTextParagraph, paragraph.attributedString.length > 0 else {
-            return true
-        }
-        return paragraph.attributedString.attribute(.collapsedLine, at: 0, effectiveRange: nil) == nil
+        // Read from the storage rather than the paragraph, which TextKit
+        // may build afresh for every element it walks past.
+        guard let storage = (textContentManager as? NSTextContentStorage)?.textStorage,
+              let location = textElement.elementRange?.location else { return true }
+        let offset = textContentManager.offset(from: textContentManager.documentRange.location, to: location)
+        guard offset >= 0, offset < storage.length else { return true }
+        return storage.attribute(.collapsedLine, at: offset, effectiveRange: nil) == nil
     }
 
     private static func drawn(
