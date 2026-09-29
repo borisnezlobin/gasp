@@ -24,20 +24,8 @@ struct SettingsScreen: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                if let problem {
-                    Section { Text(problem).foregroundStyle(tokens.swiftUIColor(\.textStrong)) }
-                }
-                SyncSettingsSection(write: write)
-                VaultChoiceSection()
-                ToolbarSettingsSection()
-                ForEach(sections, id: \.title) { section in
-                    Section(section.title) {
-                        ForEach(section.items, id: \.key) { item in
-                            SettingRow(item: item, tokens: tokens) { write(item.key, $0) }
-                        }
-                    }
-                }
+            ScrollViewReader { scroller in
+                form.onChange(of: items.isEmpty) { scrollToLaunchSetting(scroller) }
             }
             .textCase(nil)
             .navigationTitle("Settings")
@@ -49,6 +37,32 @@ struct SettingsScreen: View {
         .font(Font(tokens.uiFont(size: tokens.bodySize)))
         .onAppear(perform: load)
         .onChange(of: model.library.configGeneration) { load() }
+    }
+
+    private var form: some View {
+        Form {
+            if let problem {
+                Section { Text(problem).foregroundStyle(tokens.swiftUIColor(\.textStrong)) }
+            }
+            SyncSettingsSection(write: write)
+            VaultChoiceSection()
+            ToolbarSettingsSection()
+            ForEach(sections, id: \.title) { section in
+                Section(section.title) {
+                    ForEach(section.items, id: \.key) { item in
+                        SettingRow(item: item, tokens: tokens) { write(item.key, $0) }
+                            .id(item.key)
+                    }
+                }
+            }
+        }
+    }
+
+    /// `-settingsScrollTo <key>` on the command line shows that setting,
+    /// for screenshots.
+    private func scrollToLaunchSetting(_ scroller: ScrollViewProxy) {
+        guard let key = UserDefaults.standard.string(forKey: "settingsScrollTo") else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { scroller.scrollTo(key, anchor: .top) }
     }
 
     private func load() {
@@ -83,6 +97,14 @@ private struct SettingRow: View {
     let write: (SettingValue) -> Void
 
     var body: some View {
+        if item.control.isNumber {
+            NumberSettingRow(item: item, tokens: tokens, write: write)
+        } else {
+            labelledControl
+        }
+    }
+
+    private var labelledControl: some View {
         VStack(alignment: .leading, spacing: tokens.spacing.xs) {
             control
             if !item.description.isEmpty {
@@ -101,10 +123,6 @@ private struct SettingRow: View {
             Picker(item.title, selection: Binding(get: { value }, set: { write(.text(value: $0)) })) {
                 ForEach(options, id: \.self) { Text(Self.humanize($0)).tag($0) }
             }
-        case (.integer, .integer(let value)):
-            Stepper("\(item.title): \(value)", value: Binding(
-                get: { Int(value) }, set: { write(.integer(value: Int64($0))) }
-            ))
         case (.list, .list(let values)):
             ListField(title: item.title, values: values, tokens: tokens) { write(.list(values: $0)) }
         default:
@@ -132,6 +150,15 @@ private struct SettingRow: View {
     private static func parse(_ text: String, like value: SettingValue) -> SettingValue {
         if case .number = value, let number = Double(text) { return .number(value: number) }
         return .text(value: text)
+    }
+}
+
+extension SettingControl {
+    var isNumber: Bool {
+        switch self {
+        case .integer, .number: true
+        default: false
+        }
     }
 }
 
