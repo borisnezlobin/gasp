@@ -2,10 +2,14 @@
 //! through the rules engine.
 
 use gasp_config::EventKind;
-use gpui::{Context, Window};
+use gpui::{App, Context, Pixels, Point, Window};
 
-use super::Workspace;
-use super::sidebar::ExecutorClock;
+use super::sidebar::{ExecutorClock, PANEL_TARGET, PanelHolds};
+use super::sidebar_chrome::{SORT_KEY, VAULT_KEY};
+use super::{Drag, Workspace};
+
+/// The command the hover rules hide the panel with.
+const HIDE_COMMAND: &str = "sidebar.files.hide";
 
 impl Workspace {
     pub(crate) fn toggle_left_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -72,6 +76,62 @@ impl Workspace {
         self.schedule_rule_tick(window, cx);
     }
 
+    /// The pointer moved, was released or left the window at `pointer`:
+    /// the panel and the bars shown on hover stay or start to hide.
+    pub(crate) fn follow_pointer(
+        &mut self,
+        pointer: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.left_panel.set_pointer(pointer);
+        self.refresh_panel_use(window, cx);
+        self.follow_pointer_for_bars(pointer, window, cx);
+    }
+
+    /// Tells the rules if the panel came into use or went out of it, with
+    /// the pointer where it was last seen.
+    pub(crate) fn refresh_panel_use(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let in_use = self.left_panel.is_visible() && self.left_panel_holds(window, cx).any();
+        if let Some(kind) = self.left_panel.set_in_use(in_use) {
+            self.pointer_event(kind, PANEL_TARGET, window, cx);
+        }
+    }
+
+    /// What keeps the panel from hiding now.
+    pub fn left_panel_holds(&self, window: &Window, cx: &App) -> PanelHolds {
+        let pointer = self
+            .left_panel
+            .pointer()
+            .is_some_and(|pointer| self.left_panel.area().contains(pointer));
+        let focus = self
+            .left_panel
+            .focus_handle()
+            .is_some_and(|focus| focus.contains_focused(window, cx));
+        let carried = cx.has_active_drag() && self.left_panel.in_use();
+        PanelHolds {
+            pointer,
+            focus,
+            menu: self.left_panel_menu_open(cx),
+            drag: self.drag == Some(Drag::Sidebar) || carried,
+        }
+    }
+
+    /// Whether a menu or prompt the panel opened is showing.
+    fn left_panel_menu_open(&self, cx: &App) -> bool {
+        let own = [SORT_KEY, VAULT_KEY]
+            .iter()
+            .any(|key| self.menu.is_open_at(key));
+        let tree = self.file_tree.as_ref().is_some_and(|tree| {
+            let tree = tree.read(cx);
+            tree.context_menu_items().is_some() || tree.pending_trash().is_some()
+        });
+        own || tree
+    }
+
+    /// Runs what the rules asked for, except hiding the panel while it's
+    /// in use: the hide was asked for when the pointer left, and the
+    /// pointer may be back, or a menu may have opened, since.
     fn run_rule_commands(
         &mut self,
         commands: Vec<String>,
@@ -79,6 +139,10 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         for command in commands {
+            if command == HIDE_COMMAND && self.left_panel_holds(window, cx).any() {
+                self.left_panel.set_in_use(true);
+                continue;
+            }
             self.run_command(&command, window, cx);
         }
     }

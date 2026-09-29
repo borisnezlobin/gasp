@@ -5,13 +5,22 @@
 //! touching the window's left edge and leaving the panel are rule events,
 //! and the default rules turn them into `sidebar.files.show` and, 300 ms
 //! later, `sidebar.files.hide`.
+//!
+//! Whether the pointer is in the panel is worked out from where the panel
+//! was last drawn, not from GPUI's hover, which ends whenever anything is
+//! drawn over the panel (a menu's backdrop, a popover) or a drag is under
+//! way. The panel also counts as in use while it has the keyboard, has a
+//! menu open or is being resized, and a hide that comes due while it's in
+//! use is dropped.
 
 use std::time::{Duration, Instant};
 
 use gasp_config::rules::Clock;
 use gasp_config::settings::{SettingsIndex, SidebarMode, SidebarReveal};
 use gasp_config::{Event, EventKind, MatchContext, Platform, RuleEngine, RuleSet, Settings};
-use gpui::{AnyView, BackgroundExecutor, FocusHandle, Pixels, Task};
+use gpui::{AnyView, BackgroundExecutor, FocusHandle, Pixels, Point, Task};
+
+use crate::ui::DrawnArea;
 
 /// The rule target for the strip along the window's left edge.
 pub const LEFT_EDGE_TARGET: &str = "window.left-edge";
@@ -51,32 +60,30 @@ pub struct LeftPanel {
     rules: RuleEngine,
     settings: SettingsIndex,
     pub(crate) tick: Option<Task<()>>,
-    /// The pointer left the panel while dragging something out of it;
-    /// the panel waits for the drop before it counts as left.
-    pub(crate) left_while_dragging: bool,
-    hover: PanelHover,
+    area: DrawnArea,
+    /// Whether the panel was in use when the rules last heard of it.
+    in_use: bool,
+    /// Where the pointer was last seen, in the window or leaving it.
+    pointer: Option<Point<Pixels>>,
 }
 
-/// A part of the panel the pointer can be over.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PanelPart {
-    Body,
-    /// The resize strip, half of which hangs outside the panel.
-    Edge,
+/// What keeps a panel shown on hover from hiding.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PanelHolds {
+    /// The pointer is over the panel or the outer half of its edge.
+    pub pointer: bool,
+    /// The panel, or something in it, has the keyboard.
+    pub focus: bool,
+    /// A menu or prompt the panel opened is showing.
+    pub menu: bool,
+    /// The panel is being resized, or something picked up or carried
+    /// over it is being dragged.
+    pub drag: bool,
 }
 
-/// Which parts of the panel the pointer is over. Hover reveal treats
-/// them as one, so reaching for the half of the edge outside the panel
-/// doesn't count as leaving it.
-#[derive(Clone, Copy, Debug, Default)]
-struct PanelHover {
-    body: bool,
-    edge: bool,
-}
-
-impl PanelHover {
-    fn inside(self) -> bool {
-        self.body || self.edge
+impl PanelHolds {
+    pub fn any(self) -> bool {
+        self.pointer || self.focus || self.menu || self.drag
     }
 }
 
@@ -94,8 +101,9 @@ impl LeftPanel {
             rules: RuleEngine::new(rules, Platform::current()),
             settings: SettingsIndex::new(settings),
             tick: None,
-            left_while_dragging: false,
-            hover: PanelHover::default(),
+            area: DrawnArea::default(),
+            in_use: false,
+            pointer: None,
         }
     }
 
@@ -172,8 +180,9 @@ impl LeftPanel {
     }
 
     pub fn hide(&mut self) {
-        // A hidden panel draws nothing to leave, so no leave would come.
-        self.hover = PanelHover::default();
+        // A hidden panel isn't anywhere to be in.
+        self.in_use = false;
+        self.area.set(None);
         if self.reveal == SidebarReveal::Hover {
             self.revealed = false;
         } else {
@@ -189,32 +198,38 @@ impl LeftPanel {
         self.pinned
     }
 
-    /// The pointer entered or left `part` of the panel. Returns the rule
-    /// event for the panel as a whole, if the pointer crossed into or out
-    /// of it. While `resizing`, leaving is held back so the panel can't
-    /// hide under the drag; [`LeftPanel::end_resize`] lets it through.
-    pub fn hover_part(
-        &mut self,
-        part: PanelPart,
-        hovered: bool,
-        resizing: bool,
-    ) -> Option<EventKind> {
-        let was_inside = self.hover.inside();
-        match part {
-            PanelPart::Body => self.hover.body = hovered,
-            PanelPart::Edge => self.hover.edge = hovered,
-        }
-        match (was_inside, self.hover.inside()) {
-            (false, true) => Some(EventKind::PointerEnter),
-            (true, false) if !resizing => Some(EventKind::PointerLeave),
-            _ => None,
-        }
+    /// Where the panel was last drawn.
+    pub fn area(&self) -> &DrawnArea {
+        &self.area
     }
 
-    /// A resize of the panel ended: the leave it held back, if the
-    /// pointer is now outside.
-    pub fn end_resize(&self) -> Option<EventKind> {
-        (!self.hover.inside()).then_some(EventKind::PointerLeave)
+    /// Notes where the pointer is now, in the window or leaving it.
+    pub fn set_pointer(&mut self, pointer: Point<Pixels>) {
+        self.pointer = Some(pointer);
+    }
+
+    /// Where the pointer was last seen.
+    pub fn pointer(&self) -> Option<Point<Pixels>> {
+        self.pointer
+    }
+
+    /// Whether the rules last heard the panel was in use.
+    pub fn in_use(&self) -> bool {
+        self.in_use
+    }
+
+    /// The panel came into use or went out of it. Returns the rule event
+    /// for the change, if there was one.
+    pub fn set_in_use(&mut self, in_use: bool) -> Option<EventKind> {
+        if in_use == self.in_use {
+            return None;
+        }
+        self.in_use = in_use;
+        Some(if in_use {
+            EventKind::PointerEnter
+        } else {
+            EventKind::PointerLeave
+        })
     }
 
     /// Runs a pointer event through the rules, returning the commands to run.
@@ -292,31 +307,27 @@ mod tests {
     }
 
     #[test]
-    fn the_edge_outside_the_panel_counts_as_inside() {
+    fn only_a_change_in_use_is_an_event() {
         let mut panel = panel(SidebarReveal::Hover);
-        let (enter, leave) = (Some(EventKind::PointerEnter), Some(EventKind::PointerLeave));
-        assert_eq!(panel.hover_part(PanelPart::Body, true, false), enter);
-        assert_eq!(panel.hover_part(PanelPart::Edge, true, false), None);
-        assert_eq!(panel.hover_part(PanelPart::Body, false, false), None);
-        assert_eq!(panel.hover_part(PanelPart::Edge, false, false), leave);
-        // Onto the edge from outside, whichever part hears of it first.
-        assert_eq!(panel.hover_part(PanelPart::Edge, true, false), enter);
-        assert_eq!(panel.hover_part(PanelPart::Body, false, false), None);
+        assert_eq!(panel.set_in_use(false), None);
+        assert_eq!(panel.set_in_use(true), Some(EventKind::PointerEnter));
+        assert_eq!(panel.set_in_use(true), None);
+        assert_eq!(panel.set_in_use(false), Some(EventKind::PointerLeave));
+        panel.set_in_use(true);
+        panel.hide();
+        assert!(!panel.in_use(), "a hidden panel isn't in use");
     }
 
     #[test]
-    fn a_resize_holds_back_leaving_until_it_ends() {
+    fn hiding_forgets_where_the_panel_was() {
         let mut panel = panel(SidebarReveal::Hover);
-        let clock = ManualClock::new();
-        panel.pointer_event(EventKind::PointerEnter, LEFT_EDGE_TARGET, &clock);
-        panel.hover_part(PanelPart::Edge, true, false);
-        assert_eq!(panel.hover_part(PanelPart::Edge, false, true), None);
-        clock.advance_ms(1000);
-        assert!(panel.tick(&clock).is_empty());
-        assert_eq!(panel.end_resize(), Some(EventKind::PointerLeave));
-        // Ending back inside hides nothing.
-        panel.hover_part(PanelPart::Body, true, true);
-        assert_eq!(panel.end_resize(), None);
+        let inside = gpui::point(gpui::px(10.), gpui::px(10.));
+        let size = gpui::size(gpui::px(200.), gpui::px(600.));
+        let origin = gpui::point(gpui::px(0.), gpui::px(0.));
+        panel.area().set(Some(gpui::Bounds::new(origin, size)));
+        assert!(panel.area().contains(inside));
+        panel.hide();
+        assert!(!panel.area().contains(inside), "a hidden panel has no area");
     }
 
     #[test]

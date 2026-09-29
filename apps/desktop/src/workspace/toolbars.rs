@@ -4,6 +4,8 @@
 //! next one), the arrows move between buttons, Enter or Space presses,
 //! Tab goes to the next bar and Escape goes back to the note.
 
+use std::collections::HashMap;
+
 use gasp_config::toolbars::{Behaviour, Place, Toolbar, ToolbarConditions, ToolbarItem};
 use gpui::{
     AnyElement, Context, Div, KeyDownEvent, MouseButton, MouseDownEvent, Task, Window, div,
@@ -18,7 +20,7 @@ use crate::toolbar::{
     AddToToolbar, FocusStop, PressToolbarItem, ToolbarFocus, focus_stops, item_key, step_stop,
 };
 use crate::ui::Selectable;
-use crate::ui::{MenuAnchor, MenuItem};
+use crate::ui::{DrawnArea, MenuAnchor, MenuItem};
 
 /// The docked places, in the order the keyboard visits them.
 const DOCKED: [Place; 5] = [
@@ -35,7 +37,11 @@ const DOCKED: [Place; 5] = [
 pub(crate) struct ToolbarHover {
     revealed: Vec<Place>,
     reveal: Option<(Place, Task<()>)>,
-    hide: Option<(Place, Task<()>)>,
+    hide: HashMap<Place, Task<()>>,
+    /// Where each place's shown bars were last drawn.
+    areas: HashMap<Place, DrawnArea>,
+    /// Where the pointer was last seen, in the window or leaving it.
+    pointer: Option<gpui::Point<gpui::Pixels>>,
     /// Whether the pointer is on the status bar, which shows its add button.
     on_status_bar: bool,
 }
@@ -330,11 +336,48 @@ impl Workspace {
 
     fn reveal(&mut self, place: Place, cx: &mut Context<Self>) {
         self.toolbar_hover.reveal = None;
-        self.toolbar_hover.hide = None;
+        self.toolbar_hover.hide.remove(&place);
         if !self.toolbar_hover.revealed.contains(&place) {
             self.toolbar_hover.revealed.push(place);
         }
         cx.notify();
+    }
+
+    /// The pointer is at `pointer`: each bar shown on hover stays while
+    /// it's in use and otherwise starts its hide delay, once.
+    pub(super) fn follow_pointer_for_bars(
+        &mut self,
+        pointer: gpui::Point<gpui::Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.toolbar_hover.pointer = Some(pointer);
+        for place in self.toolbar_hover.revealed.clone() {
+            if self.bar_in_use(place) {
+                self.toolbar_hover.hide.remove(&place);
+            } else if !self.toolbar_hover.hide.contains_key(&place) {
+                self.start_hide(place, window, cx);
+            }
+        }
+    }
+
+    /// Whether the bars shown on hover at `place` are in use: the pointer
+    /// is over them (by where they were drawn, whatever is drawn on top),
+    /// a menu is open, or the keyboard is in one of them.
+    fn bar_in_use(&self, place: Place) -> bool {
+        let pointer = self.toolbar_hover.pointer.is_some_and(|pointer| {
+            self.toolbar_hover
+                .areas
+                .get(&place)
+                .is_some_and(|area| area.contains(pointer))
+        });
+        let keyboard = self.toolbar_focus.as_ref().is_some_and(|focus| {
+            self.config
+                .toolbars
+                .get(&focus.toolbar)
+                .is_some_and(|toolbar| toolbar.place == place)
+        });
+        pointer || keyboard || self.menu.is_open()
     }
 
     fn start_hide(&mut self, place: Place, window: &mut Window, cx: &mut Context<Self>) {
@@ -343,7 +386,10 @@ impl Workspace {
             cx.background_executor().timer(delay).await;
             workspace
                 .update(cx, |workspace, cx| {
-                    workspace.toolbar_hover.hide = None;
+                    workspace.toolbar_hover.hide.remove(&place);
+                    if workspace.bar_in_use(place) {
+                        return;
+                    }
                     workspace
                         .toolbar_hover
                         .revealed
@@ -352,7 +398,7 @@ impl Workspace {
                 })
                 .ok();
         });
-        self.toolbar_hover.hide = Some((place, task));
+        self.toolbar_hover.hide.insert(place, task);
     }
 
     /// A place's hover bars, floating over its edge while they show.
@@ -377,7 +423,9 @@ impl Workspace {
                 self.with_context_menu(body, toolbar, cx)
             })
             .collect();
+        let area = self.toolbar_hover.areas.entry(place).or_default().clone();
         if bars.is_empty() {
+            area.set(None);
             return None;
         }
         let overlay = edge_at(div().flex().gap(ui.space_md), place, gpui::px(0.))
@@ -391,13 +439,7 @@ impl Workspace {
                 format!("toolbar-overlay-{place:?}").into(),
             ))
             .occlude()
-            .on_hover(cx.listener(move |workspace, hovered: &bool, window, cx| {
-                if *hovered {
-                    workspace.toolbar_hover.hide = None;
-                } else {
-                    workspace.start_hide(place, window, cx);
-                }
-            }))
+            .child(area.probe().size_full())
             .children(bars);
         Some(overlay.into_any_element())
     }
