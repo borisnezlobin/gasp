@@ -29,9 +29,15 @@ enum WorkspaceSheet: Identifiable {
     case share(URL)
     case lookUp(String)
     case photos
+    case syncSetup(SyncSetupDraft)
+    case syncDetails
+    case resolver
 
     var id: String {
         switch self {
+        case .syncSetup: "sync setup"
+        case .syncDetails: "sync details"
+        case .resolver: "resolver"
         case .palette: "palette"
         case .settings: "settings"
         case .templates: "templates"

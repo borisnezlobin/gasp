@@ -32,9 +32,13 @@ final class EditingController: NSObject, UITextViewDelegate {
     /// The text as it was before the edits since the last save, kept as a
     /// snapshot when the recovery interval allows.
     private var textBeforeEdits: String?
+    /// The text as last read from or written to disk: where this phone's
+    /// unsaved edits start from.
+    private(set) var savedText: String
 
     init(path: String, text: String, vault: VaultFolder, tokens: Tokens, host: EditingHost) {
         self.path = path
+        savedText = text
         self.vault = vault
         self.tokens = tokens
         self.host = host
@@ -157,6 +161,17 @@ final class EditingController: NSObject, UITextViewDelegate {
         saver.flush()
     }
 
+    /// Whether the text has changed since it was last read or saved.
+    var hasUnsavedEdits: Bool {
+        document.text() != savedText
+    }
+
+    /// Stops this session from writing its text, because sync replaced the
+    /// note on disk and a new session takes over.
+    func retire() {
+        saver.discardUnsaved()
+    }
+
     // MARK: UITextViewDelegate
 
     func textViewDidChange(_ textView: UITextView) {
@@ -165,7 +180,10 @@ final class EditingController: NSObject, UITextViewDelegate {
         if textBeforeEdits == nil { textBeforeEdits = document.text() }
         document.update(text: text)
         restyle(edited: textView.selectedRange)
-        saver.schedule(text) { [weak self] in self?.keepSnapshot() }
+        saver.schedule(text) { [weak self] in
+            self?.savedText = text
+            self?.keepSnapshot()
+        }
     }
 
     func textViewDidChangeSelection(_ textView: UITextView) {

@@ -10,7 +10,7 @@ extension CommandRunner {
         let folder = session.map { ($0.path as NSString).deletingLastPathComponent } ?? ""
         do {
             let path = try vault.createNote(folder: folder, title: nil)
-            library.refresh()
+            library.edited()
             if tabs.active.path == nil {
                 tabs.open(path)
             } else {
@@ -26,7 +26,7 @@ extension CommandRunner {
         guard let vault = library.vault else { return }
         do {
             let path = try vault.dailyNote()
-            library.refresh()
+            library.edited()
             tabs.open(path)
         } catch {
             workspace.tell(error.localizedDescription)
@@ -39,7 +39,7 @@ extension CommandRunner {
         do {
             let renamed = try vault.renameNote(path: path, title: title)
             tabs.renamed(from: path, to: renamed)
-            library.refresh()
+            library.edited()
         } catch {
             workspace.tell(error.localizedDescription)
         }
@@ -51,7 +51,7 @@ extension CommandRunner {
         do {
             try vault.trashNote(path: path)
             tabs.removed(path)
-            library.refresh()
+            library.edited()
         } catch {
             workspace.tell(error.localizedDescription)
         }

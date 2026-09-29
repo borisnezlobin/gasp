@@ -4,6 +4,7 @@ import UIKit
 @main
 struct EditorApp: App {
     @State private var model = AppModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -11,6 +12,10 @@ struct EditorApp: App {
                 .environment(model)
                 .tint(model.library.tokens.swiftUIColor(\.accent))
                 .onAppear { Self.styleNavigationBars(model.library.tokens) }
+        }
+        .onChange(of: scenePhase) { _, phase in model.sceneChanged(to: phase) }
+        .backgroundTask(.appRefresh(SyncCenter.refreshTaskIdentifier)) {
+            await model.sync.syncInBackgroundRefresh()
         }
     }
 

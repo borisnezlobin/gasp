@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The bar at the bottom: the sidebar on the left, the note showing in the
 /// middle (swipe it sideways for the neighbouring tab, tap it for every
-/// tab), and how many tabs are open on the right.
+/// tab), then sync when the vault syncs, and how many tabs are open on the
+/// right.
 struct TabBarView: View {
     @Environment(AppModel.self) private var model
     @State private var drag: CGFloat = 0
@@ -19,6 +20,7 @@ struct TabBarView: View {
                 model.workspace.sidebarOpen = true
             }
             titlePill
+            SyncIndicator()
             BarButton(symbol: "square.on.square", label: "Show all tabs", tokens: tokens) {
                 model.workspace.overviewOpen = true
             }

@@ -6,7 +6,7 @@ import Foundation
 final class NoteSaver {
     private let vault: VaultFolder
     var path: String
-    private let disk = DispatchQueue(label: "com.borisnezlobin.editor.save")
+    private static let disk = DispatchQueue(label: "com.borisnezlobin.editor.save")
     private var unsavedText: String?
     private var afterSave: (() -> Void)?
     private var timer: DispatchWorkItem?
@@ -28,16 +28,31 @@ final class NoteSaver {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.quietPeriod, execute: timer)
     }
 
+    /// Waits until every save handed to the disk so far is written, so a
+    /// sync commits it. Never call it on the main thread.
+    static func waitForWrites() {
+        disk.sync {}
+    }
+
+    /// Forgets text waiting to be saved, for a note sync is replacing.
+    func discardUnsaved() {
+        timer?.cancel()
+        unsavedText = nil
+    }
+
     /// Saves anything still waiting, now.
     func flush() {
         timer?.cancel()
         guard let text = unsavedText else { return }
         unsavedText = nil
         let (vault, path, afterSave) = (vault, path, afterSave)
-        disk.async {
+        Self.disk.async {
             do {
                 try vault.saveNote(path: path, text: text)
-                DispatchQueue.main.async { afterSave?() }
+                DispatchQueue.main.async {
+                    afterSave?()
+                    NotificationCenter.default.post(name: .vaultEdited, object: nil)
+                }
             } catch {
                 NSLog("Couldn't save \(path): \(error.localizedDescription)")
             }

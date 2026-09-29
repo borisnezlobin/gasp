@@ -50,6 +50,9 @@ struct BrowserSheets: ViewModifier {
         case .share(let url): ShareSheet(items: [url])
         case .lookUp(let term): LookUpView(term: term)
         case .photos: EmptyView()
+        case .syncSetup(let draft): SyncSetupView(draft: draft)
+        case .syncDetails: SyncDetailsSheet()
+        case .resolver: ConflictResolverView()
         }
     }
 

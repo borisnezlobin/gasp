@@ -46,15 +46,32 @@ struct BrowserView: View {
     /// A new identity whenever the tab or its note changes, so the page is
     /// rebuilt for it.
     private var pageIdentity: String {
-        "\(model.tabs.active.id) \(model.tabs.active.path ?? "")"
+        "\(model.tabs.active.id) \(model.tabs.active.path ?? "") \(model.tabs.generation)"
+    }
+
+    private func open(_ url: URL) {
+        guard url.scheme == "editor" else { return }
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        switch url.host() {
+        case "open": openNote(query)
+        case "sync": openSyncSetup(query)
+        default: break
+        }
+    }
+
+    /// `editor://sync/setup?repository=you/notes&branch=master` opens the
+    /// sync setup with those filled in. It never starts a clone itself.
+    private func openSyncSetup(_ query: [URLQueryItem]) {
+        var draft = SyncSetupDraft()
+        draft.repository = query.first { $0.name == "repository" }?.value ?? ""
+        draft.branch = query.first { $0.name == "branch" }?.value ?? draft.branch
+        workspace.sheet = .syncSetup(draft)
     }
 
     /// `editor://open?path=Folder/Note.md&line=12` opens a note, with the
     /// cursor on a line counted from 1.
-    private func open(_ url: URL) {
-        guard url.scheme == "editor", url.host() == "open",
-              let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
-              let path = query.first(where: { $0.name == "path" })?.value,
+    private func openNote(_ query: [URLQueryItem]) {
+        guard let path = query.first(where: { $0.name == "path" })?.value,
               model.library.notes.contains(where: { $0.path == path }) else { return }
         model.tabs.openInNewTab(path)
         let line = query.first { $0.name == "line" }?.value.flatMap(Int.init)
@@ -65,18 +82,31 @@ struct BrowserView: View {
 
     /// `-open editor://open?path=…` on the command line opens a note at
     /// launch, and `-run <command>` runs a command (or `overview` shows
-    /// the tabs), as `xcrun simctl launch` passes them.
+    /// the tabs, `sync-details` the sync sheet), as `xcrun simctl launch`
+    /// passes them. `-syncRepository`, `-syncBranch` and `-syncToken` fill
+    /// in the sync setup, and `-syncStart YES` clones straight away.
     private func openLaunchLink() async {
         let arguments = UserDefaults.standard
         if let link = arguments.string(forKey: "open"), let url = URL(string: link) { open(url) }
+        openSyncSetupFromArguments(arguments)
         guard let command = arguments.string(forKey: "run") else { return }
         // The note's text view joins the window a moment after launch.
         try? await Task.sleep(for: .milliseconds(600))
-        if command == "overview" {
-            workspace.overviewOpen = true
-        } else {
-            model.runner.run(command)
+        switch command {
+        case "overview": workspace.overviewOpen = true
+        case "sync-details": workspace.sheet = .syncDetails
+        default: model.runner.run(command)
         }
+    }
+
+    private func openSyncSetupFromArguments(_ arguments: UserDefaults) {
+        guard let repository = arguments.string(forKey: "syncRepository") else { return }
+        var draft = SyncSetupDraft()
+        draft.repository = repository
+        draft.branch = arguments.string(forKey: "syncBranch") ?? draft.branch
+        draft.token = arguments.string(forKey: "syncToken") ?? ""
+        draft.startsAtOnce = arguments.bool(forKey: "syncStart")
+        workspace.sheet = .syncSetup(draft)
     }
 
     private static func offset(ofLine line: Int, in text: String) -> Int {

@@ -86,3 +86,28 @@ extension CommandRunner {
         showing ? (workspace.sidebarOpen = false) : workspace.openSidebar(section)
     }
 }
+
+/// Sync's commands: syncing now (or setting sync up when it isn't yet),
+/// and the resolver.
+extension CommandRunner {
+    static let syncHandlers: [String: Handler] = [
+        "sync.now": { $0.syncNow() },
+        "sync.resolve-conflicts": { $0.resolveConflicts() }
+    ]
+
+    private func syncNow() {
+        if sync.isSynced {
+            sync.syncNow()
+        } else {
+            workspace.sheet = .syncSetup(SyncSetupDraft())
+        }
+    }
+
+    private func resolveConflicts() {
+        if sync.conflicts.isEmpty {
+            workspace.tell("No notes are waiting for you.")
+        } else {
+            workspace.sheet = .resolver
+        }
+    }
+}

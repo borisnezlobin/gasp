@@ -28,12 +28,8 @@ struct SettingsScreen: View {
                 if let problem {
                     Section { Text(problem).foregroundStyle(tokens.swiftUIColor(\.textStrong)) }
                 }
-                Section {
-                    Button("Open another vault") {
-                        dismiss()
-                        model.workspace.prompt = .pickVault
-                    }
-                }
+                SyncSettingsSection(write: write)
+                VaultChoiceSection()
                 ForEach(sections, id: \.title) { section in
                     Section(section.title) {
                         ForEach(section.items, id: \.key) { item in
@@ -42,6 +38,7 @@ struct SettingsScreen: View {
                     }
                 }
             }
+            .textCase(nil)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -50,10 +47,19 @@ struct SettingsScreen: View {
         }
         .font(Font(tokens.uiFont(size: tokens.bodySize)))
         .onAppear(perform: load)
+        .onChange(of: model.library.configGeneration) { load() }
     }
 
     private func load() {
-        items = model.library.vault?.settings() ?? []
+        items = (model.library.vault?.settings() ?? []).filter { showsInList($0.key) }
+    }
+
+    /// The sync section shows the repository, branches and interval itself;
+    /// the rest of sync's settings only matter in the synced vault.
+    private func showsInList(_ key: String) -> Bool {
+        guard key.hasPrefix("sync.") else { return true }
+        let ownRows = ["sync.branch", "sync.legacy-branch", "sync.interval-minutes"]
+        return model.library.kind == .synced && !ownRows.contains(key)
     }
 
     private func write(_ key: String, _ value: SettingValue) {
@@ -61,6 +67,7 @@ struct SettingsScreen: View {
             try model.library.vault?.setSetting(key: key, value: value)
             problem = nil
             model.library.reloadConfig()
+            if key.hasPrefix("sync.") { model.sync.reloadSettings() }
         } catch {
             problem = error.localizedDescription
         }

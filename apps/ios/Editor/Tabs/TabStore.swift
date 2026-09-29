@@ -18,8 +18,14 @@ struct BrowserTab: Identifiable, Equatable {
 final class TabStore {
     private(set) var tabs: [BrowserTab] = []
     private(set) var activeIndex = 0
+    /// Bumped when notes open in tabs were read again from disk, so their
+    /// pages are rebuilt.
+    private(set) var generation = 0
     private var closed: [BrowserTab] = []
     @ObservationIgnored private var sessions: [UUID: EditingController] = [:]
+    /// Where the cursor was in a note sync replaced, for the session that
+    /// reads it again.
+    @ObservationIgnored private var cursorsToKeep: [UUID: Int] = [:]
     @ObservationIgnored private let library: VaultLibrary
     @ObservationIgnored var makeSession: ((String, String) -> EditingController?)?
 
@@ -48,6 +54,7 @@ final class TabStore {
               let session = makeSession?(path, text) else { return nil }
         sessions[tab.id]?.saveNow()
         sessions[tab.id] = session
+        if let cursor = cursorsToKeep.removeValue(forKey: tab.id) { session.placeCursor(at: cursor) }
         return session
     }
 
@@ -165,6 +172,36 @@ final class TabStore {
 
     func saveAllNotes() {
         sessions.values.forEach { $0.saveNow() }
+    }
+
+    /// Reads notes open in tabs again after sync changed them on disk. A
+    /// tab whose text already matches the disk keeps its session.
+    func reload(_ paths: [String]) {
+        let changed = Set(paths)
+        let replaced = sessions.filter { _, session in
+            changed.contains(session.path) && yieldsToDisk(session)
+        }
+        guard !replaced.isEmpty else { return }
+        for (id, session) in replaced {
+            session.retire()
+            cursorsToKeep[id] = session.textView.selectedRange.location
+            sessions.removeValue(forKey: id)
+        }
+        generation += 1
+    }
+
+    /// Whether a session should give way to the note sync wrote. Edits not
+    /// saved yet are folded into it first; when they clash with it on the
+    /// same lines the session stays, and its edits save over the note.
+    private func yieldsToDisk(_ session: EditingController) -> Bool {
+        guard let vault = library.vault, let onDisk = try? vault.readNote(path: session.path) else { return false }
+        let text = session.document.text()
+        guard onDisk != text else { return false }
+        guard session.hasUnsavedEdits else { return true }
+        guard let merged = mergeNoteEdits(base: session.savedText, edited: text, synced: onDisk),
+              (try? vault.saveNote(path: session.path, text: merged)) != nil else { return false }
+        NotificationCenter.default.post(name: .vaultEdited, object: nil)
+        return true
     }
 
     // MARK: Saving
