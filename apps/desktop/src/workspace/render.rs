@@ -363,13 +363,14 @@ pub(super) fn resize_line(
 }
 
 impl Workspace {
-    /// Shows the sidebar button in the top-left pane's tab bar while the
-    /// sidebar, which has its own, is hidden.
     /// Puts the sidebar's show button, and room for the window buttons,
-    /// in the top-left pane while the sidebar is hidden.
+    /// in the top-left pane while the sidebar takes no room beside it. A
+    /// sidebar over the note leaves them where they are under it, so the
+    /// tabs don't jump each time it comes and goes.
     fn sync_sidebar_toggle(&mut self, window: &Window, cx: &mut Context<Self>) {
         let has_panel = self.left_panel.view().is_some();
-        let panel_hidden = !(has_panel && self.left_panel.is_visible());
+        let takes_room = has_panel && self.left_panel.is_visible() && !self.left_panel.overlays();
+        let panel_hidden = !takes_room;
         let first = self.panes.panes().first().cloned();
         let inset = super::window::window_buttons_inset(window, cx);
         for pane in self.panes.panes() {
