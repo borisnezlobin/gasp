@@ -174,6 +174,17 @@ fn contrast(a: Hsla, b: Hsla) -> f32 {
     (a.max(b) + 0.05) / (a.min(b) + 0.05)
 }
 
+/// White or black, whichever reads better on `fill`, such as for a mark
+/// drawn on a colour swatch.
+pub fn ink_on(fill: Hsla) -> Hsla {
+    let (white, black) = (Hsla::white(), Hsla::black());
+    if contrast(fill, white) >= contrast(fill, black) {
+        white
+    } else {
+        black
+    }
+}
+
 /// Steps a note's colour takes toward legibility, as lightness.
 const LEGIBILITY_STEP: f32 = 0.05;
 

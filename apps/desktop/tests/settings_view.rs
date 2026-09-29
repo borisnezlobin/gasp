@@ -1290,3 +1290,305 @@ fn fonts_listed_late_fill_an_open_menu_and_the_notes(cx: &mut TestAppContext) {
         "Missing Serif"
     );
 }
+
+// ---- Nothing moves when a control changes state ----
+
+/// A row's text and control columns, as drawn.
+fn columns(cx: &mut VisualTestContext, name: &str) -> (Bounds<Pixels>, Bounds<Pixels>) {
+    (
+        drawn(cx, &format!("settings-text-{name}")),
+        drawn(cx, &format!("settings-control-{name}")),
+    )
+}
+
+/// Scrolls the first row `wanted` picks into view and gives its index and
+/// the name its columns are drawn under.
+fn reveal(
+    view: &Entity<SettingsView>,
+    cx: &mut VisualTestContext,
+    wanted: impl Fn(&ControlRow) -> bool,
+) -> (usize, String) {
+    let (index, page) = view.read_with(cx, |view, _| {
+        let index = view
+            .rows()
+            .iter()
+            .position(wanted)
+            .expect("row on this page");
+        (index, page_id(view.current_section().unwrap()))
+    });
+    // A far row is measured in one frame and scrolled to in the next.
+    for _ in 0..2 {
+        view.update(cx, |view, cx| view.reveal_row(index, cx));
+        cx.run_until_parked();
+    }
+    (index, format!("{page}-{index}"))
+}
+
+fn focus_index(view: &Entity<SettingsView>, index: usize, cx: &mut VisualTestContext) {
+    view.update_in(cx, |view, window, cx| view.focus_control(index, window, cx));
+    cx.run_until_parked();
+}
+
+fn is_setting(key: &'static str) -> impl Fn(&ControlRow) -> bool {
+    move |row| row.item().is_some_and(|item| item.key == key)
+}
+
+#[gpui::test]
+fn picking_an_accent_moves_nothing_on_its_row(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    view.update(cx, |view, cx| view.show_section("appearance", cx));
+    let (_, name) = reveal(&view, cx, |row| *row == ControlRow::Accent);
+    let before = columns(cx, &name);
+    click(cx, "swatch-#2f5fd0");
+    assert_eq!(token(&view, "color.accent", cx), "#2f5fd0");
+    // The reset button shows in the room its row always keeps for it.
+    drawn(cx, "reset-color.accent");
+    assert_eq!(columns(cx, &name), before);
+    click(cx, "reset-color.accent");
+    assert_eq!(token(&view, "color.accent", cx), "#000000");
+    assert_eq!(columns(cx, &name), before);
+}
+
+#[gpui::test]
+fn the_chosen_swatch_is_ringed_inside_its_own_room(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    view.update(cx, |view, cx| view.show_section("appearance", cx));
+    reveal(&view, cx, |row| *row == ControlRow::Accent);
+    let style = view.read_with(cx, |view, _| view.style().clone());
+    let ringed = style.swatch_size + (style.swatch_gap + style.swatch_ring) * 2.;
+    let chosen = drawn(cx, "swatch-#000000");
+    let other = drawn(cx, "swatch-#2f5fd0");
+    // The ring is drawn inside the swatch's own square, so every swatch
+    // takes the same room, as tall as a control, chosen or not.
+    assert_eq!(chosen.size, size(ringed, ringed));
+    assert_eq!(chosen.size, other.size);
+    assert_eq!(ringed, style.control_height);
+    click(cx, "swatch-#2f5fd0");
+    assert_eq!(drawn(cx, "swatch-#2f5fd0"), other);
+    assert_eq!(drawn(cx, "swatch-#000000"), chosen);
+}
+
+#[gpui::test]
+fn changing_a_setting_moves_nothing_on_its_row(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    view.update(cx, |view, cx| view.show_section("files", cx));
+    let changes = [
+        ("files.update-links-on-rename", "space"),
+        ("files.trash", "right"),
+        ("recovery.interval-minutes", "right"),
+    ];
+    for (key, keys) in changes {
+        let (index, name) = reveal(&view, cx, is_setting(key));
+        focus_index(&view, index, cx);
+        let before = columns(cx, &name);
+        let default = value(&view, key, cx);
+        cx.simulate_keystrokes(keys);
+        assert_ne!(value(&view, key, cx), default, "{key} changed");
+        drawn(cx, &format!("reset-{key}"));
+        assert_eq!(columns(cx, &name), before, "{key} once changed");
+        cx.simulate_keystrokes("delete");
+        assert_eq!(value(&view, key, cx), default, "{key} reset");
+        assert_eq!(columns(cx, &name), before, "{key} once reset");
+    }
+}
+
+#[gpui::test]
+fn picking_a_font_keeps_its_dropdown_width(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    with_fonts(&view, cx);
+    view.update(cx, |view, cx| view.show_section("appearance", cx));
+    let (_, name) = reveal(&view, cx, |row| {
+        *row == ControlRow::Font(gasp_desktop::settings_view::FontSlot::Code)
+    });
+    let before = columns(cx, &name);
+    let button = drawn(cx, "dropdown-font.code");
+    click(cx, "dropdown-font.code");
+    click(cx, "menu-option-Liberation Mono");
+    assert_eq!(token(&view, "font.code", cx), "Liberation Mono");
+    assert_eq!(drawn(cx, "dropdown-font.code"), button);
+    assert_eq!(columns(cx, &name), before);
+}
+
+#[gpui::test]
+fn waiting_for_a_shortcut_moves_nothing(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, recorded) = open(cx, dir.path());
+    view.update(cx, |view, cx| view.show_section("keyboard-shortcuts", cx));
+    let (_, name) = reveal(
+        &view,
+        cx,
+        |row| matches!(row, ControlRow::Shortcut(s) if s.id == "format.italic"),
+    );
+    let before = columns(cx, &name);
+    let add = drawn(cx, "add-key-format.italic");
+    click(cx, "add-key-format.italic");
+    assert_eq!(
+        view.read_with(cx, |view, _| view.capturing().map(str::to_string)),
+        Some("format.italic".into())
+    );
+    assert_eq!(columns(cx, &name), before);
+    assert_eq!(drawn(cx, "add-key-format.italic"), add);
+    // What it waits for hangs under "+", and so does why a chord was
+    // refused.
+    assert!(drawn(cx, "capture-prompt").top() >= add.bottom());
+    cx.simulate_keystrokes("j");
+    assert!(view.read_with(cx, |view, _| view.capture_rejection().is_some()));
+    assert!(drawn(cx, "capture-prompt").top() >= add.bottom());
+    assert_eq!(columns(cx, &name), before);
+    // "+" again stops waiting, and the screen stays open.
+    click(cx, "add-key-format.italic");
+    assert!(view.read_with(cx, |view, _| view.capturing().is_none()));
+    assert_eq!(columns(cx, &name), before);
+    assert_eq!(recorded.borrow().dismissed, 0);
+}
+
+#[gpui::test]
+fn a_row_whose_switch_is_off_ignores_its_controls(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    view.update(cx, |view, cx| view.show_section("prose", cx));
+    let key = "prose.sentence-length.short-below";
+    let (index, _) = reveal(&view, cx, is_setting(key));
+    click(cx, &format!("increase-{key}"));
+    assert_eq!(value(&view, key, cx), Value::from(7));
+    focus_index(&view, index, cx);
+    cx.simulate_keystrokes("right");
+    assert_eq!(value(&view, key, cx), Value::from(7));
+    assert!(read_settings(dir.path()).is_empty());
+    // With its switch on, the same click steps it.
+    let (switch, _) = reveal(&view, cx, is_setting("prose.sentence-length.enabled"));
+    focus_index(&view, switch, cx);
+    cx.simulate_keystrokes("space");
+    click(cx, &format!("increase-{key}"));
+    assert_eq!(value(&view, key, cx), Value::from(8));
+}
+
+#[gpui::test]
+fn a_refused_colour_keeps_the_keyboard_in_its_field(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, recorded) = open(cx, dir.path());
+    go_to_section(&view, "Appearance", cx);
+    go_to_row(&view, cx, |row| *row == ControlRow::Accent);
+    cx.simulate_keystrokes("enter secondary-a");
+    cx.simulate_input("#12");
+    cx.simulate_keystrokes("enter");
+    assert!(view.read_with(cx, |view, _| view.last_error().is_some()));
+    // The field still has the keyboard, so typing fixes the colour.
+    cx.simulate_input("3456");
+    cx.simulate_keystrokes("enter");
+    assert_eq!(token(&view, "color.accent", cx), "#123456");
+    assert!(view.read_with(cx, |view, _| view.last_error().is_none()));
+    // A refused colour and Escape put the saved one back, and the screen
+    // stays open.
+    cx.simulate_keystrokes("enter secondary-a");
+    cx.simulate_input("blue-ish");
+    cx.simulate_keystrokes("enter escape");
+    assert!(view.read_with(cx, |view, _| view.last_error().is_none()));
+    assert_eq!(token(&view, "color.accent", cx), "#123456");
+    assert_eq!(recorded.borrow().dismissed, 0);
+    cx.simulate_keystrokes("escape");
+    assert_eq!(recorded.borrow().dismissed, 1);
+}
+
+#[gpui::test]
+fn a_repository_row_with_nothing_to_operate_takes_no_focus(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    go_to_section(&view, "Sync", cx);
+    let rows = view.read_with(cx, |view, _| view.rows());
+    assert_eq!(rows[0], ControlRow::SyncRemote);
+    // The vault isn't a clone, so the repository row has no field and
+    // the keyboard starts on the first row it can change.
+    let focus = view.read_with(cx, |view, _| view.focus_state());
+    assert_eq!(focus, SettingsFocus::Control(1));
+    cx.simulate_keystrokes("up");
+    assert_eq!(
+        view.read_with(cx, |view, _| view.focus_state()),
+        SettingsFocus::Sections
+    );
+}
+
+#[test]
+fn hover_and_press_fills_show_on_every_surface() {
+    for dark in [false, true] {
+        let tokens = gasp_config::Config::defaults().theme;
+        let style = SettingsTheme::from_tokens(tokens.for_mode(dark));
+        let over = gasp_desktop::theme::over;
+        for surface in [
+            style.card_background,
+            style.background,
+            style.control_background,
+        ] {
+            let hovered = over(style.hover_fill, surface);
+            let pressed = over(style.pressed, surface);
+            assert_ne!(hovered, surface, "hover shows (dark: {dark})");
+            assert_ne!(pressed, surface, "a press shows (dark: {dark})");
+            assert_ne!(
+                pressed, hovered,
+                "a press differs from hover (dark: {dark})"
+            );
+        }
+    }
+}
+
+// ---- The Toolbars page ----
+
+fn show_toolbars(view: &Entity<SettingsView>, cx: &mut VisualTestContext) {
+    let section = gasp_desktop::settings_view::model::TOOLBARS_SECTION;
+    view.update(cx, |view, cx| view.show_section(section, cx));
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn asking_before_a_toolbar_goes_moves_nothing(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    show_toolbars(&view, cx);
+    let (new, _) = reveal(&view, cx, |row| *row == ControlRow::NewToolbar);
+    focus_index(&view, new, cx);
+    cx.simulate_keystrokes("enter");
+    let header = ControlRow::ToolbarHeader("toolbar".into());
+    let (_, name) = reveal(&view, cx, |row| *row == header);
+    let before = columns(cx, &name);
+    let remove = drawn(cx, "remove-toolbar-toolbar");
+    click(cx, "remove-toolbar-toolbar");
+    let still_there = view.read_with(cx, |view, _| view.toolbars().get("toolbar").is_some());
+    assert!(still_there, "the first press only asks");
+    assert_eq!(drawn(cx, "remove-toolbar-toolbar"), remove);
+    assert_eq!(columns(cx, &name), before);
+    click(cx, "remove-toolbar-toolbar");
+    let gone = view.read_with(cx, |view, _| view.toolbars().get("toolbar").is_none());
+    assert!(gone);
+
+    let (reset, name) = reveal(&view, cx, |row| *row == ControlRow::ResetToolbars);
+    focus_index(&view, reset, cx);
+    let before = columns(cx, &name);
+    let button = drawn(cx, "reset-toolbars");
+    cx.simulate_keystrokes("enter");
+    assert_eq!(drawn(cx, "reset-toolbars"), button, "saying it asks again");
+    assert_eq!(columns(cx, &name), before);
+}
+
+#[gpui::test]
+fn a_toolbar_dropdown_keeps_its_width_whatever_it_says(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (view, cx, _) = open(cx, dir.path());
+    show_toolbars(&view, cx);
+    let place = ControlRow::ToolbarField {
+        toolbar: "status".into(),
+        field: gasp_desktop::settings_view::toolbars_page::ToolbarField::Place,
+    };
+    let (index, name) = reveal(&view, cx, |row| *row == place);
+    focus_index(&view, index, cx);
+    let before = columns(cx, &name);
+    for _ in 0..3 {
+        cx.simulate_keystrokes("right");
+        assert_eq!(columns(cx, &name), before);
+    }
+    let place = view.read_with(cx, |view, _| view.toolbars().get("status").unwrap().place);
+    assert_ne!(place, gasp_config::toolbars::Place::StatusBar);
+}
