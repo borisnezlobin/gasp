@@ -46,7 +46,8 @@ final class EditingController: NSObject, UITextViewDelegate {
     /// and what arrived since the last one.
     var redrawQueued = false
     var arrivedMath: Set<String> = []
-    var imagesArrived = false
+    var arrivedImages: Set<URL> = []
+    var cardImagesArrived = false
     /// Set while the cursor is put in a table for one of its commands, so
     /// it isn't taken for a tap on the table's grid.
     var placingCursorForTable = false
