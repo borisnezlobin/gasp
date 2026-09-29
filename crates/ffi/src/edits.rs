@@ -154,7 +154,7 @@ fn outcome(input: &CommandInput<'_>, transaction: Transaction) -> CommandOutcome
 
 /// The outcome of replacing `edits` (in the current text) and selecting
 /// `selected` (in the text after them).
-fn edit_outcome(
+pub(crate) fn edit_outcome(
     input: &CommandInput<'_>,
     mut edits: Vec<(Range<usize>, String)>,
     selected: Range<usize>,
