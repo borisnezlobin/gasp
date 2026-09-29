@@ -2,11 +2,11 @@
 //! clipboard: images become attachments, URLs over a selection become
 //! links, and copy or cut with nothing selected take the whole line.
 
-use editor_config::{Platform, RuleSet};
-use editor_desktop::EditorView;
-use editor_desktop::actions::bind_keys;
-use editor_desktop::keymap::editor_bindings;
-use editor_desktop::paste::{PasteContext, set_paste_context};
+use gasp_config::{Platform, RuleSet};
+use gasp_desktop::EditorView;
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::keymap::editor_bindings;
+use gasp_desktop::paste::{PasteContext, set_paste_context};
 use gpui::{
     ClipboardItem, Entity, Focusable, Image, ImageFormat, TestAppContext, VisualTestContext,
 };

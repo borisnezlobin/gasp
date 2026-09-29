@@ -2,8 +2,8 @@
 //! tooltips show them: "New note" and `⌘N` on macOS, `Ctrl+N` elsewhere,
 //! as a [`Shortcut`] that [`super::keycap`] draws.
 
-use editor_config::commands::BUILTIN_COMMANDS;
-use editor_config::{Platform, RuleSet};
+use gasp_config::commands::BUILTIN_COMMANDS;
+use gasp_config::{Platform, RuleSet};
 use gpui::{App, Global, SharedString};
 
 use crate::picker::shortcut::Shortcut;
@@ -56,7 +56,7 @@ pub fn chord(text: &str, cx: &App) -> Option<Shortcut> {
     let platform = cx
         .try_global::<Hints>()
         .map_or_else(Platform::current, |hints| hints.platform);
-    let chord = editor_config::keys::KeyChord::parse(text).ok()?;
+    let chord = gasp_config::keys::KeyChord::parse(text).ok()?;
     Some(Shortcut::new(chord, platform))
 }
 

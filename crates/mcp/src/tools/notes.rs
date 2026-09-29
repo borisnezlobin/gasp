@@ -4,8 +4,8 @@
 use std::path::Path;
 use std::sync::atomic::AtomicUsize;
 
-use editor_search::engine::{self, NoteResult};
-use editor_search::tags::{search_tagged, tag_query};
+use gasp_search::engine::{self, NoteResult};
+use gasp_search::tags::{search_tagged, tag_query};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -23,7 +23,7 @@ pub fn tools() -> Vec<ToolSpec> {
             concat!(
                 "List the vault's notes (Markdown files), sorted by path, with size and \
                  modification time (Unix seconds). Hidden folders such as .git, ",
-                editor_config::config_dir!(),
+                gasp_config::config_dir!(),
                 " and .trash are never listed."
             ),
             list_notes,
@@ -218,7 +218,7 @@ fn result_json(result: &NoteResult) -> Value {
         .map(|hit| json!({ "line": hit.line + 1, "text": hit.excerpt }))
         .collect();
     json!({
-        "path": editor_vault::ops::slash_path(&result.path),
+        "path": gasp_vault::ops::slash_path(&result.path),
         "score": result.score,
         "matches": result.match_count,
         "lines": lines,
@@ -373,8 +373,8 @@ fn delete_note(context: &Context, args: PathArgs) -> ToolResult {
 
 #[cfg(test)]
 mod tests {
-    use editor_config::CONFIG_DIR;
-    use editor_config::store::{SETTINGS_FILE, settings_path};
+    use gasp_config::CONFIG_DIR;
+    use gasp_config::store::{SETTINGS_FILE, settings_path};
 
     use super::*;
     use crate::tools::testing::{call, call_err, text, vault};

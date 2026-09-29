@@ -4,9 +4,9 @@
 
 use std::path::Path;
 
-use editor_config::loader::CONFIG_DIR;
-use editor_core::footnotes::{find_def, parse_footnotes};
-use editor_vault::link_update::parent_dir;
+use gasp_config::loader::CONFIG_DIR;
+use gasp_core::footnotes::{find_def, parse_footnotes};
+use gasp_vault::link_update::parent_dir;
 
 use crate::document::NoteDocument;
 use crate::theme::{ThemeColor, token_color};

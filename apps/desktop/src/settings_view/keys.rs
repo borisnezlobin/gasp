@@ -4,7 +4,7 @@
 //! button; left and right change a choice, number or colour; Delete
 //! resets a setting or removes a row's last shortcut; Escape closes.
 
-use editor_config::schema::SettingKind;
+use gasp_config::schema::SettingKind;
 use gpui::{App, Context, DismissEvent, Focusable, KeyDownEvent, Keystroke, Window};
 
 use super::model::{ICON_SOURCE_URL, SettingItem};

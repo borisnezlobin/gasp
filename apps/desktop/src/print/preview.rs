@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use editor_export::pdf::{
+use gasp_export::pdf::{
     PageImage, PdfError, compile_note, evict_memory, fonts_for, page_size_pt, render_pages,
     typst_source, write_pdf,
 };

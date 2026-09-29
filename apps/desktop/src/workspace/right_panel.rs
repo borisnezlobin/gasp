@@ -3,7 +3,7 @@
 //! notes, can be resized from its left edge, and remembers whether it was
 //! open, which view it showed and its width in `device.toml`.
 
-use editor_config::device::RightSidebarState;
+use gasp_config::device::RightSidebarState;
 use gpui::{
     AnyElement, AnyView, Context, CursorStyle, FocusHandle, MouseButton, MouseDownEvent, Pixels,
     div, prelude::*, px,

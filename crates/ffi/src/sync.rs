@@ -9,10 +9,10 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
-use editor_config::ConfigLoader;
-use editor_config::settings::SyncSettings;
-use editor_sync::phase::{self, SetupProblem, SyncPhase, SyncRun, file_label};
-use editor_sync::{
+use gasp_config::ConfigLoader;
+use gasp_config::settings::SyncSettings;
+use gasp_sync::phase::{self, SetupProblem, SyncPhase, SyncRun, file_label};
+use gasp_sync::{
     Author, CredentialStore, DeviceOnlyFiles, FailureKind, Scheduler, SchedulerConfig, StepReport,
     SyncStatus, SyncStep, Token, Vault, VaultConfig, run_step,
 };
@@ -174,7 +174,7 @@ fn open_clone(
     store: &dyn CredentialStore,
     device: &str,
 ) -> Opened {
-    let Some(probe) = editor_sync::probe(root, REMOTE) else {
+    let Some(probe) = gasp_sync::probe(root, REMOTE) else {
         return Opened::NotSynced;
     };
     let Some(remote_url) = probe.remote_url else {
@@ -203,7 +203,7 @@ fn open_clone(
     vault.set_token(token);
     let author = probe
         .author
-        .unwrap_or_else(|| Author::new(device, editor_sync::FALLBACK_AUTHOR_EMAIL));
+        .unwrap_or_else(|| Author::new(device, gasp_sync::FALLBACK_AUTHOR_EMAIL));
     Opened::Ready {
         clone: OpenClone { vault, author },
         remote_url,
@@ -599,7 +599,7 @@ impl VaultSync {
         if old.as_deref() == Some(url.as_str()) {
             return Ok(());
         }
-        editor_sync::set_remote_url(&self.root, REMOTE, &url)
+        gasp_sync::set_remote_url(&self.root, REMOTE, &url)
             .map_err(|error| refused(error.to_string()))?;
         let kept = old.and_then(|old| self.store.load(&old).ok().flatten());
         if let Some(token) = kept {

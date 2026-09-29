@@ -1,5 +1,5 @@
 [package]
-name = "editor-search"
+name = "gasp-search"
 description = "Search index, queries and excerpts."
 version.workspace = true
 edition.workspace = true
@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
-editor-config = { path = "../config" }
+gasp-config = { path = "../config" }
 unicode-normalization = "0.1.25"
 
 [dev-dependencies]

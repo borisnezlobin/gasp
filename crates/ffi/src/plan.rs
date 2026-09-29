@@ -1,7 +1,7 @@
 //! The render planner's output in UTF-16 offsets, for Swift to draw.
 
-use editor_core::render::{self, StyleKey};
-use editor_core::syntax::{Alignment, CalloutKind, ConflictSide};
+use gasp_core::render::{self, StyleKey};
+use gasp_core::syntax::{Alignment, CalloutKind, ConflictSide};
 
 use crate::offsets::{TextRange, Utf16Offsets};
 

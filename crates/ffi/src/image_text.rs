@@ -6,9 +6,9 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use editor_search::ocr::{FileHit, FileStamp, OcrCache, is_recognised};
-use editor_search::tags::tag_query;
-use editor_vault::link_update::file_name;
+use gasp_search::ocr::{FileHit, FileStamp, OcrCache, is_recognised};
+use gasp_search::tags::tag_query;
+use gasp_vault::link_update::file_name;
 
 use crate::knowledge::{SearchHit, SearchResult};
 use crate::offsets::Utf16Offsets;

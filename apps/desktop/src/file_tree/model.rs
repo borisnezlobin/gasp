@@ -233,7 +233,7 @@ mod tests {
         for folder in [
             ".git/objects",
             ".obsidian",
-            editor_config::CONFIG_DIR,
+            gasp_config::CONFIG_DIR,
             ".trash",
             "Projects/Old",
             "Daily",

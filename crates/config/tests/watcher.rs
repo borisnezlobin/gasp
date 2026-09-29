@@ -3,8 +3,8 @@
 use std::fs;
 use std::time::{Duration, Instant};
 
-use editor_config::settings::SidebarMode;
-use editor_config::{ConfigFile, ConfigLoader, ConfigUpdate, ConfigWatcher};
+use gasp_config::settings::SidebarMode;
+use gasp_config::{ConfigFile, ConfigLoader, ConfigUpdate, ConfigWatcher};
 use tempfile::TempDir;
 
 const WAIT: Duration = Duration::from_secs(10);

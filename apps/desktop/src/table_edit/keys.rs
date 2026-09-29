@@ -7,9 +7,9 @@
 //! rows (see [`crate::navigation`]). Backspace and Delete stop at a
 //! cell's edge, so a pipe is never deleted.
 
-use editor_core::document::Selection;
-use editor_core::table::{CellPos, Table, TableOp};
-use editor_core::transaction::{ChangeSet, Origin, Transaction};
+use gasp_core::document::Selection;
+use gasp_core::table::{CellPos, Table, TableOp};
+use gasp_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::Context;
 
 use crate::editor::EditorView;

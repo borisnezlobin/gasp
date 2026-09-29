@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use editor_snippets::{
+use gasp_snippets::{
     CaptureRef, Expansion, ExpansionPart, Fire, GREEK_NAMES, InputContext, NEWLINE_GLYPH,
     NamedPattern, Options, SPACE_GLYPH, STOP_GLYPH, SYMBOL_NAMES, Scope, Snippet, SnippetFile,
     StopMark, TAB_GLYPH, Trigger, TriggerPart, parse_line,
@@ -695,7 +695,7 @@ fn repetition_length(chars: &[char]) -> Option<usize> {
 
 fn build_file(converted: &[Converted]) -> SnippetFile {
     let mut file = SnippetFile::default();
-    file.push_comment("Migrated from Latex Suite by editor-migrate.");
+    file.push_comment("Migrated from Latex Suite by gasp-migrate.");
     file.push_comment("Snippets that couldn't be migrated are listed at the end.");
     let mut heading: Option<&String> = None;
     for item in converted {

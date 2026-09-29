@@ -9,7 +9,7 @@
 //! stand for any letter or digit are shown as an example, such as `x` and
 //! `2`, and the same example fills them in the result.
 
-use editor_snippets::{
+use gasp_snippets::{
     CaptureRef, ExpansionPart, Fire, InputContext, NamedPattern, Replacement, ReplacementFire,
     Scope, Snippet, Trigger, TriggerPart,
 };
@@ -415,7 +415,7 @@ fn in_text_argument(tex: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use editor_snippets::{Replacement, parse_snippet};
+    use gasp_snippets::{Replacement, parse_snippet};
 
     fn look(line: &str) -> SnippetLook {
         SnippetLook::of_snippet(&parse_snippet(line).unwrap())

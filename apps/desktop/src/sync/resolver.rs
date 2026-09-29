@@ -9,8 +9,8 @@
 //! on into the next file); Enter finishes, or goes to the first place
 //! still open.
 
-use editor_config::keys::KeyChord;
-use editor_sync::{ConflictHunk, ConflictedFile, Resolution, Segment};
+use gasp_config::keys::KeyChord;
+use gasp_sync::{ConflictHunk, ConflictedFile, Resolution, Segment};
 use gpui::{
     AnyElement, App, ClickEvent, Context, DismissEvent, Entity, EventEmitter, FocusHandle,
     Focusable, KeyDownEvent, ScrollHandle, SharedString, Window, div, prelude::*, relative,
@@ -548,7 +548,7 @@ impl ConflictResolver {
 fn key_chip(key: &str, theme: &KeycapTheme) -> impl IntoElement {
     let chord = KeyChord::parse(key).expect("resolver keys parse");
     keycap(
-        Shortcut::new(chord, editor_config::Platform::current()),
+        Shortcut::new(chord, gasp_config::Platform::current()),
         theme,
     )
 }

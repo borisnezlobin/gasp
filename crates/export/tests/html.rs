@@ -7,7 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
-use editor_export::html::{ARTICLE_CSS, HtmlExport, HtmlOptions, export_html, standalone_page};
+use gasp_export::html::{ARTICLE_CSS, HtmlExport, HtmlOptions, export_html, standalone_page};
 
 fn data() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data")

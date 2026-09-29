@@ -4,7 +4,7 @@
 
 use std::ops::Range;
 
-use editor_core::render::{LinePlan, LineStyle, Placement, StyleKey, WidgetKind};
+use gasp_core::render::{LinePlan, LineStyle, Placement, StyleKey, WidgetKind};
 
 use crate::styling::LineTone;
 
@@ -200,8 +200,8 @@ pub fn heading_level(styles: &[StyleKey]) -> Option<u8> {
 
 #[cfg(test)]
 mod tests {
-    use editor_core::render::{RenderInput, RevealSettings, plan};
-    use editor_core::syntax::parse;
+    use gasp_core::render::{RenderInput, RevealSettings, plan};
+    use gasp_core::syntax::parse;
 
     use super::*;
 

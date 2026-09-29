@@ -32,12 +32,12 @@ rustup target add "${targets[@]}" >/dev/null 2>&1
 
 for target in "${targets[@]}"; do
   echo "Building the core for $target"
-  cargo rustc --quiet -p editor-ffi --lib --crate-type staticlib \
+  cargo rustc --quiet -p gasp-ffi --lib --crate-type staticlib \
     --profile "$profile" --target "$target"
 done
 
 library() {
-  echo "$repo/target/$1/$profile_dir/libeditor_ffi.a"
+  echo "$repo/target/$1/$profile_dir/libgasp_ffi.a"
 }
 
 echo "Generating the Swift bindings"
@@ -47,8 +47,8 @@ cargo run --quiet -p uniffi-bindgen -- generate \
   --library "$(library aarch64-apple-ios-sim)" \
   --language swift \
   --out-dir "$work_dir/bindings"
-cp "$work_dir/bindings/editor_ffiFFI.h" "$work_dir/headers/"
-cp "$work_dir/bindings/editor_ffiFFI.modulemap" "$work_dir/headers/module.modulemap"
+cp "$work_dir/bindings/gasp_ffiFFI.h" "$work_dir/headers/"
+cp "$work_dir/bindings/gasp_ffiFFI.modulemap" "$work_dir/headers/module.modulemap"
 
 echo "Packing GaspCore.xcframework"
 rm -rf "$core_dir/GaspCore.xcframework"
@@ -57,6 +57,6 @@ xcodebuild -create-xcframework \
   -library "$(library aarch64-apple-ios)" -headers "$work_dir/headers" \
   -library "$(library aarch64-apple-ios-sim)" -headers "$work_dir/headers" \
   -output "$core_dir/GaspCore.xcframework" >/dev/null
-cp "$work_dir/bindings/editor_ffi.swift" "$core_dir/Generated/editor_ffi.swift"
+cp "$work_dir/bindings/gasp_ffi.swift" "$core_dir/Generated/gasp_ffi.swift"
 
 echo "Done: $core_dir"

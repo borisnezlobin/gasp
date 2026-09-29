@@ -4,8 +4,8 @@
 //! puts a command back to its built-in keys. "Search by keys" waits for a
 //! chord the same way and searches for it.
 
-use editor_config::Platform;
-use editor_config::keys::KeyChord;
+use gasp_config::Platform;
+use gasp_config::keys::KeyChord;
 use gpui::{Context, Keystroke, Subscription, Window};
 
 use super::config_files;
@@ -188,7 +188,7 @@ impl SettingsView {
     fn after_write(
         &mut self,
         key: &str,
-        written: Result<editor_config::RuleSet, String>,
+        written: Result<gasp_config::RuleSet, String>,
         cx: &mut Context<Self>,
     ) {
         match written {
@@ -198,7 +198,7 @@ impl SettingsView {
         cx.notify();
     }
 
-    fn rules_written(&mut self, rules: &editor_config::RuleSet, cx: &mut Context<Self>) {
+    fn rules_written(&mut self, rules: &gasp_config::RuleSet, cx: &mut Context<Self>) {
         self.error = None;
         self.set_rules(rules, cx);
         cx.emit(SettingsEvent::Changed("rules".to_string()));

@@ -3,9 +3,9 @@
 
 use std::fmt;
 
-use editor_config::Platform;
-use editor_config::keymap::is_reserved;
-use editor_config::keys::{Key, KeyChord, Modifiers, NamedKey};
+use gasp_config::Platform;
+use gasp_config::keymap::is_reserved;
+use gasp_config::keys::{Key, KeyChord, Modifiers, NamedKey};
 use gpui::Keystroke;
 
 /// Apple's modifier glyphs, in the order macOS menus print them.

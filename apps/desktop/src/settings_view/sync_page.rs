@@ -2,8 +2,8 @@
 //! token, and list settings such as the files that stay on each device.
 //! The rest of the page is ordinary settings.
 
-use editor_config::schema::SettingKind;
-use editor_sync::Token;
+use gasp_config::schema::SettingKind;
+use gasp_sync::Token;
 use gpui::{AnyElement, ClickEvent, ClipboardItem, Context, Entity, SharedString, div, prelude::*};
 use serde_json::Value;
 

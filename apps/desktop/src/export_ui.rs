@@ -16,8 +16,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::Context as _;
-use editor_export::html::{HtmlExport, HtmlOptions, export_html, standalone_page};
-use editor_export::pdf::{PdfOptions, evict_memory, export_pdf, fonts_for, warm_up};
+use gasp_export::html::{HtmlExport, HtmlOptions, export_html, standalone_page};
+use gasp_export::pdf::{PdfOptions, evict_memory, export_pdf, fonts_for, warm_up};
 use gpui::{
     AnyElement, App, AppContext, ClickEvent, ClipboardItem, Context, DismissEvent, Div, Entity,
     EventEmitter, FocusHandle, Focusable, KeyBinding, SharedString, Task, Window, actions, div,

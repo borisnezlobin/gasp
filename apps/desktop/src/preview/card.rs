@@ -6,7 +6,7 @@
 
 use std::ops::Range;
 
-use editor_core::link_card::LinkCard;
+use gasp_core::link_card::LinkCard;
 use gpui::{Font, Hsla, Pixels, TextRun, px};
 
 use crate::icons::IconName;

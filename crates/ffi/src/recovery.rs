@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use editor_vault::recovery::{Snapshot, SnapshotStore, use_data_dir};
+use gasp_vault::recovery::{Snapshot, SnapshotStore, use_data_dir};
 
 use crate::vault::{VaultError, VaultFolder};
 

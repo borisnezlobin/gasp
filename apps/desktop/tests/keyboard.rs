@@ -5,13 +5,13 @@
 use std::path::Path;
 use std::time::Duration;
 
-use editor_config::commands::BUILTIN_COMMANDS;
-use editor_config::{Platform, RuleSet};
-use editor_desktop::actions::bind_keys;
-use editor_desktop::features;
-use editor_desktop::keymap::all_bindings;
-use editor_desktop::ui::focus_visible::keyboard_driving;
-use editor_desktop::workspace::{FocusArea, HOLD_DELAY, OpenIn, Workspace, sheet_groups};
+use gasp_config::commands::BUILTIN_COMMANDS;
+use gasp_config::{Platform, RuleSet};
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::features;
+use gasp_desktop::keymap::all_bindings;
+use gasp_desktop::ui::focus_visible::keyboard_driving;
+use gasp_desktop::workspace::{FocusArea, HOLD_DELAY, OpenIn, Workspace, sheet_groups};
 use gpui::{Entity, Modifiers, TestAppContext, VisualTestContext, point, px};
 use tempfile::TempDir;
 

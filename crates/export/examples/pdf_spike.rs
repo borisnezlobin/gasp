@@ -1,6 +1,6 @@
 //! Phase 0 Typst PDF spike: exports one note and reports timings.
 //!
-//! `cargo run --release -p editor-export --example pdf_spike -- <note.md> <out.pdf>
+//! `cargo run --release -p gasp-export --example pdf_spike -- <note.md> <out.pdf>
 //!  [--vault DIR] [--fonts DIR] [--typ OUT.typ] [--png OUT.png] [--all-pages] [--runs N] [--cold]`
 //!
 //! Memoized layout is cleared before each run, so the times are for a note
@@ -11,7 +11,7 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use editor_export::pdf::{
+use gasp_export::pdf::{
     CompiledNote, PdfOptions, TypstNote, compile_note, evict_memory, fonts_for, load_fonts,
     typst_source, warm_up, write_pdf,
 };

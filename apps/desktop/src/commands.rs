@@ -1,12 +1,12 @@
 //! The commands the editor view runs, looked up by id.
 
-use editor_core::commands::{
+use gasp_core::commands::{
     FootnoteCommand, Format, duplicate_lines, insert_callout, insert_link, insert_or_jump_footnote,
     move_lines_down, move_lines_up, toggle_format, toggle_tasks,
 };
-use editor_core::footnotes::FootnoteSettings;
-use editor_core::motion;
-use editor_core::table::TableOp;
+use gasp_core::footnotes::FootnoteSettings;
+use gasp_core::motion;
+use gasp_core::table::TableOp;
 use gpui::{Context, Window};
 
 use crate::editor::EditorView;
@@ -188,7 +188,7 @@ impl EditorView {
 
 #[cfg(test)]
 mod tests {
-    use editor_config::commands::BUILTIN_COMMANDS;
+    use gasp_config::commands::BUILTIN_COMMANDS;
 
     use super::*;
 

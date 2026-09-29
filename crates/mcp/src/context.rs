@@ -5,12 +5,12 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
 
-use editor_config::Settings;
-use editor_config::loader::build_settings;
-use editor_config::migration::migrate_config_dir_and_log;
-use editor_config::store::{SETTINGS_FILE, settings_path};
-use editor_search::engine::{Note, NoteCache};
-use editor_vault::index::LinkIndex;
+use gasp_config::Settings;
+use gasp_config::loader::build_settings;
+use gasp_config::migration::migrate_config_dir_and_log;
+use gasp_config::store::{SETTINGS_FILE, settings_path};
+use gasp_search::engine::{Note, NoteCache};
+use gasp_vault::index::LinkIndex;
 
 use crate::bridge::client::AppLink;
 use crate::bridge::endpoint::Endpoint;
@@ -90,7 +90,7 @@ impl Context {
     /// The link index, read from disk now, so it's never stale. Reading
     /// the synthetic corpus's 200 notes takes a few milliseconds.
     pub fn link_index(&self) -> LinkIndex {
-        editor_vault::build::build_index(&self.root)
+        gasp_vault::build::build_index(&self.root)
     }
 
     /// Every note, for searching, brought up to date with the disk.

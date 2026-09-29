@@ -21,7 +21,7 @@ mod parking;
 use parking::Parking;
 
 /// The address commits carry when git has no author configured.
-pub const FALLBACK_AUTHOR_EMAIL: &str = concat!(editor_config::command_name!(), "@localhost");
+pub const FALLBACK_AUTHOR_EMAIL: &str = concat!(gasp_config::command_name!(), "@localhost");
 
 /// Who commits on this device.
 #[derive(Debug, Clone, PartialEq, Eq)]

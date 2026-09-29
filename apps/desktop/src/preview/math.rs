@@ -1,4 +1,4 @@
-//! Rendered math for the math widgets. LaTeX goes through `editor-math`
+//! Rendered math for the math widgets. LaTeX goes through `gasp-math`
 //! (mitex and Typst) to SVG, which is rasterised with resvg and tinted with
 //! the text colour, all on a background thread.
 //!
@@ -10,7 +10,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use editor_math::{MathError, RenderedMath, render_latex};
+use gasp_math::{MathError, RenderedMath, render_latex};
 use gpui::{Hsla, Pixels, RenderImage, Rgba, SharedString, px};
 use image::{Frame, RgbaImage};
 use resvg::{tiny_skia, usvg};

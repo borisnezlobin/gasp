@@ -1,4 +1,4 @@
-//! The editor view: an `editor-core` state plus everything needed to draw
+//! The editor view: an `gasp-core` state plus everything needed to draw
 //! it and take input.
 
 use std::collections::BTreeMap;
@@ -6,16 +6,16 @@ use std::ops::Range;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use editor_config::Config;
-use editor_config::settings::SymbolSettings;
-use editor_config::typing::TypingTables;
-use editor_core::document::{Document, Selection, SelectionRange};
-use editor_core::history::EditorState;
-use editor_core::pipeline::{EditRequest, Pipeline, TabStops};
-use editor_core::render::{
+use gasp_config::Config;
+use gasp_config::settings::SymbolSettings;
+use gasp_config::typing::TypingTables;
+use gasp_core::document::{Document, Selection, SelectionRange};
+use gasp_core::history::EditorState;
+use gasp_core::pipeline::{EditRequest, Pipeline, TabStops};
+use gasp_core::render::{
     LinePlan, Placement, RenderInput, RevealSettings, Widget, WidgetKind, plan_lines,
 };
-use editor_core::transaction::{ChangeSet, Origin, Transaction};
+use gasp_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{App, Bounds, Context, EventEmitter, FocusHandle, Focusable, Pixels, Point, Window, px};
 
 use crate::actions::ClickUnit;
@@ -473,7 +473,7 @@ impl EditorView {
             .path_at(0)
             .into_iter()
             .map(|id| tree.node(id))
-            .find(|node| node.kind == editor_core::syntax::NodeKind::Frontmatter);
+            .find(|node| node.kind == gasp_core::syntax::NodeKind::Frontmatter);
         let Some(node) = frontmatter else {
             return 0;
         };

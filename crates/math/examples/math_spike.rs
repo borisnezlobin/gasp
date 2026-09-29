@@ -1,7 +1,7 @@
 //! Phase 0 math spike: converts and renders a set of equations and reports
 //! success rates, failure reasons and timings.
 //!
-//! Run with `cargo run --release -p editor-math --example math_spike [DIR…]`.
+//! Run with `cargo run --release -p gasp-math --example math_spike [DIR…]`.
 //! Equations come from the built-in synthetic list, from
 //! `fixtures/corpus/**/*.md` when it exists, and from any directories given.
 //! Pass `--failures` to print every failing equation.
@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use editor_math::{MathCache, MathSnippet, find_math, latex_to_typst, render_latex, warm_up};
+use gasp_math::{MathCache, MathSnippet, find_math, latex_to_typst, render_latex, warm_up};
 
 const FONT_SIZE: f64 = 16.0;
 const BUILT_IN: &str = include_str!("../tests/data/equations.md");

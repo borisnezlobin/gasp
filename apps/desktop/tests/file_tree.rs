@@ -8,11 +8,11 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Duration;
 
-use editor_config::RuleSet;
-use editor_config::settings::TrashMode;
-use editor_desktop::file_tree::{FileTree, FileTreeEvent, FileTreeOptions, MenuItem};
-use editor_desktop::keymap::RunCommand;
-use editor_desktop::text_input;
+use gasp_config::RuleSet;
+use gasp_config::settings::TrashMode;
+use gasp_desktop::file_tree::{FileTree, FileTreeEvent, FileTreeOptions, MenuItem};
+use gasp_desktop::keymap::RunCommand;
+use gasp_desktop::text_input;
 use gpui::{
     Entity, Focusable, Modifiers, MouseButton, Pixels, TestAppContext, VisualTestContext, point, px,
 };

@@ -3,8 +3,8 @@
 
 use std::path::Path;
 
-use editor_sync::phase::file_label;
-use editor_sync::{ConflictHunk, ConflictedFile, Resolution, Segment};
+use gasp_sync::phase::file_label;
+use gasp_sync::{ConflictHunk, ConflictedFile, Resolution, Segment};
 
 use crate::sync::{SyncOutcome, VaultSync, slash_path};
 use crate::vault::VaultError;
@@ -99,9 +99,9 @@ fn ending_like(mut text: String, hunk: &ConflictHunk) -> String {
 /// merge policy. `None` when both changed the same lines.
 #[uniffi::export]
 pub fn merge_note_edits(base: String, edited: String, synced: String) -> Option<String> {
-    match editor_sync::merge_lines(&base, &edited, &synced) {
-        editor_sync::LineMerge::Clean(merged) => Some(merged),
-        editor_sync::LineMerge::Conflicted(_) => None,
+    match gasp_sync::merge_lines(&base, &edited, &synced) {
+        gasp_sync::LineMerge::Clean(merged) => Some(merged),
+        gasp_sync::LineMerge::Conflicted(_) => None,
     }
 }
 

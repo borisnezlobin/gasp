@@ -1,8 +1,8 @@
 //! Drives the server as a client would, over in-memory pipes: the
 //! handshake, listing the tools and calling one.
 
-use editor_mcp::Context;
-use editor_mcp::server::Server;
+use gasp_mcp::Context;
+use gasp_mcp::server::Server;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
@@ -63,7 +63,7 @@ async fn initialize_list_and_call() {
         .await;
     assert_eq!(
         init["result"]["serverInfo"]["name"],
-        editor_config::COMMAND_NAME
+        gasp_config::COMMAND_NAME
     );
     assert!(
         init["result"]["capabilities"]["tools"].is_object(),

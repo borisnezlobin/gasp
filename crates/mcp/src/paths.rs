@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn hidden_folders_are_off_limits() {
         let (_dir, root) = vault();
-        let settings = format!("{}/settings.toml", editor_config::CONFIG_DIR);
+        let settings = format!("{}/settings.toml", gasp_config::CONFIG_DIR);
         for hidden in [".git/config", &settings, "Notes/.hidden.md"] {
             let error = resolve(&root, hidden).unwrap_err();
             assert!(error.message().contains("hidden"), "{hidden}: {error:?}");

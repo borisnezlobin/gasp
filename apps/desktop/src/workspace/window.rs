@@ -4,8 +4,8 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use editor_config::device::DeviceSettings;
 use futures::StreamExt;
+use gasp_config::device::DeviceSettings;
 use gpui::{
     App, AppContext, Bounds, Context, PathPromptOptions, Pixels, TitlebarOptions, Window,
     WindowBounds, WindowHandle, WindowOptions, point, px,

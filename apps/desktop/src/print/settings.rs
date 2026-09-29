@@ -2,7 +2,7 @@
 //! offered that the Typst export supports, and how each becomes
 //! [`PdfOptions`].
 
-use editor_export::pdf::{Margins, PdfOptions};
+use gasp_export::pdf::{Margins, PdfOptions};
 
 /// Lines the drop cap spans when it's on, as in PDF Export Plus.
 pub const DROP_CAP_LINES: u32 = 3;

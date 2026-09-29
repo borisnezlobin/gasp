@@ -9,7 +9,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use editor_snippets::{
+use gasp_snippets::{
     FileLine, InputContext, ReplacementFire, Replacements, Scope, Snippet, SnippetFile,
     format_expansion, format_trigger,
 };
@@ -20,10 +20,10 @@ use super::snippet_look::SnippetLook;
 use super::store;
 use super::view::{ControlRow, PaneLayout, SettingsEvent, SettingsView};
 
-pub use editor_config::config_files::{REPLACEMENTS_FILE, SNIPPETS_FILE};
-use editor_config::config_files::{replacements_path, snippets_path};
+pub use gasp_config::config_files::{REPLACEMENTS_FILE, SNIPPETS_FILE};
+use gasp_config::config_files::{replacements_path, snippets_path};
 
-const SNIPPETS_IN_VAULT: &str = concat!(editor_config::config_dir!(), "/snippets.txt");
+const SNIPPETS_IN_VAULT: &str = concat!(gasp_config::config_dir!(), "/snippets.txt");
 
 /// The key a snippet change is reported and its errors kept under.
 pub const SNIPPETS_KEY: &str = "snippets";
@@ -141,8 +141,8 @@ fn describe(snippet: &Snippet) -> String {
         }
     };
     let when = match options.fire {
-        editor_snippets::Fire::Instant => "as you type",
-        editor_snippets::Fire::OnTab => "on Tab",
+        gasp_snippets::Fire::Instant => "as you type",
+        gasp_snippets::Fire::OnTab => "on Tab",
     };
     let mut extras = Vec::new();
     if options.whole_word {
@@ -233,7 +233,7 @@ fn replacement_groups(table: &Replacements) -> Vec<(String, Vec<ReplacementRow>)
     groups
 }
 
-fn replacement_when(entry: &editor_snippets::Replacement) -> String {
+fn replacement_when(entry: &gasp_snippets::Replacement) -> String {
     let when = match entry.fire {
         ReplacementFire::Instant => "as you type",
         ReplacementFire::AfterSpace => "after a space",
@@ -427,7 +427,7 @@ pub(super) fn add_snippet(file: &mut SnippetFile, snippet: Snippet) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use editor_snippets::parse_snippet;
+    use gasp_snippets::parse_snippet;
 
     const FILE: &str = "\
 # Migrated from Latex Suite.
@@ -473,11 +473,11 @@ mk → $●$  text, instant
 
     #[test]
     fn quotes_stay_off_the_replacements_list() {
-        let mut quote = editor_snippets::Replacement::new("\"", "“", "Quotes");
+        let mut quote = gasp_snippets::Replacement::new("\"", "“", "Quotes");
         quote.closing = Some("”".to_string());
         let table = Replacements::new(vec![
             quote,
-            editor_snippets::Replacement::new("--", "—", "dashes"),
+            gasp_snippets::Replacement::new("--", "—", "dashes"),
         ]);
         let groups = replacement_groups(&table);
         assert_eq!(groups.len(), 1);

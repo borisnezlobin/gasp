@@ -5,7 +5,7 @@
 //! (assumed from how the plugin behaved; its source is no longer published). Entries
 //! whose result is a LaTeX command, such as `\equil`, are limited to math.
 
-use editor_snippets::{InputContext, Replacement, ReplacementFire, Replacements};
+use gasp_snippets::{InputContext, Replacement, ReplacementFire, Replacements};
 use serde_json::Value;
 
 /// The merged table and notes for the report.

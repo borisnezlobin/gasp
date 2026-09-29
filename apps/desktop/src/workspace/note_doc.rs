@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::paste::{PasteContext, set_paste_context};
 use std::time::Duration;
 
-use editor_config::Config;
+use gasp_config::Config;
 use gpui::{AppContext, Context, Entity, Subscription, Task, WeakEntity};
 
 use super::files::{LineEnding, atomic_write};

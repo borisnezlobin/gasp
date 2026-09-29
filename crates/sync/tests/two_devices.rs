@@ -3,10 +3,10 @@ mod common;
 use std::path::{Path, PathBuf};
 
 use common::{World, author, numbered_note, read, read_bytes, replace_line, sync, write};
-use editor_config::CONFIG_DIR;
-use editor_config::migration::{FolderMigration, migrate_config_dir};
-use editor_config::names::LEGACY_CONFIG_DIR;
-use editor_sync::{
+use gasp_config::CONFIG_DIR;
+use gasp_config::migration::{FolderMigration, migrate_config_dir};
+use gasp_config::names::LEGACY_CONFIG_DIR;
+use gasp_sync::{
     ConflictedFile, DeviceOnlyFiles, MergeOutcome, Resolution, SyncError, Vault, VaultConfig,
 };
 use git2::{Delta, Repository};

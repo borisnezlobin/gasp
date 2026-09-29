@@ -4,13 +4,13 @@
 //! handle. The test platform shapes every character as a fixed-width
 //! glyph.
 
-use editor_config::{Platform, RuleSet};
-use editor_desktop::EditorView;
-use editor_desktop::actions::bind_keys;
-use editor_desktop::keymap::{RunCommand, editor_bindings};
-use editor_desktop::table_edit::handles::{column_handle, row_handle};
-use editor_desktop::table_edit::menu::table_items;
-use editor_desktop::ui::{DropdownMenu, MenuEntry, MenuItem};
+use gasp_config::{Platform, RuleSet};
+use gasp_desktop::EditorView;
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::keymap::{RunCommand, editor_bindings};
+use gasp_desktop::table_edit::handles::{column_handle, row_handle};
+use gasp_desktop::table_edit::menu::table_items;
+use gasp_desktop::ui::{DropdownMenu, MenuEntry, MenuItem};
 use gpui::{
     AppContext, Entity, Focusable, Modifiers, MouseButton, Pixels, Point, TestAppContext,
     VisualTestContext, point, px,

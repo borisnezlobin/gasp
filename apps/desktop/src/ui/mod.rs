@@ -20,8 +20,8 @@ pub mod truncated;
 
 use std::sync::Arc;
 
-use editor_config::Config;
-use editor_config::theme::Theme as Tokens;
+use gasp_config::Config;
+use gasp_config::theme::Theme as Tokens;
 use gpui::{App, Global, WindowAppearance};
 
 pub use breadcrumbs::{Breadcrumbs, Crumb};

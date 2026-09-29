@@ -5,14 +5,14 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use editor_config::{Platform, RuleSet};
-use editor_desktop::keymap::{RunCommand, WORKSPACE_CONTEXT, bind_rules};
-use editor_desktop::outline::{OutlineEvent, OutlinePicker};
-use editor_desktop::palette::{CommandPalette, PaletteEvent};
-use editor_desktop::picker;
-use editor_desktop::switcher::{QuickSwitcher, SwitcherEvent};
-use editor_desktop::text_input::input_bindings;
-use editor_desktop::theme::{InputTheme, PickerTheme};
+use gasp_config::{Platform, RuleSet};
+use gasp_desktop::keymap::{RunCommand, WORKSPACE_CONTEXT, bind_rules};
+use gasp_desktop::outline::{OutlineEvent, OutlinePicker};
+use gasp_desktop::palette::{CommandPalette, PaletteEvent};
+use gasp_desktop::picker;
+use gasp_desktop::switcher::{QuickSwitcher, SwitcherEvent};
+use gasp_desktop::text_input::input_bindings;
+use gasp_desktop::theme::{InputTheme, PickerTheme};
 use gpui::{
     AppContext, ClipboardItem, Context, DismissEvent, Entity, EntityInputHandler, EventEmitter,
     Focusable, IntoElement, ManagedView, Modifiers, ParentElement, Render, Styled, TestAppContext,

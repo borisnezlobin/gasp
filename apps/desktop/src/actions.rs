@@ -3,7 +3,7 @@
 
 use std::ops::Range;
 
-use editor_core::motion;
+use gasp_core::motion;
 use gpui::{
     Context, CursorStyle, KeyDownEvent, ModifiersChangedEvent, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, Pixels, Point, ScrollWheelEvent, Window, div, prelude::*,

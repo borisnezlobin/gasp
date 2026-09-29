@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use editor_config::settings::SyncSettings;
-use editor_sync::{
+use gasp_config::settings::SyncSettings;
+use gasp_sync::{
     ConflictedFile, CredentialStore, FailureKind, Resolution, Scheduler, SchedulerConfig,
     StepReport, SyncStatus, SyncStep, Token,
 };
@@ -493,7 +493,7 @@ impl SyncService {
         if self.remote_url.as_deref() == Some(url) {
             return Ok(());
         }
-        editor_sync::set_remote_url(&self.root, engine::REMOTE, url).map_err(|_| {
+        gasp_sync::set_remote_url(&self.root, engine::REMOTE, url).map_err(|_| {
             "This vault isn’t a git repository yet. Clone your notes repository into it first."
                 .to_owned()
         })?;

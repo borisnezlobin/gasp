@@ -3,9 +3,9 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use editor_migrate::latex_suite::{Outcome, SourceKind};
-use editor_migrate::{Migration, migrate_obsidian};
-use editor_snippets::{
+use gasp_migrate::latex_suite::{Outcome, SourceKind};
+use gasp_migrate::{Migration, migrate_obsidian};
+use gasp_snippets::{
     InputContext, ReplacementFire, Replacements, Request, SnippetEngine, SnippetFile, TriggerKey,
     parse_line,
 };
@@ -241,7 +241,7 @@ fn output_is_deterministic() {
 #[test]
 fn command_line_writes_every_file() {
     let out = tempfile::tempdir().unwrap();
-    let status = Command::new(env!("CARGO_BIN_EXE_editor-migrate"))
+    let status = Command::new(env!("CARGO_BIN_EXE_gasp-migrate"))
         .arg("--obsidian")
         .arg(reference_dir())
         .arg("--out")
@@ -262,7 +262,7 @@ fn command_line_writes_every_file() {
     let report = std::fs::read_to_string(out.path().join("migration-report.txt")).unwrap();
     assert!(report.contains("Needs review: 1"));
 
-    let usage = Command::new(env!("CARGO_BIN_EXE_editor-migrate"))
+    let usage = Command::new(env!("CARGO_BIN_EXE_gasp-migrate"))
         .arg("--out")
         .output()
         .unwrap();

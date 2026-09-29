@@ -9,7 +9,7 @@
 
 use std::ops::Range;
 
-use editor_core::syntax::{NodeId, NodeKind, SyntaxTree};
+use gasp_core::syntax::{NodeId, NodeKind, SyntaxTree};
 
 use crate::projection::{Piece, PieceKind, Projection};
 use crate::segment::{Length, Thresholds, sentences};
@@ -161,7 +161,7 @@ pub fn sentence_lengths(
 
 #[cfg(test)]
 mod tests {
-    use editor_core::syntax::parse;
+    use gasp_core::syntax::parse;
 
     use super::*;
 

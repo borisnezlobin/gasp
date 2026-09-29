@@ -1,11 +1,11 @@
-//! `editor-migrate --obsidian <dir> --out <dir>`
+//! `gasp-migrate --obsidian <dir> --out <dir>`
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use editor_migrate::{REPORT_FILE, migrate_obsidian, render_report};
+use gasp_migrate::{REPORT_FILE, migrate_obsidian, render_report};
 
-const USAGE: &str = "usage: editor-migrate --obsidian <.obsidian folder> --out <output folder>";
+const USAGE: &str = "usage: gasp-migrate --obsidian <.obsidian folder> --out <output folder>";
 
 struct Arguments {
     obsidian: PathBuf,

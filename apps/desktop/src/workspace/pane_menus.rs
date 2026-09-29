@@ -577,7 +577,7 @@ mod tests {
 
     #[test]
     fn every_menu_command_exists() {
-        use editor_config::commands::BUILTIN_COMMANDS;
+        use gasp_config::commands::BUILTIN_COMMANDS;
         let ids = MORE_GROUPS
             .iter()
             .flat_map(|group| group.iter())

@@ -5,11 +5,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use editor_config::{Platform, RuleSet};
-use editor_desktop::actions::bind_keys;
-use editor_desktop::find::{self, FindBar, FindBarEvent};
-use editor_desktop::keymap::{RunCommand, WORKSPACE_CONTEXT, all_bindings};
-use editor_desktop::{EditorView, HighlightKind};
+use gasp_config::{Platform, RuleSet};
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::find::{self, FindBar, FindBarEvent};
+use gasp_desktop::keymap::{RunCommand, WORKSPACE_CONTEXT, all_bindings};
+use gasp_desktop::{EditorView, HighlightKind};
 use gpui::{
     ClipboardItem, Context, Entity, Focusable, IntoElement, Render, TestAppContext,
     VisualTestContext, Window, div, prelude::*,
@@ -246,7 +246,7 @@ fn regex_replace_expands_groups(cx: &mut TestAppContext) {
     let mut h = open(cx, "a=1, b=2", 0..0);
     h.bar.update(h.cx, |bar, cx| {
         bar.set_options(
-            editor_core::find::FindOptions {
+            gasp_core::find::FindOptions {
                 regex: true,
                 ..Default::default()
             },

@@ -14,19 +14,17 @@ use std::io;
 use std::ops::Range;
 use std::path::{Component, Path, PathBuf};
 
-use editor_config::Settings;
-use editor_config::settings::FileSettings;
-use editor_core::document::Selection;
-use editor_core::motion;
-use editor_core::transaction::{ChangeSet, Origin, Transaction};
+use gasp_config::Settings;
+use gasp_config::settings::FileSettings;
+use gasp_core::document::Selection;
+use gasp_core::motion;
+use gasp_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{
     App, ClipboardEntry, ClipboardItem, Context, Entity, EntityId, ExternalPaths, Global, Image,
     ImageFormat, PathPromptOptions, Window,
 };
 
-pub use editor_vault::attachments::{
-    attachments_dir, embed, next_attachment_name, save_attachment,
-};
+pub use gasp_vault::attachments::{attachments_dir, embed, next_attachment_name, save_attachment};
 
 use crate::editor::EditorView;
 

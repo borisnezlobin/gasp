@@ -17,13 +17,13 @@ pub mod keys;
 pub mod menu;
 pub mod paint;
 
-use editor_core::render::RevealMode;
-use editor_core::syntax::SyntaxKind;
-use editor_core::table::{
+use gasp_core::render::RevealMode;
+use gasp_core::syntax::SyntaxKind;
+use gasp_core::table::{
     CellPos, Table, TableOp, cell_paste_text, cell_text, insert_table, table_node_at,
     table_transaction,
 };
-use editor_core::transaction::{ChangeSet, Origin, Transaction};
+use gasp_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{ClipboardItem, Context};
 
 use crate::editor::EditorView;

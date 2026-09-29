@@ -1,5 +1,5 @@
 //! Find and replace in the open note: the find bar view. Its fields are
-//! `crate::text_input::TextInput`s. Matching lives in `editor_core::find`.
+//! `crate::text_input::TextInput`s. Matching lives in `gasp_core::find`.
 //!
 //! Wiring: call [`bind_keys`] once at startup. The workspace hosts a
 //! [`FindBar`] above the editor, creating it on `find.open` or

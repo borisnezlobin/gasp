@@ -6,8 +6,8 @@
 
 use std::ops::Range;
 
-use editor_core::document::Document;
-use editor_core::motion;
+use gasp_core::document::Document;
+use gasp_core::motion;
 use gpui::{App, FontId, LineLayout, Pixels, Point, SharedString, Window, point};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 

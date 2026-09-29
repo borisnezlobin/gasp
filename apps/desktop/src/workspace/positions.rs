@@ -5,13 +5,13 @@
 
 use std::path::Path;
 
-use editor_config::device::NotePosition;
+use gasp_config::device::NotePosition;
 use gpui::{Context, Entity};
 
 use super::Workspace;
 use crate::editor::EditorView;
 
-pub use editor_config::device::{move_positions as moved, remember_position as remember};
+pub use gasp_config::device::{move_positions as moved, remember_position as remember};
 
 impl Workspace {
     /// Where the reader is in `editor`'s note at `path`.
@@ -82,7 +82,7 @@ impl Workspace {
 
 #[cfg(test)]
 mod tests {
-    use editor_config::device::KEPT_POSITIONS;
+    use gasp_config::device::KEPT_POSITIONS;
 
     use super::*;
 

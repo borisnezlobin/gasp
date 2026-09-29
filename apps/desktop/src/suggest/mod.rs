@@ -13,9 +13,9 @@ pub mod trigger;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-use editor_core::document::Selection;
-use editor_core::pipeline::InputContext;
-use editor_core::transaction::{ChangeSet, Origin, Transaction};
+use gasp_core::document::Selection;
+use gasp_core::pipeline::InputContext;
+use gasp_core::transaction::{ChangeSet, Origin, Transaction};
 use gpui::{
     AnyElement, AppContext, Context, Corner, Entity, IntoElement, ParentElement, Pixels,
     SharedString, Subscription, Window, anchored, point, px,

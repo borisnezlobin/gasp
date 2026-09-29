@@ -16,7 +16,7 @@ pub(crate) struct CleanNote {
 pub(crate) fn clean(source: &str) -> CleanNote {
     let (frontmatter, body) = split_frontmatter(source);
     CleanNote {
-        body: editor_core::syntax::straighten_tag_quotes(&strip_comments(body)).into_owned(),
+        body: gasp_core::syntax::straighten_tag_quotes(&strip_comments(body)).into_owned(),
         frontmatter_title: frontmatter.and_then(|yaml| field(yaml, "title")),
         frontmatter_description: frontmatter.and_then(|yaml| field(yaml, "description")),
     }

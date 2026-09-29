@@ -2,10 +2,10 @@
 //! pastes and the settings that turn them off, auto-pairing and wrapping a
 //! selection.
 
-use editor_config::{Config, Platform, RuleSet};
-use editor_desktop::EditorView;
-use editor_desktop::actions::bind_keys;
-use editor_desktop::keymap::editor_bindings;
+use gasp_config::{Config, Platform, RuleSet};
+use gasp_desktop::EditorView;
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::keymap::editor_bindings;
 use gpui::{ClipboardItem, Entity, Focusable, TestAppContext, VisualTestContext};
 
 fn open<'a>(
@@ -139,7 +139,7 @@ fn lines_move_and_duplicate_from_their_keys(cx: &mut TestAppContext) {
 fn toggle_task_checks_the_line(cx: &mut TestAppContext) {
     let (view, cx) = open(cx, "- [ ] milk");
     view.update(cx, |view, cx| {
-        view.run_edit(editor_core::commands::toggle_tasks, cx)
+        view.run_edit(gasp_core::commands::toggle_tasks, cx)
     });
     assert_eq!(text(&view, cx), "- [x] milk");
 }

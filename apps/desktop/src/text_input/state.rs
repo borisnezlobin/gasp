@@ -3,8 +3,8 @@
 
 use std::ops::Range;
 
-use editor_core::document::Document;
-use editor_core::motion;
+use gasp_core::document::Document;
+use gasp_core::motion;
 use unicode_segmentation::UnicodeSegmentation;
 
 /// Where a cursor motion, selection or delete goes.

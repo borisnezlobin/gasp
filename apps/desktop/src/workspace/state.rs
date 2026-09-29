@@ -11,9 +11,9 @@ use std::collections::BTreeSet;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use editor_config::device::{DeviceSettings, WindowState};
-use editor_config::migration::migrate_app_folder_and_log;
-use editor_config::{APP_FOLDER, CONFIG_DIR};
+use gasp_config::device::{DeviceSettings, WindowState};
+use gasp_config::migration::migrate_app_folder_and_log;
+use gasp_config::{APP_FOLDER, CONFIG_DIR};
 use gpui::{Bounds, Pixels, WindowBounds, point, px, size};
 use serde::{Deserialize, Serialize};
 

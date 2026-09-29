@@ -4,9 +4,9 @@
 use std::collections::BTreeSet;
 use std::sync::atomic::AtomicUsize;
 
-use editor_search::engine::{LineHit, NoteCache, NoteResult, search};
-use editor_search::tags::{search_tagged, tag_query};
-use editor_vault::ops::slash_path;
+use gasp_search::engine::{LineHit, NoteCache, NoteResult, search};
+use gasp_search::tags::{search_tagged, tag_query};
+use gasp_vault::ops::slash_path;
 
 use crate::offsets::{TextRange, Utf16Offsets};
 use crate::vault::{NoteSummary, VaultFolder};
@@ -121,7 +121,7 @@ impl VaultFolder {
     fn search_result(
         &self,
         result: NoteResult,
-        notes: &[editor_search::engine::Note],
+        notes: &[gasp_search::engine::Note],
     ) -> SearchResult {
         let text = notes
             .iter()

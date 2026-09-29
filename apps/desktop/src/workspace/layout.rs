@@ -1,7 +1,7 @@
 //! Saving the split panes, with each pane's tabs and the space it has, to
 //! the vault's device file, and building them again on the next start.
 
-use editor_config::device::{PaneLayout, SplitAxis};
+use gasp_config::device::{PaneLayout, SplitAxis};
 use gpui::{App, Context, Entity, Window};
 
 use super::Workspace;

@@ -8,9 +8,9 @@
 //! inch. A point is 1/72 inch, so 12pt is 16px: the size Obsidian and most
 //! browsers use for body text.
 
-use editor_config::Config;
-use editor_config::theme::{Theme as Tokens, TokenValue};
-use editor_core::syntax::{CalloutKind, ConflictSide};
+use gasp_config::Config;
+use gasp_config::theme::{Theme as Tokens, TokenValue};
+use gasp_core::syntax::{CalloutKind, ConflictSide};
 
 use crate::preview::code_highlight::CodeKind;
 use gpui::{
@@ -1451,7 +1451,7 @@ impl FindUiTheme {
 
 #[cfg(test)]
 mod tests {
-    use editor_config::loader::build_theme;
+    use gasp_config::loader::build_theme;
 
     use super::*;
 

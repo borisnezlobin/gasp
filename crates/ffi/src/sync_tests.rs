@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use editor_sync::{Author, InMemoryCredentialStore, Vault, VaultConfig};
+use gasp_sync::{Author, InMemoryCredentialStore, Vault, VaultConfig};
 use git2::{Repository, RepositoryInitOptions};
 
 use crate::sync::{SyncPhaseKind, VaultSync};

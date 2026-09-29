@@ -10,7 +10,7 @@ use crate::replacements::ReplacementsMigration;
 
 /// Renders the report for a migration. The output is deterministic.
 pub fn render_report(migration: &Migration) -> String {
-    let mut out = String::from("editor-migrate report\n");
+    let mut out = String::from("gasp-migrate report\n");
     if !migration.missing.is_empty() {
         let _ = writeln!(
             out,

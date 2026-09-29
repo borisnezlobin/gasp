@@ -14,8 +14,8 @@ mod watch;
 
 use std::path::PathBuf;
 
-use editor_vault::entries;
-pub use editor_vault::ops;
+use gasp_vault::entries;
+pub use gasp_vault::ops;
 
 pub use entries::{Entry, EntryKind, SortOrder, display_name, natural_cmp};
 pub use keys::KEY_HINTS;

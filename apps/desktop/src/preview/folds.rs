@@ -3,4 +3,4 @@
 //! without editing the note. The folds live in the core, which the phone
 //! shares.
 
-pub use editor_core::render::folds::Folds;
+pub use gasp_core::render::folds::Folds;

@@ -3,18 +3,18 @@
 //! search, resets, theme fonts and colours, and keyboard shortcuts, and
 //! what ends up in `.gasp/settings.toml`, `theme.toml` and `rules.toml`.
 
-use editor_config::CONFIG_DIR;
+use gasp_config::CONFIG_DIR;
 use std::cell::RefCell;
 use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 
-use editor_config::{KeyChord, Platform, RuleSet};
-use editor_desktop::settings_view::{
+use gasp_config::{KeyChord, Platform, RuleSet};
+use gasp_desktop::settings_view::{
     ControlRow, Page, SettingsEvent, SettingsFocus, SettingsRequest, SettingsView, modal_size,
 };
-use editor_desktop::text_input;
-use editor_desktop::theme::SettingsTheme;
+use gasp_desktop::text_input;
+use gasp_desktop::theme::SettingsTheme;
 use gpui::{
     Bounds, DismissEvent, Entity, Focusable, Modifiers, Pixels, TestAppContext, VisualTestContext,
     px, size,
@@ -368,7 +368,7 @@ fn search_finds_theme_rows_and_shortcuts(cx: &mut TestAppContext) {
     cx.simulate_input("interface font");
     let rows = view.read_with(cx, |view, _| view.rows());
     assert!(rows.contains(&ControlRow::Font(
-        editor_desktop::settings_view::FontSlot::Interface
+        gasp_desktop::settings_view::FontSlot::Interface
     )));
     view.update_in(cx, |view, window, cx| view.focus_search(window, cx));
     cx.simulate_keystrokes("secondary-a");
@@ -742,7 +742,7 @@ fn picking_a_font_writes_the_theme_and_reports_it(cx: &mut TestAppContext) {
     with_fonts(&view, cx);
     go_to_section(&view, "Appearance", cx);
     go_to_row(&view, cx, |row| {
-        *row == ControlRow::Font(editor_desktop::settings_view::FontSlot::Text)
+        *row == ControlRow::Font(gasp_desktop::settings_view::FontSlot::Text)
     });
     cx.simulate_keystrokes("enter");
     // The filter has focus: typing narrows the list, Enter picks.
@@ -803,10 +803,7 @@ fn the_accent_comes_from_swatches_or_hex(cx: &mut TestAppContext) {
     assert_eq!(recorded.borrow().changed, ["theme.color.accent"]);
     // The screen's own switches follow the accent.
     let accent = view.read_with(cx, |view, _| view.style().accent);
-    assert_eq!(
-        accent,
-        editor_desktop::theme::parse_color("#2f5fd0").unwrap()
-    );
+    assert_eq!(accent, gasp_desktop::theme::parse_color("#2f5fd0").unwrap());
     click(cx, "swatch-#7048c8");
     assert_eq!(token(&view, "color.accent", cx), "#7048c8");
     // Enter moves into the hex field; a bad colour is refused.
@@ -831,7 +828,7 @@ fn shortcut(
     view: &Entity<SettingsView>,
     id: &str,
     cx: &mut VisualTestContext,
-) -> editor_desktop::settings_view::model::ShortcutRow {
+) -> gasp_desktop::settings_view::model::ShortcutRow {
     view.read_with(cx, |view, _| {
         view.rows().into_iter().find_map(|row| match row {
             ControlRow::Shortcut(shortcut) if shortcut.id == id => Some(shortcut),
@@ -845,7 +842,7 @@ fn shortcut(
 fn label(keys: &str) -> String {
     let platform = Platform::current();
     let chord = KeyChord::parse_for(keys, platform).unwrap();
-    editor_desktop::picker::shortcut::shortcut_label(chord, platform)
+    gasp_desktop::picker::shortcut::shortcut_label(chord, platform)
 }
 
 #[gpui::test]
@@ -953,7 +950,7 @@ fn user_shortcuts_are_removed_by_their_cross_or_delete(cx: &mut TestAppContext) 
     );
     let (view, cx, recorded) = open(cx, root);
     view.update(cx, |view, cx| {
-        let rules = editor_desktop::settings_view::config_files::load_rules(view.vault_root());
+        let rules = gasp_desktop::settings_view::config_files::load_rules(view.vault_root());
         view.set_rules(&rules, cx)
     });
     go_to_section(&view, "Keyboard shortcuts", cx);
@@ -1063,7 +1060,7 @@ fn typing_keys_in_the_search_finds_the_commands_they_run(cx: &mut TestAppContext
     cx.simulate_keystrokes("secondary-a");
     cx.simulate_input("shortcuts");
     let all = view.read_with(cx, |view, _| view.rows().len());
-    assert_eq!(all, editor_config::commands::BUILTIN_COMMANDS.len());
+    assert_eq!(all, gasp_config::commands::BUILTIN_COMMANDS.len());
 }
 
 #[gpui::test]
@@ -1250,7 +1247,7 @@ fn fonts_listed_late_fill_an_open_menu_and_the_notes(cx: &mut TestAppContext) {
     write_config(root, "theme.toml", "[font]\ntext = \"Missing Serif\"\n");
     // Nothing lists the fonts in tests until they're handed over.
     let (view, cx, _) = open(cx, root);
-    let text = editor_desktop::settings_view::FontSlot::Text;
+    let text = gasp_desktop::settings_view::FontSlot::Text;
     // Until the list arrives a font is drawn by the name it's given.
     assert_eq!(
         view.read_with(cx, |view, _| view.shown_font(text).to_string()),
@@ -1267,9 +1264,7 @@ fn fonts_listed_late_fill_an_open_menu_and_the_notes(cx: &mut TestAppContext) {
     );
     cx.simulate_input("serif");
 
-    cx.update(|_, cx| {
-        editor_desktop::ui::set_installed_fonts(FONTS.map(String::from).to_vec(), cx)
-    });
+    cx.update(|_, cx| gasp_desktop::ui::set_installed_fonts(FONTS.map(String::from).to_vec(), cx));
     cx.run_until_parked();
     // The open menu fills, keeping its filter, and stops saying it's
     // loading.

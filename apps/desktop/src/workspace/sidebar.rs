@@ -8,9 +8,9 @@
 
 use std::time::{Duration, Instant};
 
-use editor_config::rules::Clock;
-use editor_config::settings::{SettingsIndex, SidebarMode, SidebarReveal};
-use editor_config::{Event, EventKind, MatchContext, Platform, RuleEngine, RuleSet, Settings};
+use gasp_config::rules::Clock;
+use gasp_config::settings::{SettingsIndex, SidebarMode, SidebarReveal};
+use gasp_config::{Event, EventKind, MatchContext, Platform, RuleEngine, RuleSet, Settings};
 use gpui::{AnyView, BackgroundExecutor, FocusHandle, Pixels, Task};
 
 /// The rule target for the strip along the window's left edge.
@@ -254,7 +254,7 @@ impl LeftPanel {
 
 #[cfg(test)]
 mod tests {
-    use editor_config::ManualClock;
+    use gasp_config::ManualClock;
 
     use super::*;
 

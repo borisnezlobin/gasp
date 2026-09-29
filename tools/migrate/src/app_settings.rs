@@ -162,7 +162,7 @@ impl SettingsMigration {
             .filter(|(section, ..)| !section.starts_with(THEME_PREFIX))
             .map(|(section, key, value)| (section.as_str(), key, value));
         render_sections(
-            "# Settings imported from Obsidian by editor-migrate.\n",
+            "# Settings imported from Obsidian by gasp-migrate.\n",
             values,
         )
     }
@@ -182,7 +182,7 @@ impl SettingsMigration {
             return None;
         }
         Some(render_sections(
-            "# Theme tokens imported from Obsidian by editor-migrate.\n",
+            "# Theme tokens imported from Obsidian by gasp-migrate.\n",
             values.into_iter(),
         ))
     }

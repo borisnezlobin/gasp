@@ -1,5 +1,5 @@
 //! Git sync in the desktop app: a [`SyncService`] per vault window runs
-//! `editor-sync`'s scheduler, with every git step on the background
+//! `gasp-sync`'s scheduler, with every git step on the background
 //! executor. It shows as the [`SyncIndicator`] in the status bar, is set
 //! up on the settings screen's Sync page, and hands conflicts to the
 //! [`ConflictResolver`].
@@ -17,7 +17,7 @@ pub mod state;
 
 use std::sync::Arc;
 
-use editor_sync::CredentialStore;
+use gasp_sync::CredentialStore;
 use gpui::{App, Global};
 
 pub use indicator::{SyncIndicator, SyncIndicatorEvent};

@@ -1,5 +1,5 @@
 [package]
-name = "editor-core"
+name = "gasp-core"
 description = "Document model, transactions, undo, parser, input pipeline and render planner."
 version.workspace = true
 edition.workspace = true
@@ -9,8 +9,8 @@ publish = false
 [dependencies]
 ropey = "1.6"
 regex = "1"
-editor-config = { path = "../config" }
-editor-snippets = { path = "../snippets" }
+gasp-config = { path = "../config" }
+gasp-snippets = { path = "../snippets" }
 pulldown-cmark = { version = "0.13.4", default-features = false }
 unicode-width = "0.2"
 url = "2"

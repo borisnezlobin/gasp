@@ -1,5 +1,5 @@
 [package]
-name = "editor-desktop"
+name = "gasp-desktop"
 description = "Desktop app, plus headless CLI modes for tests and agents."
 version.workspace = true
 edition.workspace = true
@@ -20,16 +20,16 @@ runtime-shaders = ["gpui/runtime_shaders"]
 [dependencies]
 anyhow = "1"
 env_logger = { version = "0.11", default-features = false }
-editor-config = { path = "../../crates/config" }
-editor-core = { path = "../../crates/core" }
-editor-snippets = { path = "../../crates/snippets" }
-editor-prose = { path = "../../crates/prose" }
+gasp-config = { path = "../../crates/config" }
+gasp-core = { path = "../../crates/core" }
+gasp-snippets = { path = "../../crates/snippets" }
+gasp-prose = { path = "../../crates/prose" }
 similar = "2.7"
-editor-export = { path = "../../crates/export" }
-editor-sync = { path = "../../crates/sync", features = ["keychain"] }
-editor-search = { path = "../../crates/search" }
-editor-vault = { path = "../../crates/vault" }
-editor-mcp = { path = "../../crates/mcp" }
+gasp-export = { path = "../../crates/export" }
+gasp-sync = { path = "../../crates/sync", features = ["keychain"] }
+gasp-search = { path = "../../crates/search" }
+gasp-vault = { path = "../../crates/vault" }
+gasp-mcp = { path = "../../crates/mcp" }
 gpui = "=0.2.2"
 image = "0.25"
 unicode-normalization = "0.1.25"
@@ -43,8 +43,8 @@ toml = "0.8"
 serde_json = "1"
 toml_edit = "0.22"
 jiff = "0.2"
-editor-math = { path = "../../crates/math" }
-editor-highlight = { path = "../../crates/highlight" }
+gasp-math = { path = "../../crates/math" }
+gasp-highlight = { path = "../../crates/highlight" }
 resvg = { version = "0.45", default-features = false }
 # Code block colours. Typst already builds both with these features, so
 # they add no new crates.
@@ -76,7 +76,7 @@ rustix = { version = "1", default-features = false, features = ["std", "system",
 [dev-dependencies]
 gpui = { version = "=0.2.2", features = ["test-support"] }
 tempfile = "3"
-editor-migrate = { path = "../../tools/migrate" }
+gasp-migrate = { path = "../../tools/migrate" }
 git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }
 
 [lints]

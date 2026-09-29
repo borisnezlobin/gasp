@@ -6,8 +6,8 @@
 
 use std::time::Duration;
 
-use editor_config::commands::BUILTIN_COMMANDS;
-use editor_config::keys::{Key, NamedKey};
+use gasp_config::commands::BUILTIN_COMMANDS;
+use gasp_config::keys::{Key, NamedKey};
 use gpui::{
     AnyElement, App, Context, Focusable, Modifiers, ModifiersChangedEvent, SharedString, Task,
     Window, div, prelude::*,

@@ -4,8 +4,8 @@
 //! insertions sit at the top level; the rest go in Row, Column and Table
 //! submenus.
 
-use editor_core::syntax::Alignment;
-use editor_core::table::TableOp;
+use gasp_core::syntax::Alignment;
+use gasp_core::table::TableOp;
 use gpui::{App, Entity};
 
 use crate::editor::EditorView;

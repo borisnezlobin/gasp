@@ -1,6 +1,6 @@
 //! What the typing steps read around a single caret.
 
-use editor_snippets::InputContext as SnippetContext;
+use gasp_snippets::InputContext as SnippetContext;
 
 use crate::document::SelectionRange;
 use crate::pipeline::{EditRequest, InputContext, StepContext};

@@ -15,8 +15,8 @@ pub mod templates;
 
 use std::path::Path;
 
-pub use editor_vault::knowledge::{daily, dates};
-pub use editor_vault::{build, index, mentions, parse};
+pub use gasp_vault::knowledge::{daily, dates};
+pub use gasp_vault::{build, index, mentions, parse};
 use gpui::{AppContext, Context, Entity, Focusable, Window};
 
 pub use self::sidebar::{KnowledgeSidebar, SidebarEvent, SidebarView};

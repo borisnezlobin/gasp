@@ -7,10 +7,10 @@ use std::path::Path;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use editor_desktop::actions::bind_keys;
-use editor_desktop::edit_time::{STATS_DIR, StatsFile, load};
-use editor_desktop::features;
-use editor_desktop::workspace::{OpenIn, Workspace};
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::edit_time::{STATS_DIR, StatsFile, load};
+use gasp_desktop::features;
+use gasp_desktop::workspace::{OpenIn, Workspace};
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
 const NOTE: &str = "---\ntitle: Waves\nedited_seconds: 600\n---\n# Waves\n\nText.\n";
@@ -21,7 +21,7 @@ fn data_dir() {
     static DIR: OnceLock<tempfile::TempDir> = OnceLock::new();
     DIR.get_or_init(|| {
         let dir = tempfile::tempdir().unwrap();
-        editor_desktop::recovery::store::use_data_dir(dir.path().to_path_buf());
+        gasp_desktop::recovery::store::use_data_dir(dir.path().to_path_buf());
         dir
     });
 }
@@ -160,7 +160,7 @@ fn a_moved_note_keeps_its_edit_time_and_snapshots_unopened(cx: &mut TestAppConte
     let (workspace, cx) = open_workspace(cx, vault.path());
     let from = vault.path().join("Waves.md");
     let to = vault.path().join("Physics/Light waves.md");
-    cx.update(|_, cx| editor_desktop::recovery::keep_version(&from, "an older draft", cx));
+    cx.update(|_, cx| gasp_desktop::recovery::keep_version(&from, "an older draft", cx));
     cx.run_until_parked();
 
     std::fs::create_dir_all(to.parent().unwrap()).unwrap();
@@ -177,7 +177,7 @@ fn a_moved_note_keeps_its_edit_time_and_snapshots_unopened(cx: &mut TestAppConte
         "the time spent on it moved with it"
     );
     let (store, relative) = cx
-        .read(|cx| editor_desktop::recovery::store_for(&to, cx))
+        .read(|cx| gasp_desktop::recovery::store_for(&to, cx))
         .expect("the vault keeps snapshots");
     let kept = store.list(&relative);
     assert_eq!(kept.len(), 1, "its snapshot moved with it");
@@ -210,7 +210,7 @@ fn a_note_named_through_a_link_to_the_vault_is_still_the_vaults(cx: &mut TestApp
 
     let from = vault.join("Waves.md");
     let to = vault.join("Physics/Light waves.md");
-    cx.update(|_, cx| editor_desktop::recovery::keep_version(&from, "an older draft", cx));
+    cx.update(|_, cx| gasp_desktop::recovery::keep_version(&from, "an older draft", cx));
     cx.run_until_parked();
     std::fs::create_dir_all(to.parent().unwrap()).unwrap();
     std::fs::rename(&from, &to).unwrap();
@@ -226,7 +226,7 @@ fn a_note_named_through_a_link_to_the_vault_is_still_the_vaults(cx: &mut TestApp
         "the time spent on it moved with it"
     );
     let (store, relative) = cx
-        .read(|cx| editor_desktop::recovery::store_for(&to, cx))
+        .read(|cx| gasp_desktop::recovery::store_for(&to, cx))
         .expect("the vault keeps snapshots");
     let kept = store.list(&relative);
     assert_eq!(kept.len(), 1, "its snapshot moved with it");

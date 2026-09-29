@@ -4,9 +4,9 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use editor_config::ConfigLoader;
-use editor_config::settings::{FileSettings, TrashMode};
 use futures::StreamExt;
+use gasp_config::ConfigLoader;
+use gasp_config::settings::{FileSettings, TrashMode};
 use gpui::{
     App, AppContext, ClipboardItem, Context, Entity, EventEmitter, FocusHandle, Focusable, Pixels,
     Point, ScrollStrategy, Subscription, Task, UniformListScrollHandle, Window,

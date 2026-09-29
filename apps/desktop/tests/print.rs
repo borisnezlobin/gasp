@@ -8,11 +8,11 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Duration;
 
-use editor_config::{Platform, RuleSet};
-use editor_desktop::features;
-use editor_desktop::keymap::all_bindings;
-use editor_desktop::print::{self, Control, Paper, Pending, PrintDialog, PrintSink, Status};
-use editor_desktop::workspace::{OpenIn, Workspace};
+use gasp_config::{Platform, RuleSet};
+use gasp_desktop::features;
+use gasp_desktop::keymap::all_bindings;
+use gasp_desktop::print::{self, Control, Paper, Pending, PrintDialog, PrintSink, Status};
+use gasp_desktop::workspace::{OpenIn, Workspace};
 use gpui::{
     Context, DismissEvent, Entity, Focusable, IntoElement, Modifiers, Render, TestAppContext,
     VisualTestContext, Window, div, prelude::*,
@@ -36,7 +36,7 @@ fn open_dialog<'a>(
 ) -> (Entity<PrintDialog>, &'a mut VisualTestContext) {
     cx.update(|cx| {
         print::bind_keys(cx);
-        editor_desktop::ui::focus_visible::install(cx);
+        gasp_desktop::ui::focus_visible::install(cx);
     });
     let text = text.to_owned();
     let (host, window) = cx.add_window_view(move |window, cx| {
@@ -275,7 +275,7 @@ fn app_print_opens_the_print_dialog(cx: &mut TestAppContext) {
     let vault = tempfile::tempdir().unwrap();
     std::fs::write(vault.path().join("Note.md"), SHORT_NOTE).unwrap();
     cx.update(|cx| {
-        editor_desktop::actions::bind_keys(cx);
+        gasp_desktop::actions::bind_keys(cx);
         features::bind_view_keys(cx);
     });
     let root = vault.path().to_path_buf();

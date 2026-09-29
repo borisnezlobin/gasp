@@ -3,10 +3,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-use editor_corpus::manifest::{manifest_json, notes_with, scan_vault, totals};
-use editor_corpus::scan::NoteScan;
-use editor_corpus::targets::scaled_targets;
-use editor_corpus::{DEFAULT_SEED, FootnoteProblem, GITATTRIBUTES, Options, Vault, generate};
+use gasp_corpus::manifest::{manifest_json, notes_with, scan_vault, totals};
+use gasp_corpus::scan::NoteScan;
+use gasp_corpus::targets::scaled_targets;
+use gasp_corpus::{DEFAULT_SEED, FootnoteProblem, GITATTRIBUTES, Options, Vault, generate};
 
 static VAULT: LazyLock<Vault> = LazyLock::new(|| generate(DEFAULT_SEED, &Options::default()));
 static SCANS: LazyLock<Vec<(String, NoteScan)>> = LazyLock::new(|| scan_vault(&VAULT));
@@ -427,6 +427,6 @@ fn committed_fixture_is_up_to_date() {
         .collect();
     assert!(
         stale.is_empty() && extra.is_empty(),
-        "fixtures/corpus is stale; run `cargo run -p editor-corpus -- --out fixtures/corpus`. stale: {stale:?}, extra: {extra:?}"
+        "fixtures/corpus is stale; run `cargo run -p gasp-corpus -- --out fixtures/corpus`. stale: {stale:?}, extra: {extra:?}"
     );
 }

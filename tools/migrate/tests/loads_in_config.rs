@@ -1,10 +1,10 @@
 //! The migrator's output must load cleanly through the real config loader.
 
-use editor_config::CONFIG_DIR;
+use gasp_config::CONFIG_DIR;
 use std::path::PathBuf;
 
-use editor_config::{ConfigLoader, Severity};
-use editor_migrate::migrate_obsidian;
+use gasp_config::{ConfigLoader, Severity};
+use gasp_migrate::migrate_obsidian;
 
 fn reference_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../reference/obsidian")

@@ -105,7 +105,7 @@
       }
     ]
   },
-  "generator": "editor-corpus",
+  "generator": "gasp-corpus",
   "html_tags": {
     "br": 326,
     "div": 10,

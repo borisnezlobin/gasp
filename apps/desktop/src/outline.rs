@@ -1,7 +1,7 @@
 //! Jump to heading (`outline.jump-to-heading`, Mod+Shift+O): the note's
 //! headings, indented by level, filtered by what you type.
 
-use editor_core::syntax::{self, NodeKind, SyntaxTree};
+use gasp_core::syntax::{self, NodeKind, SyntaxTree};
 use gpui::{
     AnyElement, App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     ParentElement, Render, SharedString, Subscription, Window, div, prelude::*,

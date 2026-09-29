@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use editor_config::schema::SettingKind;
+use gasp_config::schema::SettingKind;
 use gpui::{
     AnyElement, ClickEvent, Context, Div, Focusable, MouseButton, SharedString, Stateful, Window,
     div, prelude::*, uniform_list,

@@ -8,7 +8,7 @@
 //! [`VaultSearchEvent::Replaced`], and returns focus to the editor on
 //! [`VaultSearchEvent::Dismissed`].
 
-pub use editor_search::{engine, tags};
+pub use gasp_search::{engine, tags};
 
 use std::path::PathBuf;
 use std::sync::Arc;

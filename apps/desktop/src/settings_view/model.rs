@@ -5,10 +5,10 @@
 use std::borrow::Cow;
 use std::sync::OnceLock;
 
-use editor_config::commands::BUILTIN_COMMANDS;
-use editor_config::keys::KeyChord;
-use editor_config::schema::{SettingKind, setting_descriptors};
-use editor_config::{Platform, RuleSet};
+use gasp_config::commands::BUILTIN_COMMANDS;
+use gasp_config::keys::KeyChord;
+use gasp_config::schema::{SettingKind, setting_descriptors};
+use gasp_config::{Platform, RuleSet};
 use serde_json::Value;
 
 use crate::icons::IconName;
@@ -133,7 +133,7 @@ const TEXTS: &[(&str, &str, &str)] = &[
         "Let agents use the app",
         concat!(
             "Agents connected through ",
-            editor_config::command_name!(),
+            gasp_config::command_name!(),
             " mcp can see your tabs and cursor, run commands and edit open notes. They can read and change the vault's files either way."
         ),
     ),
@@ -912,7 +912,7 @@ pub fn filter_fonts(choices: &[String], query: &str) -> Vec<String> {
 
 // ---- Keyboard shortcuts ----
 
-pub use editor_config::config_files::{is_user_rule, user_rule_id};
+pub use gasp_config::config_files::{is_user_rule, user_rule_id};
 
 /// One key that runs a command.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1302,7 +1302,7 @@ mod tests {
 
     #[test]
     fn every_syntax_name_is_one_the_config_takes() {
-        use editor_config::settings::SyntaxKind;
+        use gasp_config::settings::SyntaxKind;
         for (name, _) in SYNTAX_NAMES {
             let parsed: Result<SyntaxKind, _> = serde_json::from_value(Value::from(*name));
             assert!(parsed.is_ok(), "{name}");

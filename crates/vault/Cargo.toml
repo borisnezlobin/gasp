@@ -1,5 +1,5 @@
 [package]
-name = "editor-vault"
+name = "gasp-vault"
 description = "The vault on disk without a UI: the link index, links that follow moved notes, file operations and atomic writes."
 version.workspace = true
 edition.workspace = true
@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
-editor-config = { path = "../config" }
+gasp-config = { path = "../config" }
 dirs = "5"
 jiff = "0.2"
 

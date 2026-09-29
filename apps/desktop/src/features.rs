@@ -4,8 +4,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use editor_config::Platform;
-use editor_config::keys::KeyChord;
+use gasp_config::Platform;
+use gasp_config::keys::KeyChord;
 use gpui::{
     App, AppContext, Entity, EntityId, Focusable, Global, KeyBinding, Subscription, Window,
 };
@@ -72,7 +72,7 @@ pub fn bind_view_keys(cx: &mut App) {
 
 /// Replaces every key binding with those from `rules` plus the views' own
 /// keys, so edits to rules.toml take effect, removals included.
-pub fn bind_all_keys(rules: &editor_config::RuleSet, cx: &mut App) {
+pub fn bind_all_keys(rules: &gasp_config::RuleSet, cx: &mut App) {
     cx.clear_key_bindings();
     crate::keymap::bind_rules(rules, cx);
     bind_view_keys(cx);
@@ -106,7 +106,7 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     // The note header's reading-view button shows a book while Markdown
     // symbols are hidden everywhere.
     let reading: crate::workspace::pane::ReadingProbe = std::rc::Rc::new(|editor| {
-        editor.symbol_mode() == editor_config::settings::SymbolMode::AlwaysHidden
+        editor.symbol_mode() == gasp_config::settings::SymbolMode::AlwaysHidden
     });
     workspace.set_reading_probe(reading, cx);
     install_file_tree(workspace, window, cx);
@@ -357,7 +357,7 @@ fn run_after_modal_closes(id: String, window: &mut Window, cx: &mut gpui::Contex
 
 /// Saves a new key rule in the vault's rules.toml and binds it now.
 fn bind_user_key(vault: &Path, command: &str, chord: &str, cx: &mut App) -> std::io::Result<()> {
-    let rules_file = editor_config::config_files::rules_path(vault);
+    let rules_file = gasp_config::config_files::rules_path(vault);
     let mut text = std::fs::read_to_string(&rules_file).unwrap_or_default();
     if !text.is_empty() && !text.ends_with('\n') {
         text.push('\n');

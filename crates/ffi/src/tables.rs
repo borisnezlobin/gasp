@@ -2,7 +2,7 @@
 //! which of the table editor's structural edits apply to a cell, for its
 //! menu. The edits themselves are the core's table commands.
 
-use editor_core::table::{Table, TableOp, cell_text};
+use gasp_core::table::{Table, TableOp, cell_text};
 
 use crate::document::NoteDocument;
 use crate::edits::{self, CommandInput, CommandOutcome};

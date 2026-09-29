@@ -256,7 +256,7 @@ pub(super) fn next_match(labels: &[&str], from: Option<usize>, prefix: &str) -> 
 
 #[cfg(test)]
 mod tests {
-    use editor_config::keys::{Key, KeyChord, Modifiers};
+    use gasp_config::keys::{Key, KeyChord, Modifiers};
 
     /// Every hint names a key the tree really handles.
     #[test]

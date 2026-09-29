@@ -1,7 +1,7 @@
 //! The workspace's prose commands, and starting the grammar checker on a
 //! vault.
 
-use editor_config::settings::SentenceLengthSettings;
+use gasp_config::settings::SentenceLengthSettings;
 use gpui::{Context, Window};
 use serde_json::Value;
 

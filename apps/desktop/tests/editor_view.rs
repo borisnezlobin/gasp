@@ -2,11 +2,11 @@
 //! mouse input, IME composition and the laid-out geometry. The test
 //! platform shapes text with fixed-width fake glyphs.
 
-use editor_config::{Platform, RuleSet};
-use editor_desktop::EditorView;
-use editor_desktop::actions::bind_keys;
-use editor_desktop::keymap::editor_bindings;
-use editor_desktop::line_layout::{Piece, PieceContent, RowKind};
+use gasp_config::{Platform, RuleSet};
+use gasp_desktop::EditorView;
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::keymap::editor_bindings;
+use gasp_desktop::line_layout::{Piece, PieceContent, RowKind};
 use gpui::{
     Entity, EntityInputHandler, Focusable, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent,
     Pixels, Point, TestAppContext, VisualTestContext, point, px,

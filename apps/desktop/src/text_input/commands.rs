@@ -2,7 +2,7 @@
 //! bindings from the config rules. The ids are the editor's, so a rule
 //! that changes a key in the editor changes it in every input too.
 
-use editor_config::{Platform, RuleSet};
+use gasp_config::{Platform, RuleSet};
 use gpui::{App, KeyBinding};
 
 use super::state::Motion;

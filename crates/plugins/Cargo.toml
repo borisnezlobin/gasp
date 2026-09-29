@@ -1,5 +1,5 @@
 [package]
-name = "editor-plugins"
+name = "gasp-plugins"
 description = "QuickJS plugin runtime and the TypeScript API."
 version.workspace = true
 edition.workspace = true

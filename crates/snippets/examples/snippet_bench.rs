@@ -2,11 +2,11 @@
 //! first argument) and looking for an expansion and a replacement on every
 //! keystroke of a long line, the work the editor does per key.
 //!
-//! `cargo run --release -p editor-snippets --example snippet_bench [snippets.txt]`
+//! `cargo run --release -p gasp-snippets --example snippet_bench [snippets.txt]`
 
 use std::time::{Duration, Instant};
 
-use editor_snippets::{
+use gasp_snippets::{
     DEFAULT_SNIPPETS, InputContext, Replacements, Request, SnippetEngine, SnippetFile, TriggerKey,
 };
 

@@ -4,7 +4,7 @@
 mod common;
 
 use common::{World, author, read, sync, write};
-use editor_sync::{MergeOutcome, Vault, VaultConfig};
+use gasp_sync::{MergeOutcome, Vault, VaultConfig};
 
 const NOTE: &str = "notes/plan.md";
 

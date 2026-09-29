@@ -3,20 +3,20 @@
 //! vault the window has open; the other is driven straight through the
 //! engine. Nothing here touches a real repository or the network.
 
-use editor_config::CONFIG_DIR;
+use gasp_config::CONFIG_DIR;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use editor_config::settings::SyncSettings;
-use editor_desktop::actions::bind_keys;
-use editor_desktop::features;
-use editor_desktop::settings_view::{ControlRow, SettingsView};
-use editor_desktop::sync::{
+use gasp_config::settings::SyncSettings;
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::features;
+use gasp_desktop::settings_view::{ControlRow, SettingsView};
+use gasp_desktop::sync::{
     ConflictResolver, SetupProblem, SyncPhase, SyncService, set_credential_store,
 };
-use editor_desktop::workspace::{OpenIn, Workspace};
-use editor_sync::{
+use gasp_desktop::workspace::{OpenIn, Workspace};
+use gasp_sync::{
     Author, CredentialStore, InMemoryCredentialStore, SyncStep, Token, Vault, VaultConfig,
 };
 use gpui::{Entity, Modifiers, TestAppContext, VisualTestContext};
@@ -405,7 +405,7 @@ fn a_conflict_doesnt_stop_other_notes_from_syncing(cx: &mut TestAppContext) {
     );
     assert_eq!(
         world.remote_message(),
-        format!("{}: other.md", editor_desktop::edit_time::device_name())
+        format!("{}: other.md", gasp_desktop::edit_time::device_name())
     );
     assert_eq!(phase(&service, cx), SyncPhase::Conflict { files: 1 });
     sync_device(&desktop, "desktop");
@@ -608,7 +608,7 @@ fn the_sync_page_edits_device_only_files(cx: &mut TestAppContext) {
             .device_only
             .clone()
     });
-    assert_eq!(now.len(), 3);
+    assert_eq!(now.len(), SyncSettings::default().device_only.len() - 1);
 }
 
 /// Sync step timings on a synthetic vault of 200 notes, printed for the

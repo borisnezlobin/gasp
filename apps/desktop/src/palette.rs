@@ -5,7 +5,7 @@
 //! chord pressed becomes [`PaletteEvent::Bind`], which the owner writes to
 //! `rules.toml`.
 
-use editor_config::{CommandRegistry, Platform, RuleSet};
+use gasp_config::{CommandRegistry, Platform, RuleSet};
 use gpui::{
     AnyElement, App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     Keystroke, ParentElement, Render, SharedString, Subscription, Window, div, prelude::*,

@@ -4,7 +4,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use editor_config::RuleSet;
+use gasp_config::RuleSet;
 use gpui::{
     ClipboardItem, Entity, EntityInputHandler, Focusable, KeyBinding, Modifiers, TestAppContext,
     VisualTestContext, actions, div, point, prelude::*, px,

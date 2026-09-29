@@ -6,15 +6,15 @@
 use std::ops::Range;
 use std::sync::Arc;
 
-use editor_config::Config;
-use editor_config::typing::TypingTables;
-use editor_core::commands::{indent, outdent};
-use editor_core::pipeline::{
+use gasp_config::Config;
+use gasp_config::typing::TypingTables;
+use gasp_core::commands::{indent, outdent};
+use gasp_core::pipeline::{
     CURLS_IN, ContextFilter, EditRequest, MathOptions, MathStep, PipelineOutput, TabStops,
     curl_quotes, follow_stops, step_names,
 };
-use editor_core::steps::{ReplacementStep, SnippetStep, install_snippets};
-use editor_core::transaction::{Origin, Transaction};
+use gasp_core::steps::{ReplacementStep, SnippetStep, install_snippets};
+use gasp_core::transaction::{Origin, Transaction};
 use gpui::Context;
 
 use crate::editor::EditorView;

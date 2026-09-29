@@ -1,5 +1,5 @@
 [package]
-name = "editor-mcp"
+name = "gasp-mcp"
 description = "MCP server: the vault, its config and the running app, for agents."
 version.workspace = true
 edition.workspace = true
@@ -7,11 +7,11 @@ license.workspace = true
 publish = false
 
 [dependencies]
-editor-config = { path = "../config" }
-editor-export = { path = "../export" }
-editor-search = { path = "../search" }
-editor-snippets = { path = "../snippets" }
-editor-vault = { path = "../vault" }
+gasp-config = { path = "../config" }
+gasp-export = { path = "../export" }
+gasp-search = { path = "../search" }
+gasp-snippets = { path = "../snippets" }
+gasp-vault = { path = "../vault" }
 # The official MCP SDK: JSON-RPC framing, the handshake and version
 # negotiation over stdio. Tools are listed and dispatched by hand.
 rmcp = { version = "3.5", default-features = false, features = ["server", "transport-io"] }

@@ -34,7 +34,7 @@ impl Endpoint {
     pub fn for_vault(vault: &Path) -> Option<Endpoint> {
         let base = dirs::runtime_dir().or_else(dirs::data_local_dir)?;
         Some(Endpoint::in_dir(
-            &base.join(editor_config::APP_FOLDER).join(BRIDGE_DIR),
+            &base.join(gasp_config::APP_FOLDER).join(BRIDGE_DIR),
             vault,
         ))
     }

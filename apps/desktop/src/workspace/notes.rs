@@ -4,7 +4,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use editor_config::settings::TrashMode;
+use gasp_config::settings::TrashMode;
 use gpui::{Context, Entity, Focusable, PromptButton, PromptLevel, Window};
 
 use super::files::{atomic_write, clean_title, note_title, renamed_path, unique_untitled};

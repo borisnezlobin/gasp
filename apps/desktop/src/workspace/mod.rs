@@ -54,7 +54,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use editor_config::Config;
+use gasp_config::Config;
 use gpui::{
     AnyView, App, AppContext, Context, Entity, EntityId, FocusHandle, Focusable, ManagedView,
     Subscription, Task, Window, WindowBounds,
@@ -119,7 +119,7 @@ pub struct Workspace {
     docs: Vec<Entity<NoteDoc>>,
     closed_tabs: Vec<PathBuf>,
     /// Where the reader was in recently shown notes, oldest first.
-    positions: Vec<editor_config::device::NotePosition>,
+    positions: Vec<gasp_config::device::NotePosition>,
     recent: Vec<PathBuf>,
     /// The vault's notes by modification time, newest first, as read
     /// while the app started, for the first launcher.
@@ -425,7 +425,7 @@ impl Workspace {
 
     /// Reads the vault's config files again and restyles every open note.
     pub fn reload_config(&mut self, cx: &mut Context<Self>) {
-        let mut loader = editor_config::ConfigLoader::for_vault(&self.vault);
+        let mut loader = gasp_config::ConfigLoader::for_vault(&self.vault);
         loader.load_all();
         self.config = loader.config().clone();
         let snippets = self.config.typing.snippets.engine.clone();

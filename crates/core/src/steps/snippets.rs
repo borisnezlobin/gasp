@@ -1,7 +1,7 @@
 use std::ops::Range;
 use std::sync::Arc;
 
-use editor_snippets::{Request, SnippetEdit, SnippetEngine, TriggerKey};
+use gasp_snippets::{Request, SnippetEdit, SnippetEngine, TriggerKey};
 
 use crate::document::{Selection, SelectionRange};
 use crate::pipeline::{

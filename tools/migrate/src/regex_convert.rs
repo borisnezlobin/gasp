@@ -5,7 +5,7 @@
 //! group (split into one snippet per alternative), a trailing space (after space) and
 //! a final `$`. Anything else is reported with a reason.
 
-use editor_snippets::{CaptureRef, ExpansionPart, NamedPattern, TriggerPart};
+use gasp_snippets::{CaptureRef, ExpansionPart, NamedPattern, TriggerPart};
 
 /// What a capture group of the original regex becomes in the readable snippet.
 #[derive(Clone, Debug, PartialEq, Eq)]

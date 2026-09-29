@@ -145,7 +145,7 @@ mod tests {
             EventKind::Modify(ModifyKind::Data(DataChange::Content)),
             &["/v/a.md"],
         );
-        let device_file = format!("/v/{}/device.toml", editor_config::CONFIG_DIR);
+        let device_file = format!("/v/{}/device.toml", gasp_config::CONFIG_DIR);
         let hidden = event(EventKind::Create(CreateKind::File), &[&device_file]);
         let batch: Vec<DiskChange> = [removed, written, moved, hidden]
             .iter()

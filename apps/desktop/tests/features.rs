@@ -1,19 +1,19 @@
 //! The standalone views wired into a real workspace: each shortcut opens
 //! its view, and the view's choice reaches the workspace.
 
-use editor_config::CONFIG_DIR;
+use gasp_config::CONFIG_DIR;
 use std::path::Path;
 
-use editor_config::{Platform, RuleSet};
-use editor_desktop::actions::bind_keys;
-use editor_desktop::features;
-use editor_desktop::keymap::all_bindings;
-use editor_desktop::outline::OutlinePicker;
-use editor_desktop::palette::CommandPalette;
-use editor_desktop::settings_view::SettingsView;
-use editor_desktop::switcher::QuickSwitcher;
-use editor_desktop::vault_search::VaultSearch;
-use editor_desktop::workspace::{OpenIn, Workspace};
+use gasp_config::{Platform, RuleSet};
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::features;
+use gasp_desktop::keymap::all_bindings;
+use gasp_desktop::outline::OutlinePicker;
+use gasp_desktop::palette::CommandPalette;
+use gasp_desktop::settings_view::SettingsView;
+use gasp_desktop::switcher::QuickSwitcher;
+use gasp_desktop::vault_search::VaultSearch;
+use gasp_desktop::workspace::{OpenIn, Workspace};
 use gpui::{Entity, Focusable, TestAppContext, VisualTestContext};
 use tempfile::TempDir;
 
@@ -145,7 +145,7 @@ fn find_opens_a_bar_in_the_pane_and_highlights_matches(cx: &mut TestAppContext) 
     let matches = cx.read(|cx| {
         editor
             .read(cx)
-            .highlights(editor_desktop::HighlightKind::SearchMatch)
+            .highlights(gasp_desktop::HighlightKind::SearchMatch)
             .to_vec()
     });
     assert_eq!(matches.len(), 2);

@@ -1,18 +1,16 @@
 //! Light and dark mode: the `appearance.theme` setting, following the
 //! system, and every surface repainting when the mode changes.
 
-use editor_config::CONFIG_DIR;
+use gasp_config::CONFIG_DIR;
 use std::path::Path;
 
-use editor_config::RuleSet;
-use editor_desktop::actions::bind_keys;
-use editor_desktop::features;
-use editor_desktop::settings_view::SettingsView;
-use editor_desktop::text_input::TextInput;
-use editor_desktop::ui::{
-    installed_fonts, is_dark, set_installed_fonts, set_system_dark, ui_theme,
-};
-use editor_desktop::workspace::{OpenIn, Workspace};
+use gasp_config::RuleSet;
+use gasp_desktop::actions::bind_keys;
+use gasp_desktop::features;
+use gasp_desktop::settings_view::SettingsView;
+use gasp_desktop::text_input::TextInput;
+use gasp_desktop::ui::{installed_fonts, is_dark, set_installed_fonts, set_system_dark, ui_theme};
+use gasp_desktop::workspace::{OpenIn, Workspace};
 use gpui::{AppContext as _, Entity, Hsla, SharedString, TestAppContext, VisualTestContext};
 use tempfile::TempDir;
 
