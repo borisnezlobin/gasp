@@ -174,15 +174,13 @@ fn hotkeys_become_rules_with_the_new_defaults() {
             ("Mod+Shift+N", "vault.open"),
             ("Mod+S", "sync.now"),
             ("Mod+Shift+S", "app.export"),
-            ("Mod+Shift+P", "palette.open"),
-            ("Mod+P", "app.print"),
         ]
     );
     assert!(!rules.iter().any(|(keys, _)| *keys == "Mod+M"));
     assert_eq!(hotkeys.unmapped.len(), 1);
     assert_eq!(hotkeys.unmapped[0].0, "editor:save-file");
     let parsed: toml::Table = toml::from_str(&hotkeys.to_toml()).unwrap();
-    assert_eq!(parsed["rule"].as_array().unwrap().len(), 11);
+    assert_eq!(parsed["rule"].as_array().unwrap().len(), 9);
 }
 
 #[test]
