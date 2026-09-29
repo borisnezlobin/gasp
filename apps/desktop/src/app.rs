@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use gpui::{AppContext, Application, Bounds, WindowBounds, WindowOptions, px, size};
+use gpui::{App, AppContext, Application, Bounds, WindowBounds, WindowOptions, px, size};
 
 use crate::actions::bind_keys;
 use crate::bench::BenchConfig;
@@ -46,11 +46,8 @@ pub fn launch(target: LaunchTarget) {
             bind_keys(cx);
             crate::features::bind_view_keys(cx);
         }
-        {
-            let _span = trace::span("app-menus");
-            set_app_menus(cx, &built_in_available(&crate::features::WIRED_COMMANDS));
-            use_in_window_prompts(cx);
-        }
+        crate::first_frame::defer(set_menus);
+        use_in_window_prompts(cx);
         #[cfg(target_os = "macos")]
         crate::look_up::install(cx);
         crate::window_drag::install();
@@ -68,7 +65,16 @@ pub fn launch(target: LaunchTarget) {
             }
         })
         .detach();
+        trace::mark("launched");
     });
+}
+
+/// Builds the menu bar. The first frame doesn't show it, and AppKit takes
+/// about 15 ms to build it (it adds the Edit menu's system items, which
+/// loads Writing Tools), so launch leaves it until the window is on screen.
+fn set_menus(cx: &mut App) {
+    let _span = trace::span("app-menus");
+    set_app_menus(cx, &built_in_available(&crate::features::WIRED_COMMANDS));
 }
 
 /// Opens a lone editor on `note`, runs the layout benchmark and quits.

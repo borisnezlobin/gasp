@@ -123,6 +123,7 @@ fn open_started_vault_window(
     window.update(cx, |workspace, window, cx| {
         remember_vault(workspace.vault().to_path_buf(), cx);
         workspace.focus_active(window, cx);
+        let _span = trace::span("activate");
         cx.activate(true);
         trace::on_first_frame(window);
         crate::first_frame::release_when_presented(window, cx);
