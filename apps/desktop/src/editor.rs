@@ -121,6 +121,11 @@ pub struct EditorView {
     pub(crate) click_unit: ClickUnit,
     pub(crate) click_origin: Range<usize>,
     pub(crate) autoscroll: bool,
+    /// The first line that started inside the view last frame. Lines
+    /// above it that change height as they're laid out (an estimate
+    /// replaced by the real height, an image or equation arriving) move
+    /// the scroll with them, so what the reader sees stays put.
+    pub(crate) scroll_anchor: Option<usize>,
     pub(crate) frame: Option<FrameLayout>,
     pub(crate) timings: Timings,
     pub(crate) bench: Option<Bench>,
@@ -255,6 +260,7 @@ impl EditorView {
             click_unit: ClickUnit::Character,
             click_origin: 0..0,
             autoscroll: false,
+            scroll_anchor: None,
             frame: None,
             timings: Timings::default(),
             bench: None,
@@ -716,6 +722,7 @@ impl EditorView {
 
     /// Re-estimates the changed lines and moves fold overrides.
     fn source_changed(&mut self, change: SourceChange) {
+        self.scroll_anchor = None;
         self.tables.forget_columns();
         let estimator = Estimator {
             theme: &self.theme,
@@ -1058,6 +1065,7 @@ impl EditorView {
         self.code.begin_frame();
         self.tables.forget_columns();
         let scrolled_from = self.scroll_y;
+        let anchored = self.pinned_top.is_none() && !self.autoscroll;
         match self.pinned_top {
             Some(offset) => {
                 self.autoscroll = false;
@@ -1070,15 +1078,40 @@ impl EditorView {
             }
         }
         self.scroll_y = self.scroll_y.clamp(px(0.), self.max_scroll(viewport));
+        let (mut lines, drift) = self.place_lines(bounds, window);
+        if anchored && drift != px(0.) {
+            self.scroll_y = (self.scroll_y + drift).clamp(px(0.), self.max_scroll(viewport));
+            lines = self.place_lines(bounds, window).0;
+        }
         // The pane placed the inline title for the old scroll before this
         // paint moved it; draw again so the title moves with the text.
         if self.scroll_y != scrolled_from && self.header_height > px(0.) {
             window.request_animation_frame();
         }
+        self.scroll_anchor = scroll_anchor(&lines, bounds.top() + padding);
+        FrameLayout {
+            bounds,
+            text_left,
+            column_width,
+            lines,
+            highlights: Vec::new(),
+        }
+    }
+
+    /// Lays out and places the lines the scroll shows in `bounds`, and
+    /// answers how much the lines above the scroll anchor grew as they
+    /// were laid out.
+    fn place_lines(
+        &mut self,
+        bounds: Bounds<Pixels>,
+        window: &Window,
+    ) -> (Vec<PlacedLine>, Pixels) {
+        let padding = self.theme.text_padding;
         let text_scroll = self.scroll_y - self.header_height;
         let (first, first_top) = self.metrics.line_at_y(text_scroll.max(px(0.)));
         let mut top = bounds.top() + padding + first_top - text_scroll;
         let mut lines = Vec::new();
+        let mut drift = px(0.);
         let mut plans = Vec::new().into_iter();
         let mut line = first;
         while line < self.source.line_count() && top < bounds.bottom() {
@@ -1095,19 +1128,24 @@ impl EditorView {
             let phase = crate::keytrace::span("layout-lines");
             let visual = self.layout_plan(&plan, window);
             drop(phase);
+            if self.anchors_growth_of(line) {
+                drift += visual.height - self.metrics.height(line);
+            }
             self.metrics.set(line, visual.height);
             let height = visual.height;
             lines.push(PlacedLine { top, visual });
             top += height;
             line += 1;
         }
-        FrameLayout {
-            bounds,
-            text_left,
-            column_width,
-            lines,
-            highlights: Vec::new(),
-        }
+        (lines, drift)
+    }
+
+    /// Whether a change in `line`'s height moves the scroll with it: it's
+    /// above the anchor, and it isn't the line being edited, which grows
+    /// downward as it's typed in.
+    fn anchors_growth_of(&self, line: usize) -> bool {
+        self.scroll_anchor.is_some_and(|anchor| line < anchor)
+            && line != self.source.line_of(self.cursor())
     }
 
     /// The document offset under a window position. Positions above or
@@ -1133,4 +1171,14 @@ impl EditorView {
         let visual = self.visual_line(line, window);
         visual.start + visual.offset_for_point(x, y)
     }
+}
+
+/// The first line that starts inside the view, or the one the view
+/// starts in when none does.
+fn scroll_anchor(lines: &[PlacedLine], view_top: Pixels) -> Option<usize> {
+    lines
+        .iter()
+        .find(|placed| placed.top >= view_top && !placed.visual.is_collapsed())
+        .or(lines.first())
+        .map(|placed| placed.visual.line)
 }
