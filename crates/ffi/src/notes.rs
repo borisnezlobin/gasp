@@ -81,6 +81,31 @@ impl VaultFolder {
         Ok(to)
     }
 
+    /// Moves a note into `folder` (`""` is the vault's top), keeping its
+    /// name and updating links to it when `files.update-links-on-rename`
+    /// is on. Returns its new path.
+    pub fn move_note(&self, path: String, folder: String) -> Result<String, VaultError> {
+        self.note_path(&path)?;
+        let folder_path = self.folder_path(&folder)?;
+        let relative_folder = folder_path
+            .strip_prefix(&self.root)
+            .unwrap_or(Path::new(""))
+            .to_path_buf();
+        let update_links = self.config().settings.files.update_links_on_rename;
+        let moved = ops::move_into(&self.root, Path::new(&path), &relative_folder, update_links)?;
+        if let Some(store) = self.snapshot_store() {
+            store.moved(&moved.from, &moved.to).ok();
+        }
+        let to = slash_path(&moved.to);
+        let rewritten: Vec<String> = moved
+            .updated_notes
+            .iter()
+            .map(|note| slash_path(note))
+            .collect();
+        self.reindex_move(&path, &to, &rewritten);
+        Ok(to)
+    }
+
     /// Moves a note to the trash that `files.trash` names; on the phone the
     /// system trash is the vault's own `.trash` folder.
     pub fn trash_note(&self, path: String) -> Result<(), VaultError> {
@@ -259,6 +284,16 @@ mod tests {
             .unwrap();
         assert_index_is_fresh(&dir, &vault);
         vault.daily_note().unwrap();
+        assert_index_is_fresh(&dir, &vault);
+        let moved = vault.move_note("Swell.md".into(), "Deep".into()).unwrap();
+        assert_eq!(moved, "Deep/Swell.md");
+        assert_eq!(
+            vault.read_note("Index.md".into()).unwrap(),
+            "see [[Swell]] and [[Missing]]"
+        );
+        assert_index_is_fresh(&dir, &vault);
+        let deeper = vault.move_note(moved, "Sea/Deeper".into()).unwrap();
+        assert_eq!(deeper, "Sea/Deeper/Swell.md");
         assert_index_is_fresh(&dir, &vault);
         vault.trash_note(tides).unwrap();
         assert_index_is_fresh(&dir, &vault);

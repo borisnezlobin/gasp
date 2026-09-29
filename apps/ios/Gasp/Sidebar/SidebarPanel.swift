@@ -54,11 +54,13 @@ private struct SectionPicker: View {
                 Button { selection = section } label: {
                     VStack(spacing: 2) {
                         Image(systemName: section.symbol)
-                            .font(.system(size: 16))
+                            .font(tokens.symbolFont())
+                            .frame(height: tokens.bodySize * 1.25)
                         Text(section.rawValue)
                             .font(Font(tokens.uiFont(size: tokens.smallSize * 0.85, bold: selected)))
                     }
                     .foregroundStyle(tokens.swiftUIColor(selected ? \.textStrong : \.textDetail))
+                    .padding(.vertical, tokens.spacing.sm)
                     .frame(maxWidth: .infinity, minHeight: 48)
                     .background(
                         RoundedRectangle(cornerRadius: CGFloat(tokens.spacing.radiusMd))

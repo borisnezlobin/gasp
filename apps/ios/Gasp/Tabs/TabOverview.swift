@@ -68,6 +68,8 @@ private struct TabCard: View {
     @State private var preview = ""
 
     private var radius: CGFloat { CGFloat(tokens.spacing.radiusLg) }
+    /// The room between the card and the ring round the tab showing.
+    private var ringGap: CGFloat { CGFloat(tokens.spacing.xs) }
 
     var body: some View {
         Button(action: open) {
@@ -89,22 +91,23 @@ private struct TabCard: View {
                     .fill(tokens.swiftUIColor(\.background))
                     .shadow(color: tokens.swiftUIColor(\.shadow), radius: 6, y: 2)
             )
-            .padding(isActive ? 3 : 0)
-            .background(
-                RoundedRectangle(cornerRadius: radius + 3)
-                    .fill(isActive ? tokens.swiftUIColor(\.accent) : .clear)
-            )
+            .overlay {
+                RoundedRectangle(cornerRadius: radius + ringGap)
+                    .stroke(isActive ? tokens.swiftUIColor(\.accent) : .clear, lineWidth: 2)
+                    .padding(-ringGap)
+            }
         }
         .buttonStyle(.plain)
         .overlay(alignment: .topTrailing) { closeButton }
-        .accessibilityLabel(isActive ? "\(title), showing" : title)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
         .task(id: tab.path) { preview = readPreview() }
     }
 
     private var closeButton: some View {
         Button(action: close) {
             Image(systemName: "xmark")
-                .font(.system(size: 11, weight: .bold))
+                .font(tokens.symbolFont(0.7, weight: .bold))
                 .foregroundStyle(tokens.swiftUIColor(\.icon))
                 .frame(width: 24, height: 24)
                 .background(Circle().fill(tokens.swiftUIColor(\.fill)))
@@ -112,7 +115,6 @@ private struct TabCard: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(isActive ? 3 : 0)
         .accessibilityLabel("Close \(title)")
     }
 
@@ -123,6 +125,7 @@ private struct TabCard: View {
         (#"\[([^\]]*)\]\([^)]*\)"#, "$1"),
         (#"(?m)^>\s?(\[![^\]]*\][+-]?\s?)?"#, ""),
         (#"(?m)^#{1,6}\s+"#, ""),
+        (#"(?m)^(\s*)(?:[-*+]|\d+[.)])\s+(?:\[.\]\s+)?"#, "$1"),
         (#"[*_=`]{1,2}"#, "")
     ]
 
@@ -131,8 +134,17 @@ private struct TabCard: View {
         guard let path = tab.path, let text = try? model.library.vault?.readNote(path: path) else {
             return tab.path == nil ? "Search or pick a note." : ""
         }
-        return Self.plainText.reduce(String(text.prefix(800))) { preview, rule in
+        let plain = Self.plainText.reduce(String(text.prefix(800))) { preview, rule in
             preview.replacingOccurrences(of: rule.pattern, with: rule.keep, options: .regularExpression)
         }
+        return withoutRepeatedTitle(plain.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// A note often starts with its title as a heading, which the card
+    /// already shows above.
+    private func withoutRepeatedTitle(_ preview: String) -> String {
+        let lines = preview.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+        guard let first = lines.first, first.trimmingCharacters(in: .whitespaces) == title else { return preview }
+        return lines.count > 1 ? lines[1].trimmingCharacters(in: .whitespacesAndNewlines) : ""
     }
 }

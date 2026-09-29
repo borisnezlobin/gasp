@@ -4,7 +4,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use gasp_sync::{Author, InMemoryCredentialStore, Vault, VaultConfig};
+use gasp_sync::{
+    Author, CredentialStore, InMemoryCredentialStore, SyncError, SyncResult, Token, Vault,
+    VaultConfig,
+};
 use git2::{Repository, RepositoryInitOptions};
 
 use crate::sync::{SyncPhaseKind, VaultSync};
@@ -233,4 +236,38 @@ fn signing_out_forgets_the_token() {
     assert!(phone.sign_in("  ".into()).is_err());
     phone.sign_in("another-synthetic-token".into()).unwrap();
     assert!(phone.overview().signed_in);
+}
+
+/// A Keychain that refuses to keep anything, as the simulator's does for
+/// an unsigned app.
+struct RefusingStore;
+
+impl CredentialStore for RefusingStore {
+    fn load(&self, _: &str) -> SyncResult<Option<Token>> {
+        Ok(None)
+    }
+
+    fn save(&self, _: &str, _: &Token) -> SyncResult<()> {
+        Err(SyncError::Auth("no entitlement".into()))
+    }
+
+    fn delete(&self, _: &str) -> SyncResult<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn a_token_the_keychain_refuses_leaves_no_clone_behind() {
+    let world = World::new();
+    let folder = world.path("phone");
+    let setup = SyncSetup {
+        repository: world.url(),
+        branch: String::new(),
+        token: "synthetic-token".into(),
+        folder: folder.to_string_lossy().into_owned(),
+    };
+    assert!(set_up_with(&setup, &RefusingStore).is_err());
+    assert!(!folder.exists());
+    set_up_with(&setup, &*world.store).unwrap();
+    assert!(folder.join("Note.md").is_file());
 }

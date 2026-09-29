@@ -25,6 +25,23 @@ struct Tokens {
         return copy
     }
 
+    /// How much larger than the default the reader's text size setting
+    /// (Dynamic Type) makes body text.
+    static var textSizeFactor: Double {
+        Double(UIFontMetrics(forTextStyle: .body).scaledValue(for: 100) / 100)
+    }
+
+    /// The tokens with text sized by the reader's text size setting.
+    static func forReader(theme: ThemeTokens) -> Tokens {
+        Tokens(theme: theme).scaled(by: textSizeFactor)
+    }
+
+    /// An SF Symbol's font, `scale` times the body text's size, so icons
+    /// grow with the text.
+    func symbolFont(_ scale: Double = 1, weight: Font.Weight = .regular) -> Font {
+        .system(size: bodySize * CGFloat(scale), weight: weight)
+    }
+
     /// A colour that follows light and dark mode.
     func color(_ token: KeyPath<Palette, ThemeColor>) -> UIColor {
         let light = UIColor(light[keyPath: token])

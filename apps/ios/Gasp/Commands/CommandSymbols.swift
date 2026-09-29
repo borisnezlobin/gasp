@@ -42,6 +42,7 @@ enum CommandSymbols {
         "app.print": "printer",
         "note.recover": "clock.arrow.circlepath",
         "note.rename": "character.cursor.ibeam",
+        "note.move": "folder",
         "note.delete": "trash",
         "edit.move-line-up": "arrow.up.to.line",
         "edit.move-line-down": "arrow.down.to.line",
