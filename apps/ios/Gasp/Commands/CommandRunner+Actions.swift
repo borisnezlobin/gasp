@@ -18,7 +18,7 @@ extension CommandRunner {
             }
             tabs.activeSession?.textView.becomeFirstResponder()
         } catch {
-            workspace.tell(error.localizedDescription)
+            workspace.tell(error.shownMessage)
         }
     }
 
@@ -29,7 +29,7 @@ extension CommandRunner {
             library.edited()
             tabs.open(path)
         } catch {
-            workspace.tell(error.localizedDescription)
+            workspace.tell(error.shownMessage)
         }
     }
 
@@ -41,7 +41,7 @@ extension CommandRunner {
             tabs.renamed(from: path, to: renamed)
             library.edited()
         } catch {
-            workspace.tell(error.localizedDescription)
+            workspace.tell(error.shownMessage)
         }
     }
 
@@ -53,7 +53,7 @@ extension CommandRunner {
             tabs.removed(path)
             library.edited()
         } catch {
-            workspace.tell(error.localizedDescription)
+            workspace.tell(error.shownMessage)
         }
     }
 
@@ -72,7 +72,7 @@ extension CommandRunner {
             do {
                 session.insert(try session.vault.templateText(name: name, notePath: session.path))
             } catch {
-                workspace.tell(error.localizedDescription)
+                workspace.tell(error.shownMessage)
             }
         }
     }
@@ -86,7 +86,7 @@ extension CommandRunner {
                 )
                 session.insert(embed)
             } catch {
-                workspace.tell(error.localizedDescription)
+                workspace.tell(error.shownMessage)
             }
         }
     }
@@ -150,7 +150,7 @@ extension CommandRunner {
             library.reloadConfig()
             refreshSessions()
         } catch {
-            workspace.tell(error.localizedDescription)
+            workspace.tell(error.shownMessage)
         }
     }
 

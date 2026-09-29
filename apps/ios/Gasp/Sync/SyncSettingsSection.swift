@@ -87,7 +87,7 @@ private struct SyncedVaultRows: View {
             try change()
             problem = nil
         } catch {
-            problem = error.localizedDescription
+            problem = error.shownMessage
         }
     }
 }
@@ -137,7 +137,7 @@ private struct SyncAccountRow: View {
             token = ""
             report(nil)
         } catch {
-            report(error.localizedDescription)
+            report(error.shownMessage)
         }
     }
 }

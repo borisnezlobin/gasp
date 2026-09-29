@@ -70,7 +70,7 @@ struct SettingsScreen: View {
             model.library.reloadConfig()
             if key.hasPrefix("sync.") { model.sync.reloadSettings() }
         } catch {
-            problem = error.localizedDescription
+            problem = error.shownMessage
         }
         load()
     }

@@ -102,7 +102,7 @@ final class VaultLibrary {
             readConfig()
             refresh()
         } catch {
-            problem = error.localizedDescription
+            problem = error.shownMessage
         }
     }
 

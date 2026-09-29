@@ -173,7 +173,7 @@ struct ConflictNoteView: View {
             do {
                 try await model.sync.resolve(note, choices: choices)
             } catch {
-                problem = error.localizedDescription
+                problem = error.shownMessage
             }
             saving = false
         }

@@ -195,7 +195,7 @@ struct ToolbarEditor: View {
             problem = nil
             model.library.reloadConfig()
         } catch {
-            problem = error.localizedDescription
+            problem = error.shownMessage
         }
         load()
     }
