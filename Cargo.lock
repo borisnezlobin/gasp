@@ -4009,7 +4009,9 @@ dependencies = [
 name = "gasp-search"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
  "gasp-config",
+ "gasp-vault",
  "tempfile",
  "unicode-normalization",
 ]

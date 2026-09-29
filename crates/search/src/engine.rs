@@ -738,6 +738,88 @@ mod tests {
     }
 
     #[test]
+    fn ties_rank_by_match_count_then_path() {
+        let notes = notes(&[
+            ("c.md", "one cat"),
+            ("b.md", "cat cat"),
+            ("a.md", "a cat"),
+            ("Cats/x.md", "nothing"),
+        ]);
+        let results = run(&notes, "cat");
+        let order: Vec<_> = results.iter().map(|r| r.path.to_str().unwrap()).collect();
+        assert_eq!(order, vec!["Cats/x.md", "b.md", "a.md", "c.md"]);
+        assert_eq!(results[0].score, FOLDER_WEIGHT);
+        assert_eq!(results[1].score, BODY_WEIGHT);
+    }
+
+    #[test]
+    fn every_match_counts_but_only_the_first_lines_show() {
+        let text = "a cat and a cat\n".repeat(30);
+        let notes = notes(&[("n.md", text.as_str())]);
+        let result = &run(&notes, "cat")[0];
+        assert_eq!(result.match_count, 60);
+        assert_eq!(result.hits.len(), MAX_HITS_PER_NOTE);
+        let last = &result.hits[MAX_HITS_PER_NOTE - 1];
+        assert_eq!(last.line, MAX_HITS_PER_NOTE - 1);
+        assert_eq!(last.offset, 16 * (MAX_HITS_PER_NOTE - 1) + 2);
+        assert_eq!(last.ranges, vec![2..5, 12..15]);
+    }
+
+    #[test]
+    fn accented_notes_map_matches_to_their_own_text() {
+        let text = "Le Café\nİstanbul café, CAFÉ\ne\u{301}cole";
+        let notes = notes(&[("n.md", text)]);
+        let result = &run(&notes, "cafe")[0];
+        assert_eq!(result.match_count, 3);
+        let found: Vec<&str> = result
+            .hits
+            .iter()
+            .flat_map(|hit| hit.ranges.iter().map(|range| &hit.excerpt[range.clone()]))
+            .collect();
+        assert_eq!(found, ["Café", "café", "CAFÉ"]);
+        assert_eq!(result.hits[1].offset, text.find("café").unwrap());
+        let result = &run(&notes, "ecole")[0];
+        assert_eq!(result.hits[0].line, 2);
+        assert_eq!(result.hits[0].excerpt, "e\u{301}cole");
+        assert_eq!(result.hits[0].ranges, vec![0..7]);
+        let result = &run(&notes, "istanbul")[0];
+        assert_eq!(result.hits[0].ranges, vec![0..9]);
+    }
+
+    #[test]
+    fn marks_inside_a_match_stay_and_windows_line_ends_go() {
+        let text = "x **bold** and **bold**\r\nlast";
+        let notes = notes(&[("n.md", text)]);
+        let hit = &run(&notes, "**bold")[0].hits[0];
+        assert_eq!(hit.excerpt, "x **bold and **bold");
+        assert_eq!(hit.ranges, vec![2..8, 13..19]);
+        let hit = &run(&notes, "bold")[0].hits[0];
+        assert_eq!(hit.excerpt, "x bold and bold");
+        assert_eq!(hit.ranges, vec![2..6, 11..15]);
+    }
+
+    #[test]
+    fn a_match_across_lines_is_cut_at_the_line_end() {
+        let notes = notes(&[("n.md", "one two\nthree")]);
+        let result = &run(&notes, "two\nth")[0];
+        assert_eq!(result.hits.len(), 1);
+        assert_eq!(result.hits[0].excerpt, "one two");
+        assert_eq!(result.hits[0].ranges, vec![4..7]);
+    }
+
+    #[test]
+    fn long_lines_keep_every_match_that_fits() {
+        let line = format!("{} cat cat {}", "word ".repeat(30), "tail ".repeat(60));
+        let notes = notes(&[("n.md", line.as_str())]);
+        let hit = &run(&notes, "cat")[0].hits[0];
+        assert!(hit.excerpt.starts_with("…") && hit.excerpt.ends_with('…'));
+        assert_eq!(hit.ranges.len(), 2);
+        for range in &hit.ranges {
+            assert_eq!(&hit.excerpt[range.clone()], "cat");
+        }
+    }
+
+    #[test]
     fn stale_searches_stop() {
         let notes = notes(&[("n.md", "match")]);
         assert!(search(&notes, "match", &AtomicUsize::new(2), 1).is_empty());

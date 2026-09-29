@@ -11,6 +11,8 @@ gasp-config = { path = "../config" }
 unicode-normalization = "0.1.25"
 
 [dev-dependencies]
+gasp-bench = { path = "../bench" }
+gasp-vault = { path = "../vault" }
 tempfile = "3"
 
 [lints]
