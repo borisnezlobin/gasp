@@ -30,6 +30,9 @@ const FOCUS_RING_ALPHA: f32 = 0.3;
 /// stands in.
 pub const RING_BLUR: f32 = if cfg!(target_os = "macos") { 0. } else { 0.5 };
 
+/// How thick a focus ring is.
+pub const FOCUS_RING_WIDTH: f32 = 2.;
+
 /// The ring around whatever has keyboard focus: a crisp two-pixel band of
 /// `color`. Every focus ring in the app is drawn with this. It's a
 /// shadow, so it shows through a translucent fill: whatever wears it
@@ -39,7 +42,7 @@ pub fn focus_ring(color: Hsla) -> BoxShadow {
         color,
         offset: point(px(0.), px(0.)),
         blur_radius: px(RING_BLUR),
-        spread_radius: px(2.),
+        spread_radius: px(FOCUS_RING_WIDTH),
     }
 }
 
@@ -2691,11 +2694,17 @@ pub struct SettingsTheme {
     /// Room between a segmented control's track and its segments.
     pub segment_inset: Pixels,
     pub swatch_size: Pixels,
+    /// The card-coloured gap between a swatch and its ring.
+    pub swatch_gap: Pixels,
+    /// How thick the ring around the chosen swatch is.
+    pub swatch_ring: Pixels,
     pub stepper_value_width: Pixels,
     pub field_width: Pixels,
     /// The box a shortcut is pressed into.
     pub capture_field_width: Pixels,
     pub hex_field_width: Pixels,
+    /// A font dropdown's width, the same for every font picked.
+    pub font_button_width: Pixels,
     pub menu_width: Pixels,
     pub menu_max_height: Pixels,
     pub menu_offset: Pixels,
@@ -2709,6 +2718,13 @@ pub struct SettingsTheme {
     pub background: Hsla,
     pub card_background: Hsla,
     pub hover: Hsla,
+    /// A borderless control's fill under the pointer, such as an icon
+    /// button, a menu option or a section. It's see-through, so it shows
+    /// on the card, the modal and a menu alike, in light and dark mode.
+    pub hover_fill: Hsla,
+    /// A control's fill while the pointer presses it, over whatever it
+    /// sits on.
+    pub pressed: Hsla,
     pub selected: Hsla,
     pub text: Hsla,
     pub text_muted: Hsla,
@@ -2722,16 +2738,24 @@ pub struct SettingsTheme {
     /// The hairline ring that outlines buttons, keycaps and menus.
     pub control_ring: Hsla,
     pub toggle_off: Hsla,
+    pub toggle_off_hover: Hsla,
+    pub toggle_off_pressed: Hsla,
     /// The track a segmented control's chosen segment is raised out of.
     pub segment_track: Hsla,
     pub knob: Hsla,
     pub focus_ring: Hsla,
     pub warning: Hsla,
+    /// The fill behind a control that asks once more before it removes.
+    pub warning_fill: Hsla,
     pub shadow: Hsla,
     /// A primary button's fill under the pointer.
     pub accent_hover: Hsla,
+    /// A primary button's or an on switch's fill while pressed.
+    pub accent_pressed: Hsla,
     /// A clickable row's fill under the pointer; it reads on a card.
     pub card_hover: Hsla,
+    /// The fill of the row a dragged toolbar item would land on.
+    pub drop_fill: Hsla,
     /// The column a snippet's keys sit in, so the arrows after them line up.
     pub trigger_column_width: Pixels,
     /// The size a snippet's math result is rendered at.
@@ -2742,10 +2766,10 @@ pub struct SettingsTheme {
     pub indicator_size: Pixels,
     /// How far a clickable row's hover plate sits inside the row.
     pub plate_inset: Pixels,
-    /// The mark drawn where a snippet leaves the cursor to type into.
+    /// The mark drawn where a snippet leaves the cursor to type into. It's
+    /// outlined, so its corners stay square.
     pub slot_width: Pixels,
     pub slot_height: Pixels,
-    pub slot_radius: Pixels,
     pub slot_border: Pixels,
     pub slot_fill: Hsla,
 }
@@ -2775,7 +2799,7 @@ impl SettingsTheme {
             modal_max_width: px(1080.),
             modal_max_height: px(780.),
             modal_radius: space("radius.lg", 10.) * 1.4,
-            nav_width: px(236.),
+            nav_width: px(252.),
             nav_padding: space("space.lg", 12.),
             nav_item_height: px(30.),
             nav_group_gap: space("space.xl", 16.),
@@ -2807,10 +2831,13 @@ impl SettingsTheme {
             toggle_knob_inset: space("space.xs", 2.),
             segment_inset: space("space.xs", 2.),
             swatch_size: px(22.),
+            swatch_gap: space("space.xs", 2.),
+            swatch_ring: space("space.xs", 2.),
             stepper_value_width: px(34.),
             field_width: px(220.),
             capture_field_width: px(168.),
             hex_field_width: px(92.),
+            font_button_width: px(200.),
             menu_width: px(260.),
             menu_max_height: px(320.),
             menu_offset: space("space.sm", 4.),
@@ -2822,6 +2849,8 @@ impl SettingsTheme {
             background: p.popover,
             card_background: p.card,
             hover: p.hover,
+            hover_fill: p.fill_strong,
+            pressed: p.fill_pressed,
             selected: p.selection,
             text: p.text,
             text_muted: p.text_muted,
@@ -2833,13 +2862,18 @@ impl SettingsTheme {
             control_background: p.popover,
             control_ring: p.shadow,
             toggle_off: p.text_faint,
+            toggle_off_hover: over(p.fill_pressed, p.text_faint),
+            toggle_off_pressed: over(p.fill_pressed, over(p.fill_pressed, p.text_faint)),
             segment_track: p.fill_pressed,
             knob: p.knob,
             focus_ring: p.focus(),
             warning: p.conflict,
+            warning_fill: p.conflict.opacity(0.12),
             shadow: p.shadow,
-            accent_hover: p.accent.opacity(0.85),
+            accent_hover: over(p.accent.opacity(0.85), p.popover),
+            accent_pressed: over(p.accent.opacity(0.7), p.popover),
             card_hover: p.fill_strong,
+            drop_fill: p.drop_target,
             trigger_column_width: px(112.),
             snippet_math_size: px(18.),
             example_math_size: px(24.),
@@ -2847,7 +2881,6 @@ impl SettingsTheme {
             plate_inset: space("space.sm", 4.),
             slot_width: px(8.),
             slot_height: px(15.),
-            slot_radius: px(2.),
             slot_border: px(1.),
             slot_fill: p.accent.opacity(0.12),
         }

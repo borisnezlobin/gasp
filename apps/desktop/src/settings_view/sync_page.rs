@@ -7,7 +7,7 @@ use gasp_sync::Token;
 use gpui::{AnyElement, ClickEvent, ClipboardItem, Context, Entity, SharedString, div, prelude::*};
 use serde_json::Value;
 
-use super::controls::{button, field_box, icon_button};
+use super::controls::{button, field_box_in, icon_button};
 use super::model::SettingItem;
 use super::view::{ControlRow, SettingsView, add_field_key};
 use crate::icons::IconName;
@@ -19,6 +19,10 @@ use crate::ui::Selectable;
 pub(super) const REMOTE_FIELD: &str = "sync.remote";
 /// The key token errors are reported under.
 pub(super) const TOKEN_KEY: &str = "sync.token";
+/// The account row's buttons while signed out, as the keyboard counts them.
+const CREATE_TOKEN: usize = 0;
+const PASTE_TOKEN: usize = 1;
+
 /// Where GitHub makes fine-grained tokens.
 pub const NEW_TOKEN_URL: &str = "https://github.com/settings/personal-access-tokens/new";
 
@@ -213,7 +217,7 @@ impl SettingsView {
         self.sync_remote()?;
         let field = self.field_for(row)?;
         Some(
-            field_box(field, None, focused, &self.style)
+            field_box_in(field, None, self.field_state(row, focused), &self.style)
                 .w(self.style.field_width * 1.4)
                 .into_any_element(),
         )
@@ -227,10 +231,17 @@ impl SettingsView {
                 .on_click(cx.listener(|view, _: &ClickEvent, _, cx| view.sign_out(cx)))
                 .into_any_element();
         }
-        let create = button("new-token", "Create a token", false, false, style)
-            .selector(|| "new-token".to_string())
-            .on_click(|_: &ClickEvent, _, cx| crate::sandbox::open_url(NEW_TOKEN_URL, cx));
-        let paste = button("paste-token", "Paste token", true, focused, style)
+        let create = button(
+            "new-token",
+            "Create a token",
+            false,
+            focused && self.sub_control == CREATE_TOKEN,
+            style,
+        )
+        .selector(|| "new-token".to_string())
+        .on_click(|_: &ClickEvent, _, cx| crate::sandbox::open_url(NEW_TOKEN_URL, cx));
+        let paste_focused = focused && self.sub_control == PASTE_TOKEN;
+        let paste = button("paste-token", "Paste token", true, paste_focused, style)
             .selector(|| "paste-token".to_string())
             .on_click(cx.listener(|view, _: &ClickEvent, _, cx| view.paste_token(cx)));
         div()
@@ -249,15 +260,15 @@ impl SettingsView {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let field = self.field_control(row, focused);
-        let reset = self.is_changed(item).then(|| {
-            let key = item.key.clone();
-            self.reset_button(&item.key, cx, move |view, cx| view.reset(&key, cx))
+        let key = item.key.clone();
+        let reset = self.reset_slot(&item.key, self.is_changed(item), cx, move |view, cx| {
+            view.reset(&key, cx)
         });
         div()
             .flex()
             .items_center()
             .gap(self.style.gap_sm)
-            .children(reset)
+            .child(reset)
             .child(field)
             .into_any_element()
     }
@@ -280,7 +291,9 @@ impl SettingsView {
             style,
         )
         .selector(|| selector)
-        .when(focused, |remove| remove.shadow(vec![style.focus()]))
+        .when(focused, |remove| {
+            remove.bg(style.card_background).shadow(vec![style.focus()])
+        })
         .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
             cx.stop_propagation();
             view.remove_list_entry(&list, &value, cx);
@@ -290,15 +303,20 @@ impl SettingsView {
 
     // ---- Keys ----
 
+    /// Space or Enter presses the button the keyboard is on; while signed
+    /// out, Left and Right move between "Create a token" and "Paste token".
     pub(super) fn account_key(&mut self, key: &str, cx: &mut Context<Self>) -> bool {
-        if !matches!(key, "space" | "enter") {
-            return false;
+        match (key, self.signed_in_cache) {
+            ("space" | "enter", true) => self.sign_out(cx),
+            ("space" | "enter", false) if self.sub_control == CREATE_TOKEN => {
+                crate::sandbox::open_url(NEW_TOKEN_URL, cx)
+            }
+            ("space" | "enter", false) => self.paste_token(cx),
+            ("left", false) => self.sub_control = CREATE_TOKEN,
+            ("right", false) => self.sub_control = PASTE_TOKEN,
+            _ => return false,
         }
-        if self.signed_in_cache {
-            self.sign_out(cx);
-        } else {
-            self.paste_token(cx);
-        }
+        cx.notify();
         true
     }
 

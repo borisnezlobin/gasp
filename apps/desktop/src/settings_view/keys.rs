@@ -57,7 +57,7 @@ impl SettingsView {
             .rows()
             .iter()
             .enumerate()
-            .filter(|(_, row)| row.is_focusable())
+            .filter(|(_, row)| self.takes_focus(row))
             .map(|(index, _)| SettingsFocus::Control(index))
             .collect::<Vec<_>>();
         [SettingsFocus::Search, SettingsFocus::Sections]
@@ -92,7 +92,7 @@ impl SettingsView {
         if keystroke.key != "down" {
             return false;
         }
-        if self.rows().iter().any(ControlRow::is_focusable) {
+        if self.rows().iter().any(|row| self.takes_focus(row)) {
             self.focus_first_control(window, cx);
         } else {
             self.set_focus(SettingsFocus::Sections, window, cx);
@@ -181,7 +181,9 @@ impl SettingsView {
         cx: &mut Context<Self>,
     ) {
         let mut target = index as isize + delta;
-        while target >= 0 && (target as usize) < rows.len() && !rows[target as usize].is_focusable()
+        while target >= 0
+            && (target as usize) < rows.len()
+            && !self.takes_focus(&rows[target as usize])
         {
             target += delta;
         }
@@ -257,6 +259,13 @@ impl SettingsView {
         cx: &mut Context<Self>,
     ) -> bool {
         let key = keystroke.key.as_str();
+        if self.is_inactive(item) {
+            // Its switch is off: the keys that would change it do nothing.
+            return matches!(
+                key,
+                "left" | "right" | "space" | "enter" | "delete" | "backspace"
+            );
+        }
         if matches!(key, "delete" | "backspace") && self.number_edit.is_none() {
             self.reset(&item.key, cx);
             return true;

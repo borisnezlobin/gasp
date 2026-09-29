@@ -189,7 +189,12 @@ impl SettingsView {
             Some(value) => self.write(&item, Some(value), cx),
             None if buffer.is_empty() => {}
             None => {
-                self.error = Some((key, format!("“{buffer}” isn’t a number.")));
+                self.error = Some((
+                    key,
+                    format!(
+                        "“{buffer}” isn’t a number. Type digits with at most one point, such as 1.5."
+                    ),
+                ));
                 cx.notify();
             }
         }
@@ -232,14 +237,25 @@ impl SettingsView {
         match event {
             TextInputEvent::Submitted => {
                 self.commit_field(key, cx);
-                window.focus(&self.focus_handle);
+                self.leave_field_unless_refused(window);
             }
             TextInputEvent::Cancelled => {
+                self.error = None;
                 self.sync_fields(cx);
                 window.focus(&self.focus_handle);
             }
             TextInputEvent::Blurred => self.commit_field(key, cx),
             TextInputEvent::Changed => {}
+        }
+    }
+
+    /// Enter gives the keyboard back to the row once what was typed is
+    /// taken. When it's refused, the field keeps the keyboard, so the
+    /// text can be fixed where the error points, and Escape puts the
+    /// saved value back rather than closing the screen.
+    fn leave_field_unless_refused(&mut self, window: &mut Window) {
+        if self.error.is_none() {
+            window.focus(&self.focus_handle);
         }
     }
 
@@ -382,9 +398,10 @@ impl SettingsView {
         match event {
             TextInputEvent::Submitted => {
                 self.commit_hex(cx);
-                window.focus(&self.focus_handle);
+                self.leave_field_unless_refused(window);
             }
             TextInputEvent::Cancelled => {
+                self.error = None;
                 self.sync_fields(cx);
                 window.focus(&self.focus_handle);
             }
