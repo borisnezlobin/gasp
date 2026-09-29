@@ -168,18 +168,33 @@ pub(crate) fn render_image(mut pixels: RgbaImage) -> RenderImage {
     RenderImage::new(vec![Frame::new(pixels)])
 }
 
+/// The stand-in for an image that isn't there (yet): a faint see-through
+/// grey with a diagonal hatch, which reads as empty on a light or a dark
+/// page, where the old colour gradient read as a picture.
 fn placeholder_pixels() -> RgbaImage {
+    const HATCH_EVERY: u32 = 12;
+    const HATCH_WIDTH: u32 = 2;
     let (width, height) = PLACEHOLDER_SIZE;
     RgbaImage::from_fn(width, height, |x, y| {
-        let shade = ((x * 255) / width) as u8;
-        let band = if (x / 16 + y / 16) % 2 == 0 { 40 } else { 0 };
-        image::Rgba([shade, 120 + band, 255 - shade, 255])
+        let on_hatch = (x + y) % HATCH_EVERY < HATCH_WIDTH;
+        let alpha = if on_hatch { 72 } else { 36 };
+        image::Rgba([128, 128, 128, alpha])
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_placeholder_is_a_see_through_grey() {
+        let pixels = placeholder_pixels();
+        for pixel in pixels.pixels() {
+            let [red, green, blue, alpha] = pixel.0;
+            assert!(red == green && green == blue, "no colour");
+            assert!(alpha < 128, "see-through");
+        }
+    }
 
     #[test]
     fn missing_images_use_the_placeholder() {

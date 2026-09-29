@@ -60,6 +60,9 @@ pub enum EditorEvent {
     /// Mod-click on a link, or `link.follow` with the cursor in one. The
     /// target is a URL, a path, or `note#heading` for a wikilink.
     OpenLink(String),
+    /// The zoom or readable width changed by a command, for every other
+    /// note to follow.
+    ViewChanged,
 }
 
 /// Ranges drawn with a background, such as find matches. Each kind is
@@ -295,6 +298,7 @@ impl EditorView {
             .then(|| crate::ui::observe_installed_fonts(cx, Self::fonts_arrived));
         view.apply_typing_settings(config);
         view.check_footnotes_soon(cx);
+        view.follow_device_view(config, cx);
         view
     }
 

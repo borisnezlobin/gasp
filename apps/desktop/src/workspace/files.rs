@@ -87,6 +87,19 @@ pub fn folder_name(path: &Path) -> String {
         .unwrap_or_else(|| path.display().to_string())
 }
 
+/// `path` as people read it, with the home folder written `~`.
+pub fn display_path(path: &Path) -> String {
+    display_path_from(path, dirs::home_dir().as_deref())
+}
+
+fn display_path_from(path: &Path, home: Option<&Path>) -> String {
+    match home.and_then(|home| path.strip_prefix(home).ok()) {
+        Some(rest) if rest.as_os_str().is_empty() => "~".to_owned(),
+        Some(rest) => format!("~/{}", rest.display()),
+        None => path.display().to_string(),
+    }
+}
+
 /// `Untitled.md`, or `Untitled 1.md`, `Untitled 2.md` and so on, whichever
 /// is free in `dir`.
 pub fn unique_untitled(dir: &Path) -> PathBuf {
@@ -198,6 +211,20 @@ pub(crate) fn canonical_path(path: &Path) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn paths_under_home_read_from_tilde() {
+        let home = Path::new("/Users/me");
+        assert_eq!(
+            display_path_from(Path::new("/Users/me/Notes"), Some(home)),
+            "~/Notes"
+        );
+        assert_eq!(display_path_from(home, Some(home)), "~");
+        assert_eq!(
+            display_path_from(Path::new("/Volumes/x"), Some(home)),
+            "/Volumes/x"
+        );
+    }
 
     #[test]
     fn line_endings_are_detected_and_kept() {

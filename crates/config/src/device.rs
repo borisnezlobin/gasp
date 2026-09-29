@@ -24,6 +24,18 @@ pub struct DeviceSettings {
     /// Where the reader was in recently shown notes, oldest first.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub positions: Vec<NotePosition>,
+    /// How much bigger or smaller than the theme notes are drawn, from
+    /// `view.zoom-in` and `view.zoom-out`; `None` is the theme's size.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_zoom: Option<f32>,
+    /// Whether notes fill the pane rather than the readable column, from
+    /// `view.toggle-readable-width`.
+    #[serde(skip_serializing_if = "is_false")]
+    pub full_width: bool,
+    /// Whether the desktop has offered to import the vault's Obsidian
+    /// settings, which it does once.
+    #[serde(skip_serializing_if = "is_false")]
+    pub obsidian_import_offered: bool,
 }
 
 /// Where the reader was in a note: the cursor, and the start of the line
