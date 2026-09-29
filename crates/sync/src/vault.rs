@@ -225,7 +225,7 @@ const LARGEST_DELTA_CANDIDATE: i64 = 512 * 1024;
 /// Notes must sync byte for byte on every device. Without the line-ending
 /// settings, a machine whose global git config sets `core.autocrlf` (the
 /// default on Windows) would rewrite line endings on checkout and merge.
-fn pin_settings(repo: &Repository) -> SyncResult<()> {
+pub(crate) fn pin_settings(repo: &Repository) -> SyncResult<()> {
     let mut local = repo.config()?.open_level(ConfigLevel::Local)?;
     if local.get_bool("core.autocrlf").ok() != Some(false) {
         local.set_bool("core.autocrlf", false)?;

@@ -340,6 +340,11 @@ md   = 6
 lg   = 10
 pill = 999
 
+# Notes embedded with ![[…]]: the most of a note a card shows, in lines of
+# body text. Open the note to read the rest.
+[embed]
+max-lines = 24
+
 # Tables drawn as grids. Lengths are pixels; the least a column or a row
 # takes is in lines of body text, so it grows with the base font size.
 [table]

@@ -1,7 +1,7 @@
-//! Where the reader was in each note: the cursor and the line at the top
-//! of the view, so a note opens again where it was left, in this session
-//! or the next. Kept in the vault's `device.toml`, which never syncs,
-//! for the notes shown most recently.
+//! Where the reader was in each note: the cursor, the line at the top
+//! of the view and the folded headings, so a note opens again as it was
+//! left, in this session or the next. Kept in the vault's `device.toml`,
+//! which never syncs, for the notes shown most recently.
 
 use std::path::Path;
 
@@ -21,12 +21,13 @@ impl Workspace {
         editor: &Entity<EditorView>,
         cx: &gpui::App,
     ) -> NotePosition {
-        let (cursor, top) = editor.read(cx).position();
+        let editor = editor.read(cx);
+        let (cursor, top) = editor.position();
         NotePosition {
             path: self.relative_name(path),
             cursor,
             top,
-            folds: Vec::new(),
+            folds: editor.folded_heading_lines(),
         }
     }
 
@@ -53,8 +54,11 @@ impl Workspace {
         let Some(kept) = self.positions.iter().rev().find(|kept| kept.path == name) else {
             return false;
         };
-        let (cursor, top) = (kept.cursor, kept.top);
-        editor.update(cx, |editor, cx| editor.restore_position(cursor, top, cx));
+        let (cursor, top, folds) = (kept.cursor, kept.top, kept.folds.clone());
+        editor.update(cx, |editor, cx| {
+            editor.restore_folded_headings(folds, cx);
+            editor.restore_position(cursor, top, cx);
+        });
         true
     }
 

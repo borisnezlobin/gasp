@@ -11,9 +11,9 @@
 use std::collections::{BTreeSet, HashMap};
 use std::ops::Range;
 
-use crate::syntax::{Edit, MarkupKind, NodeKind, SyntaxTree};
+use crate::syntax::{Edit, Fold, MarkupKind, NodeKind, SyntaxTree};
 
-use super::output::{LinePlan, WidgetKind};
+use super::output::{LinePlan, Placement, Widget, WidgetKind};
 
 /// A heading and the lines its section covers after it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -29,6 +29,43 @@ pub struct HeadingSection {
     /// Where the body's text is, from the start of its first line to the
     /// start of the line after it (or `usize::MAX` at the note's end).
     pub body_text: Range<usize>,
+}
+
+impl HeadingSection {
+    /// Whether `offset` is in the folded-away part: from the body's start
+    /// up to the next section's first line, or to the note's end for the
+    /// last section.
+    pub fn hides(&self, offset: usize) -> bool {
+        !self.body.is_empty() && self.body_text.start <= offset && offset < self.body_text.end
+    }
+
+    /// Whether a selection opens the section: an end of it is in the
+    /// body. One that takes in the whole body, such as select all, leaves
+    /// it folded, as does a cursor at the start of the next section.
+    fn opened_by(&self, selection: &Range<usize>, note_len: usize) -> bool {
+        let (start, end) = (
+            selection.start.min(selection.end),
+            selection.start.max(selection.end),
+        );
+        let body_end = self.body_text.end.min(note_len);
+        let covers = start <= self.body_text.start && end >= body_end;
+        let inside = |offset: usize| self.body_text.start <= offset && offset < self.body_text.end;
+        !self.body.is_empty() && !covers && (inside(start) || inside(end))
+    }
+}
+
+/// What a fold command acts on at the cursor.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FoldTarget {
+    Heading(HeadingSection),
+    /// A callout marked foldable (`[!note]-` or `[!note]+`), named by where
+    /// its `[!type]` token starts.
+    Callout {
+        header: usize,
+        folded: bool,
+        /// The whole callout, header line included.
+        range: Range<usize>,
+    },
 }
 
 /// Folded headings, and callouts folded or unfolded by a click.
@@ -62,6 +99,149 @@ impl Folds {
 
     pub fn is_heading_folded(&self, line_start: usize) -> bool {
         self.headings.contains(&line_start)
+    }
+
+    /// How many headings are folded.
+    pub fn folded_heading_count(&self) -> usize {
+        self.headings.len()
+    }
+
+    /// Whether the callout with its `[!type]` token at `header` is folded:
+    /// a click's choice, else what its `-` or `+` says. `None` when it
+    /// doesn't fold.
+    pub fn callout_folded(&self, header: usize, fold: Option<Fold>) -> Option<bool> {
+        let fold = fold?;
+        Some(
+            self.folded
+                .get(&header)
+                .copied()
+                .unwrap_or(fold == Fold::Closed),
+        )
+    }
+
+    /// Folds or unfolds `target`; answers whether it's folded now.
+    pub fn toggle_target(&mut self, target: &FoldTarget) -> bool {
+        match target {
+            FoldTarget::Heading(section) => self.toggle_heading(section.line_start),
+            FoldTarget::Callout { header, folded, .. } => {
+                self.toggle(*header, *folded);
+                !folded
+            }
+        }
+    }
+
+    /// The folded headings' sections, in order.
+    pub fn folded_sections(&self, tree: &SyntaxTree) -> Vec<HeadingSection> {
+        if self.headings.is_empty() {
+            return Vec::new();
+        }
+        heading_sections(tree)
+            .into_iter()
+            .filter(|section| self.headings.contains(&section.line_start))
+            .filter(|section| !section.body.is_empty())
+            .collect()
+    }
+
+    /// Unfolds every heading whose section a selection reaches into, so
+    /// the cursor never sits in hidden text. Answers whether any opened.
+    pub fn unfold_where_selected(
+        &mut self,
+        tree: &SyntaxTree,
+        selections: &[Range<usize>],
+    ) -> bool {
+        let note_len = tree.root().range.end;
+        let opened: Vec<usize> = self
+            .folded_sections(tree)
+            .into_iter()
+            .filter(|section| {
+                selections
+                    .iter()
+                    .any(|selection| section.opened_by(selection, note_len))
+            })
+            .map(|section| section.line_start)
+            .collect();
+        for line_start in &opened {
+            self.headings.remove(line_start);
+        }
+        !opened.is_empty()
+    }
+
+    /// What a fold command at `at` acts on: the heading on its line, else
+    /// the foldable callout it's in, else the innermost section it's in.
+    pub fn target_at(&self, tree: &SyntaxTree, at: usize) -> Option<FoldTarget> {
+        let line = tree.lines().line_of(at);
+        let sections: Vec<HeadingSection> = heading_sections(tree)
+            .into_iter()
+            .filter(|section| !section.body.is_empty())
+            .collect();
+        if let Some(section) = sections.iter().find(|section| section.line == line) {
+            return Some(FoldTarget::Heading(section.clone()));
+        }
+        if let Some(callout) = self.callout_at(tree, at) {
+            return Some(callout);
+        }
+        sections
+            .into_iter()
+            .rev()
+            .find(|section| section.line < line && section.body.contains(&line))
+            .map(FoldTarget::Heading)
+    }
+
+    /// The innermost foldable callout holding `at`.
+    fn callout_at(&self, tree: &SyntaxTree, at: usize) -> Option<FoldTarget> {
+        tree.path_at(at).into_iter().rev().find_map(|id| {
+            let node = tree.node(id);
+            let NodeKind::Callout(info) = &node.kind else {
+                return None;
+            };
+            let header = node
+                .markup
+                .iter()
+                .find(|markup| markup.kind == MarkupKind::CalloutHeader)?
+                .range
+                .start;
+            let folded = self.callout_folded(header, info.fold)?;
+            Some(FoldTarget::Callout {
+                header,
+                folded,
+                range: node.range.clone(),
+            })
+        })
+    }
+
+    /// Adds a count of the hidden lines after each folded heading that
+    /// stays folded, for the apps that draw one: its body's lines up to
+    /// the last one with text. Headings a selection opens get none.
+    pub fn mark_folded_headings(
+        &self,
+        plans: &mut [LinePlan],
+        text: &str,
+        tree: &SyntaxTree,
+        selections: &[Range<usize>],
+    ) {
+        if self.headings.is_empty() {
+            return;
+        }
+        let note_len = tree.root().range.end;
+        for section in self.folded_sections(tree) {
+            let opened = selections
+                .iter()
+                .any(|selection| section.opened_by(selection, note_len));
+            let Some(plan) = plans.iter_mut().find(|plan| plan.line == section.line) else {
+                continue;
+            };
+            if opened || plan.collapsed {
+                continue;
+            }
+            let end = plan.range.end;
+            plan.widgets.push(Widget {
+                kind: WidgetKind::FoldedLines {
+                    count: written_lines(text, tree, &section.body),
+                },
+                range: end..end,
+                placement: Placement::Replace,
+            });
+        }
     }
 
     /// Folds every heading that has something under it.
@@ -207,10 +387,15 @@ impl Folds {
         tree: &SyntaxTree,
         selections: &[Range<usize>],
     ) {
-        let folded: Vec<HeadingSection> = heading_sections(tree)
+        let note_len = tree.root().range.end;
+        let folded: Vec<HeadingSection> = self
+            .folded_sections(tree)
             .into_iter()
-            .filter(|section| self.headings.contains(&section.line_start))
-            .filter(|section| !touches(selections, &section.body_text))
+            .filter(|section| {
+                !selections
+                    .iter()
+                    .any(|selection| section.opened_by(selection, note_len))
+            })
             .collect();
         for plan in plans.iter_mut() {
             if folded
@@ -221,6 +406,17 @@ impl Folds {
             }
         }
     }
+}
+
+/// How many of `lines` there are up to the last one with text on it, at
+/// least one.
+fn written_lines(text: &str, tree: &SyntaxTree, lines: &Range<usize>) -> usize {
+    let index = tree.lines();
+    let last_written = lines
+        .clone()
+        .rev()
+        .find(|&line| !text[index.line_range(text, line)].trim().is_empty());
+    last_written.map_or(1, |line| line + 1 - lines.start)
 }
 
 /// Whether any selection reaches into `range`, its ends included.
@@ -402,5 +598,78 @@ mod tests {
         assert_eq!(restored.folded_heading_lines(&tree), [2]);
         folds.unfold_all_headings();
         assert!(folds.is_empty());
+    }
+
+    #[test]
+    fn only_a_selection_end_in_the_body_opens_a_section() {
+        let mut folds = Folds::default();
+        folds.toggle_heading(0);
+        let next_heading = SECTIONS.find("# Three").unwrap();
+        assert_eq!(
+            collapsed(&planned(SECTIONS, &folds, next_heading)),
+            [1, 2, 3]
+        );
+        let tree = parse(SECTIONS);
+        let everything = 0..SECTIONS.len();
+        assert!(!folds.unfold_where_selected(&tree, std::slice::from_ref(&everything)));
+        let caret = next_heading..next_heading;
+        assert!(!folds.unfold_where_selected(&tree, std::slice::from_ref(&caret)));
+        let in_body = 8..8;
+        assert!(folds.unfold_where_selected(&tree, std::slice::from_ref(&in_body)));
+        assert!(!folds.is_heading_folded(0));
+    }
+
+    #[test]
+    fn the_notes_end_is_inside_the_last_section() {
+        let tree = parse(SECTIONS);
+        let mut folds = Folds::default();
+        let last = SECTIONS.find("# Three").unwrap();
+        folds.toggle_heading(last);
+        let end = SECTIONS.len();
+        assert!(heading_sections(&tree)[2].hides(end));
+        let caret = end..end;
+        assert!(folds.unfold_where_selected(&tree, std::slice::from_ref(&caret)));
+    }
+
+    #[test]
+    fn a_fold_command_finds_the_heading_callout_or_section() {
+        let text = "# One\ntext\n\n> [!tip]- Tip\n> body\n\n## Two\nmore\n";
+        let tree = parse(text);
+        let folds = Folds::default();
+        let heading_line = |at: usize| match folds.target_at(&tree, at) {
+            Some(FoldTarget::Heading(section)) => Some(section.line),
+            _ => None,
+        };
+        assert_eq!(heading_line(2), Some(0));
+        assert_eq!(heading_line(text.find("text").unwrap()), Some(0));
+        assert_eq!(heading_line(text.find("more").unwrap()), Some(6));
+        let in_callout = folds.target_at(&tree, text.find("body").unwrap());
+        assert!(matches!(
+            in_callout,
+            Some(FoldTarget::Callout { folded: true, .. })
+        ));
+    }
+
+    #[test]
+    fn a_folded_heading_counts_what_it_hides() {
+        let mut folds = Folds::default();
+        folds.toggle_heading(0);
+        let tree = parse(SECTIONS);
+        let caret = 2..2;
+        let mut lines = planned(SECTIONS, &folds, 2);
+        folds.mark_folded_headings(&mut lines, SECTIONS, &tree, std::slice::from_ref(&caret));
+        let counts: Vec<usize> = lines[0]
+            .widgets
+            .iter()
+            .filter_map(|widget| match widget.kind {
+                WidgetKind::FoldedLines { count } => Some(count),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(counts, [3]);
+        let mut target = folds.target_at(&tree, 2).unwrap();
+        assert!(!folds.toggle_target(&target));
+        target = folds.target_at(&tree, 2).unwrap();
+        assert!(folds.toggle_target(&target));
     }
 }

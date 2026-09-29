@@ -328,6 +328,7 @@ fn delete_asks_first_then_trashes(cx: &mut TestAppContext) {
     assert!(events.borrow().contains(&FileTreeEvent::Trashed {
         path: root.join("Note 10.md"),
         text: Some(String::new()),
+        trashed_to: Some(root.join(".trash/Note 10.md")),
     }));
     // The selection moves to a neighbour.
     assert_eq!(selected(&tree, root, cx), Some("Note 2.md".into()));

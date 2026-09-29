@@ -83,9 +83,12 @@ impl EditorView {
             // An image that was missing may be in the vault now, or the
             // first scan may have just found it.
             view.retry_missing_images(cx);
+            view.refresh_embeds(cx);
         });
         self.suggest.index = Some(index);
         self.suggest._observe_index = Some(observe);
+        self.refresh_reveal();
+        self.embeds.clear();
         self.suggest.headings.clear();
         self.retry_missing_images(cx);
     }

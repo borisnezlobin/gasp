@@ -673,17 +673,14 @@ impl FileTree {
         };
         let next = self.selected_index();
         let text = std::fs::read_to_string(self.absolute(&path)).ok();
-        match ops::trash(
-            self.model.root(),
-            &path,
-            crate::sandbox::trash_mode(self.options.trash),
-        ) {
-            Ok(()) => {
+        match crate::trashing::move_to_trash(self.model.root(), &path, self.options.trash) {
+            Ok(trashed_to) => {
                 self.model.refresh();
                 self.reselect_near(next, cx);
                 cx.emit(FileTreeEvent::Trashed {
                     path: self.absolute(&path),
                     text,
+                    trashed_to,
                 });
             }
             Err(error) => cx.emit(FileTreeEvent::Failed {

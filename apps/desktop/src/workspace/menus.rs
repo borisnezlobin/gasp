@@ -46,6 +46,7 @@ const FILE: &[Entry] = &[
     Command("export.html"),
     Command("export.pdf"),
     Command("sync.now"),
+    Command("sync.set-up"),
     Separator,
     Command("tab.reopen"),
     Command("tab.close"),
@@ -95,6 +96,10 @@ const VIEW: &[Entry] = &[
     Command("view.zoom-reset"),
     Command("view.toggle-readable-width"),
     Command("view.toggle-dark-mode"),
+    Separator,
+    Command("fold.toggle"),
+    Command("fold.all"),
+    Command("fold.unfold-all"),
 ];
 
 const GO: &[Entry] = &[

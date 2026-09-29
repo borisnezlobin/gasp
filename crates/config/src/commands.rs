@@ -134,8 +134,7 @@ const HIDE_KEYBOARD: CommandSpec =
 const TAB_OVERVIEW: CommandSpec =
     spec("tab.overview", "Show all tabs", "Tabs and panels").icon("tabs");
 
-/// Folding headings, which the iPhone has so far; the desktop folds
-/// callouts by clicking their header.
+/// Folding headings, and the foldable callout the cursor is in.
 const FOLD_TOGGLE: CommandSpec =
     spec("fold.toggle", "Fold or unfold heading", "View").icon("caret-down");
 const FOLD_ALL: CommandSpec =
@@ -180,6 +179,11 @@ const TOGGLE_DARK_MODE: CommandSpec = spec(
 const MOVE_NOTE: CommandSpec =
     spec("note.move", "Move note to a folder", "Notes and navigation").icon("folder");
 
+/// Connects a vault that isn't a git clone to a repository in place,
+/// which the desktop does; the phone sets up sync by cloning, from
+/// `sync.now`.
+const SET_UP_SYNC: CommandSpec = spec("sync.set-up", "Set up sync", "App").icon("cloud-arrow-up");
+
 /// Commands only some platforms have. The registry leaves them out
 /// elsewhere, but rules may still name them, as a vault's config goes
 /// from machine to machine.
@@ -187,14 +191,12 @@ pub const PLATFORM_COMMANDS: &[&str] = &[
     LOOK_UP.id,
     HIDE_KEYBOARD.id,
     TAB_OVERVIEW.id,
-    FOLD_TOGGLE.id,
-    FOLD_ALL.id,
-    UNFOLD_ALL.id,
     RESTORE_DELETED.id,
     IMPORT_OBSIDIAN.id,
     COPY_RICH_TEXT.id,
     TOGGLE_DARK_MODE.id,
     MOVE_NOTE.id,
+    SET_UP_SYNC.id,
 ];
 
 /// Every built-in command on this platform.
@@ -377,6 +379,8 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("export.pdf", "Export as PDF", "App").icon("file-pdf"),
     spec("sync.now", "Sync now", "App").icon("arrows-clockwise"),
     spec("sync.resolve-conflicts", "Resolve sync conflicts", "App").icon("git-merge"),
+    #[cfg(not(target_os = "ios"))]
+    SET_UP_SYNC,
     spec("settings.open", "Open settings", "App").icon("gear-six"),
     spec("toolbar.focus", "Focus toolbars", "Tabs and panels").icon("app-window"),
     spec("toolbar.customize", "Customize toolbars", "App").icon("sliders-horizontal"),
@@ -447,11 +451,8 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     HIDE_KEYBOARD,
     #[cfg(target_os = "ios")]
     TAB_OVERVIEW,
-    #[cfg(target_os = "ios")]
     FOLD_TOGGLE,
-    #[cfg(target_os = "ios")]
     FOLD_ALL,
-    #[cfg(target_os = "ios")]
     UNFOLD_ALL,
     spec("code.copy-block", "Copy code block", "Editing").icon("copy"),
     spec("table.insert", "Insert table", "Tables").icon("table"),
@@ -601,18 +602,16 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
 
 /// The commands in [`PLATFORM_COMMANDS`], described on every platform so
 /// a toolbar synced from another machine can still name them.
-const PLATFORM_SPECS: [CommandSpec; 11] = [
+const PLATFORM_SPECS: [CommandSpec; 9] = [
     LOOK_UP,
     HIDE_KEYBOARD,
     TAB_OVERVIEW,
-    FOLD_TOGGLE,
-    FOLD_ALL,
-    UNFOLD_ALL,
     RESTORE_DELETED,
     IMPORT_OBSIDIAN,
     COPY_RICH_TEXT,
     TOGGLE_DARK_MODE,
     MOVE_NOTE,
+    SET_UP_SYNC,
 ];
 
 /// A built-in command's description by id, on any platform.

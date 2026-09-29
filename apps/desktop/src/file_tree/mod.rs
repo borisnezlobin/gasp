@@ -36,7 +36,12 @@ pub enum FileTreeEvent {
     Created { path: PathBuf },
     /// A file or folder went to the trash.
     /// `text` is what a note read as it went; a folder has none.
-    Trashed { path: PathBuf, text: Option<String> },
+    Trashed {
+        path: PathBuf,
+        text: Option<String>,
+        /// Where in the trash it went, when that's known.
+        trashed_to: Option<PathBuf>,
+    },
     /// Folders were expanded or collapsed. Read them with
     /// [`FileTree::expanded_folders`] to save them.
     ExpansionChanged,

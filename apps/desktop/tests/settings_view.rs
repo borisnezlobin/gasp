@@ -1499,21 +1499,23 @@ fn a_refused_colour_keeps_the_keyboard_in_its_field(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn a_repository_row_with_nothing_to_operate_takes_no_focus(cx: &mut TestAppContext) {
+fn the_repository_row_of_a_vault_that_doesnt_sync_sets_it_up(cx: &mut TestAppContext) {
     let dir = vault(None);
-    let (view, cx, _) = open(cx, dir.path());
+    let (view, cx, recorded) = open(cx, dir.path());
     go_to_section(&view, "Sync", cx);
     let rows = view.read_with(cx, |view, _| view.rows());
     assert_eq!(rows[0], ControlRow::SyncRemote);
-    // The vault isn't a clone, so the repository row has no field and
-    // the keyboard starts on the first row it can change.
+    // The vault isn't a clone, so the repository row holds the button
+    // that sets sync up, and the keyboard starts on it.
     let focus = view.read_with(cx, |view, _| view.focus_state());
-    assert_eq!(focus, SettingsFocus::Control(1));
-    cx.simulate_keystrokes("up");
+    assert_eq!(focus, SettingsFocus::Control(0));
+    assert!(cx.debug_bounds("set-up-sync").is_some());
+    cx.simulate_keystrokes("enter");
     assert_eq!(
-        view.read_with(cx, |view, _| view.focus_state()),
-        SettingsFocus::Sections
+        recorded.borrow().requests,
+        [SettingsRequest::RunCommand("sync.set-up".into())]
     );
+    assert_eq!(recorded.borrow().dismissed, 1);
 }
 
 #[test]

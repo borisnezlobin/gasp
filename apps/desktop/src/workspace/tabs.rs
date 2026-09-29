@@ -110,8 +110,36 @@ impl Workspace {
         let doc = NoteDoc::load(path, image_dirs)?
             .with_attachments(&self.config.settings.files.attachments_folder);
         let doc = cx.new(|_| doc);
+        cx.observe(&doc, |workspace, doc, cx| {
+            workspace.index_saved_note(&doc, cx)
+        })
+        .detach();
         self.docs.push(doc.clone());
         Ok(doc)
+    }
+
+    /// Tells the vault index a note's text once it's saved, ahead of the
+    /// watcher, so what shows it elsewhere (an embed, backlinks) follows
+    /// at once.
+    fn index_saved_note(&mut self, doc: &Entity<NoteDoc>, cx: &mut Context<Self>) {
+        let doc = doc.read(cx);
+        if doc.is_dirty() {
+            return;
+        }
+        let Some(relative) = crate::vault_index::vault_relative(&self.vault, doc.path()) else {
+            return;
+        };
+        let text = doc.saved_text().to_string();
+        self.vault_index().update(cx, |index, cx| {
+            let known = index
+                .links()
+                .note(&relative)
+                .map(|entry| entry.text.clone());
+            if known.as_deref() != Some(text.as_str()) {
+                index.note_text_changed(&relative, &text);
+                cx.notify();
+            }
+        });
     }
 
     fn image_dirs(&self, path: &Path) -> Vec<PathBuf> {

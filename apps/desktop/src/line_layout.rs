@@ -100,6 +100,11 @@ pub enum PieceContent {
     /// The block an empty snippet tab stop waits in. The caret at its
     /// offset stands in its middle.
     TabStop,
+    /// The room an embedded note's card keeps for the view that draws
+    /// the note's text.
+    Embed {
+        key: crate::embeds::EmbedKey,
+    },
 }
 
 /// What clicking a piece does besides placing the cursor.
@@ -116,6 +121,13 @@ pub enum Hit {
     Fold {
         header: usize,
         folded: bool,
+    },
+    /// Unfolds the heading on this line: the count of lines it hides.
+    Unfold,
+    /// Opens a note, or makes it when it isn't there: an embedded note's
+    /// header and its Create note button.
+    Open {
+        target: String,
     },
     /// A link card: a click puts the cursor in its source, Mod+click
     /// opens the page.
@@ -135,7 +147,11 @@ impl Hit {
     pub fn is_control(&self) -> bool {
         matches!(
             self,
-            Hit::Checkbox { .. } | Hit::Fold { .. } | Hit::Link { .. }
+            Hit::Checkbox { .. }
+                | Hit::Fold { .. }
+                | Hit::Unfold
+                | Hit::Link { .. }
+                | Hit::Open { .. }
         )
     }
 }
@@ -518,7 +534,8 @@ impl VisualLine {
     }
 
     /// The piece under a point relative to the line's top-left. In a
-    /// block, where pieces stack, the one drawn last wins.
+    /// block or a row below the source, where pieces stack, the one
+    /// drawn last wins.
     pub fn piece_at_point(&self, x: Pixels, y: Pixels) -> Option<&Piece> {
         let index = match &self.grid {
             Some(grid) => self.grid_row_at(grid, x, y)?,
@@ -530,7 +547,7 @@ impl VisualLine {
             return None;
         }
         let y = y - row.top;
-        let stacked = (row.kind == RowKind::Block).then(|| {
+        let stacked = (row.kind != RowKind::Text).then(|| {
             row.pieces.iter().rev().find(|piece| {
                 piece.x <= x && x < piece.right() && piece.top <= y && y < piece.top + piece.height
             })

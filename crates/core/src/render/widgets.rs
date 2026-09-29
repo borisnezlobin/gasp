@@ -3,7 +3,7 @@
 use std::ops::Range;
 
 use crate::syntax::html_attribute as attribute;
-use crate::syntax::{ConflictSide, HtmlKind, Markup, MarkupKind, Node, NodeId, NodeKind};
+use crate::syntax::{ConflictSide, HtmlKind, Markup, MarkupKind, Node, NodeId, NodeKind, WikiInfo};
 
 use super::output::WidgetKind;
 use super::reveal::Revealer;
@@ -53,7 +53,9 @@ pub(crate) fn replacement(revealer: &Revealer<'_>, id: NodeId) -> Option<WidgetK
             &info.destination,
             &joined(text, &node.content_without_destination()),
         ),
-        NodeKind::Embed(info) if !embeds_image(&info.target) => return None,
+        NodeKind::Embed(info) if !embeds_image(&info.target) => {
+            return note_embed(revealer, info);
+        }
         NodeKind::Embed(info) => WidgetKind::Image {
             target: info.target.clone(),
             alt: info.alias.clone().unwrap_or_default(),
@@ -68,6 +70,16 @@ pub(crate) fn replacement(revealer: &Revealer<'_>, id: NodeId) -> Option<WidgetK
         _ => return simple_replacement(node, text),
     };
     Some(kind)
+}
+
+/// The card for an embedded note, when the app draws them; other files,
+/// such as PDFs, stay links.
+fn note_embed(revealer: &Revealer<'_>, info: &WikiInfo) -> Option<WidgetKind> {
+    let wanted = revealer.settings.embed_notes && crate::embed::embeds_note(&info.target);
+    wanted.then(|| WidgetKind::EmbeddedNote {
+        target: info.target.clone(),
+        subpath: info.subpath.clone(),
+    })
 }
 
 fn simple_replacement(node: &Node, text: &str) -> Option<WidgetKind> {

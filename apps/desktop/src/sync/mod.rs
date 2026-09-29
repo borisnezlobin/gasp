@@ -1,8 +1,8 @@
 //! Git sync in the desktop app: a [`SyncService`] per vault window runs
 //! `gasp-sync`'s scheduler, with every git step on the background
 //! executor. It shows as the [`SyncIndicator`] in the status bar, is set
-//! up on the settings screen's Sync page, and hands conflicts to the
-//! [`ConflictResolver`].
+//! up on the settings screen's Sync page (or made a clone in the first
+//! place by [`SyncSetup`]), and hands conflicts to the [`ConflictResolver`].
 //!
 //! Sync only shows for a vault that is a git clone with a remote. It only
 //! writes to the clone once it's on the branch the settings name, so a
@@ -13,6 +13,7 @@ pub mod engine;
 pub mod indicator;
 pub mod resolver;
 pub mod service;
+pub mod setup;
 pub mod state;
 
 use std::sync::Arc;
@@ -23,6 +24,7 @@ use gpui::{App, Global};
 pub use indicator::{SyncIndicator, SyncIndicatorEvent};
 pub use resolver::{Choice, ConflictResolver};
 pub use service::SyncService;
+pub use setup::{SetupPhase, SyncSetup, SyncSetupEvent};
 pub use state::{SetupProblem, SyncPhase, SyncRun};
 
 struct StoreGlobal(Arc<dyn CredentialStore>);

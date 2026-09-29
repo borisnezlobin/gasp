@@ -112,6 +112,19 @@ fn plan_benches(long: &str, report: &mut Report) {
         applied.median(),
         us(10),
     );
+    let mut folded = Folds::default();
+    folded.fold_all_headings(&tree);
+    let applied = Samples::collect(200, || {
+        let mut plans = plan_lines(&input, viewport.clone()).lines;
+        folded.apply(&mut plans, &tree, &selections);
+        folded.mark_folded_headings(&mut plans, long, &tree, &selections);
+        plans
+    });
+    report.time(
+        "plan a viewport with every heading folded, median",
+        applied.median(),
+        us(400),
+    );
     for (label, note) in heavy_notes() {
         let tree = syntax::parse(&note);
         let input = RenderInput {

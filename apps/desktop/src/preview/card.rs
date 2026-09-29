@@ -18,15 +18,15 @@ const ELLIPSIS: &str = "\u{2026}";
 
 /// How a line of card text is set.
 #[derive(Clone)]
-struct Style {
-    font: Font,
-    color: Hsla,
-    size: Pixels,
-    line_height: Pixels,
+pub(super) struct Style {
+    pub(super) font: Font,
+    pub(super) color: Hsla,
+    pub(super) size: Pixels,
+    pub(super) line_height: Pixels,
 }
 
 impl Style {
-    fn run(&self) -> TextRun {
+    pub(super) fn run(&self) -> TextRun {
         TextRun {
             len: 0,
             font: self.font.clone(),
@@ -128,7 +128,7 @@ impl LineLayouter<'_, '_> {
         [square, glyph]
     }
 
-    fn small_style(&self, color: Hsla) -> Style {
+    pub(super) fn small_style(&self, color: Hsla) -> Style {
         let theme = self.theme();
         Style {
             font: theme.ui_font(),
@@ -234,7 +234,7 @@ impl LineLayouter<'_, '_> {
         }
     }
 
-    fn card_quad(
+    pub(super) fn card_quad(
         &self,
         range: &Range<usize>,
         (x, top): (Pixels, Pixels),
@@ -254,7 +254,7 @@ impl LineLayouter<'_, '_> {
     }
 
     /// One line of `text`, cut with an ellipsis to fit `width`.
-    fn fitted(
+    pub(super) fn fitted(
         &self,
         range: &Range<usize>,
         text: &str,
