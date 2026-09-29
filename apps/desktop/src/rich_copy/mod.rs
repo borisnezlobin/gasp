@@ -1,4 +1,4 @@
-//! `edit.copy-rich-text`: the selection, or the whole note when nothing is
+//! `export.copy-rich-text`: the selection, or the whole note when nothing is
 //! selected, on the clipboard as formatted text (the HTML export's
 //! article) with its Markdown as the plain text, for pasting into mail,
 //! documents and chat.
@@ -13,7 +13,7 @@ use gpui::{Context, Window};
 use crate::notices::{self, Notice};
 use crate::workspace::Workspace;
 
-pub const COMMAND: &str = "edit.copy-rich-text";
+pub const COMMAND: &str = "export.copy-rich-text";
 
 pub fn install(workspace: &mut Workspace) {
     workspace.on_command(COMMAND, copy_rich_text);

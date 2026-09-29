@@ -62,7 +62,7 @@ pub const WIRED_COMMANDS: [&str; 30] = [
     "daily.open",
     "template.insert",
     "vault.import-obsidian",
-    "edit.copy-rich-text",
+    "export.copy-rich-text",
     "view.toggle-dark-mode",
     "note.move",
 ];

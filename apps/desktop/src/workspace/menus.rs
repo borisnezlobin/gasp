@@ -58,7 +58,7 @@ const EDIT: &[Entry] = &[
     Separator,
     Command("edit.cut"),
     Command("edit.copy"),
-    Command("edit.copy-rich-text"),
+    Command("export.copy-rich-text"),
     Command("edit.paste"),
     Command("edit.paste-plain"),
     Command("select.all"),

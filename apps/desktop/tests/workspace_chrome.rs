@@ -388,7 +388,7 @@ fn the_more_menu_lists_note_actions_and_splits(cx: &mut TestAppContext) {
         "Reveal in file tree",
         "Split right",
         "Split down",
-        "Export to PDF",
+        "Export as PDF or HTML",
         "Print",
         "Copy path",
         "Open in default app",

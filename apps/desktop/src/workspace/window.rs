@@ -290,6 +290,12 @@ impl Workspace {
     /// settings, so it doesn't again, and saves that now.
     pub fn mark_obsidian_import_offered(&mut self, cx: &App) {
         self.config.device.obsidian_import_offered = true;
+        self.save_device_now(cx);
+    }
+
+    /// Writes this device's state for the vault now, rather than when the
+    /// window next moves or closes.
+    pub(crate) fn save_device_now(&self, cx: &App) {
         if let Err(error) = save_device(&self.vault, &self.device_state(cx)) {
             eprintln!("could not save the window state: {error}");
         }
