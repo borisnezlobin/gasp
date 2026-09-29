@@ -156,6 +156,10 @@ impl SettingsView {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
+        if row.is_toolbar_row() {
+            let control = self.toolbar_control(index, row, focused, cx);
+            return Some(self.with_error_note(row, control));
+        }
         let control = match row {
             ControlRow::Setting(item) => self.setting_control(index, item, focused, cx),
             ControlRow::MapAdd(map) => self.map_add_control(index, map, row, focused, cx),
@@ -165,14 +169,7 @@ impl SettingsView {
                 let typing = self.hex_field.focus_handle(cx).is_focused(window);
                 self.accent_control(focused && !typing, typing, cx)
             }
-            ControlRow::Vault => self.vault_control(focused, cx),
-            ControlRow::IconCredit => self.icon_credit_control(focused),
-            // The Snippets page's rows are drawn above.
-            ControlRow::Version
-            | ControlRow::SnippetsFile
-            | ControlRow::Snippet(_)
-            | ControlRow::SnippetEditor
-            | ControlRow::Replacement(_) => return None,
+            ControlRow::Vault | ControlRow::IconCredit => self.general_control(row, focused, cx),
             ControlRow::Shortcut(shortcut) => self.shortcut_control(shortcut, focused, cx),
             ControlRow::SyncRemote => return self.remote_control(row, focused),
             ControlRow::SyncAccount => self.account_control(focused, cx),
@@ -180,19 +177,38 @@ impl SettingsView {
             ControlRow::ListEntry { list, value } => {
                 self.list_entry_control(list, value, focused, cx)
             }
-            _ => self.toolbar_control(index, row, focused, cx),
+            // The version has no control, and the Snippets page's rows
+            // are drawn above.
+            _ => return None,
         };
-        // An error hangs under the control rather than pushing rows down.
+        Some(self.with_error_note(row, control))
+    }
+
+    /// A row's control with the error from its last write hung under it,
+    /// rather than pushing the rows below down.
+    fn with_error_note(&self, row: &ControlRow, control: AnyElement) -> AnyElement {
         let note = self
             .row_error(row)
             .map(|message| control_note(message, &self.style));
-        Some(
-            div()
-                .relative()
-                .child(control)
-                .children(note)
-                .into_any_element(),
-        )
+        div()
+            .relative()
+            .child(control)
+            .children(note)
+            .into_any_element()
+    }
+
+    /// The General page's buttons: open another vault, or the app icon's
+    /// source.
+    fn general_control(
+        &self,
+        row: &ControlRow,
+        focused: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        match row {
+            ControlRow::Vault => self.vault_control(focused, cx),
+            _ => self.icon_credit_control(focused),
+        }
     }
 
     fn setting_control(

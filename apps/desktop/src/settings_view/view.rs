@@ -165,6 +165,15 @@ impl ControlRow {
         }
     }
 
+    /// The title of a row on the Snippets or Toolbars page's lists.
+    fn page_list_title(&self) -> String {
+        if self.is_typing_row() {
+            self.typing_title()
+        } else {
+            self.toolbar_placeholder_title()
+        }
+    }
+
     /// The row's title, as the screen shows it.
     pub fn title(&self) -> String {
         match self {
@@ -180,17 +189,7 @@ impl ControlRow {
             ControlRow::SyncAccount => "GitHub token".to_string(),
             ControlRow::ListAdd(item) => item.title.clone(),
             ControlRow::ListEntry { value, .. } => value.clone(),
-            ControlRow::SnippetsFile
-            | ControlRow::Snippet(_)
-            | ControlRow::SnippetEditor
-            | ControlRow::Replacement(_) => self.typing_title(),
-            ControlRow::ToolbarHeader(id)
-            | ControlRow::ToolbarContexts(id)
-            | ControlRow::ToolbarAdd(id)
-            | ControlRow::ToolbarItem { toolbar: id, .. }
-            | ControlRow::ToolbarField { toolbar: id, .. } => id.clone(),
-            ControlRow::NewToolbar => "Add a toolbar".to_string(),
-            ControlRow::ResetToolbars => "Reset toolbars".to_string(),
+            _ => self.page_list_title(),
         }
     }
 }

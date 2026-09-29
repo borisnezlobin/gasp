@@ -69,6 +69,17 @@ impl ControlRow {
         )
     }
 
+    /// A Toolbars page row's title without the view, for search: the
+    /// toolbar's id, or what the row does. The page shows the titles
+    /// [`SettingsView::toolbar_row_title`] gives.
+    pub(super) fn toolbar_placeholder_title(&self) -> String {
+        match self {
+            ControlRow::NewToolbar => "Add a toolbar".to_owned(),
+            ControlRow::ResetToolbars => "Reset toolbars".to_owned(),
+            _ => self.toolbar_id().unwrap_or_default().to_owned(),
+        }
+    }
+
     /// The toolbar a row belongs to, for its errors.
     fn toolbar_id(&self) -> Option<&str> {
         match self {
