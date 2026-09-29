@@ -3820,6 +3820,8 @@ dependencies = [
 name = "gasp-config"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
+ "gasp-migrate",
  "gasp-snippets",
  "notify",
  "schemars 0.8.22",
