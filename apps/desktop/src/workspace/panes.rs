@@ -193,16 +193,12 @@ impl Workspace {
     }
 
     pub(crate) fn end_drag(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(drag) = self.drag.take() else {
+        if self.drag.take().is_none() {
             return;
-        };
-        // Leaving the panel mid-resize was held back so it couldn't hide;
-        // the usual hide delay starts now if the pointer ended outside.
-        if drag == Drag::Sidebar
-            && let Some(kind) = self.left_panel.end_resize()
-        {
-            self.pointer_event(kind, super::sidebar::PANEL_TARGET, window, cx);
         }
+        // A resize kept the panel in use; the usual hide delay starts now
+        // if the pointer ended outside it.
+        self.refresh_panel_use(window, cx);
         cx.notify();
     }
 

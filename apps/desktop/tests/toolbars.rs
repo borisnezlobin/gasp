@@ -200,6 +200,72 @@ fn a_bar_menu_opens_its_commands(cx: &mut TestAppContext) {
     assert_eq!(labels[0], "Insert table");
 }
 
+const HOVER_BAR: &str = "\
+[toolbar.writing]
+title     = \"Writing\"
+place     = \"editor-bottom\"
+behaviour = \"on-hover\"
+items     = [\"format.bold\", \"menu:insert\"]
+";
+
+/// Rests the pointer on the strip along the notes' bottom edge, just
+/// above the status bar, until the hover bar shows.
+fn reveal_bottom_bar(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) {
+    let status = cx.debug_bounds("status-bar").expect("the status bar draws");
+    let edge = gpui::point(status.center().x, status.top() - gpui::px(2.));
+    cx.simulate_mouse_move(edge, None, Modifiers::none());
+    cx.executor().advance_clock(Duration::from_millis(300));
+    assert_eq!(docked(workspace, cx), ["status", "writing"]);
+}
+
+fn rest(cx: &mut VisualTestContext, x: f32, y: f32) {
+    cx.simulate_mouse_move(
+        gpui::point(gpui::px(x), gpui::px(y)),
+        None,
+        Modifiers::none(),
+    );
+    cx.run_until_parked();
+}
+
+fn wait_out_the_hide_delay(cx: &mut VisualTestContext) {
+    cx.executor().advance_clock(Duration::from_secs(1));
+    cx.run_until_parked();
+}
+
+/// The menu's backdrop covers the bar, which used to count as the pointer
+/// leaving it: the bar went, taking the open menu's button with it.
+#[gpui::test]
+fn a_hover_bar_stays_while_its_menu_is_open(cx: &mut TestAppContext) {
+    let dir = vault(Some(HOVER_BAR));
+    let (workspace, cx) = open_workspace(cx, dir.path());
+    reveal_bottom_bar(&workspace, cx);
+    click(cx, "toolbar-writing-1");
+    assert!(cx.read(|cx| workspace.read(cx).open_menu(cx).is_some()));
+    rest(cx, 200., 200.);
+    wait_out_the_hide_delay(cx);
+    assert!(docked(&workspace, cx).contains(&"writing".to_owned()));
+    cx.simulate_keystrokes("escape");
+    rest(cx, 210., 200.);
+    wait_out_the_hide_delay(cx);
+    assert_eq!(docked(&workspace, cx), ["status"]);
+}
+
+/// A pointer that leaves straight from the edge strip, never touching
+/// the bar that came up over it, still hides the bar.
+#[gpui::test]
+fn a_hover_bar_hides_when_the_pointer_leaves_from_its_edge(cx: &mut TestAppContext) {
+    let dir = vault(Some(HOVER_BAR));
+    let (workspace, cx) = open_workspace(cx, dir.path());
+    reveal_bottom_bar(&workspace, cx);
+    rest(cx, 200., 200.);
+    assert!(
+        docked(&workspace, cx).contains(&"writing".to_owned()),
+        "not at once"
+    );
+    wait_out_the_hide_delay(cx);
+    assert_eq!(docked(&workspace, cx), ["status"]);
+}
+
 #[gpui::test]
 fn the_keyboard_moves_through_the_bars(cx: &mut TestAppContext) {
     let dir = vault(Some(BOTTOM_BAR));

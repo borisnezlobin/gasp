@@ -5,12 +5,13 @@ use gasp_config::EventKind;
 use gasp_config::toolbars::Place;
 use gpui::{
     AnyElement, Context, CursorStyle, DispatchPhase, Entity, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, SharedString, Window, canvas, div, prelude::*, relative,
+    MouseExitEvent, MouseMoveEvent, MouseUpEvent, SharedString, Window, canvas, div, prelude::*,
+    relative,
 };
 
 use super::pane::Pane;
 use super::pane_tree::{Axis, Node, Split};
-use super::sidebar::{LEFT_EDGE_TARGET, PANEL_TARGET, PanelPart};
+use super::sidebar::LEFT_EDGE_TARGET;
 use super::{Drag, Workspace};
 use crate::keymap::WORKSPACE_CONTEXT;
 use crate::ui::Selectable;
@@ -125,6 +126,7 @@ impl Workspace {
     fn render_left_panel(&self, window: &Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let view = self.left_panel.view()?.clone();
         if !self.left_panel.is_visible() {
+            self.left_panel.area().set(None);
             return None;
         }
         let theme = &self.theme.workspace;
@@ -139,9 +141,7 @@ impl Workspace {
             .h_full()
             .w(self.left_panel.width)
             .bg(ui.app_background)
-            .on_hover(cx.listener(|workspace, hovered: &bool, window, cx| {
-                workspace.hover_left_panel(PanelPart::Body, *hovered, window, cx);
-            }))
+            .child(self.render_panel_area_probe())
             .child(self.render_sidebar_header(super::window::window_buttons_inset(window, cx), cx))
             .child(
                 div()
@@ -172,25 +172,61 @@ impl Workspace {
         Some(panel.into_any_element())
     }
 
-    /// The pointer entered or left part of the panel.
-    fn hover_left_panel(
-        &mut self,
-        part: PanelPart,
-        hovered: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let resizing = self.drag == Some(Drag::Sidebar);
-        let Some(kind) = self.left_panel.hover_part(part, hovered, resizing) else {
-            return;
-        };
-        // A note dragged out to a pane keeps the panel it came from
-        // until it's dropped.
-        self.left_panel.left_while_dragging =
-            kind == EventKind::PointerLeave && cx.has_active_drag();
-        if !self.left_panel.left_while_dragging {
-            self.pointer_event(kind, PANEL_TARGET, window, cx);
-        }
+    /// Records where the panel is drawn, with the outer half of its edge,
+    /// for hover reveal to tell whether the pointer is in it.
+    fn render_panel_area_probe(&self) -> impl IntoElement {
+        let overhang = self.theme.workspace.divider_grab_width / 2.;
+        self.left_panel
+            .area()
+            .probe()
+            .top_0()
+            .bottom_0()
+            .left_0()
+            .right(-overhang)
+    }
+
+    /// Follows the pointer anywhere in the window, and out of it, for the
+    /// panel and bars shown on hover. It listens before anything under
+    /// the pointer can stop the event, so a menu, popover or drag over
+    /// them can't hide where the pointer is.
+    fn render_pointer_watch(&self, cx: &mut Context<Self>) -> AnyElement {
+        let workspace = cx.entity().downgrade();
+        let watch = canvas(
+            |_, _, _| {},
+            move |_, _, window, _| {
+                let follow = move |workspace: &gpui::WeakEntity<Workspace>,
+                                   position,
+                                   window: &mut Window,
+                                   cx: &mut gpui::App| {
+                    workspace
+                        .update(cx, |workspace, cx| {
+                            workspace.follow_pointer(position, window, cx)
+                        })
+                        .ok();
+                };
+                let moves = workspace.clone();
+                window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
+                    if phase == DispatchPhase::Capture {
+                        follow(&moves, event.position, window, cx);
+                    }
+                });
+                let ups = workspace.clone();
+                window.on_mouse_event(move |event: &MouseUpEvent, phase, window, cx| {
+                    if phase == DispatchPhase::Capture {
+                        follow(&ups, event.position, window, cx);
+                    }
+                });
+                let exits = workspace.clone();
+                window.on_mouse_event(move |event: &MouseExitEvent, phase, window, cx| {
+                    if phase == DispatchPhase::Capture {
+                        follow(&exits, event.position, window, cx);
+                    }
+                });
+            },
+        )
+        .absolute()
+        .size_0();
+        watch.into_any_element()
     }
 
     /// The panel's right edge, which resizes it. The half hanging over
@@ -199,9 +235,6 @@ impl Workspace {
         let theme = &self.theme.workspace;
         div()
             .id("left-panel-edge")
-            .on_hover(cx.listener(|workspace, hovered: &bool, window, cx| {
-                workspace.hover_left_panel(PanelPart::Edge, *hovered, window, cx);
-            }))
             .absolute()
             .top_0()
             .bottom_0()
@@ -243,13 +276,6 @@ impl Workspace {
         if title != self.window_title {
             window.set_window_title(&title);
             self.window_title = title;
-        }
-    }
-
-    fn on_mouse_move(&mut self, _: &MouseMoveEvent, window: &mut Window, cx: &mut Context<Self>) {
-        if self.left_panel.left_while_dragging && !cx.has_active_drag() {
-            self.left_panel.left_while_dragging = false;
-            self.pointer_event(EventKind::PointerLeave, PANEL_TARGET, window, cx);
         }
     }
 
@@ -396,7 +422,6 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::on_press_toolbar_item))
             .on_action(cx.listener(Self::on_add_to_toolbar))
             .on_key_down(cx.listener(Self::on_toolbar_key))
-            .on_mouse_move(cx.listener(Self::on_mouse_move))
             .on_modifiers_changed(cx.listener(Self::on_modifiers_changed))
             .capture_any_mouse_down(cx.listener(|workspace, event: &MouseDownEvent, _, cx| {
                 workspace.spend_shortcut_sheet(event.modifiers.modified(), cx)
@@ -437,6 +462,7 @@ impl Render for Workspace {
             )
             .child(crate::ui::focus_visible::pointer_watch())
             .children(self.render_drag_tracker(cx))
+            .child(self.render_pointer_watch(cx))
             .children(status.strip)
             .children(status.edge)
             .children(status.overlay)

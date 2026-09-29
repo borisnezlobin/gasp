@@ -18,7 +18,7 @@ use gasp_desktop::vault_search::VaultSearch;
 use gasp_desktop::workspace::help::ShortcutsHelp;
 use gasp_desktop::workspace::{OpenIn, Workspace};
 use gpui::{
-    Entity, Focusable, Modifiers, MouseButton, MouseDownEvent, Pixels, ScrollDelta,
+    Entity, Focusable, Modifiers, MouseButton, MouseDownEvent, MouseExitEvent, Pixels, ScrollDelta,
     ScrollWheelEvent, TestAppContext, VisualTestContext, point, px,
 };
 use tempfile::TempDir;
@@ -648,4 +648,169 @@ fn the_tab_bar_moves_the_window_from_its_empty_space_only(cx: &mut TestAppContex
     let empty = gpui::point(plus.left() - gpui::px(20.), bar.center().y);
     cx.simulate_click(empty, Modifiers::none());
     assert_eq!(moves_started(), before + 1, "empty space moves it");
+}
+
+// ---- The file sidebar shown on hover ----
+
+/// The owner's window: wide, and flush with the screen's left edge, so the
+/// hover strip is where the pointer stops.
+const OWNER_WINDOW: (f32, f32) = (1512., 949.);
+
+/// Opens a vault whose file sidebar shows on hover in `mode`, in a
+/// window the owner's size with a note open, and reveals the sidebar from
+/// the window's left edge.
+fn reveal_from_the_edge<'a>(
+    cx: &'a mut TestAppContext,
+    mode: &str,
+) -> (TempDir, Entity<Workspace>, &'a mut VisualTestContext) {
+    let vault = vault_with(&[("a.md", "A note to write in.\n")]);
+    std::fs::write(
+        vault.path().join(CONFIG_DIR).join("settings.toml"),
+        format!("[sidebar.files]\nreveal = \"hover\"\nmode = \"{mode}\"\n"),
+    )
+    .unwrap();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    cx.simulate_resize(gpui::size(px(OWNER_WINDOW.0), px(OWNER_WINDOW.1)));
+    open(&workspace, cx, "a.md", OpenIn::ActiveTab);
+    rest(cx, point(px(700.), px(300.)));
+    rest(cx, point(px(0.), px(300.)));
+    assert!(panel_visible(&workspace, cx), "the left edge shows it");
+    (vault, workspace, cx)
+}
+
+/// Moves the pointer to `at` and leaves it there.
+fn rest(cx: &mut VisualTestContext, at: gpui::Point<Pixels>) {
+    cx.simulate_mouse_move(at, None, Modifiers::none());
+    cx.run_until_parked();
+}
+
+fn exit_window(cx: &mut VisualTestContext, at: gpui::Point<Pixels>) {
+    cx.simulate_event(MouseExitEvent {
+        position: at,
+        pressed_button: None,
+        modifiers: Modifiers::none(),
+    });
+    cx.run_until_parked();
+}
+
+fn new_note_button(cx: &mut VisualTestContext) -> gpui::Point<Pixels> {
+    cx.run_until_parked();
+    cx.debug_bounds("sidebar-new-note")
+        .expect("New note is drawn")
+        .center()
+}
+
+/// The owner's report: in push mode, with the window at the screen's
+/// left edge, the sidebar went away under "New note".
+#[gpui::test]
+fn new_note_can_be_pressed_in_a_pushing_hover_sidebar(cx: &mut TestAppContext) {
+    let (_vault, workspace, cx) = reveal_from_the_edge(cx, "push");
+    // Up the edge, onto the button, and past its tooltip's delay.
+    rest(cx, point(px(0.), px(54.)));
+    let button = new_note_button(cx);
+    rest(cx, button);
+    wait_out_the_hide_delay(cx);
+    wait_out_the_hide_delay(cx);
+    assert!(panel_visible(&workspace, cx), "while New note is hovered");
+    let button = new_note_button(cx);
+    cx.simulate_click(button, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(active_title(&workspace, cx), "Untitled");
+}
+
+#[gpui::test]
+fn new_note_can_be_pressed_in_a_hover_sidebar_over_the_note(cx: &mut TestAppContext) {
+    let (_vault, workspace, cx) = reveal_from_the_edge(cx, "overlay");
+    let button = new_note_button(cx);
+    rest(cx, button);
+    wait_out_the_hide_delay(cx);
+    assert!(panel_visible(&workspace, cx));
+    cx.simulate_click(button, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(active_title(&workspace, cx), "Untitled");
+}
+
+/// A menu's backdrop covers the whole window, sidebar included, so the
+/// sidebar's own hover ended the moment its menu opened.
+#[gpui::test]
+fn a_menu_from_the_hover_sidebar_keeps_it_until_the_pointer_leaves(cx: &mut TestAppContext) {
+    let (_vault, workspace, cx) = reveal_from_the_edge(cx, "push");
+    click(cx, "sidebar-sort");
+    assert!(
+        menu_labels(&workspace, cx).is_some(),
+        "the sort menu is open"
+    );
+    rest(cx, point(px(40.), px(200.)));
+    wait_out_the_hide_delay(cx);
+    assert!(panel_visible(&workspace, cx), "under its own menu");
+    rest(cx, point(px(900.), px(400.)));
+    wait_out_the_hide_delay(cx);
+    assert!(panel_visible(&workspace, cx), "while its menu is open");
+    cx.simulate_keystrokes("escape");
+    assert!(menu_labels(&workspace, cx).is_none());
+    rest(cx, point(px(910.), px(400.)));
+    assert!(panel_visible(&workspace, cx), "the hide waits its delay");
+    wait_out_the_hide_delay(cx);
+    assert!(!panel_visible(&workspace, cx), "once the pointer is out");
+}
+
+/// The window's own mouse-exit (to the title bar, the screen's edge or
+/// another window) is judged by where the pointer is.
+#[gpui::test]
+fn leaving_the_window_hides_the_hover_sidebar_only_from_outside_it(cx: &mut TestAppContext) {
+    let (_vault, workspace, cx) = reveal_from_the_edge(cx, "push");
+    let button = new_note_button(cx);
+    rest(cx, button);
+    exit_window(cx, point(button.x, px(0.)));
+    wait_out_the_hide_delay(cx);
+    assert!(
+        panel_visible(&workspace, cx),
+        "left through the sidebar's top"
+    );
+    rest(cx, button);
+    exit_window(cx, point(px(900.), px(-2.)));
+    assert!(panel_visible(&workspace, cx), "not at once");
+    wait_out_the_hide_delay(cx);
+    assert!(!panel_visible(&workspace, cx), "after the delay");
+}
+
+#[gpui::test]
+fn coming_back_before_the_hide_delay_keeps_the_hover_sidebar(cx: &mut TestAppContext) {
+    let (_vault, workspace, cx) = reveal_from_the_edge(cx, "push");
+    rest(cx, point(px(60.), px(300.)));
+    rest(cx, point(px(900.), px(300.)));
+    cx.executor().advance_clock(Duration::from_millis(200));
+    rest(cx, point(px(60.), px(300.)));
+    wait_out_the_hide_delay(cx);
+    assert!(panel_visible(&workspace, cx));
+}
+
+#[gpui::test]
+fn the_hover_sidebar_stays_while_it_has_the_keyboard(cx: &mut TestAppContext) {
+    let (_vault, workspace, cx) = reveal_from_the_edge(cx, "overlay");
+    cx.simulate_keystrokes("secondary-shift-e");
+    rest(cx, point(px(900.), px(400.)));
+    wait_out_the_hide_delay(cx);
+    assert!(panel_visible(&workspace, cx), "the tree has the keyboard");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(
+        !panel_visible(&workspace, cx),
+        "Escape goes back to the note"
+    );
+}
+
+/// The top row, where the window's buttons sit, is the sidebar's too.
+#[gpui::test]
+fn the_title_bar_row_counts_as_the_hover_sidebar(cx: &mut TestAppContext) {
+    let (_vault, workspace, cx) = reveal_from_the_edge(cx, "push");
+    for x in [0., 20., 50., 80., 120., 180.] {
+        rest(cx, point(px(x), px(6.)));
+    }
+    wait_out_the_hide_delay(cx);
+    assert!(panel_visible(&workspace, cx));
+    let button = new_note_button(cx);
+    rest(cx, button);
+    wait_out_the_hide_delay(cx);
+    assert!(panel_visible(&workspace, cx));
 }

@@ -8,6 +8,7 @@
 
 pub mod breadcrumbs;
 pub mod button;
+pub mod drawn_area;
 pub mod focus_visible;
 pub mod hints;
 pub mod icon_button;
@@ -27,6 +28,7 @@ use gpui::{App, Global, WindowAppearance};
 
 pub use breadcrumbs::{Breadcrumbs, Crumb};
 pub use button::{Button, ButtonKind};
+pub use drawn_area::DrawnArea;
 pub use icon_button::IconButton;
 pub use keycap::keycap;
 pub use menu::{DropdownMenu, HasMenuSlot, MenuAnchor, MenuEntry, MenuHandler, MenuItem, MenuSlot};
