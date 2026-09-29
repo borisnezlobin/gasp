@@ -126,7 +126,8 @@ fn exit_status(mode: &str, outcome: Result<(), String>) -> ExitCode {
 fn open(path: Option<&std::path::Path>) -> ExitCode {
     let resolved = {
         let _span = trace::span("resolve-target");
-        LaunchTarget::resolve(path, AppState::last_vault())
+        let last_vault = path.is_none().then(AppState::last_vault).flatten();
+        LaunchTarget::resolve(path, last_vault)
     };
     let target = match resolved {
         Ok(target) => target,
