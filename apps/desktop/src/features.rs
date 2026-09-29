@@ -34,7 +34,7 @@ use crate::workspace::{OpenIn, Workspace};
 const RECENT_COMMANDS: usize = 8;
 
 /// Commands this module gives a handler, for the menus.
-pub const WIRED_COMMANDS: [&str; 26] = [
+pub const WIRED_COMMANDS: [&str; 28] = [
     "palette.open",
     "switcher.open",
     "outline.jump-to-heading",
@@ -61,6 +61,8 @@ pub const WIRED_COMMANDS: [&str; 26] = [
     "sidebar.tags",
     "daily.open",
     "template.insert",
+    "vault.import-obsidian",
+    "edit.copy-rich-text",
 ];
 
 /// Binds the keys the standalone views use inside themselves. Their text
@@ -121,6 +123,8 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     crate::prose::commands::install(workspace, cx);
     crate::recovery::install(workspace, cx);
     crate::obsidian_import::install(workspace, window, cx);
+    #[cfg(target_os = "macos")]
+    crate::rich_copy::install(workspace);
     workspace.on_command("palette.open", open_palette);
     workspace.on_command("switcher.open", open_switcher);
     workspace.on_command("outline.jump-to-heading", open_outline);

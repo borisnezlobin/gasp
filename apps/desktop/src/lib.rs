@@ -45,6 +45,8 @@ pub mod preview;
 pub mod print;
 pub mod prose;
 pub mod recovery;
+#[cfg(target_os = "macos")]
+pub mod rich_copy;
 pub mod sandbox;
 pub mod settings_view;
 pub mod snapshot;
