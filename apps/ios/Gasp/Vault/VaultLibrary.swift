@@ -3,7 +3,7 @@ import Observation
 
 extension Notification.Name {
     /// This phone changed a note or the vault's config, which sync sends on.
-    static let vaultEdited = Notification.Name("com.borisnezlobin.editor.vault-edited")
+    static let vaultEdited = Notification.Name("com.borisnezlobin.gasp.vault-edited")
 }
 
 /// Where the open vault comes from.
@@ -61,13 +61,13 @@ final class VaultLibrary {
         commands.first { $0.id == id }
     }
 
-    /// Reads `.editor/` again after a setting changed on this phone.
+    /// Reads `.gasp/` again after a setting changed on this phone.
     func reloadConfig() {
         readConfigFromDisk()
         NotificationCenter.default.post(name: .vaultEdited, object: nil)
     }
 
-    /// Reads `.editor/` again after sync brought in another device's change.
+    /// Reads `.gasp/` again after sync brought in another device's change.
     func readConfigFromDisk() {
         vault?.reloadConfig()
         readConfig()

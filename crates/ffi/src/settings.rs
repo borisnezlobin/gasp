@@ -1,6 +1,6 @@
 //! The vault's settings for the phone's settings screen: every setting the
 //! schema describes, its value, and writing one back to
-//! `.editor/settings.toml` the way the desktop's settings screen does.
+//! `.gasp/settings.toml` the way the desktop's settings screen does.
 
 use editor_config::schema::{SettingKind, setting_descriptors};
 use editor_config::settings::SettingsIndex;

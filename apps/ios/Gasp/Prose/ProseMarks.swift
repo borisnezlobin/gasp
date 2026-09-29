@@ -53,7 +53,7 @@ extension UIColor {
 /// vault's words in the background once, and checks on its own queue.
 enum GrammarService {
     private static var checkers: [ObjectIdentifier: GrammarChecker] = [:]
-    static let queue = DispatchQueue(label: "com.borisnezlobin.editor.grammar", qos: .utility)
+    static let queue = DispatchQueue(label: "com.borisnezlobin.gasp.grammar", qos: .utility)
 
     /// The vault's checker, made on first use. Called on the main thread.
     static func checker(for vault: VaultFolder) -> GrammarChecker {

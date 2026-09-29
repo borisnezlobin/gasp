@@ -50,7 +50,7 @@ struct BrowserView: View {
     }
 
     private func open(_ url: URL) {
-        guard url.scheme == "editor" else { return }
+        guard url.scheme == "gasp" else { return }
         let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         switch url.host() {
         case "open": openNote(query)
@@ -59,7 +59,7 @@ struct BrowserView: View {
         }
     }
 
-    /// `editor://sync/setup?repository=you/notes&branch=master` opens the
+    /// `gasp://sync/setup?repository=you/notes&branch=master` opens the
     /// sync setup with those filled in. It never starts a clone itself.
     private func openSyncSetup(_ query: [URLQueryItem]) {
         var draft = SyncSetupDraft()
@@ -68,7 +68,7 @@ struct BrowserView: View {
         workspace.sheet = .syncSetup(draft)
     }
 
-    /// `editor://open?path=Folder/Note.md&line=12` opens a note, with the
+    /// `gasp://open?path=Folder/Note.md&line=12` opens a note, with the
     /// cursor on a line counted from 1.
     private func openNote(_ query: [URLQueryItem]) {
         guard let path = query.first(where: { $0.name == "path" })?.value,
@@ -80,7 +80,7 @@ struct BrowserView: View {
         }
     }
 
-    /// `-open editor://open?path=…` on the command line opens a note at
+    /// `-open gasp://open?path=…` on the command line opens a note at
     /// launch, and `-run <command>` runs a command (or `overview` shows
     /// the tabs, `sync-details` the sync sheet), as `xcrun simctl launch`
     /// passes them. `-syncRepository`, `-syncBranch` and `-syncToken` fill

@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 @main
-struct EditorApp: App {
+struct GaspApp: App {
     @State private var model = AppModel()
     @Environment(\.scenePhase) private var scenePhase
 

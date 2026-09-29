@@ -1,4 +1,4 @@
-name: Editor
+name: Gasp
 options:
   bundleIdPrefix: com.borisnezlobin
   deploymentTarget:
@@ -12,27 +12,27 @@ settings:
     # The sample vault phase reads the corpus outside the project folder.
     ENABLE_USER_SCRIPT_SANDBOXING: NO
 targets:
-  Editor:
+  Gasp:
     type: application
     platform: iOS
     sources:
-      - path: Editor
+      - path: Gasp
       - path: Core/Generated
     dependencies:
-      - framework: Core/EditorCore.xcframework
+      - framework: Core/GaspCore.xcframework
         embed: false
       # libgit2 in the core talks TLS through Security and needs zlib and iconv.
       - sdk: Security.framework
       - sdk: libz.tbd
       - sdk: libiconv.tbd
     info:
-      path: Editor/Info.plist
+      path: Gasp/Info.plist
       properties:
-        CFBundleDisplayName: Editor
-        # editor://open?path=Folder/Note.md&line=12 opens a note at a line.
+        CFBundleDisplayName: Gasp
+        # gasp://open?path=Folder/Note.md&line=12 opens a note at a line.
         CFBundleURLTypes:
-          - CFBundleURLName: com.borisnezlobin.editor
-            CFBundleURLSchemes: [editor]
+          - CFBundleURLName: com.borisnezlobin.gasp
+            CFBundleURLSchemes: [gasp]
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
@@ -45,11 +45,11 @@ targets:
         LSSupportsOpeningDocumentsInPlace: true
         # Sync now and then while the app is in the background.
         UIBackgroundModes: [fetch]
-        BGTaskSchedulerPermittedIdentifiers: [com.borisnezlobin.editor.sync]
+        BGTaskSchedulerPermittedIdentifiers: [com.borisnezlobin.gasp.sync]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.borisnezlobin.editor
-        PRODUCT_NAME: Editor
+        PRODUCT_BUNDLE_IDENTIFIER: com.borisnezlobin.gasp
+        PRODUCT_NAME: Gasp
         TARGETED_DEVICE_FAMILY: "1"
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"

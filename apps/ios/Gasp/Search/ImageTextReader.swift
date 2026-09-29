@@ -11,7 +11,7 @@ import Vision
 /// when it changes.
 final class ImageTextReader {
     let texts: ImageTexts
-    private let queue = DispatchQueue(label: "com.borisnezlobin.editor.ocr", qos: .utility)
+    private let queue = DispatchQueue(label: "com.borisnezlobin.gasp.ocr", qos: .utility)
     /// Files read between saves of the cache.
     private static let saveEvery = 10
     /// PDF pages without a text layer that are read as pictures, at most.

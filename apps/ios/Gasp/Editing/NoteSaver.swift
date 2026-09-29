@@ -6,7 +6,7 @@ import Foundation
 final class NoteSaver {
     private let vault: VaultFolder
     var path: String
-    private static let disk = DispatchQueue(label: "com.borisnezlobin.editor.save")
+    private static let disk = DispatchQueue(label: "com.borisnezlobin.gasp.save")
     private var unsavedText: String?
     private var afterSave: (() -> Void)?
     private var timer: DispatchWorkItem?
@@ -31,7 +31,7 @@ final class NoteSaver {
     /// Waits until every save handed to the disk so far is written, so a
     /// sync commits it. Never call it on the main thread.
     static func waitForWrites() {
-        disk.sync {}
+        Self.disk.sync {}
     }
 
     /// Forgets text waiting to be saved, for a note sync is replacing.
