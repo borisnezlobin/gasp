@@ -61,17 +61,17 @@ struct Budgets {
 
 impl Budgets {
     const TYPICAL: Budgets = Budgets {
-        keystroke: Duration::from_micros(300),
+        keystroke: Duration::from_micros(150),
         cursor_move: Duration::from_micros(100),
         open: Duration::from_micros(300),
     };
     const LONGEST_IN_CORPUS: Budgets = Budgets {
-        keystroke: Duration::from_micros(1200),
+        keystroke: Duration::from_micros(500),
         cursor_move: Duration::from_micros(400),
         open: Duration::from_micros(1200),
     };
     const LONG: Budgets = Budgets {
-        keystroke: Duration::from_millis(15),
+        keystroke: Duration::from_millis(5),
         cursor_move: Duration::from_millis(4),
         open: Duration::from_millis(15),
     };

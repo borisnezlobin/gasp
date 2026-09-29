@@ -11,7 +11,7 @@ use gasp_core::render::{KeptPlan, RenderInput, reveal_settings};
 use gasp_core::syntax::{self, Edit, NodeKind, SyntaxTree, WikiInfo};
 use gasp_core::table::Table;
 use gasp_prose::segment::Thresholds;
-use gasp_prose::{Length, Purpose, sentence_lengths, units};
+use gasp_prose::{Length, SentenceLengthCache};
 
 use crate::display::{DisplayState, SharedDisplay};
 use crate::edits::{self, CommandInput, CommandOutcome, TextReplacement};
@@ -35,6 +35,9 @@ pub(crate) struct ParsedText {
     /// The sentence tints of this text, kept for cursor moves, with the
     /// thresholds they were measured against.
     tints: Option<(Thresholds, Vec<SentenceTint>)>,
+    /// Each paragraph's sentence lengths by its text, so an edit measures
+    /// only the paragraphs it changed.
+    sentence_lengths: SentenceLengthCache,
     /// The last whole-note plan, so a cursor move plans only the blocks
     /// it leaves and enters.
     kept_plan: KeptPlan,
@@ -49,6 +52,7 @@ impl ParsedText {
             source_table: None,
             folds: Folds::default(),
             tints: None,
+            sentence_lengths: SentenceLengthCache::new(),
             kept_plan: KeptPlan::default(),
         }
     }
@@ -72,9 +76,14 @@ impl ParsedText {
         {
             return tints.clone();
         }
-        let tints: Vec<SentenceTint> = units(&self.tree, 0..self.text.len(), Purpose::Rhythm)
-            .iter()
-            .flat_map(|unit| sentence_lengths(&self.text, unit, thresholds))
+        let lengths = self.sentence_lengths.sentence_lengths(
+            &self.text,
+            &self.tree,
+            0..self.text.len(),
+            thresholds,
+        );
+        let tints: Vec<SentenceTint> = lengths
+            .into_iter()
             .map(|(range, length)| SentenceTint {
                 range: self.offsets.range(&range),
                 length: sentence_length(length),
