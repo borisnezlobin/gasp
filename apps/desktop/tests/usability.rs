@@ -181,3 +181,42 @@ fn a_deleted_note_comes_back_with_its_unsaved_edits(cx: &mut TestAppContext) {
         Some("first draft, and more")
     );
 }
+
+#[gpui::test]
+fn obsidian_settings_are_offered_once_then_imported(cx: &mut TestAppContext) {
+    let vault = vault_with(&[
+        ("Note.md", "text"),
+        (
+            ".obsidian/app.json",
+            r#"{"attachmentFolderPath": "attachments"}"#,
+        ),
+    ]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    let offers: Vec<_> = shown_notices(cx)
+        .into_iter()
+        .filter(|(kind, _)| *kind == NoticeKind::Offer)
+        .collect();
+    assert_eq!(offers.len(), 1, "the vault's Obsidian settings are offered");
+    let offered = cx.read(|cx| workspace.read(cx).config().device.obsidian_import_offered);
+    assert!(offered, "and the offer is remembered for next time");
+    run(&workspace, cx, "vault.import-obsidian");
+    let settings = vault
+        .path()
+        .join(gasp_config::CONFIG_DIR)
+        .join("settings.toml");
+    assert!(settings.exists());
+    let folder = cx.read(|cx| {
+        workspace
+            .read(cx)
+            .config()
+            .settings
+            .files
+            .attachments_folder
+            .clone()
+    });
+    assert_eq!(folder, "attachments", "the config reloads with the import");
+    let done = shown_notices(cx)
+        .into_iter()
+        .any(|(kind, message)| kind == NoticeKind::Done && message.contains("settings"));
+    assert!(done);
+}

@@ -286,6 +286,15 @@ impl Workspace {
     }
 
     /// The window and open tabs as they are now.
+    /// Notes that this device has offered the vault its Obsidian
+    /// settings, so it doesn't again, and saves that now.
+    pub fn mark_obsidian_import_offered(&mut self, cx: &App) {
+        self.config.device.obsidian_import_offered = true;
+        if let Err(error) = save_device(&self.vault, &self.device_state(cx)) {
+            eprintln!("could not save the window state: {error}");
+        }
+    }
+
     pub fn device_state(&self, cx: &App) -> DeviceSettings {
         let mut device = self.config.device.clone();
         device.device_id = self.edit_time_device_id();

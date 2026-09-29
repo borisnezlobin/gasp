@@ -3,8 +3,8 @@
 //! the window's bottom right over the notes.
 //!
 //! A notice that reports something done leaves after
-//! `UiTheme::notice_duration`; one about a problem stays until it's
-//! dismissed, so a failed save can't slip by. A notice can carry one
+//! `UiTheme::notice_duration`; one about a problem, or one offering
+//! something, stays until it's dismissed, so a failed save can't slip by. A notice can carry one
 //! follow-up, which is a command, so the keyboard reaches it through the
 //! palette too. Anything with an `App` can post one.
 
@@ -24,6 +24,8 @@ pub enum NoticeKind {
     Done,
     /// Something failed and the person should know.
     Problem,
+    /// Something the person may want to do, such as importing settings.
+    Offer,
 }
 
 /// A command a notice offers, with its button's label.
@@ -52,6 +54,14 @@ impl Notice {
     pub fn problem(message: impl Into<SharedString>) -> Notice {
         Notice {
             kind: NoticeKind::Problem,
+            message: message.into(),
+            action: None,
+        }
+    }
+
+    pub fn offer(message: impl Into<SharedString>) -> Notice {
+        Notice {
+            kind: NoticeKind::Offer,
             message: message.into(),
             action: None,
         }
@@ -198,10 +208,12 @@ fn render_card(id: u64, notice: Notice, ui: &UiTheme) -> AnyElement {
     let (glyph, tint) = match notice.kind {
         NoticeKind::Done => (IconName::CheckCircle, ui.icon),
         NoticeKind::Problem => (IconName::WarningCircle, ui.error),
+        NoticeKind::Offer => (IconName::Info, ui.icon),
     };
     let kind = match notice.kind {
         NoticeKind::Done => "done",
         NoticeKind::Problem => "problem",
+        NoticeKind::Offer => "offer",
     };
     let action = notice.action.map(|action| {
         let command = action.command.clone();
