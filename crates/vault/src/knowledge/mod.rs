@@ -4,6 +4,7 @@
 
 pub mod daily;
 pub mod dates;
+pub mod links;
 pub mod templates;
 
 use std::io;
