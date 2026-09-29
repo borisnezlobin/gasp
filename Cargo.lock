@@ -3232,6 +3232,7 @@ dependencies = [
 name = "editor-search"
 version = "0.1.0"
 dependencies = [
+ "editor-config",
  "tempfile",
  "unicode-normalization",
 ]
@@ -3249,6 +3250,7 @@ dependencies = [
 name = "editor-sync"
 version = "0.1.0"
 dependencies = [
+ "editor-config",
  "git2",
  "globset",
  "keyring",

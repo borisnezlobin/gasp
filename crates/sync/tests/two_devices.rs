@@ -3,10 +3,13 @@ mod common;
 use std::path::{Path, PathBuf};
 
 use common::{World, author, numbered_note, read, read_bytes, replace_line, sync, write};
+use editor_config::CONFIG_DIR;
+use editor_config::migration::{FolderMigration, migrate_config_dir};
+use editor_config::names::LEGACY_CONFIG_DIR;
 use editor_sync::{
     ConflictedFile, DeviceOnlyFiles, MergeOutcome, Resolution, SyncError, Vault, VaultConfig,
 };
-use git2::Repository;
+use git2::{Delta, Repository};
 
 const NOTE: &str = "notes/plan.md";
 
@@ -319,24 +322,27 @@ fn device_only_files_never_get_committed() {
     let laptop = world.device("laptop");
     let phone = world.device("phone");
     let device_only = [
-        ".editor/device.toml",
-        ".obsidian/workspace.json",
-        ".obsidian/workspace-mobile.json",
-        ".DS_Store",
-        "notes/.DS_Store",
-        ".trash/deleted.md",
+        format!("{CONFIG_DIR}/device.toml"),
+        format!("{LEGACY_CONFIG_DIR}/device.toml"),
+        ".obsidian/workspace.json".into(),
+        ".obsidian/workspace-mobile.json".into(),
+        ".DS_Store".into(),
+        "notes/.DS_Store".into(),
+        ".trash/deleted.md".into(),
     ];
-    for path in device_only {
+    for path in &device_only {
         write(&laptop, path, b"only on the laptop\n");
     }
-    write(&laptop, ".editor/stats/laptop.json", b"{\"seconds\": 10}\n");
-    write(&phone, ".editor/stats/phone.json", b"{\"seconds\": 20}\n");
+    let laptop_stats = format!("{CONFIG_DIR}/stats/laptop.json");
+    let phone_stats = format!("{CONFIG_DIR}/stats/phone.json");
+    write(&laptop, &laptop_stats, b"{\"seconds\": 10}\n");
+    write(&phone, &phone_stats, b"{\"seconds\": 20}\n");
     write(&laptop, ".obsidian/app.json", b"{}\n");
     sync(&laptop, "laptop");
     sync(&phone, "phone");
     sync(&laptop, "laptop");
 
-    for path in device_only {
+    for path in &device_only {
         assert_eq!(
             world.remote_file("master", path),
             None,
@@ -347,11 +353,7 @@ fn device_only_files_never_get_committed() {
             "{path} reached the phone"
         );
     }
-    for path in [
-        ".editor/stats/laptop.json",
-        ".editor/stats/phone.json",
-        ".obsidian/app.json",
-    ] {
+    for path in [laptop_stats.as_str(), &phone_stats, ".obsidian/app.json"] {
         assert!(
             world.remote_file("master", path).is_some(),
             "{path} did not sync"
@@ -361,13 +363,59 @@ fn device_only_files_never_get_committed() {
     }
     let exclude = std::fs::read_to_string(laptop.root().join(".git/info/exclude")).unwrap();
     for line in [
-        "/.editor/device.toml",
-        "/.obsidian/workspace*.json",
-        "\n.DS_Store\n",
-        "/.trash/**",
+        format!("/{CONFIG_DIR}/device.toml"),
+        "/.obsidian/workspace*.json".into(),
+        "\n.DS_Store\n".into(),
+        "/.trash/**".into(),
     ] {
-        assert!(exclude.contains(line), "exclude lacks {line}");
+        assert!(exclude.contains(&line), "exclude lacks {line}");
     }
+}
+
+#[test]
+fn a_migrated_config_folder_syncs_as_a_rename() {
+    let settings = "[files]\ntrash = \"vault\"\n";
+    let legacy_settings = format!("{LEGACY_CONFIG_DIR}/settings.toml");
+    let world = World::seeded(&[
+        ("note.md", b"hello\n"),
+        (&legacy_settings, settings.as_bytes()),
+    ]);
+    let laptop = world.device("laptop");
+    let phone = world.device("phone");
+    let legacy_device = format!("{LEGACY_CONFIG_DIR}/device.toml");
+    write(&laptop, &legacy_device, b"open-tabs = [\"note.md\"]\n");
+
+    assert_eq!(
+        migrate_config_dir(laptop.root()).unwrap(),
+        FolderMigration::Moved
+    );
+    sync(&laptop, "laptop");
+
+    let current_settings = format!("{CONFIG_DIR}/settings.toml");
+    let current_device = format!("{CONFIG_DIR}/device.toml");
+    assert_eq!(world.remote_file("master", &legacy_settings), None);
+    assert_eq!(
+        world.remote_file("master", &current_settings),
+        Some(settings.as_bytes().to_vec())
+    );
+    assert_eq!(world.remote_file("master", &current_device), None);
+    assert_eq!(head_changes(&laptop), [Delta::Renamed]);
+
+    sync(&phone, "phone");
+    assert_eq!(read(&phone, &current_settings), settings);
+    assert!(!phone.root().join(&legacy_settings).exists());
+}
+
+/// How each file changed in the newest commit, with renames detected.
+fn head_changes(vault: &Vault) -> Vec<Delta> {
+    let repo = Repository::open(vault.root()).unwrap();
+    let commit = repo.head().unwrap().peel_to_commit().unwrap();
+    let parent_tree = commit.parent(0).unwrap().tree().unwrap();
+    let mut diff = repo
+        .diff_tree_to_tree(Some(&parent_tree), Some(&commit.tree().unwrap()), None)
+        .unwrap();
+    diff.find_similar(None).unwrap();
+    diff.deltas().map(|delta| delta.status()).collect()
 }
 
 #[test]
