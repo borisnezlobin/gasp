@@ -179,7 +179,21 @@ pub fn item_description(item: &ToolbarItem) -> Option<&'static str> {
         ToolbarItem::Widget(Widget::Sync) => {
             Some("Shows how syncing is going; click it for details.")
         }
-        ToolbarItem::Widget(_) => Some("Text about the note you’re in."),
+        ToolbarItem::Widget(Widget::WordCount) => {
+            Some("Words in the note, or in the selection while there is one.")
+        }
+        ToolbarItem::Widget(Widget::CharacterCount) => {
+            Some("Characters in the note, not counting line breaks.")
+        }
+        ToolbarItem::Widget(Widget::ReadingTime) => {
+            Some("Minutes the note takes to read, such as “2 min read”.")
+        }
+        ToolbarItem::Widget(Widget::EditTime) => {
+            Some("How long you’ve spent editing the note, such as “12 min editing”.")
+        }
+        ToolbarItem::Widget(Widget::CursorPosition) => {
+            Some("The cursor’s line and column, such as 3:7.")
+        }
         _ => None,
     }
 }
