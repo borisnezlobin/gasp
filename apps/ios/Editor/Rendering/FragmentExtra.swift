@@ -8,11 +8,15 @@ final class FragmentExtra: NSObject {
     enum Place {
         case above
         case below
+        /// At the column's right edge, level with the line's top, in room
+        /// the line's text already leaves.
+        case trailing
     }
 
     enum Content {
         case math(RenderedMath, color: UIColor)
         case image(ImageAttachment)
+        case picture(UIImage)
     }
 
     let place: Place
@@ -32,6 +36,7 @@ final class FragmentExtra: NSObject {
         switch content {
         case .math(let math, _): math.size
         case .image(let attachment): attachment.bounds.size
+        case .picture(let picture): picture.size
         }
     }
 
@@ -51,6 +56,8 @@ final class FragmentExtra: NSObject {
                 for: rect, attributes: [:], location: PlainLocation(), textContainer: nil
             )
             image?.draw(in: rect)
+        case .picture(let picture):
+            picture.draw(in: rect)
         }
     }
 }

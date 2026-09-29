@@ -26,6 +26,8 @@ struct LineStyler {
     var media: NoteMedia?
     /// Whether the line is a heading that folds, and is folded.
     var fold: Bool?
+    /// The preview image of the link card this line is part of.
+    var cardImage: CardImage?
 
     /// Hidden text is drawn this small and clear, so it takes no room while
     /// staying in the storage as the source.
@@ -197,9 +199,31 @@ struct LineStyler {
         let inset = paragraph.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
         inset.firstLineHeadIndent = CGFloat(tokens.spacing.lg)
         inset.headIndent = CGFloat(tokens.spacing.lg)
-        inset.tailIndent = -CGFloat(tokens.spacing.lg)
+        inset.tailIndent = -CGFloat(tokens.spacing.lg) - (cardImage == nil ? 0 : cardThumbnailRoom)
         storage.addAttribute(.paragraphStyle, value: inset, range: range)
         set(attributes(cardLook(field), inset), on: found)
+        drawCardImage(range)
+    }
+
+    /// The side of a card's square preview image.
+    private var cardThumbnailSide: CGFloat { CGFloat(tokens.spacing.xxl) * 3 }
+
+    private var cardThumbnailRoom: CGFloat { cardThumbnailSide + CGFloat(tokens.spacing.lg) }
+
+    /// The card's image at its right edge, drawn by its first line once
+    /// it has downloaded.
+    private func drawCardImage(_ range: NSRange) {
+        guard let cardImage, cardImage.drawsIt else { return }
+        let side = cardThumbnailSide
+        let radius = CGFloat(tokens.spacing.radiusMd)
+        guard let picture = CardImages.shared.image(cardImage.url, side: side, radius: radius) else {
+            media?.wantCardImage(cardImage.url)
+            return
+        }
+        let extra = FragmentExtra(
+            place: .trailing, content: .picture(picture), centered: false, gap: CGFloat(tokens.spacing.lg)
+        )
+        storage.addAttribute(.fragmentExtras, value: FragmentExtras(trailing: extra), range: range)
     }
 
     private func cardLook(_ field: CardField) -> RunLook {

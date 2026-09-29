@@ -35,11 +35,11 @@ extension EditingController: UIPopoverPresentationControllerDelegate {
 
     private func present(_ card: some View, pointingAt range: NSRange) {
         guard let presenter = topController() else { return }
-        let hosting = UIHostingController(rootView: card)
+        let width = min(textView.bounds.width - CGFloat(tokens.spacing.xl) * 2, 340)
+        let hosting = UIHostingController(rootView: card.frame(width: width, alignment: .leading))
         hosting.modalPresentationStyle = .popover
         hosting.view.backgroundColor = tokens.color(\.popover)
-        let width = min(textView.bounds.width - CGFloat(tokens.spacing.xl) * 2, 340)
-        hosting.preferredContentSize = hosting.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+        hosting.sizingOptions = .preferredContentSize
         if let popover = hosting.popoverPresentationController {
             popover.sourceView = textView
             popover.sourceRect = rect(of: range)

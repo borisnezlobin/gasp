@@ -11,8 +11,23 @@ extension EditingController {
     @discardableResult
     func toggleFold(at offset: Int) -> Bool {
         guard document.toggleFold(offset: UInt32(offset)) else { return false }
+        let folds = document.headingFolds()
+        if let heading = folds.first(where: { $0.range.nsRange.contains(offset) || Int($0.range.end) == offset }),
+           heading.folded {
+            keepCursorOutOf(heading, among: folds)
+        }
         restyle(edited: nil)
         return true
+    }
+
+    /// A cursor in a section being folded would keep it open, so it moves
+    /// to the end of the heading's line.
+    private func keepCursorOutOf(_ heading: HeadingFold, among folds: [HeadingFold]) {
+        let next = folds.first { $0.range.start > heading.range.start && $0.level <= heading.level }
+        let end = next.map { Int($0.range.start) } ?? textView.textStorage.length
+        let cursor = textView.selectedRange.location
+        guard cursor > Int(heading.range.end), cursor <= end else { return }
+        textView.selectedRange = NSRange(location: Int(heading.range.end), length: 0)
     }
 
     /// Folds the heading the cursor is in: its own line, or the nearest
@@ -23,7 +38,10 @@ extension EditingController {
         if toggleFold(at: Int(cursor)) { return true }
         guard let heading else { return false }
         let folded = toggleFold(at: Int(heading.range.start))
-        if folded { textView.selectedRange = NSRange(location: Int(heading.range.end), length: 0) }
+        if folded {
+            textView.selectedRange = NSRange(location: Int(heading.range.end), length: 0)
+            textView.scrollRangeToVisible(textView.selectedRange)
+        }
         return folded
     }
 
@@ -34,6 +52,7 @@ extension EditingController {
             textView.selectedRange = NSRange(location: Int(heading.range.end), length: 0)
         }
         restyle(edited: nil)
+        textView.scrollRangeToVisible(textView.selectedRange)
     }
 
     func unfoldAllHeadings() {

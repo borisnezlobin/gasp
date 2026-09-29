@@ -145,6 +145,11 @@ final class BlockLayoutFragment: NSTextLayoutFragment {
             let bottom = lines.last?.typographicBounds.maxY ?? layoutFragmentFrame.height
             placed.append((below, CGPoint(x: extraLeft(below, extras), y: bottom + below.gap)))
         }
+        if let trailing = extras.trailing {
+            let top = lines.first?.typographicBounds.minY ?? 0
+            let left = blockBounds.maxX - trailing.gap - trailing.size.width
+            placed.append((trailing, CGPoint(x: left, y: top + trailing.gap)))
+        }
         return placed
     }
 

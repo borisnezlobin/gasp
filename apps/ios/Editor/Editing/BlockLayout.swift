@@ -6,6 +6,9 @@ import UIKit
 /// take no room.
 struct BlockFallbacks {
     private var presentations: [Int: LinePresentation] = [:]
+    /// Each card line's preview image, by line, and whether the line
+    /// draws it: the card's first line does.
+    private(set) var cardImages: [Int: CardImage] = [:]
 
     /// `isRendered` says whether a `$$` block's TeX is ready to draw.
     init(plan: NotePlan, text: NSString, isRendered: (String) -> Bool = { _ in false }) {
@@ -14,7 +17,9 @@ struct BlockFallbacks {
                 switch widget.kind {
                 case .mathBlock(let tex) where !isRendered(tex):
                     mark(widget.range, from: index, in: plan) { _ in .mathSource }
-                case .linkCard: mark(widget.range, from: index, in: plan) { Self.cardField(of: $0, in: text) }
+                case .linkCard:
+                    mark(widget.range, from: index, in: plan) { Self.cardField(of: $0, in: text) }
+                    noteCardImage(widget.range, from: index, in: plan, text: text)
                 default: continue
                 }
             }
@@ -50,6 +55,28 @@ struct BlockFallbacks {
         }
     }
 
+    /// Finds the card's `image:` line and gives its address to the
+    /// card's shown lines.
+    private mutating func noteCardImage(_ range: TextRange, from first: Int, in plan: NotePlan, text: NSString) {
+        let covered = plan.lines[first...].prefix { $0.range.start < range.end }
+        let address = covered.lazy.compactMap { Self.value(of: "image", in: $0, text: text) }.first
+        guard let address, let url = URL(string: address), url.scheme?.hasPrefix("http") == true else { return }
+        let shown = covered.indices.filter(isCardLine)
+        for index in shown {
+            cardImages[index] = CardImage(url: url, drawsIt: index == shown.first)
+        }
+    }
+
+    /// The quoted value of `key: "…"` on a card's line.
+    private static func value(of key: String, in line: LinePlan, text: NSString) -> String? {
+        let source = text.substring(with: line.range.nsRange)
+        let parts = source.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2, parts[0].trimmingCharacters(in: .whitespaces) == key else { return nil }
+        let quotes = CharacterSet(charactersIn: "\"")
+        let value = parts[1].trimmingCharacters(in: .whitespaces).trimmingCharacters(in: quotes)
+        return value.isEmpty ? nil : value
+    }
+
     private static let cardFields: [String: CardField] = [
         "title": .title, "description": .detail, "url": .address
     ]
@@ -62,6 +89,12 @@ struct BlockFallbacks {
         guard let key, let field = cardFields[key] else { return .collapsed }
         return .cardField(field)
     }
+}
+
+/// A link card's preview image, as a line of the card sees it.
+struct CardImage {
+    let url: URL
+    let drawsIt: Bool
 }
 
 /// The decoration a line's layout fragment draws, which depends on whether

@@ -28,6 +28,8 @@ final class EditingController: NSObject, UITextViewDelegate {
     private(set) var styler: PlanStyler
     let media: NoteMedia
     var prose = ProseMarks()
+    var code: CodeColors
+    var codeColouring: DispatchWorkItem?
     let grammar: GrammarChecker
     /// Counts changes to the text, so a grammar check that finishes after
     /// the text moved on is dropped.
@@ -67,6 +69,7 @@ final class EditingController: NSObject, UITextViewDelegate {
         media = NoteMedia(vault: vault, notePath: path)
         grammar = GrammarService.checker(for: vault)
         prose.colors = ProseColors(vault: vault)
+        code = CodeColors(vault: vault)
         styler = PlanStyler(tokens: tokens)
         styler.media = media
         blockFragments = BlockFragments(tokens: tokens)
@@ -78,6 +81,7 @@ final class EditingController: NSObject, UITextViewDelegate {
         restyle(edited: nil)
         prefetchMath()
         scheduleGrammarCheck()
+        scheduleCodeColours()
         NotificationCenter.default.addObserver(
             self, selector: #selector(saveNow), name: UIApplication.didEnterBackgroundNotification, object: nil
         )
@@ -212,6 +216,7 @@ final class EditingController: NSObject, UITextViewDelegate {
         restyle(edited: textView.selectedRange)
         saver.schedule(text) { [weak self] in self?.keepSnapshot() }
         scheduleGrammarCheck()
+        scheduleCodeColours()
     }
 
     func textViewDidChangeSelection(_ textView: UITextView) {
@@ -264,7 +269,7 @@ final class EditingController: NSObject, UITextViewDelegate {
         isRestyling = true
         let selection = textView.selectedRange
         textView.textLayoutManager?.textContentManager?.performEditingTransaction {
-            styler.apply(plan, prose: prose, to: storage, edited: edited)
+            styler.apply(plan, prose: prose, code: code, to: storage, edited: edited)
         }
         if textView.selectedRange != selection { textView.selectedRange = selection }
         textView.typingAttributes = styler.typingAttributes

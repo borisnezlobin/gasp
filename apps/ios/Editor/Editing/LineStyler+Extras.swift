@@ -13,7 +13,7 @@ extension LineStyler {
             if extra.place == .above { above = extra } else { below = extra }
         }
         guard above != nil || below != nil, let range = clamped(paragraph) else { return }
-        let extras = FragmentExtras(above: above, below: below, indent: style.headIndent)
+        let extras = FragmentExtras(above: above, below: below, trailing: nil, indent: style.headIndent)
         storage.addAttribute(.fragmentExtras, value: extras, range: range)
         adjustParagraphStyle(paragraph) { style in
             style.paragraphSpacingBefore += above?.room ?? 0

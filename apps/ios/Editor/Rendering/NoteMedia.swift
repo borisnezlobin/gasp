@@ -1,5 +1,13 @@
 import UIKit
 
+/// Math, vault images (with the pixels to decode them at) and link card
+/// images that styling found missing.
+struct WantedMedia {
+    let math: Set<MathKey>
+    let images: [URL: Int]
+    let cards: Set<URL>
+}
+
 /// What drawing one note needs besides its plan: its rendered math and
 /// the vault's images. Styling asks for what it shows; what isn't ready
 /// is noted, and the editing session fetches it and restyles those lines.
@@ -10,6 +18,7 @@ final class NoteMedia {
     var columnWidth: CGFloat = 320
     private(set) var wantedMath: Set<MathKey> = []
     private(set) var wantedImages: [URL: Int] = [:]
+    private(set) var wantedCardImages: Set<URL> = []
     private var files: [String: URL] = [:]
     private var missingFiles: Set<String> = []
 
@@ -45,13 +54,19 @@ final class NoteMedia {
         wantedImages[file] = pixels
     }
 
+    /// Notes that a link card's preview image should be downloaded.
+    func wantCardImage(_ url: URL) {
+        wantedCardImages.insert(url)
+    }
+
     /// What styling found missing since the last call.
-    func takeWanted() -> (math: Set<MathKey>, images: [URL: Int]) {
+    func takeWanted() -> WantedMedia {
         defer {
             wantedMath = []
             wantedImages = [:]
+            wantedCardImages = []
         }
-        return (wantedMath, wantedImages)
+        return WantedMedia(math: wantedMath, images: wantedImages, cards: wantedCardImages)
     }
 
     /// Looks for files again, after the vault changed.
