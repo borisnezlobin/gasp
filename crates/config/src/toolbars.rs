@@ -514,7 +514,7 @@ pub fn build_toolbars(file: &str, user: Option<&str>, known_commands: &[&str]) -
         toolbars,
         menus: resolve_menus(&defaults, &overlay),
     };
-    let warnings = item_warnings(file, text, &toolbars, known_commands);
+    let warnings = item_warnings(file, text, &overlay, &toolbars, known_commands);
     Ok((toolbars, warnings))
 }
 
@@ -645,57 +645,49 @@ fn resolve_menus(defaults: &ToolbarsFile, overlay: &ToolbarsFile) -> Vec<Toolbar
         .collect()
 }
 
-/// Warnings for items that name no command or menu. With no known
-/// commands given, only menus are checked.
+/// Warnings for the items a vault's file names that are no command or
+/// menu. With no known commands given, only menus are checked.
 fn item_warnings(
     file: &str,
     text: &str,
+    overlay: &ToolbarsFile,
     toolbars: &Toolbars,
     known_commands: &[&str],
 ) -> Vec<Diagnostic> {
-    let mut warnings = Vec::new();
-    let unknown_command = |id: &str| !known_commands.is_empty() && !known_commands.contains(&id);
-    let menu_items = toolbars.menus.iter().flat_map(|menu| menu.items.iter());
-    let command_ids = toolbars
-        .toolbars
-        .iter()
-        .flat_map(Toolbar::commands)
-        .chain(menu_items.map(String::as_str));
-    for id in command_ids.filter(|id| unknown_command(id)) {
-        let quoted = format!("\"{id}\"");
-        let message = format!("no command called `{id}` is registered");
-        warnings.push(Diagnostic::warning(
-            file,
-            text,
-            span_of(text, &quoted),
-            message,
-        ));
-    }
-    for toolbar in &toolbars.toolbars {
-        warnings.extend(menu_warnings(file, text, toolbar, toolbars));
-    }
-    warnings
+    let toolbar_items = overlay
+        .toolbar
+        .values()
+        .filter_map(|spec| spec.items.as_ref());
+    let menu_items = overlay.menu.values().filter_map(|spec| spec.items.as_ref());
+    toolbar_items
+        .chain(menu_items)
+        .flatten()
+        .filter_map(|item| unknown_item(item, toolbars, known_commands))
+        .map(|(item, message)| {
+            let quoted = format!("\"{item}\"");
+            Diagnostic::warning(file, text, span_of(text, &quoted), message)
+        })
+        .collect()
 }
 
-fn menu_warnings<'a>(
-    file: &'a str,
-    text: &'a str,
-    toolbar: &'a Toolbar,
-    toolbars: &'a Toolbars,
-) -> impl Iterator<Item = Diagnostic> + 'a {
-    toolbar.items.iter().filter_map(move |item| match item {
-        ToolbarItem::Menu(id) if toolbars.menu(id).is_none() => {
-            let quoted = format!("\"{item}\"");
-            let message = format!("there's no [menu.{id}] for `{}` to open", toolbar.id);
-            Some(Diagnostic::warning(
-                file,
-                text,
-                span_of(text, &quoted),
-                message,
-            ))
+/// An item that names nothing, with why: (the item, the message).
+fn unknown_item(
+    item: &str,
+    toolbars: &Toolbars,
+    known_commands: &[&str],
+) -> Option<(String, String)> {
+    let message = match ToolbarItem::parse(item) {
+        ToolbarItem::Command(id)
+            if !known_commands.is_empty() && !known_commands.contains(&id.as_str()) =>
+        {
+            format!("no command called `{id}` is registered")
         }
-        _ => None,
-    })
+        ToolbarItem::Menu(id) if toolbars.menu(&id).is_none() => {
+            format!("there's no [menu.{id}] to open")
+        }
+        _ => return None,
+    };
+    Some((item.to_owned(), message))
 }
 
 #[cfg(test)]
