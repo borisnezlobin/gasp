@@ -101,6 +101,14 @@ pub(crate) enum Drag {
     RightSidebar,
 }
 
+/// What a resize changes, as it was when the resize started.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum DragStart {
+    Ratio(SplitId, f32),
+    LeftWidth(gpui::Pixels),
+    RightWidth(gpui::Pixels),
+}
+
 /// The cursor as last seen, for spotting big jumps.
 #[derive(Clone, Copy, Debug, Default)]
 struct CursorSeen {
@@ -135,6 +143,8 @@ pub struct Workspace {
     modal: ModalLayer,
     status: Option<StatusInfo>,
     drag: Option<Drag>,
+    /// What a resize under way changes, as it was, for Escape to put back.
+    drag_start: Option<DragStart>,
     theme: Theme,
     extra_commands: HashMap<String, CommandHandler>,
     cursors: HashMap<EntityId, CursorSeen>,
@@ -235,6 +245,7 @@ impl Workspace {
             modal: ModalLayer::default(),
             status: None,
             drag: None,
+            drag_start: None,
             theme,
             extra_commands: HashMap::new(),
             cursors: HashMap::new(),
