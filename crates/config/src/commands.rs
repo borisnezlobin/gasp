@@ -130,6 +130,10 @@ const LOOK_UP: CommandSpec = spec("edit.look-up", "Look up", "Editing").icon("bo
 const HIDE_KEYBOARD: CommandSpec =
     spec("keyboard.hide", "Hide the keyboard", "Editing").icon("keyboard");
 
+/// The iPhone's grid of open tabs, which the desktop shows as its tab bar.
+const TAB_OVERVIEW: CommandSpec =
+    spec("tab.overview", "Show all tabs", "Tabs and panels").icon("tabs");
+
 /// Folding headings, which the iPhone has so far; the desktop folds
 /// callouts by clicking their header.
 const FOLD_TOGGLE: CommandSpec =
@@ -145,6 +149,7 @@ const UNFOLD_ALL: CommandSpec =
 pub const PLATFORM_COMMANDS: &[&str] = &[
     LOOK_UP.id,
     HIDE_KEYBOARD.id,
+    TAB_OVERVIEW.id,
     FOLD_TOGGLE.id,
     FOLD_ALL.id,
     UNFOLD_ALL.id,
@@ -389,6 +394,8 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     #[cfg(target_os = "ios")]
     HIDE_KEYBOARD,
     #[cfg(target_os = "ios")]
+    TAB_OVERVIEW,
+    #[cfg(target_os = "ios")]
     FOLD_TOGGLE,
     #[cfg(target_os = "ios")]
     FOLD_ALL,
@@ -542,8 +549,14 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
 
 /// The commands in [`PLATFORM_COMMANDS`], described on every platform so
 /// a toolbar synced from another machine can still name them.
-const PLATFORM_SPECS: [CommandSpec; 5] =
-    [LOOK_UP, HIDE_KEYBOARD, FOLD_TOGGLE, FOLD_ALL, UNFOLD_ALL];
+const PLATFORM_SPECS: [CommandSpec; 6] = [
+    LOOK_UP,
+    HIDE_KEYBOARD,
+    TAB_OVERVIEW,
+    FOLD_TOGGLE,
+    FOLD_ALL,
+    UNFOLD_ALL,
+];
 
 /// A built-in command's description by id, on any platform.
 pub fn command_spec(id: &str) -> Option<&'static CommandSpec> {

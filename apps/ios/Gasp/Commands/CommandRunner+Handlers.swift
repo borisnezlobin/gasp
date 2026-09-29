@@ -10,6 +10,7 @@ extension CommandRunner {
         "tab.previous": { $0.tabs.selectPrevious() },
         "tab.close-others": { $0.tabs.closeOthers() },
         "tab.close-right": { $0.tabs.closeToTheRight() },
+        "tab.overview": { $0.workspace.overviewOpen = true },
         "history.back": { $0.tabs.goBack() },
         "history.forward": { $0.tabs.goForward() }
     ]
@@ -45,6 +46,7 @@ extension CommandRunner {
         "template.insert": { runner in runner.withSession { _ in runner.workspace.sheet = .templates } },
         "note.import-image": { runner in runner.withSession { _ in runner.workspace.sheet = .photos } },
         "settings.open": { $0.workspace.sheet = .settings },
+        "toolbar.customize": { $0.workspace.sheet = .toolbars },
         "vault.open": { $0.workspace.prompt = .pickVault }
     ]
 

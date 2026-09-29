@@ -24,6 +24,7 @@ enum SidebarSection: String, CaseIterable, Identifiable {
 enum WorkspaceSheet: Identifiable {
     case palette
     case settings
+    case toolbars
     case templates
     case recovery(path: String)
     case share(URL)
@@ -40,6 +41,7 @@ enum WorkspaceSheet: Identifiable {
         case .resolver: "resolver"
         case .palette: "palette"
         case .settings: "settings"
+        case .toolbars: "toolbars"
         case .templates: "templates"
         case .recovery(let path): "recovery \(path)"
         case .share(let url): "share \(url.path)"
