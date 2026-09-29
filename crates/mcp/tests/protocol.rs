@@ -88,6 +88,8 @@ async fn initialize_list_and_call() {
         "patch_note",
         "set_setting",
         "render_note",
+        "get_toolbars",
+        "set_toolbars",
     ] {
         assert!(
             names.contains(&expected),

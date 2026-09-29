@@ -16,6 +16,7 @@ use crate::platform::{InputContext, Platform, PlatformFilter, filter_admits};
 
 pub use clock::{Clock, ManualClock, SystemClock};
 pub use engine::{Dispatch, Event, MatchContext, RuleEngine};
+pub use parse::parse_duration;
 
 /// The built-in rules, including the whole default keymap.
 pub const DEFAULT_RULES: &str = include_str!("../../defaults/rules.toml");

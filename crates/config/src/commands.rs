@@ -86,6 +86,18 @@ pub struct CommandSpec {
     pub category: &'static str,
     /// Whether the palette lists it.
     pub palette: bool,
+    /// The Phosphor icon toolbars show it with, by name, such as `text-b`.
+    pub icon: &'static str,
+}
+
+/// The icon a command shows until it's given its own.
+pub const DEFAULT_ICON: &str = "lightning";
+
+impl CommandSpec {
+    /// The same command shown with the Phosphor icon `name`.
+    pub const fn icon(self, name: &'static str) -> CommandSpec {
+        CommandSpec { icon: name, ..self }
+    }
 }
 
 const fn spec(id: &'static str, title: &'static str, category: &'static str) -> CommandSpec {
@@ -94,6 +106,7 @@ const fn spec(id: &'static str, title: &'static str, category: &'static str) -> 
         title,
         category,
         palette: true,
+        icon: DEFAULT_ICON,
     }
 }
 
@@ -105,21 +118,26 @@ const fn key_only(id: &'static str, title: &'static str, category: &'static str)
         title,
         category,
         palette: false,
+        icon: DEFAULT_ICON,
     }
 }
 
 /// The system dictionary's popover for the selection or the word at the
 /// caret, which the Apple platforms have.
-const LOOK_UP: CommandSpec = spec("edit.look-up", "Look up", "Editing");
+const LOOK_UP: CommandSpec = spec("edit.look-up", "Look up", "Editing").icon("book-open");
 
 /// Puts the iPhone's software keyboard away.
-const HIDE_KEYBOARD: CommandSpec = spec("keyboard.hide", "Hide the keyboard", "Editing");
+const HIDE_KEYBOARD: CommandSpec =
+    spec("keyboard.hide", "Hide the keyboard", "Editing").icon("keyboard");
 
 /// Folding headings, which the iPhone has so far; the desktop folds
 /// callouts by clicking their header.
-const FOLD_TOGGLE: CommandSpec = spec("fold.toggle", "Fold or unfold heading", "View");
-const FOLD_ALL: CommandSpec = spec("fold.all", "Fold every heading", "View");
-const UNFOLD_ALL: CommandSpec = spec("fold.unfold-all", "Unfold every heading", "View");
+const FOLD_TOGGLE: CommandSpec =
+    spec("fold.toggle", "Fold or unfold heading", "View").icon("caret-down");
+const FOLD_ALL: CommandSpec =
+    spec("fold.all", "Fold every heading", "View").icon("arrows-in-line-vertical");
+const UNFOLD_ALL: CommandSpec =
+    spec("fold.unfold-all", "Unfold every heading", "View").icon("arrows-out-line-vertical");
 
 /// Commands only some platforms have. The registry leaves them out
 /// elsewhere, but rules may still name them, as a vault's config goes
@@ -134,51 +152,59 @@ pub const PLATFORM_COMMANDS: &[&str] = &[
 
 /// Every built-in command on this platform.
 pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
-    spec("format.bold", "Toggle bold", "Formatting"),
-    spec("format.italic", "Toggle italic", "Formatting"),
-    spec("format.underline", "Toggle underline", "Formatting"),
-    spec("format.link", "Insert or edit link", "Formatting"),
-    spec("format.code", "Toggle inline code", "Formatting"),
-    spec("format.strikethrough", "Toggle strikethrough", "Formatting"),
-    spec("format.highlight", "Toggle highlight", "Formatting"),
-    spec("format.math-inline", "Toggle inline math", "Formatting"),
-    spec("format.comment", "Toggle comment", "Formatting"),
-    spec("format.callout", "Insert callout", "Formatting"),
+    spec("format.bold", "Toggle bold", "Formatting").icon("text-b"),
+    spec("format.italic", "Toggle italic", "Formatting").icon("text-italic"),
+    spec("format.underline", "Toggle underline", "Formatting").icon("text-underline"),
+    spec("format.link", "Insert or edit link", "Formatting").icon("link"),
+    spec("format.code", "Toggle inline code", "Formatting").icon("code"),
+    spec("format.strikethrough", "Toggle strikethrough", "Formatting").icon("text-strikethrough"),
+    spec("format.highlight", "Toggle highlight", "Formatting").icon("highlighter-circle"),
+    spec("format.math-inline", "Toggle inline math", "Formatting").icon("sigma"),
+    spec("format.comment", "Toggle comment", "Formatting").icon("chat-text"),
+    spec("format.callout", "Insert callout", "Formatting").icon("quotes"),
+    spec("format.bullet-list", "Toggle bulleted list", "Formatting").icon("list-bullets"),
+    spec("format.numbered-list", "Toggle numbered list", "Formatting").icon("list-numbers"),
     spec(
         "markdown.cycle-symbols",
         "Cycle Markdown symbols",
         "Formatting",
-    ),
+    )
+    .icon("hash"),
     spec(
         "footnote.insert-or-jump",
         "Insert or jump to footnote",
         "Formatting",
-    ),
-    spec("footnote.tidy", "Renumber footnotes", "Formatting"),
+    )
+    .icon("text-superscript"),
+    spec("footnote.tidy", "Renumber footnotes", "Formatting").icon("list-numbers"),
     spec(
         "footnote.fix-typos",
         "Convert inline footnote typos",
         "Formatting",
-    ),
+    )
+    .icon("checks"),
     spec(
         "prose.toggle-sentence-highlighting",
         "Toggle sentence-length highlighting",
         "Formatting",
-    ),
-    spec("find.open", "Find in note", "Find and search"),
-    spec("find.next", "Next match", "Find and search"),
-    spec("find.previous", "Previous match", "Find and search"),
+    )
+    .icon("article"),
+    spec("find.open", "Find in note", "Find and search").icon("magnifying-glass"),
+    spec("find.next", "Next match", "Find and search").icon("arrow-down"),
+    spec("find.previous", "Previous match", "Find and search").icon("arrow-up"),
     spec(
         "find.replace",
         "Find and replace in note",
         "Find and search",
-    ),
-    spec("search.open", "Search all notes", "Find and search"),
+    )
+    .icon("swap"),
+    spec("search.open", "Search all notes", "Find and search").icon("magnifying-glass-plus"),
     spec(
         "switcher.open",
         "Open quick switcher",
         "Notes and navigation",
-    ),
+    )
+    .icon("compass"),
     CommandSpec {
         palette: false,
         ..spec(
@@ -186,140 +212,163 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
             "Open command palette",
             "Notes and navigation",
         )
+        .icon("command")
     },
-    spec("note.new", "New note", "Notes and navigation"),
+    spec("note.new", "New note", "Notes and navigation").icon("file-plus"),
     spec(
         "outline.jump-to-heading",
         "Jump to heading",
         "Notes and navigation",
-    ),
+    )
+    .icon("list-dashes"),
     spec(
         "link.follow",
         "Follow link under cursor",
         "Notes and navigation",
-    ),
+    )
+    .icon("arrow-square-out"),
     spec(
         "link.make-card",
         "Turn the link on this line into a card",
         "Notes and navigation",
-    ),
-    spec("history.back", "Go back", "Notes and navigation"),
-    spec("history.forward", "Go forward", "Notes and navigation"),
-    spec("tab.new", "New tab", "Tabs and panels"),
-    spec("tab.close", "Close tab", "Tabs and panels"),
-    spec("tab.reopen", "Reopen closed tab", "Tabs and panels"),
-    spec("tab.go-1", "Go to tab 1", "Tabs and panels"),
-    spec("tab.go-2", "Go to tab 2", "Tabs and panels"),
-    spec("tab.go-3", "Go to tab 3", "Tabs and panels"),
-    spec("tab.go-4", "Go to tab 4", "Tabs and panels"),
-    spec("tab.go-5", "Go to tab 5", "Tabs and panels"),
-    spec("tab.go-6", "Go to tab 6", "Tabs and panels"),
-    spec("tab.go-7", "Go to tab 7", "Tabs and panels"),
-    spec("tab.go-8", "Go to tab 8", "Tabs and panels"),
-    spec("tab.go-9", "Go to tab 9", "Tabs and panels"),
-    spec("tab.next", "Next tab", "Tabs and panels"),
-    spec("tab.previous", "Previous tab", "Tabs and panels"),
+    )
+    .icon("cards"),
+    spec("history.back", "Go back", "Notes and navigation").icon("arrow-left"),
+    spec("history.forward", "Go forward", "Notes and navigation").icon("arrow-right"),
+    spec("tab.new", "New tab", "Tabs and panels").icon("plus"),
+    spec("tab.close", "Close tab", "Tabs and panels").icon("x"),
+    spec("tab.reopen", "Reopen closed tab", "Tabs and panels").icon("arrow-counter-clockwise"),
+    spec("tab.go-1", "Go to tab 1", "Tabs and panels").icon("tabs"),
+    spec("tab.go-2", "Go to tab 2", "Tabs and panels").icon("tabs"),
+    spec("tab.go-3", "Go to tab 3", "Tabs and panels").icon("tabs"),
+    spec("tab.go-4", "Go to tab 4", "Tabs and panels").icon("tabs"),
+    spec("tab.go-5", "Go to tab 5", "Tabs and panels").icon("tabs"),
+    spec("tab.go-6", "Go to tab 6", "Tabs and panels").icon("tabs"),
+    spec("tab.go-7", "Go to tab 7", "Tabs and panels").icon("tabs"),
+    spec("tab.go-8", "Go to tab 8", "Tabs and panels").icon("tabs"),
+    spec("tab.go-9", "Go to tab 9", "Tabs and panels").icon("tabs"),
+    spec("tab.next", "Next tab", "Tabs and panels").icon("caret-right"),
+    spec("tab.previous", "Previous tab", "Tabs and panels").icon("caret-left"),
     spec(
         "sidebar.files.toggle",
         "Toggle file sidebar",
         "Tabs and panels",
-    ),
-    spec("sidebar.files.show", "Show file sidebar", "Tabs and panels"),
-    spec("sidebar.files.hide", "Hide file sidebar", "Tabs and panels"),
+    )
+    .icon("sidebar-simple"),
+    spec("sidebar.files.show", "Show file sidebar", "Tabs and panels").icon("sidebar-simple"),
+    spec("sidebar.files.hide", "Hide file sidebar", "Tabs and panels").icon("sidebar-simple"),
     spec(
         "sidebar.right.toggle",
         "Toggle right sidebar",
         "Tabs and panels",
-    ),
+    )
+    .icon("sidebar-simple-right"),
     spec(
         "sidebar.right.focus",
         "Focus right sidebar",
         "Tabs and panels",
-    ),
-    spec("sidebar.backlinks", "Show backlinks", "Tabs and panels"),
+    )
+    .icon("sidebar-simple-right"),
+    spec("sidebar.backlinks", "Show backlinks", "Tabs and panels").icon("arrow-u-up-left"),
     spec(
         "sidebar.outgoing-links",
         "Show outgoing links",
         "Tabs and panels",
-    ),
-    spec("sidebar.outline", "Show outline", "Tabs and panels"),
-    spec("sidebar.tags", "Show tags", "Tabs and panels"),
-    spec("file-tree.focus", "Focus file tree", "Tabs and panels"),
+    )
+    .icon("link-simple"),
+    spec("sidebar.outline", "Show outline", "Tabs and panels").icon("list-dashes"),
+    spec("sidebar.tags", "Show tags", "Tabs and panels").icon("hash"),
+    spec("file-tree.focus", "Focus file tree", "Tabs and panels").icon("folder"),
     spec(
         "pane.focus-left",
         "Focus pane on the left",
         "Tabs and panels",
-    ),
+    )
+    .icon("arrow-left"),
     spec(
         "pane.focus-right",
         "Focus pane on the right",
         "Tabs and panels",
-    ),
-    spec("pane.focus-up", "Focus pane above", "Tabs and panels"),
-    spec("pane.focus-down", "Focus pane below", "Tabs and panels"),
+    )
+    .icon("arrow-right"),
+    spec("pane.focus-up", "Focus pane above", "Tabs and panels").icon("arrow-up"),
+    spec("pane.focus-down", "Focus pane below", "Tabs and panels").icon("arrow-down"),
     spec(
         "pane.move-tab-left",
         "Move tab to the pane on the left",
         "Tabs and panels",
-    ),
+    )
+    .icon("arrow-left"),
     spec(
         "pane.move-tab-right",
         "Move tab to the pane on the right",
         "Tabs and panels",
-    ),
+    )
+    .icon("arrow-right"),
     spec(
         "pane.move-tab-up",
         "Move tab to the pane above",
         "Tabs and panels",
-    ),
+    )
+    .icon("arrow-up"),
     spec(
         "pane.move-tab-down",
         "Move tab to the pane below",
         "Tabs and panels",
-    ),
-    spec("tab.close-others", "Close other tabs", "Tabs and panels"),
+    )
+    .icon("arrow-down"),
+    spec("tab.close-others", "Close other tabs", "Tabs and panels").icon("x-circle"),
     spec(
         "tab.close-right",
         "Close tabs to the right",
         "Tabs and panels",
-    ),
-    spec("app.print", "Print", "App"),
-    spec("app.export", "Export", "App"),
-    spec("sync.now", "Sync now", "App"),
-    spec("sync.resolve-conflicts", "Resolve sync conflicts", "App"),
-    spec("settings.open", "Open settings", "App"),
-    spec("vault.open", "Open another vault", "App"),
-    spec("pane.split-right", "Split right", "Tabs and panels"),
-    spec("pane.split-down", "Split down", "Tabs and panels"),
-    spec("pane.close", "Close pane", "Tabs and panels"),
-    spec("view.zoom-in", "Make text bigger", "View"),
-    spec("view.zoom-out", "Make text smaller", "View"),
-    spec("view.zoom-reset", "Reset text size", "View"),
+    )
+    .icon("x-circle"),
+    spec("app.print", "Print", "App").icon("printer"),
+    spec("app.export", "Export", "App").icon("export"),
+    spec("export.html", "Export as HTML", "App").icon("file-html"),
+    spec("export.pdf", "Export as PDF", "App").icon("file-pdf"),
+    spec("sync.now", "Sync now", "App").icon("arrows-clockwise"),
+    spec("sync.resolve-conflicts", "Resolve sync conflicts", "App").icon("git-merge"),
+    spec("settings.open", "Open settings", "App").icon("gear-six"),
+    spec("toolbar.focus", "Focus toolbars", "Tabs and panels").icon("app-window"),
+    spec("toolbar.customize", "Customize toolbars", "App").icon("sliders-horizontal"),
+    spec("vault.open", "Open another vault", "App").icon("vault"),
+    spec("pane.split-right", "Split right", "Tabs and panels").icon("square-split-horizontal"),
+    spec("pane.split-down", "Split down", "Tabs and panels").icon("square-split-vertical"),
+    spec("pane.close", "Close pane", "Tabs and panels").icon("x"),
+    spec("view.zoom-in", "Make text bigger", "View").icon("magnifying-glass-plus"),
+    spec("view.zoom-out", "Make text smaller", "View").icon("magnifying-glass-minus"),
+    spec("view.zoom-reset", "Reset text size", "View").icon("text-aa"),
     spec(
         "view.toggle-readable-width",
         "Toggle readable line length",
         "View",
-    ),
+    )
+    .icon("arrows-in-line-horizontal"),
     spec(
         "file-tree.reveal-active",
         "Show the current note in the file tree",
         "Notes and navigation",
-    ),
+    )
+    .icon("folder-open"),
     spec(
         "daily.open",
         "Open today’s daily note",
         "Notes and navigation",
-    ),
-    spec("template.insert", "Insert template", "Editing"),
-    spec("note.rename", "Rename note", "Notes and navigation"),
-    spec("note.delete", "Move note to trash", "Notes and navigation"),
+    )
+    .icon("calendar-blank"),
+    spec("template.insert", "Insert template", "Editing").icon("stamp"),
+    spec("note.rename", "Rename note", "Notes and navigation").icon("pencil-simple"),
+    spec("note.delete", "Move note to trash", "Notes and navigation").icon("trash"),
     spec(
         "note.recover",
         "Recover a previous version",
         "Notes and navigation",
-    ),
-    spec("note.import-image", "Insert image from file", "Editing"),
-    spec("edit.paste-plain", "Paste as plain text", "Editing"),
+    )
+    .icon("clock-counter-clockwise"),
+    spec("note.import-image", "Insert image from file", "Editing").icon("image"),
+    spec("edit.paste-plain", "Paste as plain text", "Editing").icon("clipboard-text"),
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     LOOK_UP,
     #[cfg(target_os = "ios")]
@@ -330,135 +379,170 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     FOLD_ALL,
     #[cfg(target_os = "ios")]
     UNFOLD_ALL,
-    spec("code.copy-block", "Copy code block", "Editing"),
-    spec("table.insert", "Insert table", "Tables"),
-    spec("table.insert-row-above", "Insert table row above", "Tables"),
-    spec("table.insert-row-below", "Insert table row below", "Tables"),
+    spec("code.copy-block", "Copy code block", "Editing").icon("copy"),
+    spec("table.insert", "Insert table", "Tables").icon("table"),
+    spec("table.insert-row-above", "Insert table row above", "Tables").icon("rows-plus-top"),
+    spec("table.insert-row-below", "Insert table row below", "Tables").icon("rows-plus-bottom"),
     spec(
         "table.insert-column-left",
         "Insert table column to the left",
         "Tables",
-    ),
+    )
+    .icon("columns-plus-left"),
     spec(
         "table.insert-column-right",
         "Insert table column to the right",
         "Tables",
-    ),
-    spec("table.delete-row", "Delete table row", "Tables"),
-    spec("table.delete-column", "Delete table column", "Tables"),
-    spec("table.move-row-up", "Move table row up", "Tables"),
-    spec("table.move-row-down", "Move table row down", "Tables"),
-    spec("table.move-column-left", "Move table column left", "Tables"),
+    )
+    .icon("columns-plus-right"),
+    spec("table.delete-row", "Delete table row", "Tables").icon("rows"),
+    spec("table.delete-column", "Delete table column", "Tables").icon("columns"),
+    spec("table.move-row-up", "Move table row up", "Tables").icon("arrow-up"),
+    spec("table.move-row-down", "Move table row down", "Tables").icon("arrow-down"),
+    spec("table.move-column-left", "Move table column left", "Tables").icon("arrow-left"),
     spec(
         "table.move-column-right",
         "Move table column right",
         "Tables",
-    ),
-    spec("table.align-left", "Align table column left", "Tables"),
-    spec("table.align-center", "Align table column center", "Tables"),
-    spec("table.align-right", "Align table column right", "Tables"),
+    )
+    .icon("arrow-right"),
+    spec("table.align-left", "Align table column left", "Tables").icon("text-align-left"),
+    spec("table.align-center", "Align table column center", "Tables").icon("text-align-center"),
+    spec("table.align-right", "Align table column right", "Tables").icon("text-align-right"),
     spec(
         "table.sort-ascending",
         "Sort table by this column, ascending",
         "Tables",
-    ),
+    )
+    .icon("sort-ascending"),
     spec(
         "table.sort-descending",
         "Sort table by this column, descending",
         "Tables",
-    ),
-    spec("table.delete", "Delete table", "Tables"),
-    spec("table.copy-markdown", "Copy table as Markdown", "Tables"),
+    )
+    .icon("sort-descending"),
+    spec("table.delete", "Delete table", "Tables").icon("trash"),
+    spec("table.copy-markdown", "Copy table as Markdown", "Tables").icon("copy"),
     spec(
         "table.copy-tsv",
         "Copy table as tab-separated text",
         "Tables",
-    ),
-    spec("table.edit-as-markdown", "Edit table as Markdown", "Tables"),
-    key_only("cursor.left", "Move left", "Cursor"),
-    key_only("cursor.right", "Move right", "Cursor"),
-    key_only("cursor.up", "Move up", "Cursor"),
-    key_only("cursor.down", "Move down", "Cursor"),
-    key_only("cursor.word-left", "Move to the previous word", "Cursor"),
-    key_only("cursor.word-right", "Move to the next word", "Cursor"),
+    )
+    .icon("clipboard"),
+    spec("table.edit-as-markdown", "Edit table as Markdown", "Tables").icon("code"),
+    key_only("cursor.left", "Move left", "Cursor").icon("arrow-left"),
+    key_only("cursor.right", "Move right", "Cursor").icon("arrow-right"),
+    key_only("cursor.up", "Move up", "Cursor").icon("arrow-up"),
+    key_only("cursor.down", "Move down", "Cursor").icon("arrow-down"),
+    key_only("cursor.word-left", "Move to the previous word", "Cursor").icon("cursor-text"),
+    key_only("cursor.word-right", "Move to the next word", "Cursor").icon("cursor-text"),
     key_only(
         "cursor.line-start",
         "Move to the start of the line",
         "Cursor",
-    ),
-    key_only("cursor.line-end", "Move to the end of the line", "Cursor"),
+    )
+    .icon("cursor-text"),
+    key_only("cursor.line-end", "Move to the end of the line", "Cursor").icon("cursor-text"),
     key_only(
         "cursor.doc-start",
         "Move to the start of the note",
         "Cursor",
-    ),
-    key_only("cursor.doc-end", "Move to the end of the note", "Cursor"),
-    key_only("cursor.page-up", "Move up a page", "Cursor"),
-    key_only("cursor.page-down", "Move down a page", "Cursor"),
-    key_only("select.left", "Select left", "Cursor"),
-    key_only("select.right", "Select right", "Cursor"),
-    key_only("select.up", "Select up", "Cursor"),
-    key_only("select.down", "Select down", "Cursor"),
-    key_only("select.word-left", "Select to the previous word", "Cursor"),
-    key_only("select.word-right", "Select to the next word", "Cursor"),
+    )
+    .icon("cursor-text"),
+    key_only("cursor.doc-end", "Move to the end of the note", "Cursor").icon("cursor-text"),
+    key_only("cursor.page-up", "Move up a page", "Cursor").icon("cursor-text"),
+    key_only("cursor.page-down", "Move down a page", "Cursor").icon("cursor-text"),
+    key_only("select.left", "Select left", "Cursor").icon("selection"),
+    key_only("select.right", "Select right", "Cursor").icon("selection"),
+    key_only("select.up", "Select up", "Cursor").icon("selection"),
+    key_only("select.down", "Select down", "Cursor").icon("selection"),
+    key_only("select.word-left", "Select to the previous word", "Cursor").icon("selection"),
+    key_only("select.word-right", "Select to the next word", "Cursor").icon("selection"),
     key_only(
         "select.line-start",
         "Select to the start of the line",
         "Cursor",
-    ),
-    key_only("select.line-end", "Select to the end of the line", "Cursor"),
+    )
+    .icon("selection"),
+    key_only("select.line-end", "Select to the end of the line", "Cursor").icon("selection"),
     key_only(
         "select.doc-start",
         "Select to the start of the note",
         "Cursor",
-    ),
-    key_only("select.doc-end", "Select to the end of the note", "Cursor"),
-    key_only("select.page-up", "Select up a page", "Cursor"),
-    key_only("select.page-down", "Select down a page", "Cursor"),
-    spec("select.all", "Select all", "Editing"),
+    )
+    .icon("selection"),
+    key_only("select.doc-end", "Select to the end of the note", "Cursor").icon("selection"),
+    key_only("select.page-up", "Select up a page", "Cursor").icon("selection"),
+    key_only("select.page-down", "Select down a page", "Cursor").icon("selection"),
+    spec("select.all", "Select all", "Editing").icon("selection-all"),
     key_only(
         "edit.delete-backward",
         "Delete the previous character",
         "Editing",
-    ),
+    )
+    .icon("backspace"),
     key_only(
         "edit.delete-forward",
         "Delete the next character",
         "Editing",
-    ),
+    )
+    .icon("backspace"),
     key_only(
         "edit.delete-word-backward",
         "Delete the previous word",
         "Editing",
-    ),
+    )
+    .icon("backspace"),
     key_only(
         "edit.delete-word-forward",
         "Delete the next word",
         "Editing",
-    ),
+    )
+    .icon("backspace"),
     spec(
         "edit.delete-to-line-start",
         "Delete to the start of the line",
         "Editing",
-    ),
+    )
+    .icon("backspace"),
     spec(
         "edit.delete-to-line-end",
         "Delete to the end of the line",
         "Editing",
-    ),
-    key_only("edit.newline", "New line", "Editing"),
-    spec("edit.indent", "Indent", "Editing"),
-    spec("edit.move-line-up", "Move line up", "Editing"),
-    spec("edit.move-line-down", "Move line down", "Editing"),
-    spec("edit.duplicate-line", "Duplicate line", "Editing"),
-    spec("edit.toggle-task", "Toggle task", "Editing"),
-    spec("edit.outdent", "Outdent", "Editing"),
-    spec("edit.undo", "Undo", "Editing"),
-    spec("edit.redo", "Redo", "Editing"),
-    spec("edit.copy", "Copy", "Editing"),
-    spec("edit.cut", "Cut", "Editing"),
-    spec("edit.paste", "Paste", "Editing"),
+    )
+    .icon("backspace"),
+    key_only("edit.newline", "New line", "Editing").icon("key-return"),
+    spec("edit.indent", "Indent", "Editing").icon("text-indent"),
+    spec("edit.move-line-up", "Move line up", "Editing").icon("arrow-up"),
+    spec("edit.move-line-down", "Move line down", "Editing").icon("arrow-down"),
+    spec("edit.duplicate-line", "Duplicate line", "Editing").icon("copy"),
+    spec("edit.toggle-task", "Toggle task", "Editing").icon("check-square"),
+    spec("edit.outdent", "Outdent", "Editing").icon("text-outdent"),
+    spec("edit.undo", "Undo", "Editing").icon("arrow-counter-clockwise"),
+    spec("edit.redo", "Redo", "Editing").icon("arrow-clockwise"),
+    spec("edit.copy", "Copy", "Editing").icon("copy"),
+    spec("edit.cut", "Cut", "Editing").icon("scissors"),
+    spec("edit.paste", "Paste", "Editing").icon("clipboard"),
 ];
+
+/// The commands in [`PLATFORM_COMMANDS`], described on every platform so
+/// a toolbar synced from another machine can still name them.
+const PLATFORM_SPECS: [CommandSpec; 5] =
+    [LOOK_UP, HIDE_KEYBOARD, FOLD_TOGGLE, FOLD_ALL, UNFOLD_ALL];
+
+/// A built-in command's description by id, on any platform.
+pub fn command_spec(id: &str) -> Option<&'static CommandSpec> {
+    BUILTIN_COMMANDS
+        .iter()
+        .chain(PLATFORM_SPECS.iter())
+        .find(|spec| spec.id == id)
+}
+
+/// The Phosphor icon a command shows, or [`DEFAULT_ICON`] for one the
+/// registry doesn't describe, such as a plugin's.
+pub fn command_icon(id: &str) -> &'static str {
+    command_spec(id).map_or(DEFAULT_ICON, |spec| spec.icon)
+}
 
 /// A registered command's description.
 #[derive(Clone, Debug, PartialEq, Eq)]

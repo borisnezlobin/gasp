@@ -5,6 +5,7 @@
 use gasp_config::commands::{BUILTIN_COMMANDS, CommandSpec};
 use gasp_config::keys::{Key, KeyChord, Modifiers, NamedKey};
 use gasp_config::rules::Rule;
+use gasp_config::toolbars::{ButtonStyle, Place, ToolbarItem, Toolbars};
 use gasp_config::{Config, Platform};
 
 /// Commands the phone leaves out: it shows one note at a time, so there are
@@ -63,16 +64,89 @@ fn command_info(spec: &CommandSpec, config: &Config) -> CommandInfo {
     }
 }
 
-/// The toolbar's commands in order, leaving out ids the phone can't run.
-pub(crate) fn toolbar(config: &Config) -> Vec<CommandInfo> {
+/// One thing on the bar above the software keyboard.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum ToolbarEntry {
+    Command {
+        command: CommandInfo,
+    },
+    /// A thin line between groups of buttons.
+    Separator,
+    /// A wider gap; the bar scrolls, so there's no far end to push to.
+    Spacer,
+    /// A button that opens a menu of commands.
+    Menu {
+        title: String,
+        commands: Vec<CommandInfo>,
+    },
+}
+
+/// How the keyboard bar's buttons read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum ToolbarLabels {
+    Icons,
+    IconsAndLabels,
+    Labels,
+}
+
+/// The `keyboard` toolbar from `toolbars.toml`: what the bar above the
+/// software keyboard holds and how it reads.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct KeyboardToolbar {
+    /// Whether the bar shows at all.
+    pub enabled: bool,
+    pub labels: ToolbarLabels,
+    pub entries: Vec<ToolbarEntry>,
+}
+
+/// The bars placed at `keyboard`, their items one after the other,
+/// leaving out commands the phone can't run and the status widgets,
+/// which the phone shows elsewhere.
+pub(crate) fn keyboard_toolbar(config: &Config) -> KeyboardToolbar {
     let commands = command_infos(config);
-    config
-        .settings
-        .mobile
-        .toolbar
+    let find = |id: &str| commands.iter().find(|info| info.id == id).cloned();
+    let toolbars = &config.toolbars;
+    let bars: Vec<_> = toolbars.at(Place::Keyboard).collect();
+    let entries = bars
         .iter()
-        .filter_map(|id| commands.iter().find(|info| &info.id == id).cloned())
-        .collect()
+        .flat_map(|bar| bar.items.iter())
+        .filter_map(|item| keyboard_entry(item, toolbars, &find))
+        .collect();
+    KeyboardToolbar {
+        enabled: !bars.is_empty(),
+        labels: bars
+            .first()
+            .map_or(ToolbarLabels::Icons, |bar| labels_for(bar.style)),
+        entries,
+    }
+}
+
+fn labels_for(style: ButtonStyle) -> ToolbarLabels {
+    match style {
+        ButtonStyle::Icons => ToolbarLabels::Icons,
+        ButtonStyle::IconsAndLabels => ToolbarLabels::IconsAndLabels,
+        ButtonStyle::Labels => ToolbarLabels::Labels,
+    }
+}
+
+fn keyboard_entry(
+    item: &ToolbarItem,
+    toolbars: &Toolbars,
+    find: &dyn Fn(&str) -> Option<CommandInfo>,
+) -> Option<ToolbarEntry> {
+    match item {
+        ToolbarItem::Command(id) => find(id).map(|command| ToolbarEntry::Command { command }),
+        ToolbarItem::Separator => Some(ToolbarEntry::Separator),
+        ToolbarItem::Spacer => Some(ToolbarEntry::Spacer),
+        ToolbarItem::Menu(id) => {
+            let menu = toolbars.menu(id)?;
+            Some(ToolbarEntry::Menu {
+                title: menu.title.clone(),
+                commands: menu.items.iter().filter_map(|id| find(id)).collect(),
+            })
+        }
+        ToolbarItem::Widget(_) => None,
+    }
 }
 
 /// The keys to hand to UIKit. Moving, selecting and deleting are left to
@@ -194,12 +268,41 @@ mod tests {
         );
     }
 
+    fn command_ids(toolbar: KeyboardToolbar) -> Vec<String> {
+        toolbar
+            .entries
+            .into_iter()
+            .filter_map(|entry| match entry {
+                ToolbarEntry::Command { command } => Some(command.id),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_keyboard_bar_follows_toolbars_toml() {
+        let mut config = Config::defaults();
+        let text = "[toolbar.keyboard]\nstyle = \"labels\"\nitems = [\"format.bold\", \"separator\", \"menu:insert\", \"word-count\", \"pane.close\"]\n";
+        config.toolbars = gasp_config::toolbars::build_toolbars("toolbars.toml", Some(text), &[])
+            .unwrap()
+            .0;
+        let bar = keyboard_toolbar(&config);
+        assert_eq!(bar.labels, ToolbarLabels::Labels);
+        assert_eq!(bar.entries.len(), 3, "no widget and no pane command");
+        assert_eq!(bar.entries[1], ToolbarEntry::Separator);
+        assert!(
+            matches!(&bar.entries[2], ToolbarEntry::Menu { title, commands } if title == "Insert" && !commands.is_empty())
+        );
+        let off = "[toolbar.keyboard]\nenabled = false\n";
+        config.toolbars = gasp_config::toolbars::build_toolbars("toolbars.toml", Some(off), &[])
+            .unwrap()
+            .0;
+        assert!(!keyboard_toolbar(&config).enabled);
+    }
+
     #[test]
     fn the_toolbar_starts_like_the_obsidian_one() {
-        let ids: Vec<String> = toolbar(&Config::defaults())
-            .into_iter()
-            .map(|info| info.id)
-            .collect();
+        let ids = command_ids(keyboard_toolbar(&Config::defaults()));
         // keyboard.hide comes first on the phone; other hosts leave it out.
         let start = ids.iter().position(|id| id == "note.import-image").unwrap();
         assert!(start <= 1);
