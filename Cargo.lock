@@ -3923,6 +3923,7 @@ dependencies = [
 name = "gasp-ffi"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
  "gasp-config",
  "gasp-core",
  "gasp-export",
