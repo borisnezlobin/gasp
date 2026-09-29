@@ -1,27 +1,19 @@
 //! Math drawn as math on the phone: LaTeX goes through `gasp-math`
-//! (mitex and Typst) to SVG, which is rasterised with resvg into coverage
-//! alone, one byte a pixel. The phone fills that with the text colour, so
-//! one render serves light and dark mode, and keeps its own cache.
+//! (mitex and Typst) and is rasterised straight from the layout into
+//! coverage alone, one byte a pixel. The phone fills that with the text
+//! colour, so one render serves light and dark mode, and keeps its own
+//! cache. `gasp-math` lets go of old layouts as it renders.
 //!
 //! Renders are safe to run on several threads at once, as the desktop runs
 //! them.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-use gasp_math::{RenderedMath, evict_layout_memory, render_latex, warm_up};
-use resvg::{tiny_skia, usvg};
-
-/// Typst memoises layouts; every this many renders, the ones not used
-/// lately are let go so memory doesn't grow with every equation seen.
-const RENDERS_BETWEEN_EVICTIONS: usize = 200;
-const EVICTION_AGE: usize = 2;
-
-static RENDERS: AtomicUsize = AtomicUsize::new(0);
+use gasp_math::{MathCoverage, rasterize_latex, warm_up};
 
 /// An equation rasterised as coverage: how much ink each pixel holds.
 #[derive(Clone, Debug, PartialEq, uniffi::Record)]
 pub struct MathImage {
-    /// The equation's size in points.
+    /// The size of the pixels in points: the equation's size rounded up
+    /// to whole pixels, so drawn this big the pixels land one to one.
     pub width: f64,
     pub height: f64,
     /// From the top edge down to the baseline, in points, for lining
@@ -61,43 +53,25 @@ pub fn render_math(
     font_size: f64,
     pixels_per_point: f64,
 ) -> MathRender {
-    let rendered = render_latex(&tex, display, font_size);
-    if RENDERS
-        .fetch_add(1, Ordering::Relaxed)
-        .is_multiple_of(RENDERS_BETWEEN_EVICTIONS)
-    {
-        evict_layout_memory(EVICTION_AGE);
-    }
-    let image = rendered
-        .map_err(|error| error.message().to_owned())
-        .and_then(|rendered| coverage(&rendered, pixels_per_point as f32));
-    match image {
-        Ok(image) => MathRender::Drawn { image },
-        Err(message) => MathRender::Failed { message },
+    match rasterize_latex(&tex, display, font_size, pixels_per_point as f32) {
+        Ok(image) => MathRender::Drawn {
+            image: math_image(image),
+        },
+        Err(error) => MathRender::Failed {
+            message: error.message().to_owned(),
+        },
     }
 }
 
-fn coverage(rendered: &RenderedMath, pixels_per_point: f32) -> Result<MathImage, String> {
-    let tree = usvg::Tree::from_str(&rendered.svg, &usvg::Options::default())
-        .map_err(|error| error.to_string())?;
-    let width = (rendered.width as f32 * pixels_per_point).ceil().max(1.);
-    let height = (rendered.height as f32 * pixels_per_point).ceil().max(1.);
-    let mut pixmap =
-        tiny_skia::Pixmap::new(width as u32, height as u32).ok_or("the equation has no area")?;
-    let svg_size = tree.size();
-    let transform = tiny_skia::Transform::from_scale(
-        width / svg_size.width().max(f32::EPSILON),
-        height / svg_size.height().max(f32::EPSILON),
-    );
-    resvg::render(&tree, transform, &mut pixmap.as_mut());
-    Ok(MathImage {
-        width: rendered.width,
-        height: rendered.height,
-        baseline: rendered.baseline,
-        pixel_width: pixmap.width(),
-        pixel_height: pixmap.height(),
-        coverage: pixmap.pixels().iter().map(|pixel| pixel.alpha()).collect(),
-    })
+fn math_image(image: MathCoverage) -> MathImage {
+    MathImage {
+        width: image.width,
+        height: image.height,
+        baseline: image.baseline,
+        pixel_width: image.pixel_width,
+        pixel_height: image.pixel_height,
+        coverage: image.coverage,
+    }
 }
 
 #[cfg(test)]
@@ -113,9 +87,9 @@ mod tests {
             image.coverage.len(),
             (image.pixel_width * image.pixel_height) as usize
         );
-        assert_eq!(image.pixel_width, (image.width * 3.).ceil() as u32);
+        assert_eq!(image.pixel_width, (image.width * 3.).round() as u32);
         assert!(image.baseline > 0. && image.baseline < image.height);
-        assert!(image.coverage.contains(&255));
+        assert!(image.coverage.iter().any(|&ink| ink > 250));
     }
 
     #[test]

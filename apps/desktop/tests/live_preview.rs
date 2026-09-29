@@ -14,7 +14,7 @@ use gasp_desktop::line_layout::{Hit, Piece, PieceContent, VisualLine};
 use gasp_desktop::preview::math::RenderFn;
 use gasp_desktop::vault_index::{VaultIndex, index_changes};
 use gasp_desktop::{EditorEvent, EditorView, HighlightKind};
-use gasp_math::{MathError, RenderedMath};
+use gasp_math::{MathCoverage, MathError};
 use gpui::{
     AppContext, Entity, Focusable, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, Pixels,
     Point, TestAppContext, VisualTestContext, point, px,
@@ -23,21 +23,24 @@ use gpui::{
 /// Draws every equation as a box 4px per source byte wide and 10px tall,
 /// with its baseline 8px from the top.
 fn stub_math() -> RenderFn {
-    Arc::new(|tex: &str, _display: bool, _size: f64| {
-        if tex.contains("\\bad") {
-            return Err(MathError::Convert("unknown command".into()));
-        }
-        let width = 4. * tex.len() as f64;
-        Ok(Arc::new(RenderedMath {
-            svg: format!(
-                "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"10\">\
-                 <rect width=\"{width}\" height=\"10\"/></svg>"
-            ),
-            width,
-            height: 10.,
-            baseline: 8.,
-        }))
-    })
+    Arc::new(
+        |tex: &str, _display: bool, _size: f64, pixels_per_point: f32| {
+            if tex.contains("\\bad") {
+                return Err(MathError::Convert("unknown command".into()));
+            }
+            let width = 4. * tex.len() as f64;
+            let pixel_width = (width as f32 * pixels_per_point).ceil() as u32;
+            let pixel_height = (10. * pixels_per_point).ceil() as u32;
+            Ok(MathCoverage {
+                width,
+                height: 10.,
+                baseline: 8.,
+                pixel_width,
+                pixel_height,
+                coverage: vec![255; (pixel_width * pixel_height) as usize],
+            })
+        },
+    )
 }
 
 fn open<'a>(
