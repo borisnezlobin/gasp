@@ -19,7 +19,7 @@ The workspace, CI and the synthetic corpus exist, the Linux-runnable Phase 0 spi
 | 4 Search and prose | vault search with an in-memory index (not Tantivy yet), sentence-length highlighting, grammar layers 1 and 2 (Harper's mechanical checks and vault-learned spelling); the local grammar model and OCR aren't started |
 | 5 Export | PDF (Typst) and HTML for the website built; the website still needs `crates/export/assets/article.css` and its drop-cap script updated |
 | 6 MCP and headless modes | MCP server built (`gasp mcp`): note, attachment, link, config and render tools, plus a bridge to the running app for its state, commands and unsaved notes. `gasp --snapshot` draws a note's editor, or the whole window driven by a script of clicks, keys and commands on a copy of a vault, to PNGs with no window shown (macOS). The other headless modes aren't started |
-| 7 iPhone | built as a browser on the core (UniFFI, SwiftUI, TextKit 2): tabs with an overview, an edge-swipe sidebar (search, files, outline, links, tags), live preview from the core's planner with math rendered by Typst, vault images, link cards with their image and coloured code, wide tables as a sideways-scrolling grid with cell editing, heading and callout folding, the grammar checker's underlines and cards, footnote cards, OCR of images and PDFs in search, reading positions kept per note, the keyboard bar and the bottom bar (the `keyboard` and `browser-bar` toolbars in `toolbars.toml`, which the phone's settings change too), undo and redo in a pill above the keyboard, find and replace, and every registry command but panes through the palette, the bar or hardware keys (`UIKeyCommand`). Syncs with GitHub like the desktop (setup, the tab bar indicator, the resolver, sync settings; on open, foreground, background, a background refresh and after edits), verified against local repositories. Runs in the simulator; not yet run on the owner's iPhone |
+| 7 iPhone | built as a browser on the core (UniFFI, SwiftUI, TextKit 2): tabs with an overview, an edge-swipe sidebar (search, files, outline, links, tags), live preview from the core's planner with math rendered by Typst, vault images, link cards with their image and coloured code, wide tables as a sideways-scrolling grid with cell editing, heading and callout folding, the grammar checker's underlines and cards, footnote cards, OCR of images and PDFs in search, reading positions kept per note, the keyboard bar and the bottom bar (the `keyboard` and `browser-bar` toolbars in `toolbars.toml`, which the phone's settings change too), undo and redo in a pill above the keyboard, find and replace, and every registry command but panes through the palette, the bar or hardware keys (`UIKeyCommand`). Syncs with GitHub like the desktop (setup, the tab bar indicator, the resolver, sync settings; on open, foreground, background, a background refresh and after edits), verified against local repositories. Runs in the simulator; not yet run on the owner's iPhone. A performance pass made a keystroke cost what it changed (plan updates and edits by range) and a usability pass added moving notes, Dynamic Type and the keyboard bar's pressed and greyed states |
 | 8 Plugins and agents | not started |
 
 Update this table, and the phase's section, when work lands.
@@ -577,15 +577,16 @@ Every feature ships as a package with three parts: a plain-language spec, the co
   | Plan a 60-line viewport | 15 µs |
   | Plan a 60-line viewport with every heading folded, 200 KB note | 59 µs |
   | Input pipeline per key, the owner's 226 snippets and 82 replacements | 3 to 6 µs |
-  | Phone keystroke (update, plan, sentence tints, folds, lowering), median note / longest corpus note / 200 KB note | 27 µs / 87 µs / 1.0 ms |
-  | Phone cursor move, same notes | 10 µs / 54 µs / 0.66 ms |
+  | Phone keystroke (replace, plan update, sentence tints, keyboard bar states, lowering), median note / longest corpus note / 200 KB note | 27 µs / 40 µs / 0.36 ms (was 27 µs / 87 µs / 1.0 ms) |
+  | Phone cursor move, same notes | 9 µs / 6 µs / 26 µs (was 10 µs / 54 µs / 0.66 ms) |
+  | Phone note operation then backlinks, three copies of the corpus: new, rename (rewriting links), trash | 0.23 / 7.6 / 0.30 ms (was 8.0 / 13–15 / 8.2 ms, the index rebuilt each time; both measured back to back on a loaded Mac) |
   | Vault search per keystroke, the corpus | 125 µs median, 1.3 ms p95 |
   | New equation to pixels / keystroke inside an equation | 92 to 110 µs / 27 to 33 µs |
   | Sentence tints after a keystroke, 200 KB note | 0.25 to 0.33 ms |
   | Loading the owner's migrated config / compiling its snippets | 1.3 ms / 8.4 ms, in the background |
   | Sync with nothing to do / one edited note, a 570-file, 261 MB vault with 500 commits since the legacy branch moved | 3.0 ms / 14.4 ms, plus the network |
 
-  What the phone does is still whole-note work per keystroke in two places the core can't fix alone: UniFFI encodes the whole plan (330 KB for a 200 KB note) for Swift to decode, and `PlanStyler` compares line plans by value with absolute offsets, so every line after an edit reads as changed and is restyled. A plan delta (changed lines plus a shift for the rest) with Swift keeping its own copy would make both proportional to the edit.
+  The phone's keystroke used to be whole-note work in two places: UniFFI encoded the whole plan (330 KB for a 200 KB note) and `PlanStyler` compared every line by value with absolute offsets. Plan updates (see [Phase 7](#phase-7-iphone)) send only the lines that may have changed, 34 KB for the 200 KB note, and nearly all of that is the sentence tints, which are still the whole note's while sentence-length highlighting is on (0.26 ms of the 0.36).
 - **Code quality.** Clippy with a cyclomatic complexity limit of 15, and SwiftLint with the same limit on the iPhone app. A complexity failure blocks a merge like a failing test.
 
 ## Phases
@@ -853,12 +854,65 @@ The owner's first hands-on round (the pinned hide button, block indenting, toolb
 
 Sync was verified the same way, in a simulator of its own against a local bare repository reached as `file://`, with a second clone as the laptop and a third on `main` as the old tool, checking every result in the repositories: setup cloning `master` from `main` and pushing it; the token read back from the Keychain across a dozen relaunches; an edit on the phone (the core's toggle-task) committed as `iphone: Groceries.md` and pushed a minute after it stopped; the laptop's edit arriving in the open note on going to the background and back; a commit on `main` merged one way into `master`, with `main` left alone; an unsaved phone edit folded into a note the launch sync changed; a conflict parked (the laptop's line on `master`, both on disk between markers, the indicator counting one note) and resolved with an edit, with keep both and with keep this iPhone's, each pushed; offline with one change waiting, then pushed once the repository was back; switching to the sample notes. `cargo test -p gasp-sync -p gasp-ffi` covers the same through `VaultSync`. Not verified: HTTPS to GitHub (only `file://` was reachable), the Keychain on a real iPhone, `BGAppRefreshTask` actually firing (the simulator doesn't run them), and the syncing phase on screen (a local sync is over before a screenshot).
 
+**Speed.** A performance pass made the phone's work proportional to what changed rather than to the note's length. Each keystroke and cursor move used to send the whole plan across the FFI and compare every line by value, and each attribute change made TextKit invalidate its layout on its own, so a keystroke in a 200 KB note restyled every line after it. Now:
+
+- *Plan updates.* `KeptPlan::plan_with_changes` answers which lines a plan may have changed and how an edit moved the rest (`LineSplice`). `NoteDocument::plan_update` sends only those lines, with the folds and each heading's fold state (`LinePlan.heading_fold`), and the edit's splice with its UTF-16 shift; `plan()` plans afresh and stays out of it. The styler keeps its own copy (`ShownPlan`): lines it wasn't sent keep the shift since they arrived and are moved only when read, table rows and block widgets are indexed, and only lines whose plan differs, or that an edit touched, are restyled. A copy that doesn't line up with the text asks for the whole plan.
+- *Edits by range.* The text view's edits, however they come (typing, autocorrect, dictation, paste, undo, the core's commands), are gathered from `NSTextStorage`'s processing into one span and handed over as `NoteDocument::replace`, with the whole text only when the lengths disagree. Saving reads the text when it saves, not on every keystroke.
+- *Less layout.* A restyle runs inside `beginEditing`/`endEditing`, so TextKit invalidates once, and a note is styled once, at its first layout, for its width. Fonts come from a cache. Whether a paragraph is collapsed is read from the storage, not from a paragraph TextKit would build to ask.
+- *Tables.* A wide table's grid moves with an edit above it instead of being laid out and made again, only grids in the viewport are placed (asking where others are laid the text out up to them), and a grid whose rows didn't move isn't redrawn.
+- *Pictures.* Tinted equations and rounded images are drawn once into a shared cache of 32 MB. An arriving image redraws its line instead of restyling it, and a picture drawn after the cache let its pixels go asks for them again. Grammar flags and code colours move with every edit, and code colours paint only code lines.
+- *Image text.* The cache of text read from images is named after the vault's place in the app's container, which survives the moves iOS makes on each update; before, every update read every image and PDF again.
+- *The link index.* Making, renaming, moving or trashing a note, today's note and a note made by a link update the index for the files they touched (`VaultFolder::reindex`), and notes a sync wrote are read in with `files_changed`, which the index missed before.
+
+`-probe launch|open|typing|scroll|sync` (`apps/ios/Gasp/App/PerformanceProbe.swift`) times these in the simulator and prints `probe` lines for `simctl launch --console-pty`; the typing probe also checks that the text styled as it changed matches it styled afresh from a whole plan, grids included (`-probeTyped` types other keys). Measured on the iPhone 17 Pro simulator, Release app and release core, before (the probe's first commit, `ddc1e8c`) and after, run alternately on a busy Mac, with a 200 KB note made of corpus notes and a 1,800-line note of the heaviest math with 84 photo-sized images:
+
+| Measure | Probe | Before | After |
+|---|---|---|---|
+| Launch to the start page, warm | `launch`, 5 runs each, alternating | 615 ms | 603 ms |
+| Launch to the start page, cold (simulator rebooted) | `launch` after `simctl shutdown` and `boot` | 658 to 716 ms | 724 to 736 ms |
+| Launch with the 200 KB note open, warm | `launch` with it as the open tab | 3.70 s | 0.86 s |
+| Launch with the 200 KB note open, cold | the same after a reboot | 3.71 s | 0.97 to 1.11 s |
+| Opening the 200 KB note | `open` | 3.05 s | 0.31 s |
+| Opening the math note | `open` | 1.52 s | 0.20 s |
+| Keystroke, 200 KB note, keyboard up | `typing`, 200 keys, median (p95) | 642 ms (680) | 5.6 ms (6.5) |
+| Keystroke, math note | the same | 212 ms (230) | 5.4 to 6.8 ms (7.8) |
+| Keystroke, `Summary.md` (4 KB) | the same | 14 ms (15) | 5.2 ms (6.1) |
+| Cursor move a line, 200 KB note | `typing`, 100 moves, median | 32 ms | 15 ms (UIKit's keyboard, mostly) |
+| Cursor move a line, math note | the same | 18 ms | 8 ms |
+| Scrolling the math note at 2,000 pt/s | `scroll`, frames over 25 ms of about 2,500 (longest) | 588 to 616 (606 ms) | 1 to 3 (33 ms) |
+| Scrolling the 200 KB note | the same, of 4,585 | 3 to 6 (732 ms) | 0 to 2 (34 ms) |
+| CPU while idle with the math note open | CPU time over 30 s | 55.8 s | 0.01 s |
+| Footprint, idle with the math note open | `footprint` | 338 to 359 MB | 247 to 250 MB |
+| The core's keystroke, 200 KB note | `ffi_bench`, CPU clock | 1.0 ms, 331 KB to Swift | 0.36 ms, 34 KB |
+| The core's cursor move, 200 KB note | the same | 0.65 ms | 0.03 ms |
+
+The busy idle before was the image cache thrashing: with more photos than its 64 MB holds, each arriving image restyled every picture line, which asked for the ones just let go again. The sync that runs as the app opens (`-probe sync`, against a local bare repository with the corpus and the fixtures) finishes 0.59 to 0.87 s after the process starts, off the main thread; it didn't change tonight.
+
+No timer runs while the app is idle but sync's next due time. Caches are bounded: equations 48 MB of coverage, decoded vault images 64 MB, drawn pictures 32 MB. What's left of the footprint is mostly fixed: Harper's dictionary (about 94 MB, built once), Vision's text recognition model once it has read an image (about 50 MB) and the mapped system fonts and assets. Launching to the start page is unchanged at about 0.6 s: about 0.3 s passes before `main` (an 80 MB binary with the core linked in) and 0.2 s in SwiftUI's first render, much of it Swift's protocol conformance lookups; the hardware keyboard's shortcut buttons now join after the first frame.
+
+**Usability pass.** Walked headless with launch arguments and screenshots, in light and dark mode and at the largest text size:
+
+- Moving notes: a note's menu in the file list, and `note.move` for the open note, open a folder list (`MoveNoteSheet`) to move it into; links follow as on a rename (`VaultFolder::move_note`). Before this a note could only be renamed where it was.
+- The keyboard bar shows toggles such as bold and italic pressed (a fill and the accent) while the cursor is in them, and greys out indent and outdent where they wouldn't change the note, from `NoteDocument::command_states` (`commands::active_commands` and `commands::shift_availability`, which reads the note's tree and agrees with the commands at every place in a test note). VoiceOver reads them as selected and dimmed.
+- Text follows Dynamic Type, in notes and the browser, and changes with the setting; the chrome's symbols take their size from the text.
+- The tab overview marks the tab showing with a ring outside its card instead of growing that card, so the grid lines up; previews drop list markers and a first heading that repeats the title.
+- The sidebar's section icons share one height, so their names line up.
+- Errors read as sentences: the core's errors described themselves as Swift source (`Gasp.VaultError.Refused(message: …)`).
+- Sync setup removes a clone whose token the Keychain refuses, so trying again doesn't clone beside it as "notes 2"; sync details for notes that don't sync say so and offer setup or the synced notes instead of an empty sheet.
+
+Not verified by hand, since nothing could tap in the simulator tonight: the grammar and footnote cards, a table cell's editing and menu, inserting a photo, following links, and the rename and trash prompts.
+
 **Still to do in this phase:**
 
 - Sync against GitHub from the owner's iPhone: set it up there and watch one sync each way, then remove GitSync and its automations. A progress bar for the first clone of the 252 MB repository, which now shows only a spinner.
 - The grammar model and proofreading (layers 3 and 4), web images in `![](https://…)`, dragging a table's rows and columns, and the edit-time stats file.
 - Tables that match the desktop's. The phone's grid (`apps/ios/Gasp/Tables/TableGridView.swift`) pads cells by `spacing.md`, draws only a hairline under each row in `divider` or `fill`, sizes columns from their text with no minimum, and marks the cell being edited with a rounded `fill`. It should read the desktop's `table.*`, `color.table.*` and `opacity.table-*` tokens, passed through `Tokens` in `crates/ffi`: square rules around and between cells, the header's fill and heavier rule, the least column width and row height in lines of body text, and the cell being edited as a square tint with an inset ring in the accent.
-- A UI test target, `SwiftLint` and a simulator build in CI.
+- A UI test target, `SwiftLint` and a simulator build in CI. The probe (`-probe`) could run there with budgets, as the desktop's benches do.
+- Taps the night's usability pass couldn't make: the grammar and footnote cards, a table cell's editor and menu, inserting a photo, following links, and the rename and trash prompts.
+- VoiceOver can't reach what the text view draws itself: a heading's fold control, a task's checkbox and a callout's fold. They need accessibility elements of their own (the palette's fold and task commands work meanwhile).
+- Launching to the start page takes about 0.6 s, 0.3 s of it before `main`; the 80 MB binary with the core linked in is the place to look (dead-stripping, fewer Swift conformances in the bindings).
+- Sentence tints are sent whole on every keystroke while highlighting is on; they could follow the plan updates' lines.
+- Harper's dictionary keeps about 94 MB for the checker's life; the phone could build the checker only when a note shows and drop it after a while, as the desktop's worker process does.
 
 ### Phase 8: plugins and agents
 
