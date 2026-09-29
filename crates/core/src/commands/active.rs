@@ -3,8 +3,8 @@
 
 use crate::syntax::{HtmlKind, NodeKind, SyntaxTree};
 
-/// The command a node being around the cursor turns on, if any.
-fn command_for(kind: &NodeKind) -> Option<&'static str> {
+/// The inline format a node around the cursor turns on, if any.
+fn format_for(kind: &NodeKind) -> Option<&'static str> {
     let id = match kind {
         NodeKind::Strong | NodeKind::Html(HtmlKind::Bold) => "format.bold",
         NodeKind::Emphasis | NodeKind::Html(HtmlKind::Italic) => "format.italic",
@@ -15,6 +15,14 @@ fn command_for(kind: &NodeKind) -> Option<&'static str> {
         NodeKind::Math { display: false } => "format.math-inline",
         NodeKind::Comment | NodeKind::CommentBlock => "format.comment",
         NodeKind::Link(_) | NodeKind::WikiLink(_) => "format.link",
+        _ => return None,
+    };
+    Some(id)
+}
+
+/// The command a block around the cursor turns on, if any.
+fn block_command_for(kind: &NodeKind) -> Option<&'static str> {
+    let id = match kind {
         NodeKind::List { ordered: true, .. } => "format.numbered-list",
         NodeKind::List { ordered: false, .. } => "format.bullet-list",
         NodeKind::ListItem { task: Some(_) } => "edit.toggle-task",
@@ -23,6 +31,11 @@ fn command_for(kind: &NodeKind) -> Option<&'static str> {
         _ => return None,
     };
     Some(id)
+}
+
+/// The command a node around the cursor turns on, if any.
+fn command_for(kind: &NodeKind) -> Option<&'static str> {
+    format_for(kind).or_else(|| block_command_for(kind))
 }
 
 /// The toggle commands in effect at `offset`, innermost last, each once.
