@@ -10,6 +10,7 @@ use gpui::{
 use super::sidebar::{KnowledgeSidebar, Row, SidebarEvent, SidebarView};
 use crate::icons::{IconName, icon};
 use crate::theme::UiTheme;
+use crate::ui::Selectable;
 use crate::ui::{Button, IconButton, Tooltip, truncated, ui_theme};
 
 impl Render for KnowledgeSidebar {
@@ -112,7 +113,7 @@ impl KnowledgeSidebar {
         // Room around the row so the list's clipping doesn't cut it.
         div()
             .id(("knowledge-row", index))
-            .debug_selector(move || format!("knowledge-row-{index}"))
+            .selector(move || format!("knowledge-row-{index}"))
             .w_full()
             .px(ui.space_xs)
             .py(ui.hairline)
@@ -396,7 +397,7 @@ fn tag(
     let selector = format!("knowledge-tag-toggle-{name}");
     let toggle = div()
         .id(SharedString::from(selector.clone()))
-        .debug_selector(move || selector.clone())
+        .selector(move || selector.clone())
         .flex()
         .flex_none()
         .items_center()

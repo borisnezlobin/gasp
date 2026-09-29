@@ -17,6 +17,7 @@ use crate::toolbar::render::{BarFrame, BarState, add_button, bar, bar_items, flo
 use crate::toolbar::{
     AddToToolbar, FocusStop, PressToolbarItem, ToolbarFocus, focus_stops, item_key, step_stop,
 };
+use crate::ui::Selectable;
 use crate::ui::{MenuAnchor, MenuItem};
 
 /// The docked places, in the order the keyboard visits them.
@@ -177,7 +178,7 @@ impl Workspace {
             &ui,
         )
         .id("status-bar")
-        .debug_selector(|| "status-bar".to_owned())
+        .selector(|| "status-bar".to_owned())
         .on_hover(cx.listener(|workspace, hovered: &bool, _, cx| {
             workspace.toolbar_hover.on_status_bar = *hovered;
             cx.notify();

@@ -15,6 +15,7 @@ use super::render::{BarFrame, BarState, bar, bar_items};
 use super::{ToolbarFocus, toolbar_context};
 use crate::editor::EditorView;
 use crate::frame::FrameLayout;
+use crate::ui::Selectable;
 
 /// The floating bars a vault's toolbars have, and their state in one
 /// editor.
@@ -211,7 +212,7 @@ impl EditorView {
         let selector = format!("floating-toolbar-{}", toolbar.id);
         let body = bar(BarFrame::Floating, toolbar.density, &theme)
             .id(gpui::ElementId::Name(selector.clone().into()))
-            .debug_selector(move || selector)
+            .selector(move || selector)
             .occlude()
             .children(items);
         Some(

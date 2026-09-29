@@ -23,6 +23,7 @@ use crate::picker::shortcut::Shortcut;
 use crate::settings_view::controls::{button, choice_button, inert_button};
 use crate::settings_view::modal_size;
 use crate::theme::{KeycapTheme, SettingsTheme};
+use crate::ui::Selectable;
 use crate::ui::keycap;
 
 /// Lines of unchanged text shown above each conflict, for orientation.
@@ -317,7 +318,7 @@ impl ConflictResolver {
             let selector = format!("resolver-file-{index}");
             div()
                 .id(("resolver-file", index))
-                .debug_selector(|| selector)
+                .selector(|| selector)
                 .flex()
                 .items_center()
                 .gap(style.control_gap)
@@ -432,7 +433,7 @@ impl ConflictResolver {
                     style,
                 )
                 .child(key_chip(option.key(), &keys))
-                .debug_selector(|| selector)
+                .selector(|| selector)
                 .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
                     view.choose(file, index, option, cx)
                 }))
@@ -523,11 +524,11 @@ impl ConflictResolver {
             button("resolver-finish", "Finish merge", true, false, style)
                 .gap(style.gap_sm)
                 .child(key_chip("Enter", &keys.on_text(style.on_accent)))
-                .debug_selector(|| "resolver-finish".to_owned())
+                .selector(|| "resolver-finish".to_owned())
                 .on_click(cx.listener(|view, _: &ClickEvent, _, cx| view.finish(cx)))
         } else {
             inert_button("resolver-finish", "Finish merge", style)
-                .debug_selector(|| "resolver-finish".to_owned())
+                .selector(|| "resolver-finish".to_owned())
         };
         let cancel = button("resolver-cancel", "Not now", false, false, style)
             .on_click(cx.listener(|_, _: &ClickEvent, _, cx| cx.emit(DismissEvent)));

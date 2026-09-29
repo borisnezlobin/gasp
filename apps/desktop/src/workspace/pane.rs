@@ -21,6 +21,7 @@ use crate::editor::EditorView;
 use crate::keymap::{KEY_CONTEXT, RunCommand};
 use crate::text_input::TextInput;
 use crate::theme::Theme;
+use crate::ui::Selectable;
 use crate::ui::{HasMenuSlot, MenuAnchor, MenuItem, MenuSlot, ui_theme};
 
 /// The command the conflict banner runs.
@@ -250,11 +251,11 @@ impl Pane {
             false,
             &style,
         )
-        .debug_selector(|| "sync-banner-resolve".to_owned())
+        .selector(|| "sync-banner-resolve".to_owned())
         .on_click(cx.listener(|_, _, _, cx| cx.emit(PaneEvent::Run(RESOLVE_COMMAND.into()))));
         let banner = div()
             .id("sync-conflict-banner")
-            .debug_selector(|| "sync-conflict-banner".to_owned())
+            .selector(|| "sync-conflict-banner".to_owned())
             .flex_none()
             .flex()
             .items_center()
@@ -461,7 +462,7 @@ impl Pane {
             let editor = editor.clone();
             div()
                 .id(id)
-                .debug_selector(|| id.to_owned())
+                .selector(|| id.to_owned())
                 .flex_1()
                 .min_w_0()
                 .h_full()
@@ -600,7 +601,7 @@ impl Render for Pane {
         });
         let surface = div()
             .id("pane-surface")
-            .debug_selector(|| "pane-surface".to_owned())
+            .selector(|| "pane-surface".to_owned())
             .relative()
             .flex()
             .flex_col()

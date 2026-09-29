@@ -194,6 +194,9 @@ pub fn install(cx: &mut App) {
 
 #[cfg(target_os = "macos")]
 fn show(found: &LookUp, window: &Window) -> bool {
+    if crate::sandbox::blocks("Look up") {
+        return false;
+    }
     let Some(view) = native_view(window) else {
         return false;
     };

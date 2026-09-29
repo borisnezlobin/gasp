@@ -39,7 +39,7 @@ impl Welcome {
 
     /// Asks for a folder, then turns this window into its workspace.
     pub fn open_folder(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let chosen = cx.prompt_for_paths(folder_prompt());
+        let chosen = crate::sandbox::prompt_for_paths(folder_prompt(), cx);
         cx.spawn_in(window, async move |_, cx| {
             let Ok(Ok(Some(paths))) = chosen.await else {
                 return;

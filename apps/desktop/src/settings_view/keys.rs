@@ -407,7 +407,7 @@ impl SettingsView {
 /// Enter or Space on a row whose only control is a link opens it.
 fn open_url_key(key: &str, url: &str, cx: &mut App) -> bool {
     if matches!(key, "space" | "enter") {
-        cx.open_url(url);
+        crate::sandbox::open_url(url, cx);
         return true;
     }
     false

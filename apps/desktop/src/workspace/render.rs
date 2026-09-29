@@ -13,6 +13,7 @@ use super::pane_tree::{Axis, Node, Split};
 use super::sidebar::{LEFT_EDGE_TARGET, PANEL_TARGET, PanelPart};
 use super::{Drag, Workspace};
 use crate::keymap::WORKSPACE_CONTEXT;
+use crate::ui::Selectable;
 use crate::ui::ui_theme;
 
 impl Workspace {
@@ -84,7 +85,7 @@ impl Workspace {
         };
         let handle = div()
             .id(("divider", id.0))
-            .debug_selector(move || format!("divider-{}", id.0))
+            .selector(move || format!("divider-{}", id.0))
             .group(group)
             .absolute()
             .on_mouse_down(

@@ -13,11 +13,13 @@ BUNDLE_ID := com.borisnezlobin.gasp
 # the paid account, but its installs stop opening after 7 days.
 IOS_TEAM ?= K2MB68Z582
 
-.PHONY: help build run dmg dmg-local icon ios-core ios-project ios-sim ios-phone
+.PHONY: help build run dmg dmg-local icon ios-core ios-project ios-sim ios-phone snapshot
 
 help:
 	@echo "make build       Build the desktop app, signed so the Keychain remembers it"
 	@echo "make run         Build and open the desktop app on your last vault"
+	@echo "make snapshot    Run a snapshot script on a copy of VAULT, no window shown:"
+	@echo "                 make snapshot SCRIPT=steps.txt VAULT=path [OUT=dir] [OPEN=note]"
 	@echo "make dmg         Signed, notarized Gasp.dmg for other Macs (target/package/)"
 	@echo "make dmg-local   Unsigned Gasp.dmg that only runs on this Mac"
 	@echo "make icon        Rebuild AppIcon.icns from the whale render"
@@ -30,6 +32,14 @@ build:
 
 run: build
 	./target/release/gasp
+
+# Follows SCRIPT in the whole window on a copy of VAULT and writes its PNGs to
+# OUT. The debug build leaves the signed release binary alone.
+OUT ?= target/snapshots
+snapshot:
+	@test -n "$(SCRIPT)" -a -n "$(VAULT)" || { echo "usage: make snapshot SCRIPT=steps.txt VAULT=path [OUT=dir] [OPEN=note]"; exit 2; }
+	cargo build -p gasp-desktop
+	./target/debug/gasp --snapshot --vault "$(VAULT)" --script "$(SCRIPT)" --out "$(OUT)" $(if $(OPEN),--open "$(OPEN)")
 
 dmg:
 	DEVELOPER_ID="$(DEVELOPER_ID)" NOTARY_PROFILE="$(NOTARY_PROFILE)" scripts/package-macos.sh

@@ -18,6 +18,7 @@ use crate::picker::shortcut::Shortcut;
 use crate::settings_view::controls::{button, inert_button};
 use crate::settings_view::modal_size;
 use crate::theme::SettingsTheme;
+use crate::ui::Selectable;
 use crate::ui::keycap;
 use gasp_config::keys::KeyChord;
 use gasp_config::settings::RecoverySettings;
@@ -175,7 +176,7 @@ impl RecoveryDialog {
             let selector = format!("recovery-version-{index}");
             div()
                 .id(("recovery-version", index))
-                .debug_selector(|| selector)
+                .selector(|| selector)
                 .flex()
                 .flex_col()
                 .justify_center()
@@ -295,11 +296,11 @@ impl RecoveryDialog {
             )
             .gap(style.gap_sm)
             .child(key_chip("Enter", &keys.on_text(style.on_accent)))
-            .debug_selector(|| "recovery-restore".to_owned())
+            .selector(|| "recovery-restore".to_owned())
             .on_click(cx.listener(|view, _: &ClickEvent, _, cx| view.restore(cx)))
         } else {
             inert_button("recovery-restore", "Restore this version", style)
-                .debug_selector(|| "recovery-restore".to_owned())
+                .selector(|| "recovery-restore".to_owned())
         };
         let cancel = button("recovery-cancel", "Not now", false, false, style)
             .on_click(cx.listener(|_, _: &ClickEvent, _, cx| cx.emit(DismissEvent)));

@@ -15,6 +15,7 @@ use super::{
 };
 use crate::icons::{IconName, icon};
 use crate::settings_view::controls::{dropdown_button, toggle_switch};
+use crate::ui::Selectable;
 use crate::ui::button::Button;
 
 impl PrintDialog {
@@ -41,7 +42,7 @@ impl PrintDialog {
         let page = &preview.pages[index];
         div()
             .id(("print-page", index))
-            .debug_selector(move || format!("print-page-{}", index + 1))
+            .selector(move || format!("print-page-{}", index + 1))
             .flex_none()
             .w(print.page_width)
             .h(print.page_width * page.aspect)
@@ -59,7 +60,7 @@ impl PrintDialog {
     fn render_placeholder(&self) -> AnyElement {
         let print = &self.theme.print;
         div()
-            .debug_selector(|| "print-placeholder".to_owned())
+            .selector(|| "print-placeholder".to_owned())
             .flex_none()
             .w(print.page_width)
             .h(print.page_width * self.settings.paper.aspect())
@@ -78,7 +79,7 @@ impl PrintDialog {
                 .child(SharedString::from(message.clone()))
         });
         div()
-            .debug_selector(|| "print-failure".to_owned())
+            .selector(|| "print-failure".to_owned())
             .flex()
             .flex_col()
             .items_center()
@@ -141,7 +142,7 @@ impl PrintDialog {
                 ring,
                 style,
             )
-            .debug_selector(move || format!("print-{}", control.key()))
+            .selector(move || format!("print-{}", control.key()))
             .on_click(cx.listener(move |this, _, window, cx| {
                 this.focused = index;
                 this.change(control, true, window, cx);
@@ -154,7 +155,7 @@ impl PrintDialog {
             ring || self.menu.is_open_at(control.key()),
             style,
         )
-        .debug_selector(move || format!("print-{}", control.key()))
+        .selector(move || format!("print-{}", control.key()))
         .on_click(cx.listener(move |this, _, window, cx| this.open_menu(control, window, cx)));
         div()
             .relative()
@@ -256,7 +257,7 @@ impl PrintDialog {
             .pb(ui.space_sm)
             .child(
                 div()
-                    .debug_selector(|| "print-footer".to_owned())
+                    .selector(|| "print-footer".to_owned())
                     .flex_1()
                     .min_w_0()
                     .text_size(ui.small_font_size)

@@ -1,23 +1,40 @@
-//! `gasp --snapshot`: draws a note's editor pane to a PNG without showing
-//! a window, taking focus or activating the app, for agents and tests to
-//! look at what the app draws.
+//! `gasp --snapshot`: draws the app to PNGs without showing a window,
+//! taking focus or activating the app, for agents and tests to look at
+//! what the app draws.
 //!
-//! The note opens as it would in its vault: the vault's theme and
-//! settings, its images, and the caret where `--cursor` puts it (the
-//! editor has focus, so the caret and the table editor's marks show).
-//! Nothing in the vault is written: its config is only read, and none of the
-//! workspace's saving, syncing, watching or MCP bridge starts.
+//! It has two forms:
 //!
-//! Frames are drawn until the view stops changing (math and images
-//! arrive a moment after the text), then the last one is read back at
-//! the window's backing scale: a 900 by 700 window on a Retina display
-//! gives an 1800 by 1400 image. Only macOS reads frames back so far.
+//! - `--snapshot NOTE OUT.png` draws one note's editor pane, as its
+//!   vault's theme and settings show it, with the caret where `--cursor`
+//!   puts it. Nothing is written: the vault's config is only read.
+//! - `--snapshot --vault VAULT --script SCRIPT --out DIR` opens the whole
+//!   workspace window on a copy of the vault and follows a script of
+//!   pointer, keyboard and command steps (see [`script`]), writing a PNG
+//!   at each `snap`. The copy and the app's own folders live in a
+//!   temporary folder that's removed at the end, and the app is kept in a
+//!   [`crate::sandbox`]: no syncing, no MCP bridge, and no saving or
+//!   watching unless `--allow-writes` asks for them.
+//!
+//! Frames are drawn until the view stops changing and no equation, code
+//! block or image is still on its way, then the last one is read back at
+//! twice the window's size in points, whatever screen is attached. Only
+//! macOS reads frames back so far.
 
 #[cfg(target_os = "macos")]
+mod appkit;
+#[cfg(target_os = "macos")]
+mod frames;
+pub mod input;
+#[cfg(target_os = "macos")]
 mod metal_capture;
+#[cfg(target_os = "macos")]
+mod native_input;
+pub mod scratch;
+pub mod script;
+#[cfg(target_os = "macos")]
+mod window;
 
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use gasp_config::{Config, ConfigLoader};
 
@@ -25,8 +42,10 @@ use crate::workspace::files::vault_for_note;
 
 /// The window size when `--width` and `--height` are left out.
 pub const DEFAULT_SIZE: (u32, u32) = (900, 700);
+/// The whole window's size when `--window` is left out.
+pub const DEFAULT_WINDOW_SIZE: (u32, u32) = (1200, 800);
 
-/// What `--snapshot` draws, and where.
+/// What `--snapshot NOTE OUT.png` draws, and where.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SnapshotRequest {
     pub note: PathBuf,
@@ -51,13 +70,40 @@ impl SnapshotRequest {
     }
 }
 
-/// How often a frame is asked for while the view settles.
-const FRAME_INTERVAL: Duration = Duration::from_millis(30);
-/// How long the view has to go without drawing to count as settled.
-const SETTLE_TIME: Duration = Duration::from_millis(400);
-/// The longest a snapshot waits for the view to settle before it takes
-/// whatever was drawn last.
-const SETTLE_LIMIT: Duration = Duration::from_secs(30);
+/// What `--snapshot --vault VAULT --script SCRIPT --out DIR` runs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WindowSnapshotRequest {
+    pub vault: PathBuf,
+    /// The script's file, or `-` for standard input.
+    pub script: PathBuf,
+    /// The folder `snap` writes into.
+    pub out: PathBuf,
+    /// A note to open as the window opens, relative to the vault.
+    pub open: Option<PathBuf>,
+    pub width: u32,
+    pub height: u32,
+    pub dark: bool,
+    /// Whether notes are saved and the vault watched (in the copy).
+    pub allow_writes: bool,
+    /// Whether the copy of the vault stays when the run ends.
+    pub keep_temp: bool,
+}
+
+impl WindowSnapshotRequest {
+    pub fn new(vault: PathBuf, script: PathBuf, out: PathBuf) -> Self {
+        Self {
+            vault,
+            script,
+            out,
+            open: None,
+            width: DEFAULT_WINDOW_SIZE.0,
+            height: DEFAULT_WINDOW_SIZE.1,
+            dark: false,
+            allow_writes: false,
+            keep_temp: false,
+        }
+    }
+}
 
 /// A note read from disk with what its vault says about drawing it.
 struct SnapshotNote {
@@ -125,25 +171,48 @@ pub fn run(request: SnapshotRequest) -> Result<(), String> {
     platform::run(request, note)
 }
 
+/// Follows the request's script in a whole window. Runs the app until the
+/// script ends and exits from inside it, so it only returns an error.
+pub fn run_window(request: WindowSnapshotRequest) -> Result<(), String> {
+    let source = read_script(&request.script)?;
+    let script = script::parse(&source)?;
+    platform::run_window(request, script)
+}
+
+fn read_script(path: &Path) -> Result<String, String> {
+    let read = match path.as_os_str() == "-" {
+        true => std::io::read_to_string(std::io::stdin()),
+        false => std::fs::read_to_string(path),
+    };
+    read.map_err(|error| format!("could not read the script {}: {error}", path.display()))
+}
+
 #[cfg(target_os = "macos")]
 mod platform {
-    use std::time::Instant;
-
     use gpui::{
         AppContext, Application, AsyncApp, Bounds, WindowBounds, WindowHandle, WindowOptions,
         point, px, size,
     };
 
-    use super::metal_capture::{LayerCapture, keep_app_in_background};
-    use super::{
-        FRAME_INTERVAL, SETTLE_LIMIT, SETTLE_TIME, SnapshotNote, SnapshotRequest, offset_of,
-    };
+    use super::appkit;
+    use super::frames::{save_last_frame, settle_or_warn};
+    use super::metal_capture::LayerCapture;
+    use super::script::ScriptLine;
+    use super::{SnapshotNote, SnapshotRequest, WindowSnapshotRequest, offset_of};
     use crate::editor::EditorView;
     use crate::icons::Assets;
 
+    pub(super) fn run_window(
+        request: WindowSnapshotRequest,
+        script: Vec<ScriptLine>,
+    ) -> Result<(), String> {
+        super::window::run(request, script)
+    }
+
     pub(super) fn run(request: SnapshotRequest, note: SnapshotNote) -> Result<(), String> {
+        appkit::draw_at_double_scale();
         let application = Application::new().with_assets(Assets);
-        keep_app_in_background();
+        appkit::keep_app_in_background();
         application.run(move |cx| {
             if let Err(error) = start(request, note, cx) {
                 fail(&error);
@@ -192,8 +261,8 @@ mod platform {
             .ok_or("the window has no native view")?;
         let capture = LayerCapture::attach(view)?;
         cx.spawn(async move |cx| {
-            let outcome = settle_and_save(&capture, &request, cx).await;
-            match outcome {
+            settle_or_warn(&capture, cx).await;
+            match save_last_frame(&capture, &request.out) {
                 Ok(()) => quit(window, cx),
                 Err(error) => fail(&error),
             }
@@ -219,44 +288,6 @@ mod platform {
         editor.restore_position(at, top, cx);
     }
 
-    /// Draws frames until the view stops changing, then writes the last.
-    async fn settle_and_save(
-        capture: &LayerCapture,
-        request: &SnapshotRequest,
-        cx: &mut AsyncApp,
-    ) -> Result<(), String> {
-        if !settle(capture, cx).await {
-            eprintln!(
-                "{} --snapshot: the view was still changing after {}s, so this is its last frame",
-                gasp_config::COMMAND_NAME,
-                SETTLE_LIMIT.as_secs()
-            );
-        }
-        let image = capture.last_frame()?;
-        image
-            .save(&request.out)
-            .map_err(|error| format!("could not write {}: {error}", request.out.display()))
-    }
-
-    /// Asks for frames until none has been needed for [`SETTLE_TIME`].
-    /// Answers false when the view was still changing at [`SETTLE_LIMIT`].
-    async fn settle(capture: &LayerCapture, cx: &mut AsyncApp) -> bool {
-        let started = Instant::now();
-        let mut last_change = Instant::now();
-        let mut drawn = 0;
-        while started.elapsed() < SETTLE_LIMIT {
-            capture.request_frame();
-            if capture.frames_drawn() != drawn {
-                drawn = capture.frames_drawn();
-                last_change = Instant::now();
-            } else if drawn > 0 && last_change.elapsed() >= SETTLE_TIME {
-                return true;
-            }
-            cx.background_executor().timer(FRAME_INTERVAL).await;
-        }
-        false
-    }
-
     fn quit(window: WindowHandle<EditorView>, cx: &mut AsyncApp) {
         let _ = window.update(cx, |_, window, _| window.remove_window());
         let _ = cx.update(|cx| cx.quit());
@@ -265,10 +296,17 @@ mod platform {
 
 #[cfg(not(target_os = "macos"))]
 mod platform {
-    use super::{SnapshotNote, SnapshotRequest};
+    use super::script::ScriptLine;
+    use super::{SnapshotNote, SnapshotRequest, WindowSnapshotRequest};
+
+    const MACOS_ONLY: &str = "snapshots only work on macOS so far";
 
     pub(super) fn run(_: SnapshotRequest, _: SnapshotNote) -> Result<(), String> {
-        Err("snapshots only work on macOS so far".to_owned())
+        Err(MACOS_ONLY.to_owned())
+    }
+
+    pub(super) fn run_window(_: WindowSnapshotRequest, _: Vec<ScriptLine>) -> Result<(), String> {
+        Err(MACOS_ONLY.to_owned())
     }
 }
 

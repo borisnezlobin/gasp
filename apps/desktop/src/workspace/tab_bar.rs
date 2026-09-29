@@ -9,6 +9,7 @@ use gpui::{
 use super::pane::{Pane, PaneEvent, PaneMenu, Tab, TabState};
 use crate::icons::{IconName, icon};
 use crate::theme::{UiTheme, over};
+use crate::ui::Selectable;
 use crate::ui::{IconButton, MenuAnchor, Tooltip, ui_theme};
 
 /// The tab-list button, which its menu hangs under.
@@ -56,7 +57,7 @@ impl Pane {
                 }
             })
             .id("tab-bar")
-            .debug_selector(|| "tab-bar".to_owned())
+            .selector(|| "tab-bar".to_owned())
             .on_drag_move(cx.listener(Self::on_drag_over_tabs))
             .on_drop(cx.listener(Self::on_drop_on_tabs))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_bar_mouse_down))
@@ -220,7 +221,7 @@ impl Pane {
         let last = index + 1 == self.len();
         div()
             .id(("tab", index))
-            .debug_selector(|| format!("tab-{}", state.title))
+            .selector(|| format!("tab-{}", state.title))
             .group(group.clone())
             .relative()
             .flex()
@@ -336,7 +337,7 @@ impl Pane {
             .child(
                 div()
                     .id(("close-tab", index))
-                    .debug_selector(move || format!("close-tab-{index}"))
+                    .selector(move || format!("close-tab-{index}"))
                     .absolute()
                     .inset_0()
                     .flex()

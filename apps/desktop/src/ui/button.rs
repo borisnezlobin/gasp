@@ -6,6 +6,8 @@ use std::rc::Rc;
 
 use gpui::{App, ClickEvent, ElementId, MouseButton, SharedString, Window, div, prelude::*};
 
+use crate::ui::Selectable;
+
 use super::ui_theme;
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
@@ -95,7 +97,7 @@ impl RenderOnce for Button {
         let label = self.label.to_string();
         div()
             .id(self.id)
-            .debug_selector(move || format!("button-{label}"))
+            .selector(move || format!("button-{label}"))
             .flex()
             .flex_none()
             .items_center()

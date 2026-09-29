@@ -63,9 +63,7 @@ pub fn cover(image: DynamicImage, aspect: f32) -> DynamicImage {
 fn cache_path(url: &str) -> Option<PathBuf> {
     let mut hasher = DefaultHasher::new();
     url.hash(&mut hasher);
-    let dir = dirs::cache_dir()?
-        .join(gasp_config::APP_FOLDER)
-        .join("link-cards");
+    let dir = crate::sandbox::cache_folder()?.join("link-cards");
     Some(dir.join(format!("{:016x}", hasher.finish())))
 }
 

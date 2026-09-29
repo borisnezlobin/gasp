@@ -11,9 +11,9 @@ use std::collections::BTreeSet;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use gasp_config::CONFIG_DIR;
 use gasp_config::device::{DeviceSettings, WindowState};
 use gasp_config::migration::migrate_app_folder_and_log;
-use gasp_config::{APP_FOLDER, CONFIG_DIR};
 use gpui::{Bounds, Pixels, WindowBounds, point, px, size};
 use serde::{Deserialize, Serialize};
 
@@ -49,7 +49,7 @@ pub const MAX_RECENT_VAULTS: usize = 10;
 impl AppState {
     /// Where the state file lives on this platform.
     pub fn default_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|dir| dir.join(APP_FOLDER).join(STATE_FILE))
+        crate::sandbox::config_folder().map(|dir| dir.join(STATE_FILE))
     }
 
     /// Reads the state, or the default when there's none or it's unreadable.
@@ -117,6 +117,9 @@ pub fn device_path(vault: &Path) -> PathBuf {
 
 /// Writes the vault's device file, creating `.gasp/` if needed.
 pub fn save_device(vault: &Path, device: &DeviceSettings) -> io::Result<()> {
+    if !crate::sandbox::writes_allowed() {
+        return Ok(());
+    }
     let path = device_path(vault);
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;

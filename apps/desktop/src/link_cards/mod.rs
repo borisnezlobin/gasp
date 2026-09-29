@@ -23,6 +23,7 @@ use gpui::{
 use crate::editor::EditorView;
 use crate::frame::FrameLayout;
 use crate::icons::{IconName, icon};
+use crate::ui::Selectable;
 
 /// The command that makes a card, and the undo step it's recorded as.
 pub const MAKE_CARD_COMMAND: &str = "link.make-card";
@@ -232,7 +233,7 @@ impl EditorView {
         };
         let chip = div()
             .id("card-offer")
-            .debug_selector(|| "card-offer".into())
+            .selector(|| "card-offer".into())
             .occlude()
             .flex()
             .items_center()

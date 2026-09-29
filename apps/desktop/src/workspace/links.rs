@@ -26,7 +26,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if WEB_SCHEMES.iter().any(|scheme| target.starts_with(scheme)) {
-            cx.open_url(target);
+            crate::sandbox::open_url(target, cx);
             return;
         }
         let (note, heading) = split_target(target);

@@ -272,10 +272,12 @@ impl EditorView {
             .find(|cached| cached.path == path)
             .map(|cached| cached.modified);
         let load = cx.background_spawn(read_note(path, cached));
+        let pending = crate::pending_renders::PendingRender::start();
         self.hover.load = Some(cx.spawn(async move |view, cx| {
             let loaded = load.await;
             view.update(cx, |view, cx| view.show_note(loaded, link, &found, cx))
                 .ok();
+            drop(pending);
         }));
         PreviewContent::Loading
     }

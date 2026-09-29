@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use gasp_config::command_name;
 
 use crate::bench::BenchConfig;
-use crate::snapshot::SnapshotRequest;
+use crate::snapshot::{SnapshotRequest, WindowSnapshotRequest};
 
 pub const USAGE: &str = concat!(
     "usage: ",
@@ -17,6 +17,8 @@ pub const USAGE: &str = concat!(
     " --bench-index VAULT\n       ",
     command_name!(),
     " --snapshot NOTE OUT.png [--width N] [--height N] [--theme light|dark] [--cursor LINE:COL]\n       ",
+    command_name!(),
+    " --snapshot --vault VAULT --script SCRIPT --out DIR [--open NOTE] [--window WxH] [--theme light|dark] [--allow-writes] [--keep-temp]\n       ",
     command_name!(),
     " mcp [VAULT]
 
@@ -36,8 +38,16 @@ Linux without a display, run it under xvfb-run.
 --snapshot draws NOTE's editor, as its vault's theme and settings
 show it, into OUT.png without showing a window or taking focus. The
 window is 900 by 700 unless --width and --height say otherwise, and the
-image is at the display's scale. --cursor puts the caret at a line and
-column, counted from 1, with the editor focused. macOS only for now.
+image is at twice its size in points. --cursor puts the caret at a line
+and column, counted from 1, with the editor focused. macOS only for now.
+
+--snapshot --vault opens the whole window on a copy of VAULT, never
+shown, and follows SCRIPT (a file, or - for standard input), writing a
+PNG into DIR at each `snap`. Scripts move, click, drag, scroll, type,
+run commands and print elements' bounds; PLAN.md lists the steps. The
+copy and the app's own folders are removed at the end unless
+--keep-temp; nothing syncs, and notes are only saved (in the copy) with
+--allow-writes.
 
 --bench-index builds VAULT's link index and prints how long that, a
 save, a backlinks list, an unlinked-mentions search and a rename take.
@@ -57,8 +67,11 @@ pub enum Command {
         config: BenchConfig,
     },
     BenchIndex(PathBuf),
-    /// `gasp --snapshot`: a note drawn to a PNG with no window shown.
+    /// `gasp --snapshot NOTE OUT.png`: a note drawn to a PNG with no window
+    /// shown.
     Snapshot(SnapshotRequest),
+    /// `gasp --snapshot --vault ...`: the whole window, driven by a script.
+    WindowSnapshot(WindowSnapshotRequest),
     /// `gasp mcp`: the MCP server on stdio for a vault, or the last one.
     Mcp(Option<PathBuf>),
     Help,
@@ -91,6 +104,9 @@ fn parse_mcp(args: &[String]) -> Result<Command, String> {
 }
 
 fn parse_snapshot(args: &[String]) -> Result<Command, String> {
+    if args.first().is_some_and(|first| first.starts_with("--")) {
+        return parse_window_snapshot(args);
+    }
     let [note, out, options @ ..] = args else {
         return Err("--snapshot needs a note and a PNG to write".to_owned());
     };
@@ -118,6 +134,58 @@ fn apply_snapshot_option(
         "--height" => request.height = pixels()?,
         "--theme" => request.dark = parse_theme(value)?,
         "--cursor" => request.cursor = Some(parse_line_column(value)?),
+        _ => return Err(format!("unknown option {flag}")),
+    }
+    Ok(())
+}
+
+/// Flags of the whole-window form that take no value.
+const WINDOW_SWITCHES: [&str; 2] = ["--allow-writes", "--keep-temp"];
+
+fn parse_window_snapshot(args: &[String]) -> Result<Command, String> {
+    let mut values: Vec<(&str, &str)> = Vec::new();
+    let mut switches: Vec<&str> = Vec::new();
+    let mut rest = args.iter().map(String::as_str);
+    while let Some(flag) = rest.next() {
+        if WINDOW_SWITCHES.contains(&flag) {
+            switches.push(flag);
+            continue;
+        }
+        let value = rest.next().ok_or_else(|| format!("{flag} needs a value"))?;
+        values.push((flag, value));
+    }
+    let required = |name: &str| {
+        values
+            .iter()
+            .find(|(flag, _)| *flag == name)
+            .map(|(_, value)| PathBuf::from(value))
+            .ok_or_else(|| format!("--snapshot --vault needs {name}"))
+    };
+    let mut request = WindowSnapshotRequest::new(
+        required("--vault")?,
+        required("--script")?,
+        required("--out")?,
+    );
+    request.allow_writes = switches.contains(&"--allow-writes");
+    request.keep_temp = switches.contains(&"--keep-temp");
+    for (flag, value) in values {
+        apply_window_option(&mut request, flag, value)?;
+    }
+    Ok(Command::WindowSnapshot(request))
+}
+
+fn apply_window_option(
+    request: &mut WindowSnapshotRequest,
+    flag: &str,
+    value: &str,
+) -> Result<(), String> {
+    match flag {
+        "--vault" | "--script" | "--out" => {}
+        "--open" => request.open = Some(PathBuf::from(value)),
+        "--window" => {
+            (request.width, request.height) = crate::snapshot::script::parse_window_size(value)?;
+        }
+        "--theme" => request.dark = parse_theme(value)?,
         _ => return Err(format!("unknown option {flag}")),
     }
     Ok(())
@@ -273,6 +341,49 @@ mod tests {
         assert!(parse(&args(&["--snapshot", "a.md", "a.png", "--cursor", "0:1"])).is_err());
         assert!(parse(&args(&["--snapshot", "a.md", "a.png", "--theme", "sepia"])).is_err());
         assert!(parse(&args(&["--snapshot", "a.md", "a.png", "--height"])).is_err());
+    }
+
+    #[test]
+    fn a_window_snapshot_takes_a_vault_a_script_and_a_folder() {
+        let parsed = parse(&args(&[
+            "--snapshot",
+            "--vault",
+            "corpus",
+            "--script",
+            "s.txt",
+            "--out",
+            "shots",
+            "--allow-writes",
+            "--window",
+            "800x600",
+            "--open",
+            "Lemma.md",
+            "--theme",
+            "dark",
+        ]));
+        let Ok(Command::WindowSnapshot(request)) = parsed else {
+            panic!("expected a window snapshot, got {parsed:?}");
+        };
+        assert_eq!(request.vault, PathBuf::from("corpus"));
+        assert_eq!(request.script, PathBuf::from("s.txt"));
+        assert_eq!(request.out, PathBuf::from("shots"));
+        assert_eq!((request.width, request.height), (800, 600));
+        assert_eq!(request.open, Some(PathBuf::from("Lemma.md")));
+        assert!(request.dark && request.allow_writes && !request.keep_temp);
+        let without_out = args(&["--snapshot", "--vault", "v", "--script", "s"]);
+        assert!(parse(&without_out).is_err());
+        let bad_size = args(&[
+            "--snapshot",
+            "--vault",
+            "v",
+            "--script",
+            "s",
+            "--out",
+            "o",
+            "--window",
+            "big",
+        ]);
+        assert!(parse(&bad_size).is_err());
     }
 
     #[test]
