@@ -321,8 +321,12 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
         };
         window.paint_quad(fill(*rect, color).corner_radii(theme.radius_sm / 2.));
     }
+    let selection_color = match prepainted.tables.block {
+        Some(_) => theme.table.selection,
+        None => theme.selection,
+    };
     for rect in &prepainted.selection {
-        window.paint_quad(fill(*rect, theme.selection));
+        window.paint_quad(fill(*rect, selection_color));
     }
     let context = PaintContext {
         text_left: frame.text_left,
@@ -727,20 +731,15 @@ fn paint_piece(
     }
 }
 
-/// The ring on the cell being edited: inset so it sits inside the cell's
-/// rules.
+/// The cell being edited: a tint with a ring inside its square edges,
+/// laid over the cell's own rules.
 fn paint_cell_ring(bounds: Bounds<Pixels>, theme: &Theme, window: &mut Window) {
     let look = &theme.table;
-    let inset = look.ring_width / 2.;
-    let bounds = Bounds::from_corners(
-        point(bounds.left() + inset, bounds.top() + inset),
-        point(bounds.right() - inset, bounds.bottom() - inset),
-    );
     window.paint_quad(quad(
         bounds,
-        theme.radius_sm,
-        transparent_black(),
-        look.ring_width,
+        px(0.),
+        look.active_fill,
+        look.active_ring_width,
         look.active_ring,
         BorderStyle::default(),
     ));
@@ -788,24 +787,27 @@ fn paint_table_drag(
         let round = indicator.size.height.min(indicator.size.width) / 2.;
         window.paint_quad(fill(indicator, look.drop_indicator).corner_radii(round));
     }
+    // The card's edge is a hairline ring drawn as a shadow, not a border,
+    // so its rounded corners stay even.
     window.paint_shadows(
         drag.card,
         Corners::all(radius),
-        &[BoxShadow {
-            color: look.drag_shadow,
-            offset: point(px(0.), look.drag_shadow_blur / 4.),
-            blur_radius: look.drag_shadow_blur,
-            spread_radius: px(0.),
-        }],
+        &[
+            BoxShadow {
+                color: look.drag_shadow,
+                offset: point(px(0.), look.drag_shadow_blur / 4.),
+                blur_radius: look.drag_shadow_blur,
+                spread_radius: px(0.),
+            },
+            BoxShadow {
+                color: look.drag_ring,
+                offset: point(px(0.), px(0.)),
+                blur_radius: px(crate::theme::RING_BLUR),
+                spread_radius: px(1.),
+            },
+        ],
     );
-    window.paint_quad(quad(
-        drag.card,
-        radius,
-        look.drag_fill,
-        px(1.),
-        look.drag_ring,
-        BorderStyle::default(),
-    ));
+    window.paint_quad(fill(drag.card, look.drag_fill).corner_radii(radius));
     for placed in &drag.lines {
         paint_line(placed, context, window, cx);
     }

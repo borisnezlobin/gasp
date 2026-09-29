@@ -80,15 +80,24 @@ impl EditorView {
         marks
     }
 
-    /// The caret's cell, when the caret is in a grid table on screen.
+    /// The caret's cell, when the caret is in a grid table on screen,
+    /// taking in the rules on all four sides so its ring covers them.
     fn caret_cell_rect(&self, frame: &FrameLayout) -> Option<Bounds<Pixels>> {
         let placed = frame.line_containing(self.cursor())?;
         let grid = placed.visual.grid.as_ref()?;
         let cell = grid.cell_for_offset(self.cursor() - placed.visual.start)?;
+        let look = &self.theme.table;
         let left = frame.text_left + cell.x;
+        let table_right = frame.text_left + grid.left + grid.width;
+        let right = (left + cell.width + look.rule_width).min(table_right);
+        let rule_above = match grid.index {
+            0 => px(0.),
+            1 => look.header_rule_width,
+            _ => look.rule_width,
+        };
         Some(Bounds::from_corners(
-            point(left, placed.top),
-            point(left + cell.width, placed.bottom()),
+            point(left, placed.top - rule_above),
+            point(right, placed.bottom()),
         ))
     }
 
@@ -213,7 +222,9 @@ fn column_drag(
     })
 }
 
-/// The header's fill and the rule under each row of every grid table.
+/// The header's fill and the rules of every grid table on screen: one
+/// under each row (heavier under the header), one above the header, and
+/// one at each column's edges. All are square, so they meet cleanly.
 fn grid_fills(frame: &FrameLayout, theme: &Theme) -> Vec<(Bounds<Pixels>, Hsla)> {
     let look = &theme.table;
     let mut fills = Vec::new();
@@ -221,21 +232,49 @@ fn grid_fills(frame: &FrameLayout, theme: &Theme) -> Vec<(Bounds<Pixels>, Hsla)>
         let Some(grid) = placed.visual.grid.as_ref() else {
             continue;
         };
-        let left = frame.text_left + grid.left;
+        let row = RowBox {
+            left: frame.text_left + grid.left,
+            top: placed.top,
+            width: grid.width,
+            height: placed.visual.height,
+        };
         if grid.index == 0 {
-            let header = Bounds::new(
-                point(left, placed.top),
-                size(grid.width, placed.visual.height),
-            );
-            fills.push((header, look.header_fill));
+            fills.push((row.band(row.top, row.height), look.header_fill));
+            fills.push((row.band(row.top, look.rule_width), look.rule));
         }
-        let rule = Bounds::new(
-            point(left, placed.bottom() - look.rule_thickness),
-            size(grid.width, look.rule_thickness),
-        );
-        fills.push((rule, look.rule));
+        let edges = grid
+            .cells
+            .iter()
+            .map(|cell| frame.text_left + cell.x)
+            .chain(std::iter::once(row.left + row.width - look.rule_width));
+        fills.extend(edges.map(|x| (row.column_rule(x, look.rule_width), look.rule)));
+        let (color, width) = match grid.index {
+            0 => (look.header_rule, look.header_rule_width),
+            _ => (look.rule, look.rule_width),
+        };
+        fills.push((row.band(row.top + row.height - width, width), color));
     }
     fills
+}
+
+/// Where a grid row is on screen.
+struct RowBox {
+    left: Pixels,
+    top: Pixels,
+    width: Pixels,
+    height: Pixels,
+}
+
+impl RowBox {
+    /// A band across the row, `height` tall from `top`.
+    fn band(&self, top: Pixels, height: Pixels) -> Bounds<Pixels> {
+        Bounds::new(point(self.left, top), size(self.width, height))
+    }
+
+    /// A rule down the row, `width` wide from `x`.
+    fn column_rule(&self, x: Pixels, width: Pixels) -> Bounds<Pixels> {
+        Bounds::new(point(x, self.top), size(width, self.height))
+    }
 }
 
 /// A copy of a column's cells in `placed`, moved `dx` right.

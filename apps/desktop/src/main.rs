@@ -12,7 +12,6 @@ use gasp_desktop::workspace::window::LaunchTarget;
 fn main() -> ExitCode {
     trace::init();
     env_logger::init();
-    migrate_app_folders();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let command = match cli::parse(&args) {
         Ok(command) => command,
@@ -21,6 +20,10 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    // A snapshot only looks, so it leaves the app's folders as they are.
+    if !matches!(command, Command::Snapshot(_) | Command::Help) {
+        migrate_app_folders();
+    }
     match command {
         Command::Help => {
             println!("{USAGE}");
@@ -33,6 +36,7 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Command::Mcp(vault) => mcp(vault),
+        Command::Snapshot(request) => snapshot(request),
     }
 }
 
@@ -51,6 +55,18 @@ fn mcp(vault: Option<std::path::PathBuf>) -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{COMMAND_NAME} mcp: {error}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+/// `gasp --snapshot`: exits from inside the app once the PNG is written,
+/// so it only returns when something went wrong first.
+fn snapshot(request: gasp_desktop::snapshot::SnapshotRequest) -> ExitCode {
+    match gasp_desktop::snapshot::run(request) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{COMMAND_NAME} --snapshot: {error}");
             ExitCode::from(1)
         }
     }
