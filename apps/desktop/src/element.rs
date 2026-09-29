@@ -23,7 +23,7 @@ use crate::theme::Theme;
 
 /// Suggestions and hover previews draw above the text and the editor's
 /// own overlays, below menus.
-const SUGGESTION_LAYER: usize = 1;
+pub(crate) const SUGGESTION_LAYER: usize = 1;
 
 /// Draws an [`EditorView`].
 pub struct EditorElement {
@@ -137,10 +137,7 @@ impl Element for EditorElement {
                 popover.layout_as_root(AvailableSpace::min_size(), window, cx);
                 window.defer_draw(popover, window.element_offset(), SUGGESTION_LAYER);
             }
-            for mut bar in view.floating_toolbars(&frame, focused, cx) {
-                bar.layout_as_root(AvailableSpace::min_size(), window, cx);
-                window.defer_draw(bar, window.element_offset(), SUGGESTION_LAYER);
-            }
+            view.draw_floating_toolbars(&frame, focused, window, cx);
             if let Some(mut chip) = view.card_offer_chip(&frame, cx) {
                 chip.layout_as_root(AvailableSpace::min_size(), window, cx);
                 window.defer_draw(chip, window.element_offset(), SUGGESTION_LAYER);
