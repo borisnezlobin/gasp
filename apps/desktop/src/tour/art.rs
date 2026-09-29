@@ -14,6 +14,8 @@ const SWIM_LIGHT: &[u8] = include_bytes!("../../assets/tour/swim-light.png");
 const SWIM_DARK: &[u8] = include_bytes!("../../assets/tour/swim-dark.png");
 const BREACH_LIGHT: &[u8] = include_bytes!("../../assets/tour/breach-light.png");
 const BREACH_DARK: &[u8] = include_bytes!("../../assets/tour/breach-dark.png");
+const STILL_LIGHT: &[u8] = include_bytes!("../../assets/tour/still-light.png");
+const STILL_DARK: &[u8] = include_bytes!("../../assets/tour/still-dark.png");
 
 /// Frames in the swimming strip, laid side by side.
 const SWIM_FRAMES: u32 = 30;
@@ -42,6 +44,14 @@ impl WhaleArt {
             swim: Arc::new(RenderImage::new(split_strip(strip))),
             breach: Arc::new(RenderImage::new(vec![bgra_frame(breach)])),
         })
+    }
+
+    /// The swimming whale's first frame on its own, for places that show
+    /// it still, such as an empty vault's new tab.
+    pub fn still(dark: bool) -> Option<Arc<RenderImage>> {
+        let bytes = if dark { STILL_DARK } else { STILL_LIGHT };
+        let still = image::load_from_memory(bytes).ok()?.to_rgba8();
+        Some(Arc::new(RenderImage::new(vec![bgra_frame(still)])))
     }
 
     /// Gives the window's atlas back the room the whales took.
@@ -85,7 +95,7 @@ pub fn height_at(image: &RenderImage, width: Pixels) -> Pixels {
 }
 
 /// One frame of `image`, `width` wide at its own proportions.
-pub fn drawn(image: &Arc<RenderImage>, frame: usize, width: Pixels) -> impl IntoElement {
+pub fn drawn(image: &Arc<RenderImage>, frame: usize, width: Pixels) -> impl IntoElement + use<> {
     let height = height_at(image, width);
     let image = image.clone();
     canvas(

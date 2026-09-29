@@ -8,6 +8,8 @@ It writes, for the light and the dark theme:
   the box all the frames share and laid side by side as one strip.
 - breach-<theme>.png: the icon's whale, turned nose up as it leaves the
   water.
+- still-<theme>.png: the strip's first frame on its own, for the empty
+  new tab, which shouldn't decode the whole strip.
 
 The dark theme's whale is the light one's tones swapped, so it reads as
 chalk on the dark paper instead of vanishing into it.
@@ -70,6 +72,9 @@ def breach():
 strip, count = swim_strip()
 strip.save("swim-light.png", optimize=True)
 chalk(strip).save("swim-dark.png", optimize=True)
+still = strip.crop((0, 0, SWIM_WIDTH, strip.height))
+still.save("still-light.png", optimize=True)
+chalk(still).save("still-dark.png", optimize=True)
 hero = breach()
 hero.save("breach-light.png", optimize=True)
 chalk(hero).save("breach-dark.png", optimize=True)
