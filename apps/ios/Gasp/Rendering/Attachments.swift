@@ -50,8 +50,12 @@ final class ImageAttachment: NSTextAttachment {
     private let size: CGSize
     private let placeholderColor: UIColor
     private let cornerRadius: CGFloat
+    /// The note's media, told when the pixels are missing as the picture
+    /// draws, such as after the cache let them go.
+    private weak var media: NoteMedia?
 
-    init(file: URL, size: CGSize, placeholderColor: UIColor, cornerRadius: CGFloat) {
+    init(file: URL, size: CGSize, placeholderColor: UIColor, cornerRadius: CGFloat, media: NoteMedia?) {
+        self.media = media
         self.file = file
         self.size = size
         self.placeholderColor = placeholderColor
@@ -75,6 +79,7 @@ final class ImageAttachment: NSTextAttachment {
         location: NSTextLocation, textContainer: NSTextContainer?
     ) -> UIImage? {
         let decoded = VaultImages.shared.image(file, pixels: pixels)
+        if decoded == nil { media?.drawnWithout(file, pixels: pixels) }
         let fill = placeholderColor.resolvedColor(with: .current)
         let key = decoded == nil
             ? "placeholder \(size) \(cornerRadius) \(fill)" : "\(file.path) \(size) \(cornerRadius)"

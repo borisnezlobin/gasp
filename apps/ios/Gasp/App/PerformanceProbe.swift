@@ -16,6 +16,8 @@ import UIKit
 ///   `-probeTyped <keys>` types other keys.
 /// - `-probe scroll -probeNote <path>`: the note scrolled top to bottom at
 ///   a steady speed, with the time between frames and the work in each.
+///   `-probeScrollBack YES` jumps back to the top afterwards, to see what
+///   was drawn early come back.
 ///
 /// - `-probe sync`: from the process starting to the end of the sync
 ///   the app runs as it opens, for the synced notes.
@@ -228,6 +230,9 @@ final class PerformanceProbe {
                 Self.reportSpread("scroll-frame-work-ms", work)
                 Self.report("scroll-frames-over-25ms", gaps.filter { $0 > 25 }.count)
                 Self.reportMemory()
+                if UserDefaults.standard.bool(forKey: "probeScrollBack") {
+                    textView.setContentOffset(CGPoint(x: 0, y: -textView.adjustedContentInset.top), animated: false)
+                }
             })
         }
     }

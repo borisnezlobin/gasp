@@ -92,6 +92,9 @@ final class EditingController: NSObject, UITextViewDelegate {
         saver = NoteSaver(vault: vault, path: path)
         super.init()
         configure()
+        media.onMissing = { [weak self] in
+            DispatchQueue.main.async { self?.fetchMissingMedia() }
+        }
         textView.text = text
         pendingEdit = nil
         restorePosition()
