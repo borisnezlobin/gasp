@@ -55,9 +55,15 @@ fn is_note_link(kind: LinkKind, destination: &str) -> bool {
     !web && !bare && !destination.contains("://") && !destination.is_empty()
 }
 
-/// The target of the innermost link or wikilink containing `offset`: a URL
-/// or path for Markdown links, and `note#heading` for wikilinks.
+/// The target of the innermost link or wikilink containing `offset`, or
+/// ending right before it, as a caret after a link typed or picked is: a
+/// URL or path for Markdown links, and `note#heading` for wikilinks.
 pub fn link_target_at(tree: &SyntaxTree, offset: usize) -> Option<String> {
+    link_containing(tree, offset).or_else(|| link_containing(tree, offset.checked_sub(1)?))
+}
+
+/// The link whose text holds the character at `offset`.
+fn link_containing(tree: &SyntaxTree, offset: usize) -> Option<String> {
     tree.path_at(offset)
         .into_iter()
         .rev()
@@ -96,6 +102,15 @@ mod tests {
         assert_eq!(link_target_at(&tree, 40).as_deref(), Some("Note#Part"));
         assert_eq!(link_target_at(&tree, 65).as_deref(), Some("https://x.org"));
         assert_eq!(link_target_at(&tree, 1), None);
+    }
+
+    #[test]
+    fn a_caret_just_after_a_link_is_on_it() {
+        let text = "see [[Note]] then";
+        let tree = parse(text);
+        let end = text.find(" then").unwrap();
+        assert_eq!(link_target_at(&tree, end).as_deref(), Some("Note"));
+        assert_eq!(link_target_at(&tree, end + 1), None);
     }
 
     #[test]
