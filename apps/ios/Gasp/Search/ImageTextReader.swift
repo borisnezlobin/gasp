@@ -27,7 +27,8 @@ final class ImageTextReader {
             let files = texts.filesToRead()
             for (index, path) in files.enumerated() {
                 let url = URL(fileURLWithPath: texts.fullPath(path: path))
-                texts.record(path: path, text: Self.text(in: url))
+                // Each file's decoded pixels go as soon as it's read.
+                autoreleasepool { texts.record(path: path, text: Self.text(in: url)) }
                 if index % Self.saveEvery == Self.saveEvery - 1 { try? texts.save() }
             }
             if !files.isEmpty { try? texts.save() }
