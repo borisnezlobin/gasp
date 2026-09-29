@@ -31,7 +31,7 @@ use crate::sync::{
 };
 use crate::text_input::{self, TEXT_INPUT_CONTEXT};
 use crate::vault_search::{VaultSearch, VaultSearchEvent};
-use crate::workspace::deleted::DeletedNote;
+use crate::workspace::deleted::{DeletedNote, TrashedTo};
 use crate::workspace::{OpenIn, Workspace};
 
 /// How many palette commands count as recent.
@@ -207,12 +207,16 @@ fn on_tree_event(
             workspace.entry_moved(from, to, cx);
         }
         FileTreeEvent::Dismissed => workspace.leave_left_panel(window, cx),
-        FileTreeEvent::Trashed { path, text } => {
+        FileTreeEvent::Trashed {
+            path,
+            text,
+            trashed_to,
+        } => {
             let text = workspace.text_before_delete(path, cx).or(text.clone());
-            if let Some(text) = text {
-                let path = path.clone();
-                workspace.remember_deleted(DeletedNote::new(path, text), cx);
-            }
+            let mode = workspace.config().settings.files.trash;
+            let trashed_to = TrashedTo::of(trashed_to.clone(), mode);
+            let note = DeletedNote::new(path.clone(), text, trashed_to);
+            workspace.remember_deleted(note, cx);
         }
         FileTreeEvent::Failed { message } => {
             crate::notices::problem(message.clone(), cx);
