@@ -1,6 +1,6 @@
 //! Times what the iPhone asks of the core on every keystroke and cursor
-//! move: `replace` with the edit, then `plan_update` and
-//! `sentence_tints`, each result lowered into the buffer UniFFI hands to
+//! move: `replace` with the edit, then `plan_update`, `sentence_tints`
+//! and `command_states`, each result lowered into the buffer UniFFI hands to
 //! Swift. Runs on a typical corpus note and on a long one, with
 //! sentence-length highlighting on. Then making, renaming and trashing a
 //! note in a vault of three copies of the corpus, each followed by the
@@ -69,13 +69,13 @@ impl Budgets {
         open: Duration::from_micros(300),
     };
     const LONGEST_IN_CORPUS: Budgets = Budgets {
-        keystroke: Duration::from_micros(500),
-        cursor_move: Duration::from_micros(400),
+        keystroke: Duration::from_micros(250),
+        cursor_move: Duration::from_micros(100),
         open: Duration::from_micros(1200),
     };
     const LONG: Budgets = Budgets {
-        keystroke: Duration::from_millis(5),
-        cursor_move: Duration::from_millis(4),
+        keystroke: Duration::from_millis(2),
+        cursor_move: Duration::from_micros(400),
         open: Duration::from_millis(15),
     };
 }
@@ -152,7 +152,10 @@ fn ask_for_drawing(document: &Arc<NoteDocument>, selection: TextRange, phases: &
     let plan = phases.plan.time(|| document.plan_update(selection, false));
     let plan = phases.plan_lowering.time(|| lowered(plan));
     let tints = phases.tints.time(|| lowered(document.sentence_tints()));
-    phases.buffer_bytes = plan + tints;
+    let states = phases
+        .states
+        .time(|| lowered(document.command_states(selection)));
+    phases.buffer_bytes = plan + tints + states;
 }
 
 /// The size of the buffer UniFFI would hand to Swift for `value`.
@@ -167,6 +170,7 @@ struct PhaseTimes {
     plan: Samples,
     plan_lowering: Samples,
     tints: Samples,
+    states: Samples,
     buffer_bytes: usize,
 }
 
@@ -176,6 +180,7 @@ impl PhaseTimes {
             ("edit", &self.edit),
             ("plan", &self.plan),
             ("sentence tints", &self.tints),
+            ("keyboard bar states", &self.states),
             ("lowering the plan", &self.plan_lowering),
         ] {
             report.note_time(format!("{label}: {name}, median"), samples.median());
@@ -259,8 +264,12 @@ fn note_operation_benches(report: &mut Report) {
             vault.backlinks(linked.clone())
         });
     }
-    let budget = Duration::from_millis(20);
-    report.time("new note, then backlinks, median", created.median(), budget);
-    report.time("rename, then backlinks, median", renamed.median(), budget);
-    report.time("trash, then backlinks, median", trashed.median(), budget);
+    let quick = Duration::from_millis(1);
+    report.time("new note, then backlinks, median", created.median(), quick);
+    report.time(
+        "rename (rewriting links), then backlinks, median",
+        renamed.median(),
+        Duration::from_millis(20),
+    );
+    report.time("trash, then backlinks, median", trashed.median(), quick);
 }

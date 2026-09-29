@@ -11,7 +11,7 @@
 use std::ops::RangeInclusive;
 
 use crate::document::{Document, Selection, SelectionRange};
-use crate::syntax::{NodeId, NodeKind, SyntaxTree, parse};
+use crate::syntax::{LineIndex, NodeId, NodeKind, SyntaxTree, parse};
 use crate::transaction::{ChangeSet, Origin, TextEdit, Transaction};
 
 pub const INDENT: &str = "edit.indent";
@@ -30,6 +30,96 @@ pub fn indent(doc: &Document, selection: &Selection, timestamp_ms: u64) -> Trans
 /// Moves every block the selection touches one level out.
 pub fn outdent(doc: &Document, selection: &Selection, timestamp_ms: u64) -> Transaction {
     shift(doc, selection, Direction::Out, timestamp_ms)
+}
+
+/// Whether indenting and outdenting `selection` would change anything,
+/// so the buttons that wouldn't can be greyed out. `tree` is `text`'s
+/// syntax tree, which is read rather than parsed again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ShiftAvailability {
+    pub indent: bool,
+    pub outdent: bool,
+}
+
+pub fn shift_availability(
+    text: &str,
+    tree: &SyntaxTree,
+    selection: &Selection,
+) -> ShiftAvailability {
+    let lines = TextLines {
+        text,
+        index: tree.lines(),
+    };
+    let moves = |direction| {
+        let shifter = Shifter {
+            doc: &lines,
+            tree,
+            direction,
+        };
+        !shifter.edits_for(selection).is_empty()
+    };
+    ShiftAvailability {
+        indent: moves(Direction::In),
+        outdent: moves(Direction::Out),
+    }
+}
+
+/// The lines of a text, as the shifter reads them: from a `Document` when
+/// running the command, or from a text and its tree's line index when
+/// only asking whether it would do anything.
+trait LineText {
+    fn line_of_offset(&self, offset: usize) -> usize;
+    fn line_start(&self, line: usize) -> usize;
+    fn line_end(&self, line: usize) -> usize;
+    fn slice(&self, range: std::ops::Range<usize>) -> String;
+
+    fn line_text(&self, line: usize) -> String {
+        self.slice(self.line_start(line)..self.line_end(line))
+    }
+}
+
+impl LineText for Document {
+    fn line_of_offset(&self, offset: usize) -> usize {
+        Document::line_of_offset(self, offset)
+    }
+
+    fn line_start(&self, line: usize) -> usize {
+        Document::line_start(self, line)
+    }
+
+    fn line_end(&self, line: usize) -> usize {
+        Document::line_end(self, line)
+    }
+
+    fn slice(&self, range: std::ops::Range<usize>) -> String {
+        Document::slice(self, range)
+    }
+}
+
+struct TextLines<'a> {
+    text: &'a str,
+    index: &'a LineIndex,
+}
+
+impl LineText for TextLines<'_> {
+    fn line_of_offset(&self, offset: usize) -> usize {
+        self.index.line_of(offset.min(self.text.len()))
+    }
+
+    fn line_start(&self, line: usize) -> usize {
+        self.index.line_start(line.min(self.index.line_count() - 1))
+    }
+
+    fn line_end(&self, line: usize) -> usize {
+        if line >= self.index.line_count() {
+            return self.text.len();
+        }
+        self.index.line_range(self.text, line).end
+    }
+
+    fn slice(&self, range: std::ops::Range<usize>) -> String {
+        self.text[range].to_owned()
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -86,24 +176,13 @@ fn shift(
     timestamp_ms: u64,
 ) -> Transaction {
     let text = doc.slice(0..doc.len());
+    let tree = parse(&text);
     let shifter = Shifter {
         doc,
-        tree: parse(&text),
+        tree: &tree,
         direction,
     };
-    let mut units: Vec<Unit> = Vec::new();
-    for range in selection.ranges() {
-        for unit in shifter.units(range) {
-            if !units.contains(&unit) {
-                units.push(unit);
-            }
-        }
-    }
-    let edits = units
-        .into_iter()
-        .flat_map(|unit| shifter.edits(unit))
-        .collect();
-    let changes = ChangeSet::new(dedup_edits(edits)).unwrap_or_default();
+    let changes = ChangeSet::new(shifter.edits_for(selection)).unwrap_or_default();
     Transaction::new(changes, Origin::command(direction.command()), timestamp_ms)
 }
 
@@ -118,12 +197,29 @@ fn dedup_edits(mut edits: Vec<TextEdit>) -> Vec<TextEdit> {
 }
 
 struct Shifter<'a> {
-    doc: &'a Document,
-    tree: SyntaxTree,
+    doc: &'a dyn LineText,
+    tree: &'a SyntaxTree,
     direction: Direction,
 }
 
 impl Shifter<'_> {
+    /// Every edit moving the blocks `selection` touches, once each.
+    fn edits_for(&self, selection: &Selection) -> Vec<TextEdit> {
+        let mut units: Vec<Unit> = Vec::new();
+        for range in selection.ranges() {
+            for unit in self.units(range) {
+                if !units.contains(&unit) {
+                    units.push(unit);
+                }
+            }
+        }
+        let edits = units
+            .into_iter()
+            .flat_map(|unit| self.edits(unit))
+            .collect();
+        dedup_edits(edits)
+    }
+
     // MARK: What moves
 
     fn units(&self, range: &SelectionRange) -> Vec<Unit> {

@@ -5,6 +5,7 @@
 //! repository. Offsets are in UTF-16 code units, as
 //! UIKit counts them.
 
+mod bar_state;
 mod code;
 mod commands;
 mod display;
@@ -34,6 +35,7 @@ mod theme;
 mod toolbars;
 mod vault;
 
+pub use bar_state::CommandStates;
 pub use code::{CodeColor, CodeSpan, code_color_token};
 pub use commands::{CommandInfo, KeyBinding};
 pub use display::SymbolVisibility;

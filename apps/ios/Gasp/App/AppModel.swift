@@ -64,6 +64,7 @@ final class AppModel {
     }
 
     private func notesChangedOnDisk(_ paths: [String]) {
+        library.vault?.filesChanged(paths: paths)
         library.refresh()
         if paths.contains(where: { $0.hasPrefix(configFolder() + "/") }) {
             library.readConfigFromDisk()
