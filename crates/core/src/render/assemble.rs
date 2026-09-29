@@ -28,6 +28,7 @@ pub(crate) fn assemble(
                 widgets: Vec::new(),
                 collapsed: false,
                 table_row: None,
+                shown_marker: None,
             })
             .collect(),
     };
@@ -37,6 +38,7 @@ pub(crate) fn assemble(
     sorter.sort_line_styles(effects.line_styles);
     sorter.sort_collapsed(effects.collapsed);
     sorter.sort_table_rows(effects.table_rows);
+    sorter.sort_shown_markers(effects.shown_markers);
     let mut plans = sorter.plans;
     for (plan, line_spans) in plans.iter_mut().zip(spans) {
         plan.runs = build_runs(&plan.range, &line_spans);
@@ -112,6 +114,22 @@ impl LineSorter<'_> {
             if let Some(slot) = self.slot(line) {
                 self.plans[slot].table_row = Some(row);
             }
+        }
+    }
+
+    /// A line's shown markers, such as a task's `- ` and `[ ] `, join
+    /// into one range.
+    fn sort_shown_markers(&mut self, markers: Vec<Range<usize>>) {
+        for marker in markers {
+            let line = self.tree.lines().line_of(marker.start);
+            let Some(slot) = self.slot(line) else {
+                continue;
+            };
+            let joined = match self.plans[slot].shown_marker.take() {
+                Some(shown) => shown.start.min(marker.start)..shown.end.max(marker.end),
+                None => marker,
+            };
+            self.plans[slot].shown_marker = Some(joined);
         }
     }
 
