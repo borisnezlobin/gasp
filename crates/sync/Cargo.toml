@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
-git2 = { version = "0.20", default-features = false, features = ["https", "vendored-libgit2"] }
+git2 = { version = "0.20", default-features = false, features = ["https", "vendored-libgit2", "vendored-openssl"] }
 globset = "0.4"
 similar = "2"
 thiserror = "2"

@@ -79,6 +79,16 @@ impl World {
             .ok()?;
         Some(String::from_utf8_lossy(blob.content()).into_owned())
     }
+
+    /// The message of the newest commit on the remote's `master`.
+    fn remote_message(&self) -> String {
+        let repo = git2::Repository::open_bare(&self.remote).unwrap();
+        let commit = repo
+            .find_reference("refs/heads/master")
+            .and_then(|reference| reference.peel_to_commit())
+            .unwrap();
+        commit.message().unwrap_or_default().to_owned()
+    }
 }
 
 fn write(root: &Path, name: &str, text: &str) {
@@ -347,6 +357,141 @@ fn the_resolver_works_from_the_keyboard(cx: &mut TestAppContext) {
     assert!(
         merged.contains("phone b") && !merged.contains("laptop b"),
         "{merged}"
+    );
+}
+
+/// The laptop's window opens on a note the phone changed on the same line,
+/// with a third device, the desktop, synced straight through the engine.
+fn laptop_window_with_a_conflict(
+    cx: &mut TestAppContext,
+) -> (World, Vault, Entity<Workspace>, &mut VisualTestContext) {
+    let world = World::seeded(&[
+        ("note.md", "title\nshared line\nend\n"),
+        ("other.md", "other\n"),
+    ]);
+    let laptop = world.path("laptop");
+    drop(world.device("laptop"));
+    let phone = world.device("phone");
+    write(phone.root(), "note.md", "title\nphone's line\nend\n");
+    sync_device(&phone, "phone");
+    write(&laptop, "note.md", "title\nlaptop's line\nend\n");
+    let desktop = world.device("desktop");
+    let (workspace, cx) = open_workspace(cx, &laptop, Arc::default());
+    (world, desktop, workspace, cx)
+}
+
+#[gpui::test]
+fn a_conflict_doesnt_stop_other_notes_from_syncing(cx: &mut TestAppContext) {
+    let (world, desktop, workspace, cx) = laptop_window_with_a_conflict(cx);
+    let laptop = world.path("laptop");
+    let service = service(&workspace, cx);
+    assert_eq!(phase(&service, cx), SyncPhase::Conflict { files: 1 });
+    assert!(!laptop.join(".git/MERGE_HEAD").exists());
+    assert_eq!(
+        world.remote_file("note.md").unwrap(),
+        "title\nphone's line\nend\n",
+        "the phone's text stays on the remote"
+    );
+
+    // An edit to another note goes out a minute later, as usual.
+    write(&laptop, "other.md", "other\nwritten on the laptop\n");
+    edited(&service, cx, laptop.join("other.md"));
+    cx.executor().advance_clock(Duration::from_secs(61));
+    cx.run_until_parked();
+    assert_eq!(
+        world.remote_file("other.md").unwrap(),
+        "other\nwritten on the laptop\n"
+    );
+    assert_eq!(
+        world.remote_message(),
+        format!("{}: other.md", editor_desktop::edit_time::device_name())
+    );
+    assert_eq!(phase(&service, cx), SyncPhase::Conflict { files: 1 });
+    sync_device(&desktop, "desktop");
+    assert_eq!(
+        std::fs::read_to_string(desktop.root().join("other.md")).unwrap(),
+        "other\nwritten on the laptop\n"
+    );
+
+    // Sync now still brings in other devices' changes.
+    write(desktop.root(), "from desktop.md", "hello\n");
+    sync_device(&desktop, "desktop");
+    run(&workspace, cx, "sync.now");
+    assert_eq!(
+        std::fs::read_to_string(laptop.join("from desktop.md")).unwrap(),
+        "hello\n"
+    );
+    assert_eq!(phase(&service, cx), SyncPhase::Conflict { files: 1 });
+}
+
+#[gpui::test]
+fn each_resolution_in_the_resolver_syncs_the_note(cx: &mut TestAppContext) {
+    let cases = [
+        ("resolve-0-mine", "title\nlaptop's line\nend\n"),
+        ("resolve-0-theirs", "title\nphone's line\nend\n"),
+        (
+            "resolve-0-both",
+            "title\nlaptop's line\nphone's line\nend\n",
+        ),
+    ];
+    for (button, expected) in cases {
+        let (world, desktop, workspace, cx) = laptop_window_with_a_conflict(cx);
+        run(&workspace, cx, "sync.resolve-conflicts");
+        click(cx, button);
+        click(cx, "resolver-finish");
+        let service = service(&workspace, cx);
+        assert_eq!(phase(&service, cx), SyncPhase::Synced, "{button}");
+        assert_eq!(world.remote_file("note.md").unwrap(), expected, "{button}");
+        sync_device(&desktop, "desktop");
+        assert_eq!(
+            std::fs::read_to_string(desktop.root().join("note.md")).unwrap(),
+            expected
+        );
+    }
+}
+
+#[gpui::test]
+fn a_conflict_from_before_a_restart_still_shows_and_resolves(cx: &mut TestAppContext) {
+    let world = World::seeded(&[("note.md", "title\nshared line\nend\n")]);
+    let phone = world.device("phone");
+    let laptop = world.device("laptop");
+    write(phone.root(), "note.md", "title\nphone's line\nend\n");
+    sync_device(&phone, "phone");
+    write(laptop.root(), "note.md", "title\nlaptop's line\nend\n");
+    sync_device(&laptop, "laptop");
+    assert_eq!(laptop.conflicts().unwrap().len(), 1);
+    let root = laptop.root().to_owned();
+    drop(laptop);
+
+    let (workspace, cx) = open_workspace(cx, &root, Arc::default());
+    let service = service(&workspace, cx);
+    assert_eq!(phase(&service, cx), SyncPhase::Conflict { files: 1 });
+    run(&workspace, cx, "sync.resolve-conflicts");
+    click(cx, "resolve-0-both");
+    click(cx, "resolver-finish");
+    assert_eq!(phase(&service, cx), SyncPhase::Synced);
+    assert_eq!(
+        world.remote_file("note.md").unwrap(),
+        "title\nlaptop's line\nphone's line\nend\n"
+    );
+}
+
+#[gpui::test]
+fn appends_on_two_devices_merge_without_a_conflict(cx: &mut TestAppContext) {
+    let world = World::seeded(&[("Lemma.md", "# Lemma\nproof")]);
+    let laptop = world.path("laptop");
+    drop(world.device("laptop"));
+    let phone = world.device("phone");
+    write(phone.root(), "Lemma.md", "# Lemma\nproof\nfrom the phone");
+    sync_device(&phone, "phone");
+    write(&laptop, "Lemma.md", "# Lemma\nproof\nfrom the laptop");
+
+    let (workspace, cx) = open_workspace(cx, &laptop, Arc::default());
+    let service = service(&workspace, cx);
+    assert_eq!(phase(&service, cx), SyncPhase::Synced);
+    assert_eq!(
+        world.remote_file("Lemma.md").unwrap(),
+        "# Lemma\nproof\nfrom the laptop\nfrom the phone"
     );
 }
 

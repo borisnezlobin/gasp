@@ -85,6 +85,28 @@ fn edits_to_adjacent_lines_merge_without_a_conflict() {
 }
 
 #[test]
+fn appends_at_the_end_on_both_devices_keep_both_lines() {
+    let (world, laptop, phone, base) = two_devices_with_note(4);
+    write(
+        &laptop,
+        NOTE,
+        format!("{base}Laptop appended.\n").as_bytes(),
+    );
+    write(&phone, NOTE, format!("{base}Phone appended.\n").as_bytes());
+    sync(&laptop, "laptop");
+    assert!(matches!(sync(&phone, "phone"), MergeOutcome::Merged { .. }));
+    sync(&laptop, "laptop");
+
+    let phone_view = format!("{base}Phone appended.\nLaptop appended.\n");
+    assert_eq!(read(&phone, NOTE), phone_view);
+    assert_eq!(read(&laptop, NOTE), phone_view);
+    assert_eq!(
+        world.remote_file("master", NOTE).unwrap(),
+        phone_view.as_bytes()
+    );
+}
+
+#[test]
 fn edits_to_different_notes_and_new_notes_merge() {
     let world = World::seeded(&[("a.md", b"a\n"), ("b.md", b"b\n")]);
     let laptop = world.device("laptop");
@@ -152,18 +174,31 @@ fn conflicted_note_shows_both_versions_on_disk() {
 }
 
 #[test]
-fn paused_merge_blocks_commits_until_resolved() {
-    let (_world, phone, _base, files) = phone_conflict();
-    assert!(phone.is_merging());
+fn a_conflict_finishes_the_merge_and_keeps_the_remote_version_committed() {
+    let (world, phone, _base, files) = phone_conflict();
+    assert!(!phone.is_merging());
+    assert_eq!(head_parent_count(&phone), 2);
     assert_eq!(phone.conflicts().unwrap(), files);
-    let commit = phone.commit_all(&author("phone"), "should wait");
-    assert!(matches!(commit, Err(SyncError::UnresolvedConflicts(1))));
-    let merge = phone.merge(&author("phone")).unwrap();
-    assert_eq!(merge, MergeOutcome::Conflicts(files));
+    let laptop_text = replace_line(&numbered_note(5), 3, "Laptop version.");
+    assert_eq!(
+        world.remote_file("master", NOTE).unwrap(),
+        laptop_text.as_bytes(),
+        "the laptop's text stays on the remote while the phone decides"
+    );
+    assert_eq!(
+        phone.commit_all(&author("phone"), "nothing new").unwrap(),
+        None
+    );
+    assert_eq!(
+        phone.merge(&author("phone")).unwrap(),
+        MergeOutcome::UpToDate
+    );
+    assert_eq!(phone.conflicts().unwrap(), files);
+    assert_eq!(phone.unpushed_changes().unwrap(), 0);
 }
 
 #[test]
-fn each_resolution_completes_the_merge_and_syncs() {
+fn each_resolution_settles_the_note_and_syncs_it() {
     let cases = [
         (Resolution::ThisDevice, "Phone version.\n"),
         (Resolution::OtherDevice, "Laptop version.\n"),
@@ -178,19 +213,15 @@ fn each_resolution_completes_the_merge_and_syncs() {
         let MergeOutcome::Conflicts(files) = sync(&phone, "phone") else {
             panic!("expected a conflict");
         };
-        let commit = phone
-            .resolve(&files[0], &[resolution], &author("phone"))
-            .unwrap();
-        assert!(commit.is_some());
-        assert!(!phone.is_merging());
-        assert_eq!(head_parent_count(&phone), 2);
+        phone.resolve(&files[0], &[resolution]).unwrap();
+        assert!(phone.conflicts().unwrap().is_empty());
 
         let prefix = "Phone edited line one too.\nLine 2 of the note.\n";
         let suffix = &base[base.find("Line 4").unwrap()..];
         let expected = format!("{prefix}{middle}{suffix}");
         assert_eq!(read(&phone, NOTE), expected);
 
-        phone.push().unwrap();
+        assert_eq!(sync(&phone, "phone"), MergeOutcome::UpToDate);
         assert_eq!(
             world.remote_file("master", NOTE).unwrap(),
             expected.as_bytes()
@@ -201,7 +232,7 @@ fn each_resolution_completes_the_merge_and_syncs() {
 }
 
 #[test]
-fn merge_commits_only_after_the_last_file_is_resolved() {
+fn each_file_syncs_as_soon_as_it_is_resolved() {
     let world = World::seeded(&[("a.md", b"shared\n"), ("b.md", b"shared\n")]);
     let laptop = world.device("laptop");
     let phone = world.device("phone");
@@ -214,14 +245,22 @@ fn merge_commits_only_after_the_last_file_is_resolved() {
         panic!("expected conflicts");
     };
     assert_eq!(files.len(), 2);
-    let first = phone.resolve(&files[0], &[Resolution::ThisDevice], &author("phone"));
-    assert_eq!(first.unwrap(), None);
+    phone.resolve(&files[0], &[Resolution::ThisDevice]).unwrap();
     assert_eq!(phone.conflicts().unwrap().len(), 1);
-    let text_result = phone.resolve_with_text(&files[1].path, "typed by hand\n", &author("phone"));
-    assert!(text_result.unwrap().is_some());
+    sync(&phone, "phone");
+    let first = files[0].path.to_str().unwrap();
+    let second = files[1].path.to_str().unwrap();
+    assert_eq!(world.remote_file("master", first).unwrap(), b"phone\n");
+    assert_eq!(world.remote_file("master", second).unwrap(), b"laptop\n");
+
+    phone
+        .resolve_with_text(&files[1].path, "typed by hand\n")
+        .unwrap();
+    assert!(phone.conflicts().unwrap().is_empty());
+    sync(&phone, "phone");
     assert_eq!(
-        read(&phone, files[1].path.to_str().unwrap()),
-        "typed by hand\n"
+        world.remote_file("master", second).unwrap(),
+        b"typed by hand\n"
     );
 }
 
@@ -229,7 +268,7 @@ fn merge_commits_only_after_the_last_file_is_resolved() {
 fn resolution_paths_must_stay_inside_the_vault() {
     let (_world, _laptop, phone, _) = conflicted_phone();
     sync(&phone, "phone");
-    let outside = phone.resolve_with_text(Path::new("../escape.md"), "x", &author("phone"));
+    let outside = phone.resolve_with_text(Path::new("../escape.md"), "x");
     assert!(matches!(outside, Err(SyncError::OutsideVault(_))));
 }
 

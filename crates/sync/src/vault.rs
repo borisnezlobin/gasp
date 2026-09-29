@@ -12,7 +12,13 @@ use crate::credentials::{CredentialStore, Token, remote_callbacks};
 use crate::device_files::DeviceOnlyFiles;
 use crate::error::{SyncError, SyncResult};
 use crate::line_merge::{LineMerge, merge_lines};
+use crate::message::commit_message;
+use crate::parked::BranchKeeps;
 use crate::policy::{FileKind, classify};
+
+mod parking;
+
+use parking::Parking;
 
 /// Who commits on this device.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,7 +98,11 @@ pub enum MergeOutcome {
         commit: Oid,
         kept_local: Vec<PathBuf>,
     },
-    /// The merge is paused until these files are resolved.
+    /// A merge commit was made, but some files need a person: these are
+    /// every file now waiting. Each one keeps a single version in the
+    /// branch, its version on the synced branch, and shows both
+    /// between conflict markers on disk until it's resolved. Every other
+    /// file merged and syncs as usual.
     Conflicts(Vec<ConflictedFile>),
 }
 
@@ -111,12 +121,36 @@ enum Settlement {
     NeedsPerson(ConflictedFile),
 }
 
-/// The three versions of a conflicting path, read from the index.
+/// The three versions of a conflicting path, read from the index or from
+/// a parked conflict.
 struct ConflictVersions {
     path: PathBuf,
-    base: Option<Vec<u8>>,
-    this_device: Option<Vec<u8>>,
-    other_device: Option<Vec<u8>>,
+    base: Option<Version>,
+    this_device: Option<Version>,
+    other_device: Option<Version>,
+}
+
+/// One version of a file: its blob and what's in it.
+#[derive(Clone)]
+struct Version {
+    id: Oid,
+    bytes: Vec<u8>,
+}
+
+/// What the merge policy is settling: conflicts of a merge that just ran,
+/// or of one an earlier version of the app left paused.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MergeRun {
+    Fresh,
+    /// The files needing a person were already written with markers and
+    /// may have been edited since; one with no markers left was settled by hand.
+    Interrupted,
+}
+
+/// What settling a merge's conflicts did.
+struct Settled {
+    kept_local: Vec<PathBuf>,
+    parked: usize,
 }
 
 /// Clones only `branch`, without checking anything out yet.
@@ -281,26 +315,39 @@ impl Vault {
         self.repo.state() == git2::RepositoryState::Merge
     }
 
-    /// Stages every change except device-only files and commits it.
+    /// Stages every change except device-only files and files waiting on a
+    /// conflict, and commits it with `message`.
     ///
     /// Returns `None` when there was nothing to commit.
     pub fn commit_all(&self, author: &Author, message: &str) -> SyncResult<Option<Oid>> {
-        if self.is_merging() {
-            return Err(SyncError::UnresolvedConflicts(self.conflicts()?.len()));
-        }
-        let mut index = self.repo.index()?;
+        self.commit_with(author, |_| message.to_owned())
+    }
+
+    /// Like [`Vault::commit_all`], with a message naming `device` and the
+    /// files that changed, such as `mac: Lemma.md, Habit Ideas.md`.
+    pub fn commit_changes(&self, author: &Author, device: &str) -> SyncResult<Option<Oid>> {
+        self.commit_with(author, |paths| commit_message(device, paths))
+    }
+
+    fn commit_with(
+        &self,
+        author: &Author,
+        message: impl FnOnce(&[PathBuf]) -> String,
+    ) -> SyncResult<Option<Oid>> {
+        self.finish_interrupted_merge(author)?;
+        let parked = self.release_settled_conflicts()?;
+        let mut index = self.current_index()?;
         let device_only = &self.config.device_only;
-        let mut skip_device_only = |path: &Path, _: &[u8]| i32::from(device_only.matches(path));
-        index.add_all(["*"], IndexAddOption::DEFAULT, Some(&mut skip_device_only))?;
-        index.update_all(["*"], Some(&mut skip_device_only))?;
+        let mut skip =
+            |path: &Path, _: &[u8]| i32::from(device_only.matches(path) || parked.contains(path));
+        index.add_all(["*"], IndexAddOption::DEFAULT, Some(&mut skip))?;
+        index.update_all(["*"], Some(&mut skip))?;
         index.write()?;
         let tree = self.repo.find_tree(index.write_tree()?)?;
         let parent = self.local_head()?;
-        let unchanged = match &parent {
-            Some(parent) => parent.tree_id() == tree.id(),
-            None => tree.is_empty(),
-        };
-        if unchanged {
+        let parent_tree = parent.as_ref().map(Commit::tree).transpose()?;
+        let changed = self.paths_between(parent_tree.as_ref(), Some(&tree))?;
+        if changed.is_empty() {
             return Ok(None);
         }
         let signature = author.signature()?;
@@ -309,11 +356,19 @@ impl Vault {
             Some("HEAD"),
             &signature,
             &signature,
-            message,
+            &message(&changed),
             &tree,
             &parents,
         )?;
         Ok(Some(oid))
+    }
+
+    /// The index as it is on disk, in case another git program changed it
+    /// since this clone last read it.
+    fn current_index(&self) -> SyncResult<git2::Index> {
+        let mut index = self.repo.index()?;
+        index.read(false)?;
+        Ok(index)
     }
 
     fn local_head(&self) -> SyncResult<Option<Commit<'_>>> {
@@ -373,25 +428,32 @@ impl Vault {
         Ok(())
     }
 
-    /// Merges the fetched remote branch into the local one using the vault merge policy.
-    /// Then merges the legacy branch the same way, if one is configured.
+    /// Merges the fetched remote branch into the local one using the vault
+    /// merge policy, then the legacy branch the same way, if one is set.
+    ///
+    /// A merge always finishes with a commit. Files that need a person keep
+    /// their version on the synced branch and wait, with both
+    /// versions on disk, while everything else syncs.
     pub fn merge(&self, author: &Author) -> SyncResult<MergeOutcome> {
-        if self.is_merging() {
-            return Ok(MergeOutcome::Conflicts(self.conflicts()?));
-        }
-        let own = self.merge_tracking(&self.config.tracking_ref(), author)?;
+        self.finish_interrupted_merge(author)?;
+        let own = self.merge_tracking(&self.config.branch, BranchKeeps::OtherDevice, author)?;
         let Some(legacy) = self.config.active_legacy() else {
             return Ok(own);
         };
-        if matches!(own, MergeOutcome::Conflicts(_)) {
-            return Ok(own);
-        }
-        let legacy = self.merge_tracking(&self.config.tracking_ref_for(legacy), author)?;
+        let legacy = self.merge_tracking(legacy, BranchKeeps::ThisDevice, author)?;
         Ok(combine_outcomes(own, legacy))
     }
 
-    fn merge_tracking(&self, tracking_ref: &str, author: &Author) -> SyncResult<MergeOutcome> {
-        let Ok(tracking) = self.repo.find_reference(tracking_ref) else {
+    fn merge_tracking(
+        &self,
+        branch: &str,
+        keeps: BranchKeeps,
+        author: &Author,
+    ) -> SyncResult<MergeOutcome> {
+        let Ok(tracking) = self
+            .repo
+            .find_reference(&self.config.tracking_ref_for(branch))
+        else {
             return Ok(MergeOutcome::NothingToMerge);
         };
         let theirs = self.repo.reference_to_annotated_commit(&tracking)?;
@@ -399,11 +461,16 @@ impl Vault {
         if analysis.is_up_to_date() {
             return Ok(MergeOutcome::UpToDate);
         }
-        if analysis.is_unborn() || analysis.is_fast_forward() {
-            self.fast_forward(theirs.id())?;
-            return Ok(MergeOutcome::FastForward);
-        }
-        self.merge_diverged(&theirs, author)
+        let lifted = self.lift_parked(theirs.id())?;
+        let merged = if analysis.is_unborn() || analysis.is_fast_forward() {
+            self.fast_forward(theirs.id())
+                .map(|()| MergeOutcome::FastForward)
+        } else {
+            self.merge_diverged(&theirs, branch, keeps, author)
+        };
+        // Parked files go back on disk whether or not the merge worked.
+        self.refold(lifted)?;
+        merged
     }
 
     fn fast_forward(&self, target: Oid) -> SyncResult<()> {
@@ -420,6 +487,8 @@ impl Vault {
     fn merge_diverged(
         &self,
         theirs: &AnnotatedCommit,
+        branch: &str,
+        keeps: BranchKeeps,
         author: &Author,
     ) -> SyncResult<MergeOutcome> {
         let mut checkout = CheckoutBuilder::new();
@@ -429,37 +498,70 @@ impl Vault {
             Some(&mut MergeOptions::new()),
             Some(&mut checkout),
         )?;
-        let (kept_local, needs_person) = self.settle_conflicts()?;
-        if !needs_person.is_empty() {
-            return Ok(MergeOutcome::Conflicts(needs_person));
+        let settled = self.settle_conflicts(keeps, MergeRun::Fresh)?;
+        let commit = self.commit_merge(author, branch)?;
+        if settled.parked > 0 {
+            return Ok(MergeOutcome::Conflicts(self.conflicts()?));
         }
-        let commit = self.commit_merge(author)?;
-        Ok(MergeOutcome::Merged { commit, kept_local })
+        Ok(MergeOutcome::Merged {
+            commit,
+            kept_local: settled.kept_local,
+        })
     }
 
-    /// Applies the merge policy to every index conflict. Returns the binaries
-    /// that kept the local copy and the text files that need a person.
-    fn settle_conflicts(&self) -> SyncResult<(Vec<PathBuf>, Vec<ConflictedFile>)> {
-        let mut index = self.repo.index()?;
-        let mut kept_local = Vec::new();
-        let mut needs_person = Vec::new();
+    /// Finishes a merge an earlier version of the app left paused on
+    /// conflicts, parking the files it was waiting on.
+    fn finish_interrupted_merge(&self, author: &Author) -> SyncResult<()> {
+        if !self.is_merging() {
+            return Ok(());
+        }
+        let merging = self.merge_heads()?.first().copied();
+        let legacy = self.config.active_legacy().filter(|legacy| {
+            let tracking = self.config.tracking_ref_for(legacy);
+            merging.is_some() && self.repo.refname_to_id(&tracking).ok() == merging
+        });
+        let (branch, keeps) = match legacy {
+            Some(legacy) => (legacy.to_owned(), BranchKeeps::ThisDevice),
+            None => (self.config.branch.clone(), BranchKeeps::OtherDevice),
+        };
+        self.settle_conflicts(keeps, MergeRun::Interrupted)?;
+        self.commit_merge(author, &branch)?;
+        Ok(())
+    }
+
+    /// Applies the merge policy to every index conflict, parking the text
+    /// files that need a person.
+    fn settle_conflicts(&self, keeps: BranchKeeps, run: MergeRun) -> SyncResult<Settled> {
+        let mut index = self.current_index()?;
+        let mut parked = self.parked()?;
+        let mut settled = Settled {
+            kept_local: Vec::new(),
+            parked: 0,
+        };
         for versions in self.conflict_versions(&index)? {
             let path = versions.path.clone();
             match versions.settle() {
                 Settlement::Write(bytes) => self.stage_bytes(&mut index, &path, &bytes)?,
                 Settlement::KeepLocalBinary(bytes) => {
                     self.stage_bytes(&mut index, &path, &bytes)?;
-                    kept_local.push(path);
+                    settled.kept_local.push(path);
                 }
                 Settlement::Delete => self.stage_deletion(&mut index, &path)?,
                 Settlement::NeedsPerson(file) => {
-                    fs::write(self.root().join(&path), file.marked_text().text)?;
-                    needs_person.push(file);
+                    let parking = Parking {
+                        versions: &versions,
+                        file: &file,
+                        keeps,
+                        run,
+                    };
+                    let waits = self.settle_by_person(&mut index, &mut parked, parking)?;
+                    settled.parked += usize::from(waits);
                 }
             }
         }
         index.write()?;
-        Ok((kept_local, needs_person))
+        self.save_parked(&parked)?;
+        Ok(settled)
     }
 
     fn conflict_versions(&self, index: &git2::Index) -> SyncResult<Vec<ConflictVersions>> {
@@ -477,9 +579,9 @@ impl Vault {
             .find_map(|entry| entry.as_ref())
             .map(|entry| PathBuf::from(String::from_utf8_lossy(&entry.path).into_owned()))
             .unwrap_or_default();
-        let read = |entry: &Option<git2::IndexEntry>| -> SyncResult<Option<Vec<u8>>> {
+        let read = |entry: &Option<git2::IndexEntry>| -> SyncResult<Option<Version>> {
             let Some(entry) = entry else { return Ok(None) };
-            Ok(Some(self.repo.find_blob(entry.id)?.content().to_vec()))
+            self.read_version(entry.id).map(Some)
         };
         Ok(ConflictVersions {
             path,
@@ -489,75 +591,44 @@ impl Vault {
         })
     }
 
+    fn read_version(&self, id: Oid) -> SyncResult<Version> {
+        let bytes = self.repo.find_blob(id)?.content().to_vec();
+        Ok(Version { id, bytes })
+    }
+
     fn stage_bytes(&self, index: &mut git2::Index, path: &Path, bytes: &[u8]) -> SyncResult<()> {
+        self.write_file(path, bytes)?;
+        index.add_path(path)?;
+        Ok(())
+    }
+
+    fn write_file(&self, path: &Path, bytes: &[u8]) -> SyncResult<()> {
         let full = self.root().join(path);
         if let Some(parent) = full.parent() {
             fs::create_dir_all(parent)?;
         }
         fs::write(full, bytes)?;
-        index.add_path(path)?;
         Ok(())
     }
 
     fn stage_deletion(&self, index: &mut git2::Index, path: &Path) -> SyncResult<()> {
-        match fs::remove_file(self.root().join(path)) {
-            Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(error.into()),
-            _ => {}
-        }
+        self.remove_file(path)?;
         index.remove_path(path)?;
         Ok(())
     }
 
-    /// The text conflicts of the paused merge, recomputed from the index.
-    pub fn conflicts(&self) -> SyncResult<Vec<ConflictedFile>> {
-        let index = self.repo.index()?;
-        let files = self
-            .conflict_versions(&index)?
-            .into_iter()
-            .filter_map(|versions| match versions.settle() {
-                Settlement::NeedsPerson(file) => Some(file),
-                _ => None,
-            })
-            .collect();
-        Ok(files)
-    }
-
-    /// Applies one resolution per hunk to `file`, then stages it.
-    ///
-    /// Returns the merge commit once the last conflicted file is resolved.
-    pub fn resolve(
-        &self,
-        file: &ConflictedFile,
-        resolutions: &[crate::conflict::Resolution],
-        author: &Author,
-    ) -> SyncResult<Option<Oid>> {
-        let text = file.resolve(resolutions)?;
-        self.resolve_with_text(&file.path, &text, author)
-    }
-
-    /// Replaces a conflicted file with `text` the person settled on, then stages it.
-    pub fn resolve_with_text(
-        &self,
-        path: &Path,
-        text: &str,
-        author: &Author,
-    ) -> SyncResult<Option<Oid>> {
-        if !is_inside_vault(path) {
-            return Err(SyncError::OutsideVault(path.to_owned()));
+    fn remove_file(&self, path: &Path) -> SyncResult<()> {
+        match fs::remove_file(self.root().join(path)) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error.into()),
+            _ => Ok(()),
         }
-        let mut index = self.repo.index()?;
-        self.stage_bytes(&mut index, path, text.as_bytes())?;
-        index.write()?;
-        if index.has_conflicts() {
-            return Ok(None);
-        }
-        Ok(Some(self.commit_merge(author)?))
     }
 
-    fn commit_merge(&self, author: &Author) -> SyncResult<Oid> {
-        let mut index = self.repo.index()?;
+    /// Commits the merge in progress, naming the branch it brought in.
+    fn commit_merge(&self, author: &Author, branch: &str) -> SyncResult<Oid> {
+        let mut index = self.current_index()?;
         if index.has_conflicts() {
-            return Err(SyncError::UnresolvedConflicts(self.conflicts()?.len()));
+            return Err(SyncError::UnresolvedConflicts(index.conflicts()?.count()));
         }
         let tree = self.repo.find_tree(index.write_tree()?)?;
         let mut parents = vec![self.repo.head()?.peel_to_commit()?];
@@ -565,7 +636,7 @@ impl Vault {
             parents.push(self.repo.find_commit(oid)?);
         }
         let signature = author.signature()?;
-        let message = format!("Merge {}/{}", self.config.remote, self.config.branch);
+        let message = format!("Merge {}/{branch}", self.config.remote);
         let parent_refs: Vec<&Commit> = parents.iter().collect();
         let oid = self.repo.commit(
             Some("HEAD"),
@@ -589,7 +660,8 @@ impl Vault {
         Ok(oids)
     }
 
-    /// How many files differ from the last known remote state, committed or not.
+    /// How many files differ from the last known remote state, committed or
+    /// not. Files waiting on a conflict don't count: they wait for a person.
     pub fn unpushed_changes(&self) -> SyncResult<usize> {
         let remote_tree = match self.repo.find_reference(&self.config.tracking_ref()) {
             Ok(reference) => Some(reference.peel_to_tree()?),
@@ -601,6 +673,7 @@ impl Vault {
             .repo
             .diff_tree_to_workdir_with_index(remote_tree.as_ref(), Some(&mut options))?;
         let device_only = &self.config.device_only;
+        let parked = self.parked()?;
         let count = diff
             .deltas()
             .filter_map(|delta| {
@@ -610,20 +683,25 @@ impl Vault {
                     .or(delta.old_file().path())
                     .map(Path::to_owned)
             })
-            .filter(|path| !device_only.matches(path))
+            .filter(|path| !device_only.matches(path) && !parked.contains(path))
             .count();
         Ok(count)
     }
 }
 
 impl ConflictVersions {
-    fn settle(self) -> Settlement {
-        match (self.this_device, self.other_device) {
+    fn settle(&self) -> Settlement {
+        let bytes =
+            |version: &Option<Version>| version.as_ref().map(|version| version.bytes.clone());
+        match (bytes(&self.this_device), bytes(&self.other_device)) {
             (None, None) => Settlement::Delete,
             (Some(kept), None) | (None, Some(kept)) => Settlement::Write(kept),
-            (Some(this_device), Some(other_device)) => {
-                settle_both(self.path, self.base, this_device, other_device)
-            }
+            (Some(this_device), Some(other_device)) => settle_both(
+                self.path.clone(),
+                bytes(&self.base),
+                this_device,
+                other_device,
+            ),
         }
     }
 }
@@ -721,9 +799,16 @@ impl Vault {
             Ok(Some(self.repo.find_commit(oid)?.tree()?))
         };
         let (old, new) = (tree(from)?, tree(to)?);
-        let diff = self
-            .repo
-            .diff_tree_to_tree(old.as_ref(), new.as_ref(), None)?;
+        self.paths_between(old.as_ref(), new.as_ref())
+    }
+
+    /// Paths that differ between two trees, leaving out device-only files.
+    fn paths_between(
+        &self,
+        old: Option<&git2::Tree<'_>>,
+        new: Option<&git2::Tree<'_>>,
+    ) -> SyncResult<Vec<PathBuf>> {
+        let diff = self.repo.diff_tree_to_tree(old, new, None)?;
         let device_only = &self.config.device_only;
         let paths = diff
             .deltas()

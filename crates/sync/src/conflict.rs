@@ -10,6 +10,8 @@ pub(crate) const OTHER_DEVICE_MARKER: &str = ">>>>>>> other device\n";
 /// One place where both devices changed the same lines differently.
 ///
 /// Line ranges are zero-based line numbers in each version of the file.
+/// `base` and `base_lines` are empty when a hunk was read back from a
+/// marked file that no longer lines up with the merge that wrote it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConflictHunk {
     pub base: String,
@@ -72,6 +74,42 @@ impl ConflictedFile {
 
     pub fn hunk_count(&self) -> usize {
         self.hunks().count()
+    }
+
+    /// Reads text written by [`ConflictedFile::marked_text`], and perhaps
+    /// edited since, back into clean text and hunks. Markers nested inside
+    /// a hunk stay part of its text, and a hunk missing its closing marker
+    /// counts as clean text. Markers don't show what the lines were before
+    /// either device changed them, so each hunk's `base` comes from the
+    /// matching hunk of `known`, and stays empty when the hunks no longer
+    /// line up with it.
+    pub fn from_marked_text(path: PathBuf, text: &str, known: Option<&ConflictedFile>) -> Self {
+        let mut parser = MarkerParser::default();
+        for line in text.split_inclusive('\n') {
+            parser.push_line(line);
+        }
+        let mut file = ConflictedFile {
+            path,
+            segments: parser.finish(),
+        };
+        if let Some(known) = known.filter(|known| known.hunk_count() == file.hunk_count()) {
+            file.take_bases_from(known);
+        }
+        file
+    }
+
+    fn take_bases_from(&mut self, known: &ConflictedFile) {
+        let parsed = self
+            .segments
+            .iter_mut()
+            .filter_map(|segment| match segment {
+                Segment::Conflict(hunk) => Some(hunk),
+                Segment::Clean(_) => None,
+            });
+        for (hunk, known) in parsed.zip(known.hunks()) {
+            hunk.base.clone_from(&known.base);
+            hunk.base_lines = known.base_lines.clone();
+        }
     }
 
     /// The file with every hunk shown as `<<<<<<< this device` / `=======` / `>>>>>>> other device`.
@@ -156,6 +194,109 @@ fn push_resolved(text: &mut String, hunk: &ConflictHunk, resolution: &Resolution
     }
 }
 
+/// Where the marker parser is in the text.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum Place {
+    #[default]
+    Outside,
+    ThisDeviceSide,
+    OtherDeviceSide,
+}
+
+/// Reads marked text a line at a time into segments.
+#[derive(Default)]
+struct MarkerParser {
+    segments: Vec<Segment>,
+    place: Place,
+    clean: String,
+    /// The open hunk's lines exactly as written, markers included.
+    written: String,
+    this_device: String,
+    other_device: String,
+    /// Markers opened inside the open hunk and not closed yet.
+    nesting: usize,
+    /// Lines so far in this device's version and in the other device's.
+    this_device_line: usize,
+    other_device_line: usize,
+    hunk_start: (usize, usize),
+}
+
+impl MarkerParser {
+    fn push_line(&mut self, line: &str) {
+        match self.place {
+            Place::Outside if line == THIS_DEVICE_MARKER => self.open_hunk(line),
+            Place::Outside => {
+                self.clean.push_str(line);
+                self.this_device_line += 1;
+                self.other_device_line += 1;
+            }
+            Place::ThisDeviceSide | Place::OtherDeviceSide => self.push_hunk_line(line),
+        }
+    }
+
+    fn open_hunk(&mut self, marker: &str) {
+        self.flush_clean();
+        self.place = Place::ThisDeviceSide;
+        self.written = marker.to_owned();
+        self.nesting = 0;
+        self.hunk_start = (self.this_device_line, self.other_device_line);
+    }
+
+    fn push_hunk_line(&mut self, line: &str) {
+        self.written.push_str(line);
+        let outermost = self.nesting == 0;
+        match line {
+            SEPARATOR_MARKER if outermost && self.place == Place::ThisDeviceSide => {
+                self.place = Place::OtherDeviceSide;
+                return;
+            }
+            OTHER_DEVICE_MARKER if outermost && self.place == Place::OtherDeviceSide => {
+                return self.close_hunk();
+            }
+            THIS_DEVICE_MARKER => self.nesting += 1,
+            OTHER_DEVICE_MARKER => self.nesting = self.nesting.saturating_sub(1),
+            _ => {}
+        }
+        if self.place == Place::ThisDeviceSide {
+            self.this_device.push_str(line);
+            self.this_device_line += 1;
+        } else {
+            self.other_device.push_str(line);
+            self.other_device_line += 1;
+        }
+    }
+
+    fn close_hunk(&mut self) {
+        let (this_start, other_start) = self.hunk_start;
+        self.segments.push(Segment::Conflict(ConflictHunk {
+            base: String::new(),
+            this_device: std::mem::take(&mut self.this_device),
+            other_device: std::mem::take(&mut self.other_device),
+            base_lines: 0..0,
+            this_device_lines: this_start..self.this_device_line,
+            other_device_lines: other_start..self.other_device_line,
+        }));
+        self.written.clear();
+        self.place = Place::Outside;
+    }
+
+    fn flush_clean(&mut self) {
+        if !self.clean.is_empty() {
+            self.segments
+                .push(Segment::Clean(std::mem::take(&mut self.clean)));
+        }
+    }
+
+    fn finish(mut self) -> Vec<Segment> {
+        if self.place != Place::Outside {
+            let unclosed = std::mem::take(&mut self.written);
+            self.clean.push_str(&unclosed);
+        }
+        self.flush_clean();
+        self.segments
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -210,5 +351,52 @@ mod tests {
             sample().resolve(&[]),
             Err(SyncError::InvalidResolution(_))
         ));
+    }
+
+    #[test]
+    fn marked_text_reads_back_into_the_same_file() {
+        let file = sample();
+        let marked = file.marked_text().text;
+        let read = ConflictedFile::from_marked_text(file.path.clone(), &marked, Some(&file));
+        let hunk = read.hunks().next().unwrap();
+        assert_eq!(hunk.base, "b\n");
+        assert_eq!(hunk.this_device, "laptop\n");
+        assert_eq!(hunk.other_device, "phone\n");
+        assert_eq!(hunk.this_device_lines, 1..2);
+        assert_eq!(read.segments[0], Segment::Clean("# Title\n".into()));
+    }
+
+    #[test]
+    fn edits_around_the_markers_are_kept_when_reading_back() {
+        let file = sample();
+        let edited = format!("{}added below\n", file.marked_text().text)
+            .replace("laptop\n", "laptop, edited\n");
+        let read = ConflictedFile::from_marked_text(file.path.clone(), &edited, Some(&file));
+        assert_eq!(
+            read.resolve(&[Resolution::ThisDevice]).unwrap(),
+            "# Title\nlaptop, edited\nadded below\n"
+        );
+    }
+
+    #[test]
+    fn nested_markers_stay_inside_their_hunk() {
+        let text = "top\n<<<<<<< this device\n<<<<<<< this device\na\n=======\nb\n>>>>>>> other device\n=======\nc\n>>>>>>> other device\n";
+        let read = ConflictedFile::from_marked_text(PathBuf::from("n.md"), text, None);
+        assert_eq!(read.hunk_count(), 1);
+        let hunk = read.hunks().next().unwrap();
+        assert_eq!(
+            hunk.this_device,
+            "<<<<<<< this device\na\n=======\nb\n>>>>>>> other device\n"
+        );
+        assert_eq!(hunk.other_device, "c\n");
+        assert_eq!(hunk.base, "");
+    }
+
+    #[test]
+    fn a_hunk_without_its_closing_marker_is_clean_text() {
+        let text = "a\n<<<<<<< this device\nb\n=======\nc\n";
+        let read = ConflictedFile::from_marked_text(PathBuf::from("n.md"), text, None);
+        assert_eq!(read.hunk_count(), 0);
+        assert_eq!(read.resolve(&[]).unwrap(), text);
     }
 }

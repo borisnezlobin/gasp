@@ -217,15 +217,31 @@ pub fn new_device_id(device_name: &str) -> String {
     format!("{slug}-{:06x}", random & 0xff_ffff)
 }
 
-/// This computer's name.
+/// This computer's short name: the one Windows or the shell gives, or
+/// else the machine's hostname, up to its first dot.
 pub fn device_name() -> String {
     ["COMPUTERNAME", "HOSTNAME"]
         .iter()
         .find_map(|name| std::env::var(name).ok())
-        .or_else(|| std::fs::read_to_string("/etc/hostname").ok())
-        .map(|name| name.trim().to_owned())
-        .filter(|name| !name.is_empty())
+        .or_else(hostname)
+        .and_then(|name| short_name(&name))
         .unwrap_or_else(|| "this device".to_owned())
+}
+
+fn short_name(hostname: &str) -> Option<String> {
+    let short = hostname.trim().split('.').next()?.trim();
+    (!short.is_empty()).then(|| short.to_owned())
+}
+
+#[cfg(unix)]
+fn hostname() -> Option<String> {
+    let uname = rustix::system::uname();
+    Some(uname.nodename().to_string_lossy().into_owned())
+}
+
+#[cfg(not(unix))]
+fn hostname() -> Option<String> {
+    None
 }
 
 /// `edited_seconds` from a note's frontmatter, as Chronotyper wrote it.
@@ -354,6 +370,19 @@ mod tests {
             edit_time_label(3600 * 3 + 290).as_deref(),
             Some("3 h 5 min editing")
         );
+    }
+
+    #[test]
+    fn device_names_are_short_hostnames() {
+        assert_eq!(short_name("mac.local").as_deref(), Some("mac"));
+        assert_eq!(
+            short_name(" studio.lan.example.com\n").as_deref(),
+            Some("studio")
+        );
+        assert_eq!(short_name("LAPTOP-7").as_deref(), Some("LAPTOP-7"));
+        assert_eq!(short_name(".hidden"), None);
+        assert!(!device_name().is_empty());
+        assert!(!device_name().contains('.'));
     }
 
     #[test]

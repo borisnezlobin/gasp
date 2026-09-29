@@ -15,7 +15,9 @@ use super::controls::{
     toggle_switch,
 };
 use super::menu::MenuTarget;
-use super::model::{FontSlot, SettingItem, ShortcutQuery, ShortcutRow, choice_label, map_names};
+use super::model::{
+    FontSlot, ICON_SOURCE_URL, SettingItem, ShortcutQuery, ShortcutRow, choice_label, map_names,
+};
 use super::view::{ControlRow, SettingsFocus, SettingsView, theme_key};
 use crate::icons::IconName;
 use crate::picker::shortcut::Shortcut;
@@ -160,6 +162,7 @@ impl SettingsView {
                 self.accent_control(focused && !typing, typing, cx)
             }
             ControlRow::Vault => self.vault_control(focused, cx),
+            ControlRow::IconCredit => self.icon_credit_control(focused),
             // The Snippets page's rows are drawn above.
             ControlRow::Version
             | ControlRow::SnippetsFile
@@ -577,6 +580,19 @@ impl SettingsView {
         )
         .debug_selector(|| "open-vault".to_string())
         .on_click(cx.listener(|view, _: &ClickEvent, _, cx| view.request_command("vault.open", cx)))
+        .into_any_element()
+    }
+
+    fn icon_credit_control(&self, focused: bool) -> AnyElement {
+        button(
+            "view-icon-source",
+            "View the source model",
+            false,
+            focused,
+            &self.style,
+        )
+        .debug_selector(|| "view-icon-source".to_string())
+        .on_click(|_: &ClickEvent, _, cx| cx.open_url(ICON_SOURCE_URL))
         .into_any_element()
     }
 
