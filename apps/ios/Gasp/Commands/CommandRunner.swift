@@ -29,8 +29,8 @@ final class CommandRunner: EditingHost {
         tabs.makeSession = { [weak self] path, text in self?.makeSession(path: path, text: text) }
     }
 
-    var toolbar: [CommandInfo] {
-        library.toolbar
+    var keyboardToolbar: KeyboardToolbar {
+        library.keyboardToolbar
     }
 
     var keyBindings: [KeyBinding] {
@@ -120,7 +120,7 @@ final class CommandRunner: EditingHost {
         for session in tabs.openSessions {
             session.use(scaledTokens)
             session.setReadableWidth(workspace.readableWidth)
-            session.showToolbar(library.toolbar)
+            session.showToolbar(library.keyboardToolbar)
             session.redrawAll()
         }
     }
