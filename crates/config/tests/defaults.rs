@@ -257,7 +257,7 @@ fn every_default_rule_names_a_registered_command() {
 
 #[test]
 fn command_titles_are_plain_sentence_case() {
-    const PROPER: &[&str] = &["Markdown", "HTML", "PDF"];
+    const PROPER: &[&str] = &["Markdown", "HTML", "PDF", "Obsidian"];
     for spec in BUILTIN_COMMANDS {
         let mut words = spec.title.split(' ');
         let first = words.next().unwrap();

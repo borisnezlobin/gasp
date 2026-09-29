@@ -87,28 +87,36 @@ impl EditorView {
         true
     }
 
-    /// Mod+Enter: onto the line after the table, making one when the
-    /// line after isn't blank.
+    /// Mod+Enter: below the table, on an empty line with a blank one
+    /// between it and the table, since a line right under a table is one
+    /// more of its rows. Blank lines already there are used, the missing
+    /// ones made, and text that follows is kept apart by a blank line too.
     pub(crate) fn leave_below(&mut self, cx: &mut Context<Self>) -> bool {
         let Some(table) = self.grid_table(self.cursor()) else {
             return false;
         };
         let doc = self.doc();
         let end = table.range.end;
-        let next_line = doc.line_of_offset(end) + 1;
-        let blank_after =
-            next_line < doc.line_count() && doc.line_text(next_line).trim().is_empty();
-        if blank_after {
-            let at = doc.line_start(next_line);
-            self.select(at, at, cx);
-            return true;
-        }
+        let first = doc.line_of_offset(end) + 1;
+        let exists = |line: usize| line < doc.line_count();
+        let is_blank = |line: usize| exists(line) && doc.line_text(line).trim().is_empty();
+        let (insert_at, inserted, caret) = match (is_blank(first), is_blank(first + 1)) {
+            (true, true) => {
+                let at = doc.line_start(first + 1);
+                self.select(at, at, cx);
+                return true;
+            }
+            (true, false) if exists(first + 1) => (doc.line_start(first), "\n\n", 1),
+            (true, false) => (doc.line_start(first), "\n", 1),
+            (false, _) if exists(first) => (end, "\n\n\n", 2),
+            (false, _) => (end, "\n\n", 2),
+        };
         let transaction = Transaction::new(
-            ChangeSet::insert(end, "\n"),
+            ChangeSet::insert(insert_at, inserted),
             Origin::command("table.leave"),
             self.now_ms(),
         )
-        .with_selection(Selection::cursor(end + 1));
+        .with_selection(Selection::cursor(insert_at + caret));
         self.apply_transaction(transaction, cx);
         true
     }

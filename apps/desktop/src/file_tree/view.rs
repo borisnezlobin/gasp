@@ -672,6 +672,7 @@ impl FileTree {
             return;
         };
         let next = self.selected_index();
+        let text = std::fs::read_to_string(self.absolute(&path)).ok();
         match ops::trash(
             self.model.root(),
             &path,
@@ -682,6 +683,7 @@ impl FileTree {
                 self.reselect_near(next, cx);
                 cx.emit(FileTreeEvent::Trashed {
                     path: self.absolute(&path),
+                    text,
                 });
             }
             Err(error) => cx.emit(FileTreeEvent::Failed {

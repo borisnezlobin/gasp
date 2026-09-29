@@ -31,21 +31,41 @@ impl EditorView {
 
     pub fn zoom_in(&mut self, cx: &mut Context<Self>) {
         self.set_zoom(self.zoom * ZOOM_STEP, cx);
+        cx.emit(EditorEvent::ViewChanged);
     }
 
     pub fn zoom_out(&mut self, cx: &mut Context<Self>) {
         self.set_zoom(self.zoom / ZOOM_STEP, cx);
+        cx.emit(EditorEvent::ViewChanged);
     }
 
     pub fn reset_zoom(&mut self, cx: &mut Context<Self>) {
         self.set_zoom(1., cx);
+        cx.emit(EditorEvent::ViewChanged);
     }
 
     /// Switches between the readable column and the full width.
     pub fn toggle_readable_width(&mut self, cx: &mut Context<Self>) {
-        self.readable_width = !self.readable_width;
-        self.remeasure();
-        cx.notify();
+        self.set_readable_width(!self.readable_width, cx);
+        cx.emit(EditorEvent::ViewChanged);
+    }
+
+    pub fn set_readable_width(&mut self, readable: bool, cx: &mut Context<Self>) {
+        if self.readable_width != readable {
+            self.readable_width = readable;
+            self.remeasure();
+            cx.notify();
+        }
+    }
+
+    /// Takes the zoom and width this device keeps for every note, when
+    /// they differ from the editor's.
+    pub fn follow_device_view(&mut self, config: &gasp_config::Config, cx: &mut Context<Self>) {
+        let zoom = config.device.text_zoom.unwrap_or(1.);
+        if (zoom - self.zoom).abs() > f32::EPSILON {
+            self.set_zoom(zoom, cx);
+        }
+        self.set_readable_width(!config.device.full_width, cx);
     }
 
     pub fn symbol_mode(&self) -> SymbolMode {

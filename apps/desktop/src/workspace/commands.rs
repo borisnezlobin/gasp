@@ -14,7 +14,7 @@ type Handler = fn(&mut Workspace, &mut Window, &mut Context<Workspace>);
 
 const TAB_GO_PREFIX: &str = "tab.go-";
 
-const HANDLERS: [(&str, Handler); 34] = [
+const HANDLERS: [(&str, Handler); 35] = [
     ("tab.new", |ws, window, cx| ws.new_tab(window, cx)),
     ("tab.close", |ws, window, cx| {
         ws.close_active_tab(window, cx)
@@ -77,10 +77,13 @@ const HANDLERS: [(&str, Handler); 34] = [
     }),
     ("note.new", |ws, window, cx| {
         if let Err(error) = ws.new_note(window, cx) {
-            eprintln!("could not create a note: {error}");
+            crate::notices::problem(format!("Couldn’t make a note: {error}"), cx);
         }
     }),
     ("note.rename", |ws, window, cx| ws.focus_title(window, cx)),
+    ("note.restore-deleted", |ws, window, cx| {
+        ws.restore_deleted(window, cx)
+    }),
     ("note.delete", |ws, window, cx| {
         ws.delete_active_note(window, cx)
     }),

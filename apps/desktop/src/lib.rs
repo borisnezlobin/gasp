@@ -3,6 +3,7 @@
 
 pub mod actions;
 pub mod app;
+pub mod appearance_toggle;
 pub mod bench;
 pub mod cli;
 pub mod code_copy;
@@ -31,9 +32,12 @@ pub mod link_cards;
 pub use gasp_vault::link_update;
 pub mod look_up;
 pub mod metrics;
+pub mod move_picker;
 pub mod navigation;
 pub mod note;
 pub mod note_texts;
+pub mod notices;
+pub mod obsidian_import;
 pub mod outline;
 pub mod palette;
 pub mod paste;
@@ -43,6 +47,8 @@ pub mod preview;
 pub mod print;
 pub mod prose;
 pub mod recovery;
+#[cfg(target_os = "macos")]
+pub mod rich_copy;
 pub mod sandbox;
 pub mod settings_view;
 pub mod snapshot;
