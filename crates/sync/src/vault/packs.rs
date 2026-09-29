@@ -4,9 +4,9 @@
 //! writes one more pack, and libgit2 looks for an object in each pack in
 //! turn. Every commit writes its objects as loose files, each read with its
 //! own open and inflate, and libgit2's push walks the whole history, so a
-//! push read every commit made on this device from its own file. Loose
-//! objects are packed once there are a few hundred, and the smallest packs
-//! are written again as one once there are many.
+//! push read every commit made on this device from its own file. Small
+//! loose objects are packed once there are a few hundred, and the smallest
+//! packs are written again as one once there are many.
 
 use std::fs;
 use std::io::ErrorKind;
@@ -25,6 +25,11 @@ const PACKS_BEFORE_COMBINING: usize = 24;
 /// `gc.auto` estimate works.
 const SAMPLE_FOLDER: &str = "17";
 const LOOSE_IN_SAMPLE_BEFORE_PACKING: usize = 2;
+
+/// Loose objects bigger than this, which are photos and other binaries,
+/// stay loose: history walks never read them, and packing would only
+/// compress them again.
+const LARGEST_PACKED_LOOSE: u64 = 256 * 1024;
 
 /// The most pack bytes one combining writes again. Notes come in packs of
 /// a few kilobytes, so this usually takes every pack but the clone's own,
@@ -65,13 +70,13 @@ impl Vault {
 
     fn pack_loose_objects(&self) -> SyncResult<()> {
         let objects = self.repo.path().join("objects");
-        let sample = loose_in(&objects.join(SAMPLE_FOLDER))?;
+        let sample = small_loose_in(&objects.join(SAMPLE_FOLDER))?;
         if sample.len() < LOOSE_IN_SAMPLE_BEFORE_PACKING {
             return Ok(());
         }
         let mut loose = Vec::new();
         for byte in 0..=u8::MAX {
-            loose.extend(loose_in(&objects.join(format!("{byte:02x}")))?);
+            loose.extend(small_loose_in(&objects.join(format!("{byte:02x}")))?);
         }
         let ids: Vec<Oid> = loose.iter().map(|(id, _)| *id).collect();
         self.write_pack_of(&objects.join("pack"), &ids)?;
@@ -150,8 +155,9 @@ fn packs_in(folder: &Path) -> SyncResult<Vec<Pack>> {
     Ok(packs)
 }
 
-/// The loose objects in one of the 256 object folders, with their files.
-fn loose_in(folder: &Path) -> SyncResult<Vec<(Oid, PathBuf)>> {
+/// The small loose objects in one of the 256 object folders, with their
+/// files.
+fn small_loose_in(folder: &Path) -> SyncResult<Vec<(Oid, PathBuf)>> {
     let entries = match fs::read_dir(folder) {
         Ok(entries) => entries,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
@@ -161,11 +167,16 @@ fn loose_in(folder: &Path) -> SyncResult<Vec<(Oid, PathBuf)>> {
     let prefix = prefix.unwrap_or_default();
     let mut loose = Vec::new();
     for entry in entries {
-        let path = entry?.path();
+        let entry = entry?;
+        let small = entry.metadata()?.len() <= LARGEST_PACKED_LOOSE;
+        let path = entry.path();
         let name = path.file_name().and_then(|name| name.to_str());
         let hex = format!("{prefix}{}", name.unwrap_or_default());
         let is_object = hex.len() == 2 * OID_BYTES && hex.bytes().all(|b| b.is_ascii_hexdigit());
-        if is_object && let Ok(id) = Oid::from_str(&hex) {
+        if small
+            && is_object
+            && let Ok(id) = Oid::from_str(&hex)
+        {
             loose.push((id, path));
         }
     }
