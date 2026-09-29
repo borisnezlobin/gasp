@@ -69,6 +69,8 @@ pub struct Palette {
     /// The two versions of a note in a sync conflict.
     pub this_device: ThemeColor,
     pub other_device: ThemeColor,
+    /// The red caret of the app icon, for the welcome tour's small marks.
+    pub caret_mark: ThemeColor,
     /// Each callout kind's colour by its name, such as `warning`.
     pub callouts: HashMap<String, ThemeColor>,
     /// How strongly a callout's colour tints its surface.
@@ -235,6 +237,7 @@ fn palette(read: &TokenReader<'_>) -> Palette {
         conflict: read.color("color.conflict"),
         this_device: read.color("color.this-device"),
         other_device: read.color("color.other-device"),
+        caret_mark: read.color("color.caret-mark"),
         callouts: read.callout_colors(),
         callout_opacity: read.number("opacity.callout"),
     }
