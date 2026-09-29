@@ -357,7 +357,7 @@ impl FileTree {
             let item = *item;
             menu_row(
                 ("file-tree-menu-item", index),
-                index == menu.highlighted,
+                menu.highlighted == Some(index),
                 false,
                 &ui,
             )
