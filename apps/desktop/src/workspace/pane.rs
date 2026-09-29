@@ -1,7 +1,8 @@
 //! A pane: a row of tabs, and under it the note surface with the note's
 //! header bar, an optional toolbar (the find bar goes there) and the
 //! active tab's note or launcher. The tab bar is drawn in `tab_bar.rs` and
-//! the header in `note_header.rs`.
+//! the header in `note_header.rs`. The workspace hands the surface the
+//! docked toolbars it holds each frame, through [`CardBarSlot`].
 
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -33,6 +34,32 @@ pub const NEW_TAB_TITLE: &str = "New tab";
 /// Tells whether an editor shows its note as a finished page, with the
 /// Markdown symbols hidden. The reading-view button shows this state.
 pub type ReadingProbe = Rc<dyn Fn(&EditorView) -> bool>;
+
+/// The docked toolbars on a pane's note surface for one frame: strips at
+/// its top and bottom, and bars floating over the note.
+#[derive(Default)]
+pub struct CardBars {
+    pub top: Option<AnyElement>,
+    pub bottom: Option<AnyElement>,
+    pub over_note: Vec<AnyElement>,
+}
+
+/// Where the workspace leaves a pane's [`CardBars`] while it draws, for
+/// the pane to take when it's drawn next in the same frame. The workspace
+/// empties it once the frame is laid out, so no element outlives its
+/// frame.
+#[derive(Clone, Default)]
+pub struct CardBarSlot(Rc<std::cell::RefCell<Option<CardBars>>>);
+
+impl CardBarSlot {
+    pub fn fill(&self, bars: CardBars) {
+        self.0.replace(Some(bars));
+    }
+
+    pub fn take(&self) -> CardBars {
+        self.0.take().unwrap_or_default()
+    }
+}
 
 /// A tab showing a note.
 #[derive(Clone)]
@@ -165,6 +192,8 @@ pub struct Pane {
     sync_conflicts: Vec<PathBuf>,
     /// Where a tab dragged over this pane would land, while one is.
     pub(super) drop: DropState,
+    /// The docked toolbars the workspace drew for this pane this frame.
+    pub(crate) card_bars: CardBarSlot,
 }
 
 /// What a tab drag over the pane shows. It changes only when the landing
@@ -219,6 +248,7 @@ impl Pane {
             menu: MenuSlot::default(),
             sync_conflicts: Vec::new(),
             drop: DropState::default(),
+            card_bars: CardBarSlot::default(),
         }
     }
 
@@ -611,18 +641,30 @@ impl TabState {
 impl Render for Pane {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let ui = ui_theme(cx);
+        let bars = self.card_bars.take();
         // The toolbar (the find bar) floats over the note's top right
         // corner, under the header, so opening it never moves the text.
         let toolbar = self.toolbar.clone().map(|toolbar| {
             div()
                 .absolute()
-                .top(ui.note_header_height)
+                .top_0()
                 .left(ui.space_md)
                 .right(ui.space_md)
                 .flex()
                 .justify_end()
                 .child(toolbar)
         });
+        let note_area = div()
+            .relative()
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_h_0()
+            .min_w_0()
+            .children(self.render_sync_banner(cx))
+            .child(self.render_content(cx))
+            .children(bars.over_note)
+            .children(toolbar);
         let surface = div()
             .id("pane-surface")
             .selector(|| "pane-surface".to_owned())
@@ -635,10 +677,10 @@ impl Render for Pane {
             .bg(ui.note_background)
             .rounded(ui.surface_radius)
             .shadow(ui.surface_shadows())
+            .children(bars.top)
             .child(self.render_note_header(cx))
-            .children(self.render_sync_banner(cx))
-            .child(self.render_content(cx))
-            .children(toolbar)
+            .child(note_area)
+            .children(bars.bottom)
             .on_drag_move(cx.listener(Self::on_drag_over_note))
             .children(self.render_drop_zone(cx));
         div()

@@ -12,7 +12,11 @@ use gpui::{
     SharedString, Stateful, canvas, div, prelude::*,
 };
 
-use super::{AddToToolbar, FocusStop, PressToolbarItem, add_key, button_label, item_key};
+use super::fitted::{BarAxis, FittedItems, OverflowCell, Slot, SlotKind, fitted_items};
+use super::{
+    AddToToolbar, FocusStop, OpenToolbarOverflow, PressToolbarItem, add_key, button_label,
+    item_key, more_key,
+};
 use crate::icons::{IconName, icon};
 use crate::theme::UiTheme;
 use crate::ui::Selectable;
@@ -30,11 +34,21 @@ pub enum BarFrame {
     Column,
     /// A bar floating over the note, or one shown on hover over an edge.
     Floating,
+    /// A pill floating down a side of the note.
+    FloatingColumn,
 }
 
 impl BarFrame {
-    fn is_column(self) -> bool {
-        self == BarFrame::Column
+    pub fn is_column(self) -> bool {
+        matches!(self, BarFrame::Column | BarFrame::FloatingColumn)
+    }
+
+    fn axis(self) -> BarAxis {
+        if self.is_column() {
+            BarAxis::Column
+        } else {
+            BarAxis::Row
+        }
     }
 }
 
@@ -132,7 +146,14 @@ fn metrics(frame: BarFrame, density: Density, theme: &UiTheme) -> Metrics {
     }
 }
 
-/// The bar itself, before its items: laid out for `frame`.
+/// How deep a docked strip's bar is across its length, so a pane that
+/// doesn't show the bar can keep the same room.
+pub fn bar_thickness(frame: BarFrame, density: Density, theme: &UiTheme) -> Pixels {
+    metrics(frame, density, theme).side + theme.toolbar.padding * 2.
+}
+
+/// The bar itself, before its items: laid out for `frame`. A strip's bar
+/// fills its strip, so its items fit against the strip's length.
 pub fn bar(frame: BarFrame, density: Density, theme: &UiTheme) -> Div {
     let m = metrics(frame, density, theme);
     let padding = theme.toolbar.padding;
@@ -150,20 +171,27 @@ pub fn bar(frame: BarFrame, density: Density, theme: &UiTheme) -> Div {
         BarFrame::Row => div()
             .flex()
             .flex_row()
-            .flex_none()
+            .flex_1()
+            .min_w_0()
             .items_center()
             .gap(m.gap)
-            .h(m.side + padding * 2.)
+            .h(bar_thickness(frame, density, theme))
             .px(theme.space_md),
         BarFrame::Column => div()
             .flex()
             .flex_col()
-            .flex_none()
+            .flex_1()
+            .min_h_0()
             .items_center()
             .gap(m.gap)
-            .w(m.side + padding * 2.)
+            .w(bar_thickness(frame, density, theme))
             .py(theme.space_md),
         BarFrame::Floating => floating_surface(div().flex().flex_row().items_center(), theme)
+            .min_w_0()
+            .gap(m.gap)
+            .p(padding),
+        BarFrame::FloatingColumn => floating_surface(div().flex().flex_col().items_center(), theme)
+            .min_h_0()
             .gap(m.gap)
             .p(padding),
     }
@@ -196,31 +224,7 @@ pub fn bar_items(
     let mut elements = Vec::new();
     let mut buttons: Vec<AnyElement> = Vec::new();
     for (index, item) in toolbar.items.iter().enumerate() {
-        let key = item_key(&toolbar.id, index);
-        let focused = state.focus == Some(FocusStop::Item(index));
-        let element = match item {
-            ToolbarItem::Command(id) => {
-                let look = ButtonLook::for_command(id, state, focused);
-                Some(command_button(
-                    &key, toolbar, index, id, look, m, &theme, cx,
-                ))
-            }
-            ToolbarItem::Menu(id) => {
-                let open = attached(&key);
-                menu_button(
-                    &key,
-                    toolbar,
-                    index,
-                    state.menus.iter().find(|menu| menu.id == *id),
-                    focused,
-                    open,
-                    m,
-                    &theme,
-                )
-            }
-            _ => None,
-        };
-        if let Some(button) = element {
+        if let Some(button) = button_item(toolbar, index, state, attached, m, &theme, cx) {
             buttons.push(button);
             continue;
         }
@@ -233,6 +237,120 @@ pub fn bar_items(
     flush_buttons(&mut elements, &mut buttons, state.frame, m);
     elements.extend(add);
     elements
+}
+
+/// Every item of a docked `toolbar`, fitted to the length its bar has:
+/// what doesn't fit goes into a trailing More button, which `overflow`
+/// tells the workspace about.
+pub fn fitted_bar_items(
+    toolbar: &Toolbar,
+    state: &BarState<'_>,
+    attached: &mut dyn FnMut(&str) -> Option<AnyElement>,
+    overflow: OverflowCell,
+    cx: &mut App,
+) -> FittedItems {
+    let theme = crate::ui::ui_theme(cx);
+    let m = metrics(state.frame, toolbar.density, &theme);
+    let slots = toolbar
+        .items
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| {
+            let button = button_item(toolbar, index, state, attached, m, &theme, cx);
+            let slot = |kind, element| Slot {
+                index,
+                kind,
+                element,
+            };
+            match (button, item) {
+                (Some(button), _) => Some(slot(SlotKind::Button, Some(button))),
+                (None, ToolbarItem::Spacer) => Some(slot(SlotKind::Spacer, None)),
+                (None, ToolbarItem::Separator) => Some(slot(
+                    SlotKind::Separator,
+                    passive_item(item, state, m, &theme),
+                )),
+                (None, _) => passive_item(item, state, m, &theme)
+                    .map(|widget| slot(SlotKind::Widget, Some(widget))),
+            }
+        })
+        .collect();
+    let focused = state.focus == Some(FocusStop::More);
+    let open = attached(&more_key(&toolbar.id));
+    let more = more_button(toolbar, focused, open, m, &theme);
+    fitted_items(state.frame.axis(), m.gap, slots, more, overflow)
+}
+
+/// Item `index` of `toolbar` when it's a button: a command, or a menu
+/// that exists.
+fn button_item(
+    toolbar: &Toolbar,
+    index: usize,
+    state: &BarState<'_>,
+    attached: &mut dyn FnMut(&str) -> Option<AnyElement>,
+    m: Metrics,
+    theme: &UiTheme,
+    cx: &App,
+) -> Option<AnyElement> {
+    let key = item_key(&toolbar.id, index);
+    let focused = state.focus == Some(FocusStop::Item(index));
+    match toolbar.items.get(index)? {
+        ToolbarItem::Command(id) => {
+            let look = ButtonLook::for_command(id, state, focused);
+            Some(command_button(&key, toolbar, index, id, look, m, theme, cx))
+        }
+        ToolbarItem::Menu(id) => {
+            let open = attached(&key);
+            menu_button(
+                &key,
+                toolbar,
+                index,
+                state.menus.iter().find(|menu| menu.id == *id),
+                focused,
+                open,
+                m,
+                theme,
+            )
+        }
+        _ => None,
+    }
+}
+
+/// The button at a bar's end that holds the items that don't fit: its
+/// icon, pressed in while its menu is open.
+fn more_button(
+    toolbar: &Toolbar,
+    focused: bool,
+    open: Option<AnyElement>,
+    m: Metrics,
+    theme: &UiTheme,
+) -> AnyElement {
+    let look = ButtonLook {
+        active: open.is_some(),
+        disabled: false,
+        focused,
+    };
+    let has_open = open.is_some();
+    let target: SharedString = toolbar.id.clone().into();
+    button_box(&more_key(&toolbar.id), look, theme)
+        .size(m.side)
+        .child(
+            icon(IconName::DotsThree)
+                .size(m.icon)
+                .text_color(icon_color(look, theme)),
+        )
+        .on_mouse_down(MouseButton::Left, |_, window, _| window.prevent_default())
+        .on_click(move |_, window, cx| {
+            cx.stop_propagation();
+            let open = OpenToolbarOverflow {
+                toolbar: target.clone(),
+            };
+            window.dispatch_action(Box::new(open), cx);
+        })
+        .when(!has_open, |button| {
+            button.tooltip(Tooltip::new("More buttons", None).builder())
+        })
+        .children(open)
+        .into_any_element()
 }
 
 /// Buttons side by side sit closer together in the status bar than its

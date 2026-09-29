@@ -389,39 +389,55 @@ impl Workspace {
 }
 
 impl Workspace {
-    /// The notes with the bars docked above and below them.
+    /// The notes, between the gaps that part them from the sidebars.
     fn render_center(
-        &mut self,
+        &self,
         panes: AnyElement,
         (left_gap, right_gap): (gpui::Pixels, gpui::Pixels),
-        window: &mut Window,
-        cx: &mut Context<Self>,
     ) -> AnyElement {
-        let top = self.docked_bars(Place::EditorTop, window, cx);
-        let bottom = self.docked_bars(Place::EditorBottom, window, cx);
-        let notes = div()
+        div()
             .relative()
             .flex()
             .flex_1()
             .min_w_0()
             .min_h_0()
-            .child(panes)
-            .children(top.edge)
-            .children(bottom.edge)
-            .children(top.overlay)
-            .children(bottom.overlay);
-        div()
-            .flex()
-            .flex_col()
-            .flex_1()
-            .min_w_0()
-            .min_h_0()
             .pl(left_gap)
             .pr(right_gap)
-            .children(top.strip)
-            .child(notes)
-            .children(bottom.strip)
+            .child(panes)
             .into_any_element()
+    }
+
+    /// Draws each pane's docked toolbars for its card to take as it's
+    /// drawn: the bars themselves in the active pane, and their room in
+    /// the others.
+    fn fill_card_bars(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let active = self.active_pane.entity_id();
+        for pane in self.panes.panes() {
+            let bars = self.card_bars(pane.entity_id() == active, window, cx);
+            pane.read(cx).card_bars.fill(bars);
+        }
+    }
+
+    /// Empties every pane's toolbar slot once the frame is laid out, by
+    /// when each pane has taken its bars, so none is kept past its frame.
+    fn render_card_bar_sweep(&self, cx: &mut Context<Self>) -> AnyElement {
+        let slots: Vec<super::pane::CardBarSlot> = self
+            .panes
+            .panes()
+            .iter()
+            .map(|pane| pane.read(cx).card_bars.clone())
+            .collect();
+        canvas(
+            move |_, _, _| {
+                for slot in &slots {
+                    slot.take();
+                }
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .size_0()
+        .into_any_element()
     }
 }
 
@@ -432,6 +448,7 @@ impl Render for Workspace {
         self.sync_sidebar_toggle(window, cx);
         self.sync_right_sidebar_toggle(cx);
         self.drop_stale_toolbar_focus(window, cx);
+        self.fill_card_bars(window, cx);
         let ui = ui_theme(cx);
         let panes = self.render_node(self.panes.root(), cx);
         let overlays = self.left_panel.overlays();
@@ -452,7 +469,7 @@ impl Render for Workspace {
         } else {
             ui.surface_gap
         };
-        let center = self.render_center(panes, (left_gap, right_gap), window, cx);
+        let center = self.render_center(panes, (left_gap, right_gap));
         let left_bars = self.docked_bars(Place::WindowLeft, window, cx);
         let right_bars = self.docked_bars(Place::WindowRight, window, cx);
         let status = self.docked_bars(Place::StatusBar, window, cx);
@@ -463,6 +480,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::on_run_command))
             .on_action(cx.listener(Self::on_press_toolbar_item))
             .on_action(cx.listener(Self::on_add_to_toolbar))
+            .on_action(cx.listener(Self::on_open_toolbar_overflow))
             .on_key_down(cx.listener(Self::on_toolbar_key))
             .capture_key_down(cx.listener(Self::escape_cancels_drags))
             .on_modifiers_changed(cx.listener(Self::on_modifiers_changed))
@@ -506,6 +524,7 @@ impl Render for Workspace {
             .child(crate::ui::focus_visible::pointer_watch())
             .children(self.render_drag_tracker(cx))
             .child(self.render_pointer_watch(cx))
+            .child(self.render_card_bar_sweep(cx))
             .children(status.strip)
             .children(status.edge)
             .children(status.overlay)
