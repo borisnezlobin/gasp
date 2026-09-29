@@ -8,18 +8,20 @@ final class CommandRunner: EditingHost {
     let library: VaultLibrary
     let tabs: TabStore
     let workspace: Workspace
+    let sync: SyncCenter
 
     typealias Handler = (CommandRunner) -> Void
 
     /// Every command the browser handles itself, by id.
     private static let handlers: [String: Handler] = [
-        tabHandlers, navigationHandlers, noteHandlers, viewHandlers, textHandlers
+        tabHandlers, navigationHandlers, noteHandlers, viewHandlers, textHandlers, syncHandlers
     ].reduce(into: [:]) { all, group in all.merge(group) { first, _ in first } }
 
-    init(library: VaultLibrary, tabs: TabStore, workspace: Workspace) {
+    init(library: VaultLibrary, tabs: TabStore, workspace: Workspace, sync: SyncCenter) {
         self.library = library
         self.tabs = tabs
         self.workspace = workspace
+        self.sync = sync
         tabs.makeSession = { [weak self] path, text in self?.makeSession(path: path, text: text) }
     }
 
@@ -131,7 +133,7 @@ final class CommandRunner: EditingHost {
         case .web(let url):
             if let url = URL(string: url) { UIApplication.shared.open(url) }
         case .note(let path, let heading):
-            library.refresh()
+            library.edited()
             tabs.open(path)
             if let heading { tabs.activeSession?.showHeading(heading) }
         case .heading(let heading):

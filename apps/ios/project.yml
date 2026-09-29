@@ -21,6 +21,10 @@ targets:
     dependencies:
       - framework: Core/EditorCore.xcframework
         embed: false
+      # libgit2 in the core talks TLS through Security and needs zlib and iconv.
+      - sdk: Security.framework
+      - sdk: libz.tbd
+      - sdk: libiconv.tbd
     info:
       path: Editor/Info.plist
       properties:
@@ -39,6 +43,9 @@ targets:
         # The vault shows in the Files app, under On My iPhone.
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
+        # Sync now and then while the app is in the background.
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [com.borisnezlobin.editor.sync]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.borisnezlobin.editor

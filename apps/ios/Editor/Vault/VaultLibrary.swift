@@ -1,13 +1,30 @@
 import Foundation
 import Observation
 
+extension Notification.Name {
+    /// This phone changed a note or the vault's config, which sync sends on.
+    static let vaultEdited = Notification.Name("com.borisnezlobin.editor.vault-edited")
+}
+
+/// Where the open vault comes from.
+enum VaultKind: String {
+    /// The notes repository sync cloned into the app.
+    case synced
+    /// The sample notes that ship with the app, for when nothing syncs.
+    case sample
+    /// A folder picked in Files.
+    case picked
+}
+
 /// The open vault: its folder, its notes, the theme and commands it asks
-/// for. The folder is the app's own `Documents/Vault` (where sync will
-/// clone the real vault later, and where the sample notes go on first
-/// launch) or a folder picked with "Open another vault".
+/// for. The folder is the synced clone of the notes repository once sync
+/// is set up, the bundled sample notes until then, or a folder picked
+/// with "Open another vault".
 @Observable
 final class VaultLibrary {
     private(set) var vault: VaultFolder?
+    private(set) var kind: VaultKind = .sample
+    private(set) var folder: URL?
     private(set) var notes: [NoteSummary] = []
     private(set) var folders: [String] = []
     private(set) var tokens: Tokens
@@ -34,12 +51,24 @@ final class VaultLibrary {
         folders = vault?.folders() ?? []
     }
 
+    /// Lists the notes again after this phone changed the vault, and tells sync.
+    func edited() {
+        refresh()
+        NotificationCenter.default.post(name: .vaultEdited, object: nil)
+    }
+
     func command(_ id: String) -> CommandInfo? {
         commands.first { $0.id == id }
     }
 
-    /// Reads `.editor/` again after a setting changed.
+    /// Reads `.editor/` again after a setting changed on this phone.
     func reloadConfig() {
+        readConfigFromDisk()
+        NotificationCenter.default.post(name: .vaultEdited, object: nil)
+    }
+
+    /// Reads `.editor/` again after sync brought in another device's change.
+    func readConfigFromDisk() {
         vault?.reloadConfig()
         readConfig()
     }
@@ -47,14 +76,23 @@ final class VaultLibrary {
     /// Opens another folder as the vault, remembering it for next time.
     func open(folder url: URL) {
         VaultLocation.remember(url)
+        VaultLocation.choice = .picked
         open(VaultLocation.current())
     }
 
-    private func open(_ location: Result<URL, Error>) {
+    /// Opens the synced notes, the sample notes or the picked folder.
+    func open(_ kind: VaultKind) {
+        VaultLocation.choice = kind
+        open(VaultLocation.current())
+    }
+
+    private func open(_ location: Result<(VaultKind, URL), Error>) {
         do {
-            let folder = try location.get()
+            let (kind, folder) = try location.get()
             let vault = try VaultFolder.open(path: folder.path)
             self.vault = vault
+            self.kind = kind
+            self.folder = folder
             problem = nil
             vault.pruneSnapshots()
             readConfig()
@@ -76,6 +114,10 @@ final class VaultLibrary {
 
 enum VaultLocation {
     private static let bookmarkKey = "vault.bookmark"
+    private static let choiceKey = "vault.choice"
+    /// The synced clone's path inside `Documents`, which keeps working when
+    /// an update moves the app's container.
+    private static let syncedKey = "sync.folder"
 
     static var sampleFolder: URL {
         URL.documentsDirectory.appending(path: "Vault", directoryHint: .isDirectory)
@@ -88,19 +130,69 @@ enum VaultLocation {
         return folder
     }
 
-    /// The picked folder if there is one and it can still be reached,
-    /// otherwise the app's own vault.
-    static func current() -> Result<URL, Error> {
-        if let picked = pickedFolder() {
-            return .success(picked)
+    /// The clone sync set up, if there is one on this phone.
+    static var syncedFolder: URL? {
+        guard let relative = UserDefaults.standard.string(forKey: syncedKey) else { return nil }
+        let folder = URL.documentsDirectory.appending(path: relative, directoryHint: .isDirectory)
+        return FileManager.default.fileExists(atPath: folder.path) ? folder : nil
+    }
+
+    /// A folder for a new clone of `repository`, named after it.
+    static func newSyncedFolder(for repository: String) -> URL {
+        let parent = URL.documentsDirectory.appending(path: "Synced", directoryHint: .isDirectory)
+        let last = repository.split(separator: "/").last.map(String.init) ?? "Notes"
+        let base = last.hasSuffix(".git") ? String(last.dropLast(4)) : last
+        var folder = parent.appending(path: base, directoryHint: .isDirectory)
+        var number = 2
+        while FileManager.default.fileExists(atPath: folder.path) {
+            folder = parent.appending(path: "\(base) \(number)", directoryHint: .isDirectory)
+            number += 1
         }
-        return Result { try installSampleIfEmpty() }
+        return folder
+    }
+
+    static func rememberSynced(_ folder: URL) {
+        let documents = URL.documentsDirectory.standardizedFileURL.path
+        let path = folder.standardizedFileURL.path
+        let relative = path.hasPrefix(documents) ? String(path.dropFirst(documents.count + 1)) : path
+        UserDefaults.standard.set(relative, forKey: syncedKey)
+        choice = .synced
+    }
+
+    /// Which vault opens: the one last chosen, or the synced notes when
+    /// there are some, or a picked folder, or the sample notes.
+    static var choice: VaultKind {
+        get {
+            if let stored = UserDefaults.standard.string(forKey: choiceKey).flatMap(VaultKind.init) {
+                return stored
+            }
+            if syncedFolder != nil { return .synced }
+            return UserDefaults.standard.data(forKey: bookmarkKey) != nil ? .picked : .sample
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: choiceKey) }
+    }
+
+    /// The chosen vault if it can still be reached, otherwise the sample notes.
+    static func current() -> Result<(VaultKind, URL), Error> {
+        switch choice {
+        case .synced:
+            if let folder = syncedFolder { return .success((.synced, folder)) }
+        case .picked:
+            if let folder = pickedFolder() { return .success((.picked, folder)) }
+        case .sample:
+            break
+        }
+        return Result { (.sample, try installSampleIfEmpty()) }
     }
 
     static func remember(_ url: URL) {
         guard url.startAccessingSecurityScopedResource() || url.isFileURL,
               let bookmark = try? url.bookmarkData() else { return }
         UserDefaults.standard.set(bookmark, forKey: bookmarkKey)
+    }
+
+    static var hasPickedFolder: Bool {
+        pickedFolder() != nil
     }
 
     private static func pickedFolder() -> URL? {
