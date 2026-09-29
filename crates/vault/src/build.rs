@@ -26,12 +26,13 @@ pub fn read_changes(root: &Path, paths: &[PathBuf]) -> Vec<LinkChange> {
         let Some(relative) = relative(root, path) else {
             continue;
         };
-        if path.is_dir() {
+        let Ok(metadata) = std::fs::metadata(path) else {
+            continue;
+        };
+        if metadata.is_dir() {
             let (files, notes) = scan(root, path);
             changes.extend(files.into_iter().map(LinkChange::File));
             changes.extend(read_notes(root, notes).into_iter().map(note_change));
-        } else if !path.exists() {
-            continue;
         } else if is_note_path(&relative) {
             changes.extend(read_note(root, relative).map(note_change));
         } else {
@@ -75,19 +76,33 @@ pub fn build_index(root: &Path) -> LinkIndex {
 pub fn scan(root: &Path, folder: &Path) -> (Vec<String>, Vec<String>) {
     let mut files = Vec::new();
     let mut notes = Vec::new();
-    let mut pending = vec![folder.to_path_buf()];
-    while let Some(dir) = pending.pop() {
+    let is_root = folder
+        .strip_prefix(root)
+        .is_ok_and(|rest| rest.as_os_str().is_empty());
+    let start = if is_root {
+        Some(String::new())
+    } else {
+        relative(root, folder)
+    };
+    // Each folder with its path relative to the root, so an entry's path
+    // is its folder's plus its name.
+    let mut pending: Vec<(PathBuf, String)> = start
+        .map(|prefix| (folder.to_path_buf(), prefix))
+        .into_iter()
+        .collect();
+    while let Some((dir, prefix)) = pending.pop() {
         let Ok(entries) = std::fs::read_dir(&dir) else {
             continue;
         };
         for entry in entries.flatten() {
-            let path = entry.path();
-            let hidden = entry.file_name().to_string_lossy().starts_with('.');
-            let Some(relative) = relative(root, &path).filter(|_| !hidden) else {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with('.') {
                 continue;
-            };
+            }
+            let relative = join_relative(&prefix, &name);
             match entry.file_type() {
-                Ok(kind) if kind.is_dir() => pending.push(path),
+                Ok(kind) if kind.is_dir() => pending.push((entry.path(), relative)),
                 Ok(_) if is_note_path(&relative) => notes.push(relative),
                 Ok(_) => files.push(relative),
                 Err(_) => {}
@@ -95,6 +110,14 @@ pub fn scan(root: &Path, folder: &Path) -> (Vec<String>, Vec<String>) {
         }
     }
     (files, notes)
+}
+
+fn join_relative(folder: &str, name: &str) -> String {
+    if folder.is_empty() {
+        name.to_string()
+    } else {
+        format!("{folder}/{name}")
+    }
 }
 
 /// Reads and parses `notes` on as many threads as there are cores.

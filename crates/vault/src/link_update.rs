@@ -29,7 +29,8 @@ pub fn expand_folder_move(files: &[String], from: &str, to: &str) -> Vec<(String
 pub struct LinkUpdater {
     moves: BTreeMap<String, String>,
     before: FileIndex,
-    after: FileIndex,
+    /// How many files have each lowercased file name after the moves.
+    names_after: HashMap<String, usize>,
     needles: Vec<String>,
 }
 
@@ -38,14 +39,17 @@ impl LinkUpdater {
     /// pairs each moved file's old path with its new one.
     pub fn new(files: &[String], moves: &[(String, String)]) -> LinkUpdater {
         let moves: BTreeMap<String, String> = moves.iter().cloned().collect();
-        let after: Vec<String> = files
-            .iter()
-            .map(|file| moves.get(file).unwrap_or(file).clone())
-            .collect();
+        let mut names_after: HashMap<String, usize> = HashMap::new();
+        for file in files {
+            let after = moves.get(file).unwrap_or(file);
+            *names_after
+                .entry(file_name(after).to_lowercase())
+                .or_default() += 1;
+        }
         let needles = moves.keys().flat_map(|old| needles_for(old)).collect();
         LinkUpdater {
             before: FileIndex::new(files),
-            after: FileIndex::new(&after),
+            names_after,
             moves,
             needles,
         }
@@ -154,7 +158,8 @@ impl LinkUpdater {
     /// The file name when it's unique after the moves, else the full path.
     fn shortest_linkpath(&self, path: &str) -> String {
         let name = file_name(path);
-        if self.after.by_name(name).len() > 1 {
+        let sharing = self.names_after.get(&name.to_lowercase()).copied();
+        if sharing.unwrap_or(0) > 1 {
             path.to_string()
         } else {
             name.to_string()
