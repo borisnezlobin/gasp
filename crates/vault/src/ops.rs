@@ -1,6 +1,7 @@
 //! File operations behind the tree: creating, renaming, moving and
 //! trashing, plus updating links after a rename.
 
+use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::{Component, Path, PathBuf};
@@ -8,6 +9,7 @@ use std::path::{Component, Path, PathBuf};
 use gasp_config::settings::TrashMode;
 
 use super::entries::{EntryKind, NOTE_EXTENSION, is_hidden};
+use crate::build::in_parallel;
 use crate::link_update::{LinkUpdater, expand_folder_move};
 
 /// Where the vault-trash mode puts deleted files, as Obsidian does.
@@ -234,11 +236,20 @@ fn collect_files(root: &Path, folder: &Path, out: &mut Vec<String>) {
             continue;
         }
         let relative = folder.join(&name);
-        if item.path().is_dir() {
+        if is_folder(&item) {
             collect_files(root, &relative, out);
         } else {
             out.push(slash_path(&relative));
         }
+    }
+}
+
+/// Whether a listed entry is a folder, following links. Only a link is
+/// looked up on disk; the listing says what everything else is.
+fn is_folder(item: &fs::DirEntry) -> bool {
+    match item.file_type() {
+        Ok(kind) if !kind.is_symlink() => kind.is_dir(),
+        _ => item.path().is_dir(),
     }
 }
 
@@ -264,20 +275,24 @@ pub fn update_links_after_move(
         moves.push((from, to));
     }
     let updater = LinkUpdater::new(files, &moves);
-    let mut changed = Vec::new();
-    for note in files.iter().filter(|f| is_note(f)) {
-        let now = moves
-            .iter()
-            .find(|(old, _)| old == note)
-            .map_or(note.as_str(), |(_, new)| new.as_str());
+    let mut moved: HashMap<&str, &str> = HashMap::with_capacity(moves.len());
+    for (old, new) in &moves {
+        moved.entry(old.as_str()).or_insert(new.as_str());
+    }
+    let notes: Vec<String> = files.iter().filter(|f| is_note(f)).cloned().collect();
+    // Every note is read and checked on every core; the rewritten ones are
+    // then written one at a time, in order, stopping at the first failure.
+    let rewritten = in_parallel(notes, |note| {
+        let now = moved.get(note.as_str()).copied().unwrap_or(&note);
         let path = root.join(now);
-        let Ok(text) = fs::read_to_string(&path) else {
-            continue;
-        };
-        if let Some(updated) = updater.rewrite(note, &text) {
-            crate::files::atomic_write(&path, &updated)?;
-            changed.push(PathBuf::from(now));
-        }
+        let text = fs::read_to_string(&path).ok()?;
+        let updated = updater.rewrite(&note, &text)?;
+        Some((path, PathBuf::from(now), updated))
+    });
+    let mut changed = Vec::new();
+    for (path, now, updated) in rewritten {
+        crate::files::atomic_write(&path, &updated)?;
+        changed.push(now);
     }
     Ok(changed)
 }

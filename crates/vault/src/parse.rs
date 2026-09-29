@@ -6,7 +6,7 @@
 
 use std::ops::Range;
 
-use crate::link_update::{Destination, code_ranges, find_markdown_destinations};
+use crate::link_update::{Destination, code_ranges, find_from, find_markdown_destinations};
 
 /// A link in a note.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -103,9 +103,9 @@ impl CodeRanges {
 fn wikilinks(text: &str, code: &CodeRanges) -> Vec<Link> {
     let mut found = Vec::new();
     let mut from = 0;
-    while let Some(open) = text[from..].find("[[").map(|at| at + from) {
+    while let Some(open) = find_from(text, from, "[[") {
         let body_start = open + 2;
-        let Some(close) = text[body_start..].find("]]").map(|at| at + body_start) else {
+        let Some(close) = find_from(text, body_start, "]]") else {
             break;
         };
         let body = &text[body_start..close];

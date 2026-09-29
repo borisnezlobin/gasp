@@ -7,5 +7,7 @@
 //! text recognised in images and PDFs and searches it.
 
 pub mod engine;
+mod fold;
+mod hits;
 pub mod ocr;
 pub mod tags;

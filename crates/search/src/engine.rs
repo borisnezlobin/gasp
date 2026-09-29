@@ -6,7 +6,7 @@
 //! updates, camelCase splitting) and OCR of images and PDFs are later
 //! phases.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
@@ -15,8 +15,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::SystemTime;
 
 use gasp_config::CONFIG_DIR;
-use unicode_normalization::UnicodeNormalization;
-use unicode_normalization::char::is_combining_mark;
+use memchr::memmem::Finder;
+use rayon::prelude::*;
+
+use crate::fold::OffsetMap;
+pub use crate::fold::{Folded, fold};
+use crate::hits::collect_hits;
+pub use crate::hits::{LineHit, MAX_HITS_PER_NOTE, line_hits};
 
 /// Omnisearch's weights for where a query matches.
 pub const FILE_NAME_WEIGHT: u32 = 10;
@@ -25,12 +30,12 @@ pub const HEADING_WEIGHTS: [u32; 3] = [6, 5, 4];
 pub const TAG_WEIGHT: u32 = 2;
 pub const BODY_WEIGHT: u32 = 1;
 
-/// Lines shown per note; the match count still covers every match.
-pub const MAX_HITS_PER_NOTE: usize = 20;
-/// Characters of context kept before a match in a long line.
-const EXCERPT_LEAD: usize = 40;
-/// Longest excerpt, in characters.
-const EXCERPT_CHARS: usize = 160;
+/// Notes a search thread takes at a time: enough that handing them out
+/// costs little next to searching them.
+const NOTES_PER_TASK: usize = 16;
+
+/// A newer search started, so this one stopped.
+struct Stale;
 
 /// Folders never searched: the app's config, git and other apps' data.
 const SKIPPED_FOLDERS: [&str; 4] = [CONFIG_DIR, ".git", ".obsidian", ".trash"];
@@ -43,9 +48,10 @@ pub struct Note {
     pub path: PathBuf,
     pub text: Arc<str>,
     folded: Arc<str>,
-    /// Whether folding kept every character's byte length, so offsets in
-    /// the folded text are offsets in the text.
-    same_offsets: bool,
+    /// How offsets in the folded text move back into the text, for a note
+    /// where folding changed some character's byte length. Other notes'
+    /// folded offsets are offsets in the text.
+    offsets: Option<Arc<OffsetMap>>,
     fields: Arc<NoteFields>,
 }
 
@@ -53,85 +59,32 @@ impl Note {
     pub fn new(path: PathBuf, text: String) -> Self {
         let folded = fold(&text);
         let fields = Arc::new(note_fields(&path, &text));
+        let same_offsets = folded.same_offsets;
+        let (folded, offsets) = folded.into_parts();
         Self {
             path,
             text: text.into(),
-            same_offsets: folded.same_offsets,
-            folded: folded.text.into(),
+            folded: folded.into(),
+            offsets: (!same_offsets).then(|| Arc::new(offsets)),
             fields,
         }
     }
 
-    /// Every match of the folded `query` in the note, as ranges in its
-    /// text. Most notes fold without changing any character's length, and
-    /// those need no second pass over the text.
-    fn find_all(&self, query: &str) -> Vec<Range<usize>> {
-        if !self.same_offsets {
-            return fold(&self.text).find_all(query);
-        }
-        self.folded
-            .match_indices(query)
-            .map(|(start, found)| start..start + found.len())
-            .collect()
+    /// Every match of the folded query `finder` looks for (which isn't
+    /// empty) in the note, in order and apart, as ranges in its text.
+    pub(crate) fn matches<'a>(
+        &'a self,
+        finder: &'a Finder<'a>,
+    ) -> impl Iterator<Item = Range<usize>> + 'a {
+        let length = finder.needle().len();
+        finder.find_iter(self.folded.as_bytes()).map(move |start| {
+            let folded = start..start + length;
+            match &self.offsets {
+                Some(offsets) => offsets.original(folded),
+                None => folded,
+            }
+        })
     }
-}
-
-/// Text lowercased and stripped of diacritics, with a map back to the
-/// original byte offsets.
-#[derive(Clone, Debug, Default)]
-pub struct Folded {
-    pub text: String,
-    /// For each folded byte, the original character's byte range.
-    origin: Vec<(usize, usize)>,
-    /// Whether every character folded to the same number of bytes.
-    pub same_offsets: bool,
-}
-
-impl Folded {
-    /// Every non-overlapping match of the folded `needle`, as ranges in the
-    /// original text.
-    pub fn find_all(&self, needle: &str) -> Vec<Range<usize>> {
-        if needle.is_empty() {
-            return Vec::new();
-        }
-        self.text
-            .match_indices(needle)
-            .map(|(start, found)| {
-                let end = start + found.len() - 1;
-                self.origin[start].0..self.origin[end].1
-            })
-            .collect()
-    }
-}
-
-/// Lowercases and strips combining marks, so "Émile" matches "emile".
-pub fn fold(text: &str) -> Folded {
-    let mut folded = Folded {
-        text: String::with_capacity(text.len()),
-        origin: Vec::with_capacity(text.len()),
-        same_offsets: true,
-    };
-    for (start, ch) in text.char_indices() {
-        let span = (start, start + ch.len_utf8());
-        if ch.is_ascii() {
-            folded.text.push(ch.to_ascii_lowercase());
-            folded.origin.push(span);
-            continue;
-        }
-        let before = folded.text.len();
-        let lowered = ch
-            .to_lowercase()
-            .nfd()
-            .filter(|mark| !is_combining_mark(*mark));
-        for out in lowered {
-            folded.text.push(out);
-            folded
-                .origin
-                .extend(std::iter::repeat_n(span, out.len_utf8()));
-        }
-        folded.same_offsets &= folded.text.len() - before == ch.len_utf8();
-    }
-    folded
 }
 
 /// Loads every Markdown note under `root`, sorted by path.
@@ -148,30 +101,43 @@ type Stamp = (Option<SystemTime>, u64);
 /// the notes whose size or modification time changed since last time.
 #[derive(Default)]
 pub struct NoteCache {
-    notes: HashMap<PathBuf, (Stamp, Note)>,
+    /// By path, so they list in path order.
+    notes: BTreeMap<PathBuf, (Stamp, Note)>,
 }
 
 impl NoteCache {
     /// Every note, sorted by path.
     pub fn notes(&self) -> Vec<Note> {
-        let mut notes: Vec<Note> = self.notes.values().map(|(_, note)| note.clone()).collect();
-        notes.sort_by(|a, b| a.path.cmp(&b.path));
-        notes
+        self.notes.values().map(|(_, note)| note.clone()).collect()
     }
 
-    /// Brings every note under `root` up to date with the disk.
+    /// Brings every note under `root` up to date with the disk, reading
+    /// the notes that changed on every core.
     pub fn refresh(&mut self, root: &Path) {
+        let found = note_stamps(root);
+        let unchanged = |(relative, stamp): &(PathBuf, Stamp)| {
+            self.notes
+                .get(relative)
+                .is_some_and(|(seen, _)| seen == stamp)
+        };
+        if found.len() == self.notes.len() && found.iter().all(unchanged) {
+            return;
+        }
+        let (kept, changed): (Vec<_>, Vec<_>) = found.into_iter().partition(unchanged);
+        let read: Vec<(PathBuf, (Stamp, Note))> = changed
+            .into_par_iter()
+            .filter_map(|(relative, stamp)| {
+                let note = read_note(root, &relative)?;
+                Some((relative, (stamp, note)))
+            })
+            .collect();
         let mut old = std::mem::take(&mut self.notes);
-        for (relative, stamp) in note_stamps(root) {
-            let kept = old.remove(&relative).filter(|(seen, _)| *seen == stamp);
-            let entry = match kept {
-                Some(entry) => Some(entry),
-                None => read_note(root, &relative).map(|note| (stamp, note)),
-            };
-            if let Some(entry) = entry {
+        for (relative, _) in kept {
+            if let Some(entry) = old.remove(&relative) {
                 self.notes.insert(relative, entry);
             }
         }
+        self.notes.extend(read);
     }
 
     /// Reads `paths` (relative to `root`) again: notes that changed, and
@@ -215,20 +181,44 @@ fn note_stamps(root: &Path) -> Vec<(PathBuf, Stamp)> {
         };
         for entry in entries.filter_map(Result::ok) {
             let path = entry.path();
-            let Ok(meta) = std::fs::metadata(&path) else {
-                continue;
-            };
-            if meta.is_dir() {
-                if !is_skipped(&path) {
-                    pending.push(path);
+            match listed_kind(&entry, &path) {
+                Some(Listed::Folder) if !is_skipped(&path) => pending.push(path),
+                Some(Listed::Note(stamp)) => {
+                    let relative = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
+                    found.push((relative, stamp));
                 }
-            } else if is_note(&path) {
-                let relative = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
-                found.push((relative, (meta.modified().ok(), meta.len())));
+                _ => {}
             }
         }
     }
     found
+}
+
+/// What a folder listing found that a refresh cares about.
+enum Listed {
+    Folder,
+    Note(Stamp),
+}
+
+/// Whether `entry` is a folder or a note, following links. Only notes and
+/// links are looked up on disk; the listing already says what the rest are.
+fn listed_kind(entry: &std::fs::DirEntry, path: &Path) -> Option<Listed> {
+    let plain_file = entry
+        .file_type()
+        .ok()
+        .filter(|kind| !kind.is_symlink())
+        .map(|kind| !kind.is_dir());
+    if plain_file == Some(false) {
+        return Some(Listed::Folder);
+    }
+    if plain_file == Some(true) && !is_note(path) {
+        return None;
+    }
+    let meta = std::fs::metadata(path).ok()?;
+    if meta.is_dir() {
+        return Some(Listed::Folder);
+    }
+    is_note(path).then(|| Listed::Note((meta.modified().ok(), meta.len())))
 }
 
 fn is_skipped(dir: &Path) -> bool {
@@ -320,18 +310,6 @@ pub fn score(fields: &NoteFields, in_body: bool, query: &str) -> u32 {
     total
 }
 
-/// A matching line.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LineHit {
-    /// Zero-based line number.
-    pub line: usize,
-    /// Byte offset of the first match on the line, in the note.
-    pub offset: usize,
-    pub excerpt: String,
-    /// Matches within `excerpt`.
-    pub ranges: Vec<Range<usize>>,
-}
-
 /// One note's matches.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NoteResult {
@@ -355,15 +333,21 @@ pub fn search(
     if query.is_empty() {
         return Vec::new();
     }
-    let mut results = Vec::new();
-    for note in notes {
-        if generation.load(Ordering::Relaxed) != current {
-            return Vec::new();
-        }
-        if let Some(result) = search_note(note, &query) {
-            results.push(result);
-        }
-    }
+    let finder = Finder::new(&query);
+    let searched: Result<Vec<Option<NoteResult>>, Stale> = notes
+        .par_iter()
+        .with_min_len(NOTES_PER_TASK)
+        .map(|note| {
+            if generation.load(Ordering::Relaxed) != current {
+                return Err(Stale);
+            }
+            Ok(search_note(note, &query, &finder))
+        })
+        .collect();
+    let Ok(searched) = searched else {
+        return Vec::new();
+    };
+    let mut results: Vec<NoteResult> = searched.into_iter().flatten().collect();
     results.sort_by(|a, b| {
         b.score
             .cmp(&a.score)
@@ -373,164 +357,20 @@ pub fn search(
     results
 }
 
-fn search_note(note: &Note, query: &str) -> Option<NoteResult> {
-    let in_body = note.folded.contains(query);
+fn search_note(note: &Note, query: &str, finder: &Finder) -> Option<NoteResult> {
+    let mut matches = note.matches(finder).peekable();
+    let in_body = matches.peek().is_some();
     let score = score(&note.fields, in_body, query);
     if score == 0 {
         return None;
     }
-    let matches = if in_body {
-        note.find_all(query)
-    } else {
-        Vec::new()
-    };
+    let (hits, match_count) = collect_hits(&note.text, matches);
     Some(NoteResult {
         path: note.path.clone(),
         score,
-        match_count: matches.len(),
-        hits: line_hits(&note.text, &matches),
+        match_count,
+        hits,
     })
-}
-
-/// Groups matches by line, one hit per line, up to [`MAX_HITS_PER_NOTE`].
-pub fn line_hits(text: &str, matches: &[Range<usize>]) -> Vec<LineHit> {
-    let mut hits: Vec<LineHit> = Vec::new();
-    let mut line_number = 0;
-    let mut line_start = 0;
-    for range in matches {
-        while let Some(newline) = text[line_start..range.start].find('\n') {
-            line_start += newline + 1;
-            line_number += 1;
-        }
-        let line_end = text[line_start..]
-            .find('\n')
-            .map_or(text.len(), |end| line_start + end);
-        let local = range.start - line_start..range.end.min(line_end) - line_start;
-        if let Some(hit) = hits.last_mut().filter(|hit| hit.line == line_number) {
-            hit.ranges.push(local);
-            continue;
-        }
-        if hits.len() == MAX_HITS_PER_NOTE {
-            break;
-        }
-        hits.push(LineHit {
-            line: line_number,
-            offset: range.start,
-            excerpt: text[line_start..line_end].to_owned(),
-            ranges: vec![local],
-        });
-    }
-    hits.iter_mut().for_each(trim_excerpt);
-    hits
-}
-
-/// The markup that starts a line, such as `- [x] `, `## ` or `> `, which
-/// an excerpt leaves out so it reads as text.
-fn markup_prefix_len(line: &str) -> usize {
-    let mut rest = line;
-    loop {
-        let next = strip_one_marker(rest);
-        if next.len() == rest.len() {
-            return line.len() - rest.len();
-        }
-        rest = next;
-    }
-}
-
-fn strip_one_marker(text: &str) -> &str {
-    const MARKERS: [&str; 7] = ["- [ ] ", "- [x] ", "- [X] ", "- ", "* ", "+ ", "> "];
-    if let Some(marker) = MARKERS.iter().find(|marker| text.starts_with(*marker)) {
-        return &text[marker.len()..];
-    }
-    let hashes = text.len() - text.trim_start_matches('#').len();
-    if (1..=6).contains(&hashes) && text[hashes..].starts_with(' ') {
-        return &text[hashes + 1..];
-    }
-    let digits = text.len() - text.trim_start_matches(|c: char| c.is_ascii_digit()).len();
-    if digits > 0 && text[digits..].starts_with(". ") {
-        return &text[digits + 2..];
-    }
-    text
-}
-
-/// Shortens a long line around its first match, keeping ranges aligned.
-fn trim_excerpt(hit: &mut LineHit) {
-    let text = hit.excerpt.trim_end_matches('\r');
-    let first = hit.ranges[0].start.min(text.len());
-    let indent = text.len() - text.trim_start().len();
-    let lead = text[..first]
-        .char_indices()
-        .rev()
-        .nth(EXCERPT_LEAD - 1)
-        .map_or(0, |(index, _)| index);
-    let body = indent + markup_prefix_len(&text[indent..]);
-    let start = lead.max(body).min(first);
-    let end = text[start..]
-        .char_indices()
-        .nth(EXCERPT_CHARS)
-        .map_or(text.len(), |(index, _)| start + index);
-    let prefix = if start > body { "…" } else { "" };
-    let suffix = if end < text.len() { "…" } else { "" };
-    let shift = |offset: usize| offset.clamp(start, end) - start + prefix.len();
-    hit.ranges = hit
-        .ranges
-        .iter()
-        .map(|range| shift(range.start)..shift(range.end))
-        .filter(|range| !range.is_empty())
-        .collect();
-    hit.excerpt = format!("{prefix}{}{suffix}", &text[start..end]);
-    strip_inline_markup(hit);
-}
-
-/// Inline markup an excerpt drops so it reads as text: emphasis, strike,
-/// highlight and code marks. Table pipes become spaces.
-const INLINE_MARKS: [&str; 5] = ["**", "__", "~~", "==", "`"];
-
-/// Removes inline markup from a hit's excerpt, moving its match ranges
-/// with the text. A mark inside a match stays, so the match still reads.
-fn strip_inline_markup(hit: &mut LineHit) {
-    let text = std::mem::take(&mut hit.excerpt);
-    let in_match = |at: usize| hit.ranges.iter().any(|range| range.contains(&at));
-    let mut out = String::with_capacity(text.len());
-    // `map[i]` is where byte `i` of the old excerpt lands in the new one:
-    // a kept char's bytes point at its start, a dropped mark's at the next
-    // char to be written.
-    let mut map = vec![0; text.len() + 1];
-    let mut at = 0;
-    while at < text.len() {
-        let start = out.len();
-        let mark = INLINE_MARKS
-            .iter()
-            .find(|mark| text[at..].starts_with(*mark) && !in_match(at));
-        let taken = match mark {
-            Some(mark) => mark.len(),
-            None => push_char(&text[at..], &mut out),
-        };
-        map[at..at + taken].fill(start);
-        at += taken;
-    }
-    map[text.len()] = out.len();
-    hit.ranges = hit
-        .ranges
-        .iter()
-        .map(|range| map[range.start]..map[range.end])
-        .filter(|range| !range.is_empty())
-        .collect();
-    hit.excerpt = out;
-}
-
-/// Copies the char at the start of `rest` and returns its length in
-/// bytes. A pipe counts as a space, and a space never follows another or
-/// starts the excerpt.
-fn push_char(rest: &str, out: &mut String) -> usize {
-    let ch = rest.chars().next().unwrap_or(' ');
-    let blank = ch == '|' || ch.is_whitespace();
-    if !blank {
-        out.push(ch);
-    } else if !out.is_empty() && !out.ends_with(' ') {
-        out.push(' ');
-    }
-    ch.len_utf8()
 }
 
 /// `text` with every match of the (unfolded) `query` replaced, and how
@@ -608,6 +448,7 @@ pub fn write_atomically(path: &Path, contents: &str) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hits::markup_prefix_len;
 
     #[test]
     fn excerpts_leave_out_line_markup() {
@@ -648,7 +489,9 @@ mod tests {
         for text in ["Plain CAT — cat, Cat", "Café CAFE café", "İstanbul cat"] {
             let note = Note::new(PathBuf::from("n.md"), text.to_owned());
             for query in ["cat", "cafe", "istanbul"] {
-                assert_eq!(note.find_all(query), fold(text).find_all(query), "{text}");
+                let finder = Finder::new(query);
+                let found: Vec<_> = note.matches(&finder).collect();
+                assert_eq!(found, fold(text).find_all(query), "{text}");
             }
         }
     }
@@ -738,6 +581,88 @@ mod tests {
     }
 
     #[test]
+    fn ties_rank_by_match_count_then_path() {
+        let notes = notes(&[
+            ("c.md", "one cat"),
+            ("b.md", "cat cat"),
+            ("a.md", "a cat"),
+            ("Cats/x.md", "nothing"),
+        ]);
+        let results = run(&notes, "cat");
+        let order: Vec<_> = results.iter().map(|r| r.path.to_str().unwrap()).collect();
+        assert_eq!(order, vec!["Cats/x.md", "b.md", "a.md", "c.md"]);
+        assert_eq!(results[0].score, FOLDER_WEIGHT);
+        assert_eq!(results[1].score, BODY_WEIGHT);
+    }
+
+    #[test]
+    fn every_match_counts_but_only_the_first_lines_show() {
+        let text = "a cat and a cat\n".repeat(30);
+        let notes = notes(&[("n.md", text.as_str())]);
+        let result = &run(&notes, "cat")[0];
+        assert_eq!(result.match_count, 60);
+        assert_eq!(result.hits.len(), MAX_HITS_PER_NOTE);
+        let last = &result.hits[MAX_HITS_PER_NOTE - 1];
+        assert_eq!(last.line, MAX_HITS_PER_NOTE - 1);
+        assert_eq!(last.offset, 16 * (MAX_HITS_PER_NOTE - 1) + 2);
+        assert_eq!(last.ranges, vec![2..5, 12..15]);
+    }
+
+    #[test]
+    fn accented_notes_map_matches_to_their_own_text() {
+        let text = "Le Café\nİstanbul café, CAFÉ\ne\u{301}cole";
+        let notes = notes(&[("n.md", text)]);
+        let result = &run(&notes, "cafe")[0];
+        assert_eq!(result.match_count, 3);
+        let found: Vec<&str> = result
+            .hits
+            .iter()
+            .flat_map(|hit| hit.ranges.iter().map(|range| &hit.excerpt[range.clone()]))
+            .collect();
+        assert_eq!(found, ["Café", "café", "CAFÉ"]);
+        assert_eq!(result.hits[1].offset, text.find("café").unwrap());
+        let result = &run(&notes, "ecole")[0];
+        assert_eq!(result.hits[0].line, 2);
+        assert_eq!(result.hits[0].excerpt, "e\u{301}cole");
+        assert_eq!(result.hits[0].ranges, vec![0..7]);
+        let result = &run(&notes, "istanbul")[0];
+        assert_eq!(result.hits[0].ranges, vec![0..9]);
+    }
+
+    #[test]
+    fn marks_inside_a_match_stay_and_windows_line_ends_go() {
+        let text = "x **bold** and **bold**\r\nlast";
+        let notes = notes(&[("n.md", text)]);
+        let hit = &run(&notes, "**bold")[0].hits[0];
+        assert_eq!(hit.excerpt, "x **bold and **bold");
+        assert_eq!(hit.ranges, vec![2..8, 13..19]);
+        let hit = &run(&notes, "bold")[0].hits[0];
+        assert_eq!(hit.excerpt, "x bold and bold");
+        assert_eq!(hit.ranges, vec![2..6, 11..15]);
+    }
+
+    #[test]
+    fn a_match_across_lines_is_cut_at_the_line_end() {
+        let notes = notes(&[("n.md", "one two\nthree")]);
+        let result = &run(&notes, "two\nth")[0];
+        assert_eq!(result.hits.len(), 1);
+        assert_eq!(result.hits[0].excerpt, "one two");
+        assert_eq!(result.hits[0].ranges, vec![4..7]);
+    }
+
+    #[test]
+    fn long_lines_keep_every_match_that_fits() {
+        let line = format!("{} cat cat {}", "word ".repeat(30), "tail ".repeat(60));
+        let notes = notes(&[("n.md", line.as_str())]);
+        let hit = &run(&notes, "cat")[0].hits[0];
+        assert!(hit.excerpt.starts_with("…") && hit.excerpt.ends_with('…'));
+        assert_eq!(hit.ranges.len(), 2);
+        for range in &hit.ranges {
+            assert_eq!(&hit.excerpt[range.clone()], "cat");
+        }
+    }
+
+    #[test]
     fn stale_searches_stop() {
         let notes = notes(&[("n.md", "match")]);
         assert!(search(&notes, "match", &AtomicUsize::new(2), 1).is_empty());
@@ -756,6 +681,49 @@ mod tests {
             ("tea and tea and tea".to_owned(), 3)
         );
         assert_eq!(replace_in_text("none", "x", "y"), ("none".to_owned(), 0));
+    }
+
+    #[test]
+    fn refreshes_follow_edits_additions_and_removals() {
+        let vault = tempfile::tempdir().unwrap();
+        let root = vault.path();
+        let texts = |cache: &NoteCache| -> Vec<(String, String)> {
+            cache
+                .notes()
+                .iter()
+                .map(|note| (slash(&note.path), note.text.to_string()))
+                .collect()
+        };
+        std::fs::create_dir_all(root.join("b")).unwrap();
+        std::fs::write(root.join("b/two.md"), "two").unwrap();
+        std::fs::write(root.join("one.md"), "one").unwrap();
+        std::fs::write(root.join("b/pic.png"), "png").unwrap();
+        let mut cache = NoteCache::default();
+        cache.refresh(root);
+        assert_eq!(
+            texts(&cache),
+            [
+                ("b/two.md".into(), "two".into()),
+                ("one.md".into(), "one".into())
+            ]
+        );
+        std::fs::write(root.join("one.md"), "one, longer").unwrap();
+        std::fs::remove_file(root.join("b/two.md")).unwrap();
+        std::fs::write(root.join("a.md"), "a").unwrap();
+        cache.refresh(root);
+        assert_eq!(
+            texts(&cache),
+            [
+                ("a.md".into(), "a".into()),
+                ("one.md".into(), "one, longer".into())
+            ]
+        );
+        cache.refresh(root);
+        assert_eq!(texts(&cache).len(), 2);
+    }
+
+    fn slash(path: &Path) -> String {
+        path.to_string_lossy().replace('\\', "/")
     }
 
     #[test]
