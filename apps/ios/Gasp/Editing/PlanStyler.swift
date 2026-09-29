@@ -18,6 +18,10 @@ final class PlanStyler {
     var media: NoteMedia?
     /// Wide tables drawn as a scrolling grid, by where each starts.
     private(set) var gridTables: [UInt32: TableGridModel] = [:]
+    /// Grids the last update moved, from where they started to where they
+    /// start now, and the ones it laid out again.
+    private(set) var movedGrids: [UInt32: UInt32] = [:]
+    private(set) var laidOutGrids: Set<UInt32> = []
 
     init(tokens: Tokens) {
         self.tokens = tokens
@@ -70,7 +74,7 @@ final class PlanStyler {
             return false
         }
         var lines = restylesAll ? IndexSet(shown.indices) : changed.union(forcedLines)
-        lines.formUnion(gridRowsMoved(by: update.splice))
+        followGrids(update.splice)
         if let edited { lines.insert(integersIn: shown.lines(touching: edited)) }
         restyle(withWholeTables(lines), prose: prose, code: code, storage: storage)
         restylesAll = false
@@ -102,14 +106,19 @@ final class PlanStyler {
         prose.mark(within: restyledRanges, storage: storage)
     }
 
-    /// A wide table's grid holds the offsets of its cells, so the rows of
-    /// the grids an edit moved are laid out again.
-    private func gridRowsMoved(by splice: PlanSplice?) -> IndexSet {
-        guard let splice, splice.shift != 0, !gridTables.isEmpty else { return [] }
+    /// A wide table's grid holds the offsets of its cells, so the grids of
+    /// tables an edit moved move with them.
+    private func followGrids(_ splice: PlanSplice?) {
+        movedGrids = [:]
+        guard let splice, splice.shift != 0, !gridTables.isEmpty else { return }
         let starts = Set(shown.tableRows.compactMap { shown.tableStart(of: $0) })
-        let moved = Set(gridTables.keys.filter { !starts.contains($0) }.map { UInt32(Int($0) + Int(splice.shift)) })
-        guard !moved.isEmpty else { return [] }
-        return IndexSet(shown.tableRows.filter { shown.tableStart(of: $0).map(moved.contains) ?? false })
+        for (start, model) in gridTables where !starts.contains(start) {
+            let moved = UInt32(Int(start) + Int(splice.shift))
+            guard starts.contains(moved) else { continue }
+            gridTables[start] = nil
+            gridTables[moved] = model.moved(by: Int(splice.shift))
+            movedGrids[start] = moved
+        }
     }
 
     /// `lines` and every row of a table one of them is in, since a table's
@@ -129,6 +138,7 @@ final class PlanStyler {
         gridTables = gridTables
             .filter { present.contains($0.key) && !redone.contains($0.key) }
             .merging(laidOut) { $1 }
+        laidOutGrids = Set(laidOut.keys)
     }
 
     private func paragraphRange(_ index: Int, length: Int) -> NSRange {
