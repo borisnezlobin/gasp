@@ -102,12 +102,14 @@ final class PlanStyler {
         prose.mark(within: restyledRanges, storage: storage)
     }
 
-    /// A wide table's grid holds the offsets of its cells, so after an
-    /// edit that moved text, the rows of the tables after it are laid out
-    /// again.
+    /// A wide table's grid holds the offsets of its cells, so the rows of
+    /// the grids an edit moved are laid out again.
     private func gridRowsMoved(by splice: PlanSplice?) -> IndexSet {
         guard let splice, splice.shift != 0, !gridTables.isEmpty else { return [] }
-        return IndexSet(shown.tableRows.filter { $0 >= Int(splice.at) })
+        let starts = Set(shown.tableRows.compactMap { shown.tableStart(of: $0) })
+        let moved = Set(gridTables.keys.filter { !starts.contains($0) }.map { UInt32(Int($0) + Int(splice.shift)) })
+        guard !moved.isEmpty else { return [] }
+        return IndexSet(shown.tableRows.filter { shown.tableStart(of: $0).map(moved.contains) ?? false })
     }
 
     /// `lines` and every row of a table one of them is in, since a table's
