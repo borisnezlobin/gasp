@@ -230,8 +230,13 @@ fn the_keyboard_moves_through_the_bars(cx: &mut TestAppContext) {
     assert_eq!(focus(cx), None, "pressing a command goes back to the note");
     assert!(text(&workspace, cx).starts_with("- "));
     select(&workspace, cx, 2, 6);
-    cx.simulate_keystrokes("alt-shift-t tab tab");
-    assert_eq!(focus(cx).unwrap().toolbar, "selection");
+    cx.simulate_keystrokes("alt-shift-t");
+    assert_eq!(
+        focus(cx).unwrap().toolbar,
+        "selection",
+        "the bar by the selection comes first"
+    );
+    assert!(drawn(cx, "floating-toolbar-selection"));
     cx.simulate_keystrokes("right enter");
     assert_eq!(text(&workspace, cx), "- *Some* plain words here.\n");
     cx.simulate_keystrokes("alt-shift-t escape");
