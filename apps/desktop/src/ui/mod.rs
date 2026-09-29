@@ -125,7 +125,10 @@ impl ThemeGlobal {
     fn build(tokens: &Tokens, dark: bool, cx: &mut App) -> ThemeGlobal {
         let installed = installed_fonts(cx).unwrap_or_default();
         let palette = Palette::from_tokens(tokens);
-        let ui = UiTheme::themed(&palette, &installed);
+        let ui = UiTheme {
+            toolbar: crate::theme::ToolbarTheme::from_tokens(tokens),
+            ..UiTheme::themed(&palette, &installed)
+        };
         let input = InputTheme {
             font_family: ui.font_family.clone(),
             ..InputTheme::from_palette(&palette)

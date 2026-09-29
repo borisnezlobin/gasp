@@ -287,6 +287,25 @@ editor-max-width = 720
 hover-edge-width = 8
 icon            = 16
 
+# Toolbars (toolbars.toml): a button's square side and the space between
+# buttons at each density, the padding inside a bar that floats or runs
+# down a window edge, and how near an edge the pointer comes before a bar
+# shown on hover appears. A floating bar's corners are a button's radius
+# plus the padding, so the two stay concentric.
+[toolbar]
+compact-button     = 26
+comfortable-button = 32
+compact-gap        = 2
+comfortable-gap    = 6
+compact-icon       = 16
+comfortable-icon   = 18
+padding            = 4
+button-radius      = 6
+label-gap          = 6
+float-gap          = 8
+hover-edge         = 10
+separator-width    = 1
+
 [space]
 xs = 2
 sm = 4

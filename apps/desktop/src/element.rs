@@ -137,6 +137,10 @@ impl Element for EditorElement {
                 popover.layout_as_root(AvailableSpace::min_size(), window, cx);
                 window.defer_draw(popover, window.element_offset(), SUGGESTION_LAYER);
             }
+            for mut bar in view.floating_toolbars(&frame, focused, cx) {
+                bar.layout_as_root(AvailableSpace::min_size(), window, cx);
+                window.defer_draw(bar, window.element_offset(), SUGGESTION_LAYER);
+            }
             if let Some(mut chip) = view.card_offer_chip(&frame, cx) {
                 chip.layout_as_root(AvailableSpace::min_size(), window, cx);
                 window.defer_draw(chip, window.element_offset(), SUGGESTION_LAYER);

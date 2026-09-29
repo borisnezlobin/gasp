@@ -89,11 +89,13 @@ impl EditorView {
         let text = self
             .cell_typing(text, cx)
             .unwrap_or_else(|| text.to_owned());
+        self.note_typing(cx);
         self.run_pipeline(EditRequest::InsertText(text), cx);
     }
 
     /// Backspace, which also deletes both halves of an empty pair.
     pub fn delete_backward(&mut self, cx: &mut Context<Self>) {
+        self.note_typing(cx);
         self.run_pipeline(EditRequest::DeleteBackward, cx);
     }
 

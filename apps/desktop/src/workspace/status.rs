@@ -1,13 +1,23 @@
-//! The status bar: word and character counts, reading time, cursor
-//! position and the sync indicator.
+//! What the status bar's widgets say: word and character counts, reading
+//! time, time spent editing and the cursor's position. The status bar
+//! itself is the built-in `status` toolbar, drawn by [`crate::toolbar`].
 
-use gpui::{AnyView, IntoElement, ParentElement, SharedString, Styled, div, prelude::*};
+use gasp_config::toolbars::Widget;
 
 use crate::editor::EditorView;
-use crate::theme::UiTheme;
 
 /// Average adult silent-reading speed.
 pub const WORDS_PER_MINUTE: usize = 238;
+
+/// The status widgets that are text, in the order the status bar has
+/// always shown them.
+const TEXT_WIDGETS: [Widget; 5] = [
+    Widget::WordCount,
+    Widget::CharacterCount,
+    Widget::ReadingTime,
+    Widget::EditTime,
+    Widget::CursorPosition,
+];
 
 /// Counts for the text the status bar describes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -126,17 +136,27 @@ impl StatusInfo {
     /// selection is one phrase ("3 words, 18 characters selected"), and a
     /// note too short to read takes no reading time.
     pub fn items(&self) -> Vec<String> {
-        if self.for_selection {
-            return vec![self.selection_label(), self.position_label()];
-        }
-        let reading = (self.stats.reading_minutes() > 0).then(|| self.reading_label());
-        let editing = crate::edit_time::edit_time_label(self.edited_seconds);
-        [self.words_label(), self.characters_label()]
-            .into_iter()
-            .chain(reading)
-            .chain(editing)
-            .chain([self.position_label()])
+        TEXT_WIDGETS
+            .iter()
+            .filter_map(|widget| self.widget_text(*widget))
             .collect()
+    }
+
+    /// What a status widget on a toolbar says now, or `None` when it has
+    /// nothing to say: with a selection the word count says the whole
+    /// phrase and the counts after it step aside.
+    pub fn widget_text(&self, widget: Widget) -> Option<String> {
+        let selecting = self.for_selection;
+        match widget {
+            Widget::WordCount if selecting => Some(self.selection_label()),
+            Widget::WordCount => Some(self.words_label()),
+            Widget::CursorPosition => Some(self.position_label()),
+            _ if selecting => None,
+            Widget::CharacterCount => Some(self.characters_label()),
+            Widget::ReadingTime => (self.stats.reading_minutes() > 0).then(|| self.reading_label()),
+            Widget::EditTime => crate::edit_time::edit_time_label(self.edited_seconds),
+            Widget::Sync => None,
+        }
     }
 
     fn selection_label(&self) -> String {
@@ -164,33 +184,6 @@ pub fn group_thousands(number: usize) -> String {
         out.push(digit);
     }
     out
-}
-
-/// Draws the status bar: small muted counts at the bottom right, then the
-/// sync indicator. `info` is `None` when no note is open; `sync` is
-/// `None` when the vault doesn't sync.
-pub fn render_status_bar(
-    info: Option<&StatusInfo>,
-    sync: Option<AnyView>,
-    theme: &UiTheme,
-) -> impl IntoElement {
-    let item = |text: String| -> gpui::Div { div().child(SharedString::from(text)) };
-    let mut bar = div()
-        .id("status-bar")
-        .flex()
-        .flex_row()
-        .flex_none()
-        .items_center()
-        .justify_end()
-        .gap(theme.status_gap)
-        .h(theme.status_height)
-        .px(theme.space_lg)
-        .text_size(theme.small_font_size)
-        .text_color(theme.text_faint);
-    if let Some(info) = info {
-        bar = bar.children(info.items().into_iter().map(item));
-    }
-    bar.children(sync)
 }
 
 #[cfg(test)]

@@ -27,6 +27,9 @@ use crate::ui::{Tooltip, keycap};
 impl SettingsView {
     /// Title, description and notes for a row.
     pub(super) fn row_text(&self, row: &ControlRow) -> AnyElement {
+        if row.is_toolbar_row() {
+            return self.toolbar_row_text(row);
+        }
         let description = match row {
             ControlRow::Shortcut(shortcut) => self.shortcut_default(shortcut),
             _ => {
@@ -51,6 +54,7 @@ impl SettingsView {
             ControlRow::Font(slot) => Some(theme_key(slot.token())),
             ControlRow::Accent => Some(theme_key(self.accent_token())),
             ControlRow::Shortcut(shortcut) => Some(shortcut.id.clone()),
+            _ if row.is_toolbar_row() => Some(self.toolbar_row_error_key(row)),
             _ => None,
         }
     }
@@ -176,6 +180,7 @@ impl SettingsView {
             ControlRow::ListEntry { list, value } => {
                 self.list_entry_control(list, value, focused, cx)
             }
+            _ => self.toolbar_control(index, row, focused, cx),
         };
         // An error hangs under the control rather than pushing rows down.
         let note = self
@@ -257,7 +262,7 @@ impl SettingsView {
 
     /// A dropdown button for row `index`, with its menu hung under it
     /// while open.
-    fn dropdown(
+    pub(super) fn dropdown(
         &self,
         index: usize,
         id: String,
@@ -334,7 +339,7 @@ impl SettingsView {
         .flex_shrink();
         let status = match (self.menu_loading(), menu.shown.is_empty()) {
             (true, _) => Some("Loading fonts…"),
-            (false, true) => Some("No fonts match."),
+            (false, true) => Some(menu.nothing_matches()),
             (false, false) => None,
         };
         let status = status.map(|text| {
@@ -384,7 +389,8 @@ impl SettingsView {
         let label = div().child(menu.label(option));
         let label = match menu.target {
             MenuTarget::Font(_) => label.font_family(SharedString::from(option.to_string())),
-            MenuTarget::Choice(_) | MenuTarget::MapAdd(_) => label,
+            MenuTarget::ToolbarAdd(_) => self.picker_row_label(option, label, cx),
+            _ => label,
         };
         let value = option.to_string();
         let selector = format!("menu-option-{option}");

@@ -312,6 +312,7 @@ pub enum Page {
     Appearance,
     Sidebar,
     Shortcuts,
+    Toolbars,
     Editor,
     Files,
     DailyNotes,
@@ -475,6 +476,14 @@ pub const PAGES: &[PageSpec] = &[
         cards: &[],
     },
     PageSpec {
+        page: Page::Toolbars,
+        id: TOOLBARS_SECTION,
+        title: "Toolbars",
+        icon: IconName::AppWindow,
+        group: "App",
+        cards: &[],
+    },
+    PageSpec {
         page: Page::Editor,
         id: "editor",
         title: "Editor",
@@ -579,6 +588,9 @@ pub const SNIPPETS_SECTION: &str = "snippets";
 
 /// The id of the Sync page.
 pub const SYNC_SECTION: &str = "sync";
+
+/// The id of the Toolbars page.
+pub const TOOLBARS_SECTION: &str = "toolbars";
 
 /// The id of the page listing every command's keys.
 pub const SHORTCUTS_SECTION: &str = "keyboard-shortcuts";

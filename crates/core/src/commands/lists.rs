@@ -125,9 +125,7 @@ mod tests {
         let doc = Document::from(text);
         let selection = Selection::single(SelectionRange::new(from, to));
         let mut state = EditorState::new(doc.clone());
-        state
-            .apply(toggle_list(&doc, &selection, kind, 1))
-            .unwrap();
+        state.apply(toggle_list(&doc, &selection, kind, 1)).unwrap();
         state.doc().to_string()
     }
 

@@ -14,7 +14,7 @@ type Handler = fn(&mut Workspace, &mut Window, &mut Context<Workspace>);
 
 const TAB_GO_PREFIX: &str = "tab.go-";
 
-const HANDLERS: [(&str, Handler); 28] = [
+const HANDLERS: [(&str, Handler); 29] = [
     ("tab.new", |ws, window, cx| ws.new_tab(window, cx)),
     ("tab.close", |ws, window, cx| {
         ws.close_active_tab(window, cx)
@@ -90,6 +90,9 @@ const HANDLERS: [(&str, Handler); 28] = [
     ("sidebar.files.show", |ws, _, cx| ws.show_left_panel(cx)),
     ("sidebar.files.hide", |ws, window, cx| {
         ws.hide_left_panel(window, cx)
+    }),
+    ("toolbar.focus", |ws, window, cx| {
+        ws.focus_toolbars(window, cx)
     }),
     ("file-tree.focus", |ws, window, cx| {
         ws.focus_left_panel(window, cx)
