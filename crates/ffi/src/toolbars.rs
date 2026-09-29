@@ -122,7 +122,14 @@ pub(crate) fn keyboard_toolbar(config: &Config) -> PhoneToolbar {
 /// at the end when they name none. It always shows, since tabs are
 /// reached through it.
 pub(crate) fn browser_bar(config: &Config) -> PhoneToolbar {
-    let mut bar = phone_toolbar(config, Place::BrowserBar);
+    // Tabs are reached through this bar, so turning it off never hides it.
+    let bars: Vec<&Toolbar> = config
+        .toolbars
+        .toolbars
+        .iter()
+        .filter(|toolbar| toolbar.place == Place::BrowserBar)
+        .collect();
+    let mut bar = toolbar_from(&bars, config);
     if !bar.entries.contains(&ToolbarEntry::Spacer) {
         bar.entries.push(ToolbarEntry::Spacer);
     }
@@ -133,12 +140,15 @@ pub(crate) fn browser_bar(config: &Config) -> PhoneToolbar {
 }
 
 fn phone_toolbar(config: &Config, place: Place) -> PhoneToolbar {
-    let toolbars = &config.toolbars;
-    let bars: Vec<&Toolbar> = toolbars.at(place).collect();
+    let bars: Vec<&Toolbar> = config.toolbars.at(place).collect();
+    toolbar_from(&bars, config)
+}
+
+fn toolbar_from(bars: &[&Toolbar], config: &Config) -> PhoneToolbar {
     let entries = bars
         .iter()
         .flat_map(|bar| bar.items.iter())
-        .filter_map(|item| entry(item, toolbars, config))
+        .filter_map(|item| entry(item, &config.toolbars, config))
         .collect();
     PhoneToolbar {
         enabled: !bars.is_empty(),

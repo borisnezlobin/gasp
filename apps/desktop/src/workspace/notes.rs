@@ -5,7 +5,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use gasp_config::settings::TrashMode;
-use gpui::{Context, Entity, Focusable, PromptButton, PromptLevel, Window};
+use gpui::{Context, Entity, Focusable, PromptLevel, Window};
 
 use super::files::{atomic_write, clean_title, note_title, renamed_path, unique_untitled};
 use super::history::{BIG_JUMP_LINES, Location};
@@ -31,6 +31,9 @@ impl Workspace {
         if let EditorEvent::OpenLink(target) = event {
             return self.follow_link(target, editor, window, cx);
         }
+        if *event == EditorEvent::ViewChanged {
+            return self.editor_view_changed(editor, cx);
+        }
         if *event == EditorEvent::Edited {
             self.count_edit(editor, window, cx);
         }
@@ -48,6 +51,25 @@ impl Workspace {
         if self.active_editor(cx).as_ref() == Some(editor) {
             self.refresh_status(cx);
         }
+    }
+
+    /// One note was zoomed or widened: every open note follows, and the
+    /// device keeps it for notes opened later and the next launch.
+    fn editor_view_changed(&mut self, changed: &Entity<EditorView>, cx: &mut Context<Self>) {
+        let (zoom, readable) = {
+            let view = changed.read(cx);
+            (view.zoom(), view.is_readable_width())
+        };
+        self.config.device.text_zoom = ((zoom - 1.).abs() > f32::EPSILON).then_some(zoom);
+        self.config.device.full_width = !readable;
+        let config = self.config.clone();
+        for editor in self.open_editors(cx) {
+            if editor != *changed {
+                editor.update(cx, |editor, cx| editor.follow_device_view(&config, cx));
+            }
+        }
+        self.save_device_now(cx);
+        cx.notify();
     }
 
     fn record_jump(&mut self, editor: &Entity<EditorView>, from: usize, cx: &mut Context<Self>) {
@@ -102,24 +124,43 @@ impl Workspace {
         };
         match event {
             TextInputEvent::Submitted => {
-                self.commit_title(&note, window, cx);
-                window.focus(&note.editor.read(cx).focus_handle);
+                if self.commit_title(&note, cx) {
+                    window.focus(&note.editor.read(cx).focus_handle);
+                } else {
+                    title.update(cx, |title, cx| title.select_all(cx));
+                }
             }
             TextInputEvent::Cancelled => {
                 let current = note_title(note.doc.read(cx).path());
                 title.update(cx, |title, cx| title.set_text(&current, cx));
                 window.focus(&note.editor.read(cx).focus_handle);
             }
-            TextInputEvent::Blurred => self.commit_title(&note, window, cx),
+            TextInputEvent::Blurred => {
+                if !self.commit_title(&note, cx) {
+                    let current = note_title(note.doc.read(cx).path());
+                    self.set_titles(&note.doc, &current, cx);
+                }
+            }
             TextInputEvent::Changed => {}
         }
     }
 
-    /// Renames the note to what its title says, if that changed.
-    fn commit_title(&mut self, note: &NoteTab, window: &mut Window, cx: &mut Context<Self>) {
+    /// Renames the note to what its title says, if that changed. Returns
+    /// false, with a notice saying why, when it can't be that name.
+    fn commit_title(&mut self, note: &NoteTab, cx: &mut Context<Self>) -> bool {
         let typed = note.title.read(cx).text().to_owned();
-        if typed != note_title(note.doc.read(cx).path()) {
-            self.rename_note(&note.doc, &typed, window, cx);
+        if let Some(id) = self.rename_notice.take() {
+            crate::notices::dismiss(id, cx);
+        }
+        if typed == note_title(note.doc.read(cx).path()) {
+            return true;
+        }
+        match self.rename_note(&note.doc, &typed, cx) {
+            Ok(()) => true,
+            Err(message) => {
+                self.rename_notice = Some(crate::notices::problem(message, cx));
+                false
+            }
         }
     }
 
@@ -171,30 +212,18 @@ impl Workspace {
         window.focus(&note.title.focus_handle(cx));
     }
 
-    /// Renames the note's file to `title`. A title that can't be a file
-    /// name, or that another note has, puts the old title back.
+    /// Renames the note's file to `title`, or says why it can't: a title
+    /// that can't be a file name, or one another note has.
     pub fn rename_note(
         &mut self,
         doc: &Entity<NoteDoc>,
         title: &str,
-        window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> Result<(), String> {
         let old = doc.read(cx).path().to_path_buf();
-        let result = clean_title(title)
+        clean_title(title)
             .map_err(|_| "A note’s title can’t be empty or contain / \\ : * ? \" < > |".to_owned())
-            .and_then(|title| self.move_note_file(doc, &old, title, cx));
-        if let Err(message) = result {
-            self.set_titles(doc, &note_title(&old), cx);
-            // Only an acknowledgement; there is nothing to do with the answer.
-            drop(window.prompt(
-                PromptLevel::Info,
-                &message,
-                None,
-                &[PromptButton::ok("OK")],
-                cx,
-            ));
-        }
+            .and_then(|title| self.move_note_file(doc, &old, title, cx))
     }
 
     fn move_note_file(
@@ -284,7 +313,8 @@ impl Workspace {
             workspace
                 .update_in(cx, |workspace, window, cx| {
                     if let Err(error) = workspace.trash_note(&path, window, cx) {
-                        eprintln!("could not delete {}: {error}", path.display());
+                        let message = format!("Couldn’t move it to the trash: {error}");
+                        crate::notices::problem(message, cx);
                     }
                 })
                 .ok();
@@ -300,6 +330,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> io::Result<()> {
+        let text = self.text_before_delete(path, cx);
         match crate::sandbox::trash_mode(self.config.settings.files.trash) {
             TrashMode::System => trash::delete(path).map_err(io::Error::other)?,
             TrashMode::Vault => move_to_vault_trash(&self.vault, path)?,
@@ -309,6 +340,10 @@ impl Workspace {
             self.close_doc_tabs(&doc, window, cx);
         }
         self.forget_path(path, cx);
+        if let Some(text) = text {
+            let path = path.to_path_buf();
+            self.remember_deleted(super::deleted::DeletedNote::new(path, text), cx);
+        }
         Ok(())
     }
 
@@ -351,7 +386,10 @@ impl Workspace {
             let conflicted = doc.read(cx).conflict().is_some() && doc.read(cx).is_dirty();
             if conflicted && let Err(error) = doc.update(cx, |doc, cx| doc.save_conflicted_copy(cx))
             {
-                eprintln!("could not keep conflicting edits: {error}");
+                crate::notices::problem(
+                    format!("Couldn’t keep the conflicting edits: {error}"),
+                    cx,
+                );
             }
         }
     }
@@ -485,7 +523,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if let Err(error) = self.show_path_in_pane(pane, &target.path, true, window, cx) {
-            eprintln!("could not open {}: {error}", target.path.display());
+            crate::notices::open_failed(&target.path, error, cx);
             return;
         }
         let Some(editor) = pane.read(cx).active_editor() else {
