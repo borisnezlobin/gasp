@@ -202,7 +202,7 @@ mod platform {
         Ok(())
     }
 
-    /// Puts the caret at a line and column, with a couple of lines above
+    /// Puts the caret at a line and column, with a few lines above
     /// it in view, or after the frontmatter as a note opens.
     fn place_caret(
         editor: &mut EditorView,
@@ -215,7 +215,7 @@ mod platform {
         };
         let text = editor.text();
         let at = offset_of(&text, line, column);
-        let top = offset_of(&text, line.saturating_sub(2).max(1), 1);
+        let top = offset_of(&text, line.saturating_sub(4).max(1), 1);
         editor.restore_position(at, top, cx);
     }
 
