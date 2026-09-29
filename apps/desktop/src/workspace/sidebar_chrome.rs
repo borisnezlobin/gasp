@@ -3,16 +3,14 @@
 //! tools (new note, new folder, sort order, collapse all), and a footer
 //! with the vault switcher, help and settings.
 
-use gpui::{
-    AnyElement, ClickEvent, Context, Entity, Pixels, SharedString, Window, div, prelude::*,
-};
+use gpui::{AnyElement, Context, Entity, Pixels, SharedString, Window, div, prelude::*};
 
 use super::Workspace;
 use super::files::folder_name;
 use super::help::ShortcutsHelp;
 use super::state::AppState;
 use super::window::open_vault_window;
-use crate::file_tree::{EntryKind, FileTree, SortOrder};
+use crate::file_tree::{EntryKind, SortOrder};
 use crate::icons::{IconName, icon};
 use crate::ui::Selectable;
 use crate::ui::{IconButton, MenuAnchor, MenuItem, Tooltip, ui_theme};
@@ -100,7 +98,7 @@ impl Workspace {
     }
 
     fn render_tree_tools(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let tree = self.file_tree.clone()?;
+        self.file_tree.as_ref()?;
         let ui = ui_theme(cx);
         let new_note =
             self.command_button("sidebar-new-note", IconName::NotePencil, "note.new", cx);
@@ -110,22 +108,28 @@ impl Workspace {
             "daily.open",
             cx,
         );
-        let new_folder = IconButton::new("sidebar-new-folder", IconName::FolderPlus)
-            .tooltip("New folder")
-            .on_click(tree_click(&tree, |tree, window, cx| {
-                tree.start_create(EntryKind::Folder, window, cx)
-            }));
+
+        let new_folder = self.command_button(
+            "sidebar-new-folder",
+            IconName::FolderPlus,
+            "file-tree.new-folder",
+            cx,
+        );
         let sort_menu = self.menu.render_attached(SORT_KEY, ui.space_xs);
-        let sort = IconButton::new(SORT_KEY, IconName::SortAscending)
-            .tooltip("Change sort order")
-            .active(sort_menu.is_some())
-            .on_click(cx.listener(|workspace, _, window, cx| workspace.open_sort_menu(window, cx)))
-            .attach(sort_menu);
-        let collapse = IconButton::new("sidebar-collapse-all", IconName::ArrowsInLineVertical)
-            .tooltip("Collapse all")
-            .on_click(tree_click(&tree, |tree, _, cx| {
-                tree.set_expanded_folders(Vec::new(), cx)
-            }));
+        let sort = self
+            .command_button(SORT_KEY, IconName::SortAscending, "file-tree.sort", cx)
+            .map(|button| {
+                button
+                    .label("Change sort order")
+                    .active(sort_menu.is_some())
+                    .attach(sort_menu)
+            });
+        let collapse = self.command_button(
+            "sidebar-collapse-all",
+            IconName::ArrowsInLineVertical,
+            "file-tree.collapse-all",
+            cx,
+        );
         Some(
             div()
                 .flex()
@@ -136,9 +140,9 @@ impl Workspace {
                 .pb(ui.space_sm)
                 .children(new_note)
                 .children(daily)
-                .child(new_folder)
-                .child(sort)
-                .child(collapse)
+                .children(new_folder)
+                .children(sort)
+                .children(collapse)
                 .into_any_element(),
         )
     }
@@ -164,7 +168,7 @@ impl Workspace {
             .hover(|style| style.bg(ui.control_hover))
             .active(|style| style.bg(ui.control_pressed))
             .when(!open, |vault| {
-                vault.tooltip(Tooltip::new("Switch vault", None).builder())
+                vault.tooltip(Tooltip::for_command("vault.switch", cx).builder())
             })
             .on_click(cx.listener(|workspace, _, window, cx| workspace.open_vault_menu(window, cx)))
             .child(
@@ -175,9 +179,7 @@ impl Workspace {
             )
             .child(crate::ui::truncated(name))
             .children(vault_menu);
-        let help = IconButton::new("sidebar-help", IconName::Question)
-            .tooltip("Keyboard shortcuts")
-            .on_click(cx.listener(|workspace, _, window, cx| workspace.toggle_help(window, cx)));
+        let help = self.command_button("sidebar-help", IconName::Question, "help.shortcuts", cx);
         let settings =
             self.command_button("sidebar-settings", IconName::GearSix, "settings.open", cx);
         div()
@@ -196,7 +198,7 @@ impl Workspace {
                     .flex_row()
                     .flex_none()
                     .gap(ui.space_xs)
-                    .child(help)
+                    .children(help)
                     .children(settings),
             )
     }
@@ -295,13 +297,23 @@ impl Workspace {
     }
 }
 
-/// A click handler that updates the file tree.
-fn tree_click(
-    tree: &Entity<FileTree>,
-    act: impl Fn(&mut FileTree, &mut Window, &mut Context<FileTree>) + 'static,
-) -> impl Fn(&ClickEvent, &mut Window, &mut gpui::App) + 'static {
-    let tree = tree.downgrade();
-    move |_, window, cx| {
-        tree.update(cx, |tree, cx| act(tree, window, cx)).ok();
+impl Workspace {
+    /// `file-tree.new-folder`: shows the sidebar and starts naming a new
+    /// folder in the tree.
+    pub(crate) fn new_folder_in_tree(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tree) = self.file_tree.clone() else {
+            return;
+        };
+        self.show_left_panel(cx);
+        tree.update(cx, |tree, cx| {
+            tree.start_create(EntryKind::Folder, window, cx)
+        });
+    }
+
+    /// `file-tree.collapse-all`: closes every folder in the tree.
+    pub(crate) fn collapse_tree(&mut self, cx: &mut Context<Self>) {
+        if let Some(tree) = self.file_tree.clone() {
+            tree.update(cx, |tree, cx| tree.set_expanded_folders(Vec::new(), cx));
+        }
     }
 }

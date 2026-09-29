@@ -14,7 +14,7 @@ type Handler = fn(&mut Workspace, &mut Window, &mut Context<Workspace>);
 
 const TAB_GO_PREFIX: &str = "tab.go-";
 
-const HANDLERS: [(&str, Handler); 29] = [
+const HANDLERS: [(&str, Handler); 34] = [
     ("tab.new", |ws, window, cx| ws.new_tab(window, cx)),
     ("tab.close", |ws, window, cx| {
         ws.close_active_tab(window, cx)
@@ -100,6 +100,21 @@ const HANDLERS: [(&str, Handler); 29] = [
     ("vault.open", |ws, window, cx| {
         ws.prompt_for_vault(window, cx)
     }),
+    ("vault.switch", |ws, window, cx| {
+        ws.show_left_panel(cx);
+        ws.open_vault_menu(window, cx)
+    }),
+    ("help.shortcuts", |ws, window, cx| {
+        ws.toggle_help(window, cx)
+    }),
+    ("file-tree.new-folder", |ws, window, cx| {
+        ws.new_folder_in_tree(window, cx)
+    }),
+    ("file-tree.sort", |ws, window, cx| {
+        ws.show_left_panel(cx);
+        ws.open_sort_menu(window, cx)
+    }),
+    ("file-tree.collapse-all", |ws, _, cx| ws.collapse_tree(cx)),
 ];
 
 /// Whether the workspace runs `id` itself.
