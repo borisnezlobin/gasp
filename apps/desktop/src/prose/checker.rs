@@ -2,16 +2,18 @@
 //! the settings, the words the vault knows, and the phrases the writer
 //! dismissed.
 //!
-//! Harper takes a moment to build and holds caches, so one checker lives
-//! on its own thread for the life of the app, and editors send it
-//! paragraphs in batches. Nothing on the main thread waits for it.
+//! Harper takes a moment to build and holds caches, so one worker thread
+//! serves the whole app, and editors send it paragraphs in batches.
+//! Nothing on the main thread waits for it. The worker checks in a child
+//! process when it can ([`super::worker_process`]), which it lets go after
+//! [`IDLE_EXIT`] without work so Harper's memory goes with it.
 //!
 //! Dismissed phrases live in the vault's `.gasp/prose/ignored.txt`, one
 //! per line, so they sync to every device like the rest of the config.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
@@ -21,6 +23,7 @@ use gasp_prose::vocabulary::{NOTES_TO_LEARN, ignored_file_text, learn, parse_ign
 use gasp_prose::{CheckOptions, Checker, English, Flag, Unit};
 use gpui::{App, AppContext, Global};
 
+use super::worker_process::{ChildChecker, worker_exe};
 use crate::note_texts::NoteTexts;
 
 pub use gasp_prose::vocabulary::IGNORED_FILE;
@@ -28,6 +31,9 @@ pub use gasp_prose::vocabulary::IGNORED_FILE;
 /// How long after a vault opens the checker starts building, so it
 /// doesn't compete with the first frames.
 const WARM_UP_DELAY: Duration = Duration::from_secs(2);
+
+/// How long the worker keeps its child process without work.
+pub const IDLE_EXIT: Duration = Duration::from_secs(60);
 
 /// The one worker, shared by every window.
 static WORKER: OnceLock<Sender<Request>> = OnceLock::new();
@@ -45,10 +51,10 @@ pub type Checked = Vec<(u64, Vec<Flag>)>;
 
 /// What the worker needs besides the paragraphs.
 #[derive(Clone, Default)]
-struct Setup {
-    options: CheckOptions,
-    known: Arc<HashSet<String>>,
-    ignored: Arc<HashSet<String>>,
+pub(super) struct Setup {
+    pub options: CheckOptions,
+    pub known: Arc<HashSet<String>>,
+    pub ignored: Arc<HashSet<String>>,
 }
 
 struct Request {
@@ -204,25 +210,86 @@ fn spawn_worker() -> Sender<Request> {
 }
 
 fn run_worker(requests: Receiver<Request>) {
-    let mut checker: Option<Checker> = None;
-    while let Ok(request) = requests.recv() {
-        let current = checker
-            .as_ref()
-            .is_some_and(|checker| *checker.options() == request.setup.options);
-        if !current {
-            checker = Some(Checker::new(request.setup.options.clone()));
+    let mut checkers = Checkers::default();
+    loop {
+        match requests.recv_timeout(IDLE_EXIT) {
+            Ok(request) => {
+                let checked = checkers.check(request.setup, request.jobs);
+                request.reply.send(checked).ok();
+            }
+            Err(RecvTimeoutError::Timeout) => checkers.child = None,
+            Err(RecvTimeoutError::Disconnected) => return,
         }
-        let Some(active) = checker.as_mut() else {
-            continue;
+    }
+}
+
+/// Where the worker checks: a child process while one runs, else here.
+#[derive(Default)]
+struct Checkers {
+    child: Option<ChildChecker>,
+    /// Set once a child has failed twice in a row; checking stays here.
+    child_failed: bool,
+    here: InProcess,
+}
+
+/// Tries the child this many times before checking here instead.
+const CHILD_ATTEMPTS: usize = 2;
+
+impl Checkers {
+    fn check(&mut self, setup: Setup, jobs: Vec<Job>) -> Checked {
+        if let Some(exe) = worker_exe().filter(|_| !self.child_failed) {
+            for _ in 0..CHILD_ATTEMPTS {
+                match self.check_in_child(exe, &setup, &jobs) {
+                    Ok(checked) => return checked,
+                    Err(error) => {
+                        eprintln!("the grammar worker failed: {error}");
+                        self.child = None;
+                    }
+                }
+            }
+            self.child_failed = true;
+        }
+        self.here.check(setup, jobs)
+    }
+
+    fn check_in_child(
+        &mut self,
+        exe: &Path,
+        setup: &Setup,
+        jobs: &[Job],
+    ) -> std::io::Result<Checked> {
+        let child = match self.child.as_mut() {
+            Some(child) => child,
+            None => self.child.insert(ChildChecker::start(exe)?),
         };
-        active.set_known_words(request.setup.known);
-        active.set_ignored(request.setup.ignored);
-        let checked = request
-            .jobs
-            .into_iter()
+        child.check(setup, jobs)
+    }
+}
+
+/// A checker on this thread, built on first use and again when the
+/// options change.
+#[derive(Default)]
+pub(super) struct InProcess {
+    checker: Option<Checker>,
+}
+
+impl InProcess {
+    pub(super) fn check(&mut self, setup: Setup, jobs: Vec<Job>) -> Checked {
+        let current = self
+            .checker
+            .as_ref()
+            .is_some_and(|checker| *checker.options() == setup.options);
+        if !current {
+            self.checker = Some(Checker::new(setup.options.clone()));
+        }
+        let Some(active) = self.checker.as_mut() else {
+            return Vec::new();
+        };
+        active.set_known_words(setup.known);
+        active.set_ignored(setup.ignored);
+        jobs.into_iter()
             .map(|job| (job.key, active.check(&job.text, &job.unit)))
-            .collect();
-        request.reply.send(checked).ok();
+            .collect()
     }
 }
 

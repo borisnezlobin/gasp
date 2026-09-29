@@ -12,6 +12,7 @@
 pub mod card;
 pub mod checker;
 pub mod commands;
+pub mod worker_process;
 
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
