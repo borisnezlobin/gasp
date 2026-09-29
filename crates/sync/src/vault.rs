@@ -17,6 +17,7 @@ use crate::message::commit_message;
 use crate::parked::{BranchKeeps, ParkedConflicts};
 use crate::policy::{FileKind, classify};
 
+mod known_merges;
 mod packs;
 mod parking;
 
@@ -566,8 +567,13 @@ impl Vault {
             return Ok(MergeOutcome::NothingToMerge);
         };
         let theirs = self.repo.reference_to_annotated_commit(&tracking)?;
+        if self.known_merged(branch, theirs.id()) {
+            self.remember_merged(branch, theirs.id())?;
+            return Ok(MergeOutcome::UpToDate);
+        }
         let (analysis, _) = self.repo.merge_analysis(&[&theirs])?;
         if analysis.is_up_to_date() {
+            self.remember_merged(branch, theirs.id())?;
             return Ok(MergeOutcome::UpToDate);
         }
         let lifted = self.lift_parked(theirs.id())?;
@@ -579,6 +585,9 @@ impl Vault {
         };
         // Parked files go back on disk whether or not the merge worked.
         self.refold(lifted)?;
+        if merged.is_ok() {
+            self.remember_merged(branch, theirs.id())?;
+        }
         merged
     }
 
