@@ -249,6 +249,12 @@ impl VaultFolder {
         }
     }
 
+    /// Drops the link index, to be built again when next asked for: for
+    /// folder changes, which move or remove every note inside.
+    pub(crate) fn forget_index(&self) {
+        *self.index() = None;
+    }
+
     /// Follows a note moving from `from` to `to` in the link index, and
     /// reads again the notes whose links the move rewrote.
     pub(crate) fn reindex_move(&self, from: &str, to: &str, rewritten: &[String]) {

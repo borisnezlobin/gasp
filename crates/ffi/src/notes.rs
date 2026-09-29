@@ -106,14 +106,6 @@ impl VaultFolder {
         Ok(to)
     }
 
-    /// Moves a note into `folder` (vault-relative; empty is the root),
-    /// keeping its name and updating links to it when
-    /// `files.update-links-on-rename` is on. Returns its new path.
-    pub fn move_note(&self, path: String, folder: String) -> Result<String, VaultError> {
-        self.note_path(&path)?;
-        self.move_entry(&path, &folder)
-    }
-
     /// Makes a folder called `name` in `parent` and returns its path.
     pub fn create_folder(&self, parent: String, name: String) -> Result<String, VaultError> {
         let parent_path = self.folder_path(&parent)?;
