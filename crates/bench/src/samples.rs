@@ -1,4 +1,6 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use crate::clock::Stopwatch;
 
 /// Durations of repeated runs of one measured operation.
 #[derive(Default, Clone)]
@@ -22,7 +24,7 @@ impl Samples {
 
     /// Runs `operation` once, records how long it took and returns its result.
     pub fn time<T>(&mut self, operation: impl FnOnce() -> T) -> T {
-        let started = Instant::now();
+        let started = Stopwatch::start();
         let result = std::hint::black_box(operation());
         self.durations.push(started.elapsed());
         result

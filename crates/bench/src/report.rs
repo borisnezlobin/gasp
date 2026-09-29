@@ -53,7 +53,10 @@ pub struct Report {
 }
 
 impl Report {
+    /// Starts a report, and moves the calling thread to the fast cores for
+    /// the measurements that follow.
     pub fn new(title: impl Into<String>) -> Self {
+        crate::clock::prefer_fast_cores();
         Self {
             title: title.into(),
             lines: Vec::new(),
