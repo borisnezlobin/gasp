@@ -93,6 +93,7 @@ impl EditorView {
         }
         let secondary = event.modifiers.secondary();
         if self.click_copy_button(event.position, cx)
+            || self.click_fold_chevron(event.position, cx)
             || (!self.read_only && self.press_table_handle(event.position, cx))
             || self.click_widget(event.position, secondary, cx)
         {
@@ -232,17 +233,21 @@ impl EditorView {
         secondary: bool,
         cx: &mut Context<Self>,
     ) -> bool {
-        let hit = self
+        let under = self
             .frame
             .as_ref()
             .and_then(|frame| frame.piece_at(position))
-            .map(|(_, piece)| piece.hit.clone());
+            .map(|(placed, piece)| (placed.visual.start, piece.hit.clone()));
+        let Some((line_start, hit)) = under else {
+            return false;
+        };
         match hit {
-            Some(Hit::Checkbox { .. }) if self.read_only => {}
-            Some(Hit::Checkbox { marker }) => self.toggle_task(marker, cx),
-            Some(Hit::Fold { header, folded }) => self.toggle_fold(header, folded, cx),
-            Some(Hit::Link { url }) => cx.emit(EditorEvent::OpenLink(url)),
-            Some(Hit::Card { url }) if secondary => cx.emit(EditorEvent::OpenLink(url)),
+            Hit::Checkbox { .. } if self.read_only => {}
+            Hit::Checkbox { marker } => self.toggle_task(marker, cx),
+            Hit::Fold { header, folded } => self.toggle_fold(header, folded, cx),
+            Hit::Unfold => self.toggle_heading_fold(line_start, cx),
+            Hit::Link { url } => cx.emit(EditorEvent::OpenLink(url)),
+            Hit::Card { url } if secondary => cx.emit(EditorEvent::OpenLink(url)),
             _ => return false,
         }
         true
@@ -264,8 +269,12 @@ impl EditorView {
         self.hover_moved(over, event.modifiers.secondary(), cx);
         self.pointer_at = Some(event.position);
         self.point_at(event.modifiers.secondary(), cx);
+        let on_fold = self.hover_folds(Some(event.position), cx);
         if on_handle && self.pointer_cursor != CursorStyle::OpenHand {
             self.pointer_cursor = CursorStyle::OpenHand;
+            cx.notify();
+        } else if on_fold && self.pointer_cursor != CursorStyle::PointingHand {
+            self.pointer_cursor = CursorStyle::PointingHand;
             cx.notify();
         }
         self.hover_code(Some(event.position), cx);
@@ -314,6 +323,7 @@ impl EditorView {
             self.hover_left(cx);
             self.hover_code(None, cx);
             self.hover_table_handles(None, cx);
+            self.hover_folds(None, cx);
             self.pointer_at = None;
             self.point_at(false, cx);
         }

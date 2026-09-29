@@ -371,6 +371,40 @@ pub struct Theme {
     pub workspace: WorkspaceTheme,
     /// Tables drawn as grids, and the table editor's marks.
     pub table: TableTheme,
+    /// Heading folds: the chevron in the margin and the count of lines a
+    /// folded heading hides.
+    pub fold: FoldTheme,
+}
+
+/// The colours of heading folds. Their sizes are the icon size and the
+/// spacing scale, so they follow zoom like the text.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct FoldTheme {
+    /// The chevron beside a heading under the pointer, and beside a
+    /// folded one.
+    pub chevron: Hsla,
+    pub chevron_folded: Hsla,
+    /// The chevron under the pointer: its icon and the fill behind it.
+    pub chevron_hover: Hsla,
+    pub chevron_fill: Hsla,
+    /// The count of hidden lines after a folded heading.
+    pub count_text: Hsla,
+    pub count_fill: Hsla,
+    pub count_fill_hover: Hsla,
+}
+
+impl FoldTheme {
+    fn from_palette(p: &Palette) -> Self {
+        Self {
+            chevron: p.text_faint,
+            chevron_folded: p.text_muted,
+            chevron_hover: p.text,
+            chevron_fill: p.fill_strong,
+            count_text: p.text_muted,
+            count_fill: p.fill,
+            count_fill_hover: p.fill_pressed,
+        }
+    }
 }
 
 /// How a table drawn as a grid looks: its cells, header and rules, and
@@ -903,6 +937,7 @@ fn read_colors(palette: &Palette) -> Theme {
         find_ui: FindUiTheme::from_palette(p),
         workspace: WorkspaceTheme::from_palette(p),
         table: TableTheme::from_palette(p),
+        fold: FoldTheme::from_palette(p),
         ..zero_sizes()
     }
 }
@@ -914,6 +949,7 @@ fn zero_sizes() -> Theme {
         find_ui: FindUiTheme::default(),
         workspace: WorkspaceTheme::default(),
         table: TableTheme::default(),
+        fold: FoldTheme::default(),
         body_font_family: SharedString::default(),
         ui_font_family: SharedString::default(),
         code_font_family: SharedString::default(),

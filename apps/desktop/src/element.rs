@@ -14,6 +14,7 @@ use gpui::{
 
 use crate::code_copy::{CopyButton, blocks_on_screen, copied_width, copy_icon_size};
 use crate::editor::{EditorView, HighlightKind};
+use crate::folding::FoldChevron;
 use crate::frame::{FrameLayout, PlacedLine};
 use crate::icons::IconName;
 use crate::line_layout::{Hit, Piece, PieceContent, Surface};
@@ -53,6 +54,10 @@ pub struct Prepainted {
     hovered_card: Option<(usize, bool)>,
     /// Sentence tints and grammar underlines.
     prose: ProseFrame,
+    /// Heading fold chevrons in the margin.
+    chevrons: Vec<FoldChevron>,
+    /// The line whose folded heading's count is under the pointer.
+    hot_count: Option<usize>,
 }
 
 impl IntoElement for EditorElement {
@@ -116,6 +121,7 @@ impl Element for EditorElement {
             let caret = frame.caret_bounds(view.cursor(), &view.theme);
             let focused = view.focus_handle.is_focused(window);
             let tables = view.table_marks(&frame, focused && !view.read_only);
+            let chevrons = view.fold_chevrons_for(&frame);
             if tables.animating {
                 window.request_animation_frame();
             }
@@ -176,6 +182,8 @@ impl Element for EditorElement {
                 hovered_task: view.hovered_task,
                 hovered_card: view.hovered_card,
                 prose,
+                chevrons,
+                hot_count: view.hot_count_line(),
             }
         })
     }
@@ -316,6 +324,7 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
         theme,
         hovered_task: prepainted.hovered_task,
         hovered_card: prepainted.hovered_card,
+        hot_count: prepainted.hot_count,
     };
     for placed in &frame.lines {
         paint_line(placed, &context, window, cx);
@@ -328,6 +337,7 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
         window.paint_quad(fill(caret, theme.cursor));
     }
     paint_table_handles(&prepainted.tables, theme, window, cx);
+    paint_fold_chevrons(&prepainted.chevrons, theme, window, cx);
     if let Some(drag) = &prepainted.tables.drag {
         paint_table_drag(drag, &context, window, cx);
     }
@@ -614,6 +624,7 @@ struct PaintContext<'a> {
     theme: &'a Theme,
     hovered_task: Option<usize>,
     hovered_card: Option<(usize, bool)>,
+    hot_count: Option<usize>,
 }
 
 fn paint_line(placed: &PlacedLine, context: &PaintContext<'_>, window: &mut Window, cx: &mut App) {
@@ -623,6 +634,10 @@ fn paint_line(placed: &PlacedLine, context: &PaintContext<'_>, window: &mut Wind
     for row in &placed.visual.rows {
         let row_top = placed.top + row.top;
         for piece in &row.pieces {
+            if piece.hit == Hit::Unfold {
+                let hot = context.hot_count == Some(placed.visual.line);
+                paint_count_fill(piece, row_top, hot, context, window);
+            }
             if !matches!(piece.hit, Hit::Link { .. }) {
                 paint_piece(piece, context, row_top, window, cx);
             } else if let Some((_, on_button)) = card {
@@ -633,6 +648,61 @@ fn paint_line(placed: &PlacedLine, context: &PaintContext<'_>, window: &mut Wind
     }
     for piece in &placed.visual.decor.gutter {
         paint_piece(piece, context, placed.top, window, cx);
+    }
+}
+
+/// The pill behind a folded heading's count of hidden lines, hugging its
+/// text, darker under the pointer.
+fn paint_count_fill(
+    piece: &Piece,
+    row_top: Pixels,
+    hot: bool,
+    context: &PaintContext<'_>,
+    window: &mut Window,
+) {
+    let PieceContent::Text(text) = &piece.content else {
+        return;
+    };
+    let look = &context.theme.fold;
+    let glyphs = text.shaped.ascent + text.shaped.descent.abs();
+    let height = glyphs + context.theme.space_xs * 2.;
+    let top = row_top + piece.top + (text.line_height - height) / 2.;
+    let bounds = Bounds::new(
+        point(context.text_left + piece.x, top),
+        size(piece.width, height),
+    );
+    let color = match hot {
+        true => look.count_fill_hover,
+        false => look.count_fill,
+    };
+    window.paint_quad(fill(bounds, color).corner_radii(height / 2.));
+}
+
+/// Each heading's fold chevron in the margin: pointing right when the
+/// heading is folded, down when it isn't, on a fill under the pointer.
+fn paint_fold_chevrons(chevrons: &[FoldChevron], theme: &Theme, window: &mut Window, cx: &mut App) {
+    let look = &theme.fold;
+    for chevron in chevrons {
+        let icon = match chevron.folded {
+            true => IconName::CaretRight,
+            false => IconName::CaretDown,
+        };
+        let color = match (chevron.hot, chevron.folded) {
+            (true, _) => look.chevron_hover,
+            (false, true) => look.chevron_folded,
+            (false, false) => look.chevron,
+        };
+        if chevron.hot {
+            window
+                .paint_quad(fill(chevron.bounds, look.chevron_fill).corner_radii(theme.radius_sm));
+        }
+        let inset = (chevron.bounds.size.width - theme.icon_size) / 2.;
+        let icon_bounds = Bounds::new(
+            point(chevron.bounds.left() + inset, chevron.bounds.top() + inset),
+            size(theme.icon_size, theme.icon_size),
+        );
+        let transform = TransformationMatrix::unit();
+        report(window.paint_svg(icon_bounds, icon.path(), transform, color, cx));
     }
 }
 

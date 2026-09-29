@@ -54,6 +54,7 @@ impl EditorView {
             }
             _ => {
                 let target = self.horizontal_target(motion, extend);
+                let target = self.step_over_folds(self.cursor(), target);
                 self.goal_x = None;
                 self.move_to(target, extend, cx);
             }
@@ -132,6 +133,7 @@ impl EditorView {
                 Some(next) => position = next,
                 None => {
                     let edge = if delta < 0 { 0 } else { self.doc().len() };
+                    let edge = self.step_over_folds(self.cursor(), edge);
                     return self.move_to(edge, extend, cx);
                 }
             }

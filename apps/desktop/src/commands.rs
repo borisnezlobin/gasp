@@ -108,6 +108,9 @@ const HANDLERS: &[(&str, Handler)] = &[
     ("view.toggle-readable-width", |view, _, cx| {
         view.toggle_readable_width(cx)
     }),
+    ("fold.toggle", |view, _, cx| view.toggle_fold_at_cursor(cx)),
+    ("fold.all", |view, _, cx| view.fold_all(cx)),
+    ("fold.unfold-all", |view, _, cx| view.unfold_all(cx)),
 ];
 
 /// Whether the editor view can run `id`.
@@ -228,6 +231,9 @@ mod tests {
             "view.zoom-out",
             "view.zoom-reset",
             "view.toggle-readable-width",
+            "fold.toggle",
+            "fold.all",
+            "fold.unfold-all",
         ] {
             assert!(handles(id), "{id}");
         }
