@@ -150,6 +150,7 @@ fn replacement_item(range: Range<usize>, kind: WidgetKind) -> Item {
         | WidgetKind::SubpathSeparator
         | WidgetKind::PropertyList { .. }
         | WidgetKind::EmptyTabStop
+        | WidgetKind::FoldedLines { .. }
         | WidgetKind::CalloutHeader { .. } => Item::Inline { range, kind },
         _ => Item::Block { range, kind },
     }

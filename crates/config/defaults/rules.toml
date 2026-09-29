@@ -445,13 +445,12 @@ keys = "Ctrl+Mod+D"
 do   = "edit.look-up"
 platform = "macos"
 
-# Folding the heading the cursor is in, on the iPhone.
+# Folding the heading (or foldable callout) the cursor is in.
 [[rule]]
-id   = "key.ios.fold.toggle"
+id   = "key.fold.toggle"
 on   = "key"
 keys = "Mod+Alt+["
 do   = "fold.toggle"
-platform = "ios"
 
 # ---- Text editing. Where Apple and PC conventions differ, each gets its own rule. ----
 

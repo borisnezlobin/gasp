@@ -95,6 +95,8 @@ pub struct EditorView {
     pub(crate) source: Source,
     pub(crate) math: MathStore,
     pub(crate) folds: Folds,
+    /// Heading folds' chevrons, hover and the folds waiting for a parse.
+    pub(crate) fold_ui: crate::folding::FoldUi,
     pub(crate) images: ImageStore,
     pub(crate) code: CodeHighlighter,
     /// Width of the text column in the last frame.
@@ -251,6 +253,7 @@ impl EditorView {
             source,
             math: MathStore::default(),
             folds: Folds::default(),
+            fold_ui: Default::default(),
             images: ImageStore::new(image_dirs),
             code: CodeHighlighter::default(),
             column_width,
@@ -469,6 +472,7 @@ impl EditorView {
         self.state
             .apply(transaction)
             .expect("a selection-only transaction always applies");
+        self.unfold_at_selection();
         self.drop_stale_tab_stops();
         self.tables.forget_columns();
         self.autoscroll = true;
@@ -581,6 +585,7 @@ impl EditorView {
             .expect("ranges are clamped to character boundaries");
         let change = self.source.replace(range, text);
         self.source_changed(change);
+        self.unfold_at_selection();
         self.typed_in_table();
         self.note_typing(cx);
         self.marked = None;
@@ -702,6 +707,7 @@ impl EditorView {
     /// Everything an edit settles once the source matches the document.
     fn after_edit(&mut self, cx: &mut Context<Self>) {
         let _phase = crate::keytrace::span("after-edit");
+        self.unfold_at_selection();
         self.close_preview(cx);
         self.marked = None;
         self.autoscroll = true;
@@ -739,6 +745,7 @@ impl EditorView {
         self.metrics
             .splice(change.old_lines, change.new_lines, &self.source, &estimator);
         self.folds.map(&change.edit);
+        self.fold_ui.forget_sections();
         self.code
             .text_changed(change.edit.old.clone(), change.edit.new_len);
         self.prose_edited(&change.edit);
@@ -752,6 +759,7 @@ impl EditorView {
             return;
         }
         let cursor = self.cursor().min(text.len());
+        let folded_lines = self.folded_heading_lines();
         let whole = 0..self.state.doc().len();
         let transaction = Transaction::new(
             ChangeSet::replace(whole, text),
@@ -763,6 +771,7 @@ impl EditorView {
         }
         let cursor = self.state.doc().floor_char_boundary(cursor);
         self.after_history_step(cx);
+        self.restore_folded_headings(folded_lines, cx);
         self.select(cursor, cursor, cx);
     }
 
@@ -844,7 +853,9 @@ impl EditorView {
             return;
         }
         self.source = parsed;
+        self.fold_ui.forget_sections();
         self.remeasure();
+        self.restore_pending_folds();
         if std::mem::take(&mut self.cursor_after_frontmatter) {
             self.place_cursor_after_frontmatter(cx);
         }
@@ -859,6 +870,7 @@ impl EditorView {
             column_width: self.column_width,
         };
         self.metrics = LineMetrics::build(&self.source, &estimator);
+        self.collapse_folded_metrics();
         self.line_cache.clear();
         self.tables.clear();
         self.autoscroll = true;
@@ -911,8 +923,10 @@ impl EditorView {
             settings: &reveal,
         };
         let mut plans = plan_lines(&input, lines).lines;
+        let tree = self.source.tree();
+        self.folds.apply(&mut plans, tree, &selections);
         self.folds
-            .apply(&mut plans, self.source.tree(), &selections);
+            .mark_folded_headings(&mut plans, self.source.text(), tree, &selections);
         self.place_empty_tab_stops(&mut plans);
         plans
     }

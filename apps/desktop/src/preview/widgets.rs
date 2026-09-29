@@ -35,6 +35,14 @@ const CALLOUT_ICONS: [(CalloutKind, IconName); 14] = [
     (CalloutKind::Custom, IconName::PencilSimple),
 ];
 
+/// "1 line" or "12 lines", for a folded heading's pill.
+pub fn folded_count_label(count: usize) -> String {
+    match count {
+        1 => "1 line".to_string(),
+        count => format!("{count} lines"),
+    }
+}
+
 pub fn callout_icon(kind: CalloutKind) -> IconName {
     CALLOUT_ICONS
         .iter()
@@ -101,6 +109,7 @@ impl LineLayouter<'_, '_> {
                 self.property_list(range, items, *tags, builder)
             }
             WidgetKind::EmptyTabStop => self.empty_tab_stop(range, builder),
+            WidgetKind::FoldedLines { count } => self.folded_lines(range, *count, builder),
             WidgetKind::CalloutHeader {
                 kind,
                 title,
@@ -351,6 +360,28 @@ impl LineLayouter<'_, '_> {
             builder.push_atomic(piece, extent);
             builder.advance(gap);
         }
+    }
+
+    /// How many lines a folded heading hides, as a small pill after its
+    /// text that unfolds it when clicked. The pill's fill is painted with
+    /// it, so it can darken under the pointer.
+    fn folded_lines(&mut self, range: &Range<usize>, count: usize, builder: &mut RowBuilder) {
+        let theme = self.theme();
+        let mut run = text_run(1, &[], &self.tone, false, theme);
+        run.font = theme.ui_font();
+        run.color = theme.fold.count_text;
+        let padding = theme.property_chip_padding;
+        let gap = theme.space_md;
+        let text = folded_count_label(count);
+        let (mut piece, extent) = self.label(&text, run, theme.small_font_size, self.line_height());
+        piece.range = range.clone();
+        piece.width += padding * 2.;
+        piece.hit = Hit::Unfold;
+        if let PieceContent::Text(text) = &mut piece.content {
+            text.slice_x = -padding;
+        }
+        builder.advance(gap);
+        builder.push_atomic(piece, extent);
     }
 
     /// "This device" or "Other device" above a sync conflict's version,

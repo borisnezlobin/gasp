@@ -117,6 +117,8 @@ pub enum Hit {
         header: usize,
         folded: bool,
     },
+    /// Unfolds the heading on this line: the count of lines it hides.
+    Unfold,
     /// A link card: a click puts the cursor in its source, Mod+click
     /// opens the page.
     Card {
@@ -135,7 +137,7 @@ impl Hit {
     pub fn is_control(&self) -> bool {
         matches!(
             self,
-            Hit::Checkbox { .. } | Hit::Fold { .. } | Hit::Link { .. }
+            Hit::Checkbox { .. } | Hit::Fold { .. } | Hit::Unfold | Hit::Link { .. }
         )
     }
 }

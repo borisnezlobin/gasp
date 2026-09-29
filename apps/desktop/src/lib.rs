@@ -20,6 +20,7 @@ pub mod features;
 pub mod file_tree;
 pub mod find;
 pub mod first_frame;
+pub mod folding;
 pub mod footnotes;
 pub mod frame;
 pub mod hover;
