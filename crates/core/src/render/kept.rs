@@ -1,20 +1,23 @@
-//! A whole note's plan kept between cursor moves.
+//! A whole note's plan kept between cursor moves and edits.
 //!
 //! What a line shows depends on the selection only through the nodes on
 //! it, and a node's markup reveals when a selection touches a region
 //! inside its top-level block (or the whole note, which any selection
 //! touches). So when only the selection moves, the lines of the top-level
 //! blocks that neither the old nor the new selection is in plan exactly
-//! as before, and only the others are planned again.
+//! as before, and only the others are planned again. An edit that the
+//! tree reparsed block by block leaves the other blocks' lines as they
+//! were, only moved.
 
 use std::ops::Range;
 
 use super::{LinePlan, RenderInput, RevealSettings, plan, plan_lines};
-use crate::syntax::SyntaxTree;
+use crate::syntax::{Edit, Reparsed, SyntaxTree};
 
-/// The last whole-note plan, for re-planning only what a cursor move can
-/// change. The owner calls [`KeptPlan::forget`] whenever the text or its
-/// tree changes.
+/// The last whole-note plan, for re-planning only what a cursor move or
+/// an edit can change. The owner tells it about every edit with
+/// [`KeptPlan::edited`], or calls [`KeptPlan::forget`] when the text
+/// changes some other way.
 #[derive(Clone, Debug, Default)]
 pub struct KeptPlan {
     kept: Option<Kept>,
@@ -25,12 +28,27 @@ struct Kept {
     lines: Vec<LinePlan>,
     selections: Vec<Range<usize>>,
     settings: RevealSettings,
+    /// Lines an edit reparsed, still to plan.
+    unplanned: Option<Range<usize>>,
 }
 
 impl KeptPlan {
-    /// Drops the kept plan, after the text changed.
+    /// Drops the kept plan.
     pub fn forget(&mut self) {
         self.kept = None;
+    }
+
+    /// Follows `edit`, after which `tree` reparsed what `reparsed` says:
+    /// the lines of reparsed blocks wait to be planned, and the lines
+    /// after them move along.
+    pub fn edited(&mut self, edit: &Edit, reparsed: &Reparsed, tree: &SyntaxTree) {
+        let followed = match (self.kept.as_mut(), reparsed) {
+            (Some(kept), Reparsed::Blocks { old, new }) => kept.follow(edit, old, new, tree),
+            _ => false,
+        };
+        if !followed {
+            self.forget();
+        }
     }
 
     /// Every line's plan for `input`, the same as [`plan`] gives.
@@ -46,6 +64,7 @@ impl KeptPlan {
                 lines: plan(input).lines,
                 selections,
                 settings: input.settings.clone(),
+                unplanned: None,
             },
         };
         &self.kept.insert(kept).lines
@@ -53,6 +72,43 @@ impl KeptPlan {
 }
 
 impl Kept {
+    /// Makes room for the reparsed lines and moves the ones after them.
+    /// Answers false when the kept lines don't line up with the edit,
+    /// which plans afresh.
+    fn follow(
+        &mut self,
+        edit: &Edit,
+        old: &Range<usize>,
+        new: &Range<usize>,
+        tree: &SyntaxTree,
+    ) -> bool {
+        if self.unplanned.is_some() {
+            return false;
+        }
+        let index = tree.lines();
+        let reparsed = index.line_of(new.start)..index.line_of(new.end) + 1;
+        let before = self
+            .lines
+            .partition_point(|line| line.range.end < old.start);
+        let after = self
+            .lines
+            .partition_point(|line| line.range.start <= old.end);
+        if before != reparsed.start || after < before {
+            return false;
+        }
+        let bytes = edit.new_len as isize - edit.old.len() as isize;
+        let lines = reparsed.len() as isize - (after - before) as isize;
+        for line in &mut self.lines[after..] {
+            line.shift(bytes, lines);
+        }
+        self.lines
+            .splice(before..after, reparsed.clone().map(LinePlan::unplanned));
+        for selection in &mut self.selections {
+            *selection = moved_through(selection.start, edit)..moved_through(selection.end, edit);
+        }
+        self.unplanned = Some(reparsed);
+        self.lines.len() == index.line_count()
+    }
     /// Whether moving from the kept selections to `selections` changes
     /// only the blocks they're in. Going from no selection to one reveals
     /// what any selection reveals, all over the note, so that plans afresh.
@@ -64,6 +120,7 @@ impl Kept {
         let touched = self.selections.iter().chain(selections);
         let mut stale: Vec<Range<usize>> = touched
             .flat_map(|selection| stale_lines(input.tree, input.text, selection))
+            .chain(self.unplanned.take())
             .collect();
         stale.sort_by_key(|lines| lines.start);
         for lines in merged(stale) {
@@ -102,6 +159,18 @@ fn merged(ranges: Vec<Range<usize>>) -> Vec<Range<usize>> {
         }
     }
     joined
+}
+
+/// Where `at`, before `edit`, is after it: offsets inside the replaced
+/// text go to its start.
+fn moved_through(at: usize, edit: &Edit) -> usize {
+    if at <= edit.old.start {
+        at
+    } else if at >= edit.old.end {
+        at + edit.new_len - edit.old.len()
+    } else {
+        edit.old.start
+    }
 }
 
 fn ordered(selections: &[Range<usize>]) -> Vec<Range<usize>> {

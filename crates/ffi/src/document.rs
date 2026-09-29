@@ -57,13 +57,13 @@ impl ParsedText {
         let Some(edit) = changed_span(&self.text, &text) else {
             return;
         };
-        self.tree.edit(&text, &edit);
+        let reparsed = self.tree.edit(&text, &edit);
         self.folds.map(&edit);
         self.offsets.edited(&text, &edit);
         self.text = text;
         self.source_table = None;
         self.tints = None;
-        self.kept_plan.forget();
+        self.kept_plan.edited(&edit, &reparsed, &self.tree);
     }
 
     fn sentence_tints(&mut self, thresholds: Thresholds) -> Vec<SentenceTint> {
@@ -436,8 +436,11 @@ mod tests {
         document.toggle_fold(text.find("> [!note]").unwrap() as u32);
         let utf16_len = text.encode_utf16().count() as u32;
         for step in 0..=utf16_len {
-            if step == 20 {
-                document.update(text.replacen("Text", "Text more", 1));
+            if step % 7 == 3 {
+                let mut edited = document.text();
+                let insert = ["x", "\n", "*"][step as usize % 3];
+                edited.insert_str(step as usize * 5 % edited.len(), insert);
+                document.update(edited);
             }
             let selection = TextRange {
                 start: step,

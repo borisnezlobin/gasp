@@ -36,19 +36,37 @@ struct Region {
     delta: isize,
 }
 
+/// What an edit parsed again.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Reparsed {
+    /// The top-level blocks that were at `old` in the text before the
+    /// edit and are at `new` after it, from the start of a line to the end
+    /// of a block's last line. Everything else only moved.
+    Blocks {
+        old: Range<usize>,
+        new: Range<usize>,
+    },
+    /// The whole document.
+    Everything,
+}
+
 impl SyntaxTree {
     /// Updates the tree for `new_text`, which is the old text with `edit`
-    /// applied. Gives the same tree as [`super::parse`] on `new_text`.
-    pub fn edit(&mut self, new_text: &str, edit: &Edit) {
-        if !self.reparse_table_row(new_text, edit) && !self.splice_reparse(new_text, edit) {
-            *self = super::parse(new_text);
+    /// applied. Gives the same tree as [`super::parse`] on `new_text`, and
+    /// answers what it parsed again.
+    pub fn edit(&mut self, new_text: &str, edit: &Edit) -> Reparsed {
+        if let Some(reparsed) = self.reparse_table_row(new_text, edit) {
+            return reparsed;
         }
+        if let Some(reparsed) = self.splice_reparse(new_text, edit) {
+            return reparsed;
+        }
+        *self = super::parse(new_text);
+        Reparsed::Everything
     }
 
-    fn splice_reparse(&mut self, new_text: &str, edit: &Edit) -> bool {
-        let Some(region) = self.region_for(new_text, edit) else {
-            return false;
-        };
+    fn splice_reparse(&mut self, new_text: &str, edit: &Edit) -> Option<Reparsed> {
+        let region = self.region_for(new_text, edit)?;
         // A failed reparse parses the whole document again, lines included,
         // so the lines can move now.
         self.lines.edit(new_text, edit);
@@ -56,15 +74,16 @@ impl SyntaxTree {
             .definitions
             .0
             .get_or_init(|| self.definitions_outside(new_text, &region));
-        let Some(raw) = super::build::build_region(new_text, region.new.clone(), context) else {
-            return false;
-        };
+        let raw = super::build::build_region(new_text, region.new.clone(), context)?;
         let nodes = super::process(raw, new_text, &self.lines);
         if !self.boundaries_match(&region, &nodes) {
-            return false;
+            return None;
         }
         self.splice(&region, nodes, new_text.len());
-        true
+        Some(Reparsed::Blocks {
+            old: region.old,
+            new: region.new,
+        })
     }
 
     fn block_range(&self, index: usize) -> Range<usize> {

@@ -28,7 +28,7 @@ use std::ops::Range;
 pub use crate::pipeline::InputContext;
 pub use css::{FONT_SCALE_RANGE, FontSize, HtmlStyle, Rgba8, parse_align, parse_color};
 pub use html::{attribute as html_attribute, in_unclosed_tag, is_safe_href, straighten_tag_quotes};
-pub use incremental::Edit;
+pub use incremental::{Edit, Reparsed};
 pub use kinds::{
     Alignment, CalloutInfo, CalloutKind, CodeBlockInfo, ConflictSide, Fold, HtmlKind, LinkInfo,
     LinkKind, MarkupKind, NodeKind, SyntaxKind, WikiInfo,
