@@ -18,6 +18,11 @@ use gasp_config::loader::{build_rules, build_settings};
 use gasp_config::schema::{SettingDescriptor, SettingKind, setting_descriptors};
 use gasp_config::settings::SettingsIndex;
 use gasp_config::store::{SETTINGS_FILE, SettingsFile, save, settings_path, write_setting};
+use gasp_config::toolbar_files::{TOOLBARS_FILE, item_names, load_toolbars, toolbars_path};
+use gasp_config::toolbars::{
+    Behaviour, ButtonStyle, Density, MENU_PREFIX, Place, SEPARATOR, SPACER, Toolbar,
+    ToolbarContext, Widget, build_toolbars, choice_name,
+};
 use gasp_config::{CONFIG_DIR, Diagnostic, Platform, config_dir};
 use gasp_snippets::{
     DEFAULT_REPLACEMENTS, DEFAULT_SNIPPETS, Replacements, SnippetEngine, SnippetFile,
@@ -104,6 +109,30 @@ fn file_tools() -> Vec<ToolSpec> {
                  refused with the reason. Unknown commands come back as warnings."
             ),
             set_rules,
+        ),
+        ToolSpec::reads(
+            "get_toolbars",
+            concat!(
+                "Read ",
+                config_dir!(),
+                "/toolbars.toml and the toolbars in effect: each one's id, title, place, \
+                 behaviour, style and items, the menus they can open, and every item a \
+                 toolbar can hold besides commands (widgets, separator, spacer, menu:<id>)."
+            ),
+            get_toolbars,
+        ),
+        ToolSpec::writes(
+            "set_toolbars",
+            concat!(
+                "Replace ",
+                config_dir!(),
+                "/toolbars.toml with `text`. A [toolbar.<id>] there changes only the fields \
+                 it names on a built-in toolbar (status, selection, keyboard) and adds any new \
+                 id; `enabled = false` turns one off. It's checked first; a file that doesn't \
+                 load is refused with the reason, and unknown commands come back as warnings. \
+                 The app picks the change up at once."
+            ),
+            set_toolbars,
         ),
         ToolSpec::reads(
             "get_snippets",
@@ -440,6 +469,61 @@ fn set_rules(context: &Context, args: FileText) -> ToolResult {
     Ok(Output::Text(said))
 }
 
+// ---- Toolbars ----
+
+fn toolbar_json(toolbar: &Toolbar) -> Value {
+    json!({
+        "id": toolbar.id,
+        "title": toolbar.title,
+        "enabled": toolbar.enabled,
+        "built_in": toolbar.built_in,
+        "place": choice_name(toolbar.place),
+        "behaviour": choice_name(toolbar.behaviour),
+        "contexts": toolbar.contexts.iter().map(|c| choice_name(*c)).collect::<Vec<_>>(),
+        "style": choice_name(toolbar.style),
+        "density": choice_name(toolbar.density),
+        "items": item_names(&toolbar.items),
+    })
+}
+
+fn get_toolbars(context: &Context, _: NoArguments) -> ToolResult {
+    let text = read_config(&toolbars_path(context.root()))?;
+    let toolbars = load_toolbars(context.root());
+    let menus: Vec<Value> = toolbars
+        .menus
+        .iter()
+        .map(|menu| json!({"id": menu.id, "title": menu.title, "icon": menu.icon, "items": menu.items}))
+        .collect();
+    let widgets: Vec<Value> = Widget::ALL
+        .iter()
+        .map(|widget| json!({"item": widget.name(), "title": widget.title()}))
+        .collect();
+    Ok(Output::Json(json!({
+        "path": vault_relative(TOOLBARS_FILE),
+        "text": text.unwrap_or_default(),
+        "toolbars": toolbars.toolbars.iter().map(toolbar_json).collect::<Vec<_>>(),
+        "menus": menus,
+        "widgets": widgets,
+        "other_items": [SEPARATOR, SPACER, format!("{MENU_PREFIX}<id>")],
+        "places": Place::ALL.map(choice_name),
+        "behaviours": Behaviour::ALL.map(choice_name),
+        "styles": ButtonStyle::ALL.map(choice_name),
+        "densities": Density::ALL.map(choice_name),
+        "contexts": ToolbarContext::ALL.map(choice_name),
+    })))
+}
+
+fn set_toolbars(context: &Context, args: FileText) -> ToolResult {
+    let (_, warnings) = build_toolbars(TOOLBARS_FILE, Some(&args.text), &known_commands())
+        .map_err(|errors| refused(TOOLBARS_FILE, &errors))?;
+    write_config(&toolbars_path(context.root()), &args.text)?;
+    let mut said = format!("Saved {}.", vault_relative(TOOLBARS_FILE));
+    if !warnings.is_empty() {
+        said.push_str(&format!(" Warnings: {}", describe(&warnings)));
+    }
+    Ok(Output::Text(said))
+}
+
 // ---- Snippets and replacements ----
 
 fn get_snippets(context: &Context, _: NoArguments) -> ToolResult {
@@ -661,6 +745,37 @@ mod tests {
         let error = call_err(&context, "set_rules", json!({"text": "[[rule]\n"}));
         assert!(error.contains("wasn't saved"));
         assert_eq!(read(&dir, "rules.toml"), unknown);
+    }
+
+    #[test]
+    fn toolbars_read_and_are_checked_before_saving() {
+        let (dir, context) = vault(&[]);
+        let toolbars = call(&context, "get_toolbars", json!({}));
+        assert_eq!(toolbars["text"], "");
+        assert_eq!(toolbars["toolbars"][0]["id"], "status");
+        assert_eq!(toolbars["toolbars"][1]["behaviour"], "with-selection");
+        assert!(
+            toolbars["widgets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|w| w["item"] == "word-count")
+        );
+        let good = "[toolbar.status]\nitems = [\"export.html\", \"spacer\", \"word-count\"]\n";
+        text(&context, "set_toolbars", json!({"text": good}));
+        assert_eq!(read(&dir, "toolbars.toml"), good);
+        let status = &call(&context, "get_toolbars", json!({}))["toolbars"][0];
+        assert_eq!(status["items"][0], "export.html");
+        let unknown = good.replace("export.html", "no.such");
+        let said = text(&context, "set_toolbars", json!({"text": unknown}));
+        assert!(said.contains("no command called `no.such`"), "{said}");
+        let error = call_err(
+            &context,
+            "set_toolbars",
+            json!({"text": "[toolbar.status]\nplace = \"roof\"\n"}),
+        );
+        assert!(error.contains("wasn't saved"), "{error}");
+        assert_eq!(read(&dir, "toolbars.toml"), unknown);
     }
 
     #[test]

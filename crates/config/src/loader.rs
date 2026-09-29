@@ -18,6 +18,7 @@ use crate::merge::deep_merge;
 use crate::rules::RuleSet;
 use crate::settings::Settings;
 use crate::theme::{Theme, TokenSet};
+use crate::toolbars::{Toolbars, build_toolbars};
 use crate::typing::{TypingTables, build_replacements, build_snippets};
 
 pub use crate::names::CONFIG_DIR;
@@ -36,6 +37,7 @@ pub enum ConfigFile {
     Device,
     Snippets,
     Replacements,
+    Toolbars,
 }
 
 const FILES: &[(ConfigFile, &str, bool)] = &[
@@ -46,10 +48,11 @@ const FILES: &[(ConfigFile, &str, bool)] = &[
     (ConfigFile::Device, "device.toml", false),
     (ConfigFile::Snippets, "snippets.txt", true),
     (ConfigFile::Replacements, "replacements.toml", true),
+    (ConfigFile::Toolbars, "toolbars.toml", true),
 ];
 
 impl ConfigFile {
-    pub const ALL: [ConfigFile; 7] = [
+    pub const ALL: [ConfigFile; 8] = [
         ConfigFile::Settings,
         ConfigFile::Theme,
         ConfigFile::Layout,
@@ -57,6 +60,7 @@ impl ConfigFile {
         ConfigFile::Device,
         ConfigFile::Snippets,
         ConfigFile::Replacements,
+        ConfigFile::Toolbars,
     ];
 
     pub fn file_name(self) -> &'static str {
@@ -93,6 +97,7 @@ pub struct Config {
     pub device: DeviceSettings,
     /// Snippets and replacements.
     pub typing: TypingTables,
+    pub toolbars: Toolbars,
 }
 
 /// The built-in config, parsed once: every editor and config load starts
@@ -115,6 +120,7 @@ impl Config {
             rules: RuleSet::defaults(),
             device: DeviceSettings::default(),
             typing: TypingTables::default(),
+            toolbars: Toolbars::defaults(),
         }
     }
 }
@@ -235,6 +241,7 @@ impl ConfigLoader {
     /// moved first.
     pub fn for_vault(vault: &Path) -> ConfigLoader {
         crate::migration::migrate_config_dir_and_log(vault);
+        crate::migration::migrate_mobile_toolbar_and_log(vault);
         ConfigLoader::new(vault.join(CONFIG_DIR))
     }
 
@@ -283,6 +290,13 @@ impl ConfigLoader {
                 build_replacements(name, user),
                 &mut self.config.typing.replacements,
             ),
+            ConfigFile::Toolbars => {
+                let known: Vec<&str> = self.known_commands.iter().map(String::as_str).collect();
+                store(
+                    build_toolbars(name, user, &known),
+                    &mut self.config.toolbars,
+                )
+            }
         }
     }
 }

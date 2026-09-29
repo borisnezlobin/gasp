@@ -33,7 +33,7 @@ mod theme;
 mod vault;
 
 pub use code::{CodeColor, CodeSpan, code_color_token};
-pub use commands::{CommandInfo, KeyBinding};
+pub use commands::{CommandInfo, KeyBinding, KeyboardToolbar, ToolbarEntry, ToolbarLabels};
 pub use display::SymbolVisibility;
 pub use document::{NoteDocument, OutlineHeading, SentenceLength, SentenceTint};
 pub use edits::{CommandOutcome, TextReplacement};

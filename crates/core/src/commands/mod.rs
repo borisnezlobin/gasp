@@ -5,19 +5,23 @@
 //! [`Transaction`] tagged with the command's id, so it becomes its own undo
 //! step. Returning `None` means there is nothing to do.
 
+mod active;
 mod callout;
 mod footnote;
 mod format;
 mod indent;
 mod lines;
 mod link;
+mod lists;
 
+pub use active::active_commands;
 pub use callout::insert_callout;
 pub use footnote::{FootnoteCommand, insert_or_jump_footnote};
 pub use format::{Format, toggle_format};
 pub use indent::{indent, outdent};
 pub use lines::{duplicate_lines, move_lines_down, move_lines_up, toggle_tasks};
 pub use link::insert_link;
+pub use lists::{toggle_bullet_list, toggle_numbered_list};
 
 use crate::document::{Document, Selection};
 use crate::pipeline::{InputContext, RangePlan, StepContext, plan_transaction};

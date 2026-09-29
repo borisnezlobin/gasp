@@ -31,8 +31,8 @@ const INSTRUCTIONS: &str = concat!(
     " app. Paths are relative to the vault and use /; a note's .md may be left off. Hidden \
      folders (.git, ",
     config_dir!(),
-    ", .trash) are off limits except through the settings, theme, rules, snippets and \
-     replacements tools. Prefer patch_note over write_note for small changes. editor_state, \
+    ", .trash) are off limits except through the settings, theme, rules, toolbars, \
+     snippets and replacements tools. Prefer patch_note over write_note for small changes. editor_state, \
      run_command and open_note need the app running with this vault open; the other tools \
      work either way."
 );

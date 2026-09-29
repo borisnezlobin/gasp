@@ -24,7 +24,10 @@ pub struct Settings {
     pub templates: TemplateSettings,
     pub recovery: RecoverySettings,
     pub mcp: McpSettings,
-    pub mobile: MobileSettings,
+    /// Only still read so an older file loads; see [`LegacyMobileSettings`].
+    #[schemars(skip)]
+    #[serde(skip_serializing_if = "LegacyMobileSettings::is_empty")]
+    pub mobile: LegacyMobileSettings,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -441,46 +444,20 @@ pub const DEFAULT_DEVICE_ONLY: &[&str] = &[
     ".trash/**",
 ];
 
-/// The iPhone app.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+/// The iPhone app's old settings. Its keyboard bar is now the `keyboard`
+/// toolbar in `toolbars.toml`, where
+/// [`crate::migration::migrate_mobile_toolbar`] moves a vault's
+/// `mobile.toolbar`; until it has, the key still loads and does nothing.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
-pub struct MobileSettings {
-    /// The commands on the bar above the iPhone's keyboard, in order.
-    pub toolbar: Vec<String>,
+pub struct LegacyMobileSettings {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub toolbar: Option<Vec<String>>,
 }
 
-/// The owner's Obsidian mobile toolbar after "hide the keyboard", then
-/// the rest of the editing commands, then the palette for everything else.
-const DEFAULT_MOBILE_TOOLBAR: &[&str] = &[
-    "keyboard.hide",
-    "note.import-image",
-    "edit.indent",
-    "edit.outdent",
-    "format.callout",
-    "format.math-inline",
-    "footnote.insert-or-jump",
-    "prose.toggle-sentence-highlighting",
-    "table.insert",
-    "find.open",
-    "edit.undo",
-    "edit.redo",
-    "format.bold",
-    "format.italic",
-    "format.highlight",
-    "format.link",
-    "format.code",
-    "edit.toggle-task",
-    "palette.open",
-];
-
-impl Default for MobileSettings {
-    fn default() -> Self {
-        MobileSettings {
-            toolbar: DEFAULT_MOBILE_TOOLBAR
-                .iter()
-                .map(|id| id.to_string())
-                .collect(),
-        }
+impl LegacyMobileSettings {
+    pub fn is_empty(&self) -> bool {
+        self.toolbar.is_none()
     }
 }
 
