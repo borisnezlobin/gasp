@@ -16,15 +16,14 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use editor_config::settings::{EnglishVariant, GrammarSettings};
-use editor_prose::vocabulary::{NOTES_TO_LEARN, learn};
+use editor_prose::vocabulary::{NOTES_TO_LEARN, ignored_file_text, learn, parse_ignored};
 use editor_prose::{CheckOptions, Checker, English, Flag, Unit};
 use futures::channel::oneshot;
 use gpui::{App, AppContext, Global};
 
 use crate::note_texts::NoteTexts;
 
-/// Where dismissed phrases are kept, from the vault root.
-pub const IGNORED_FILE: &str = ".editor/prose/ignored.txt";
+pub use editor_prose::vocabulary::IGNORED_FILE;
 
 /// How long after a vault opens the checker starts building, so it
 /// doesn't compete with the first frames.
@@ -251,27 +250,14 @@ pub fn ignore(phrase: &str, note: Option<&Path>, cx: &mut App) {
 }
 
 fn read_ignored(file: &Path) -> HashSet<String> {
-    std::fs::read_to_string(file)
-        .unwrap_or_default()
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .map(str::to_lowercase)
-        .collect()
+    parse_ignored(&std::fs::read_to_string(file).unwrap_or_default())
 }
 
 fn write_ignored(file: &Path, ignored: &HashSet<String>) -> std::io::Result<()> {
-    let mut phrases: Vec<&str> = ignored.iter().map(String::as_str).collect();
-    phrases.sort_unstable();
-    let mut text = String::from("# Phrases the grammar checker leaves alone, one per line.\n");
-    for phrase in phrases {
-        text.push_str(phrase);
-        text.push('\n');
-    }
     if let Some(dir) = file.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    crate::workspace::files::atomic_write(file, &text)
+    crate::workspace::files::atomic_write(file, &ignored_file_text(ignored))
 }
 
 #[cfg(test)]

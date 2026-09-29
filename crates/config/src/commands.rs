@@ -115,10 +115,22 @@ const LOOK_UP: CommandSpec = spec("edit.look-up", "Look up", "Editing");
 /// Puts the iPhone's software keyboard away.
 const HIDE_KEYBOARD: CommandSpec = spec("keyboard.hide", "Hide the keyboard", "Editing");
 
+/// Folding headings, which the iPhone has so far; the desktop folds
+/// callouts by clicking their header.
+const FOLD_TOGGLE: CommandSpec = spec("fold.toggle", "Fold or unfold heading", "View");
+const FOLD_ALL: CommandSpec = spec("fold.all", "Fold every heading", "View");
+const UNFOLD_ALL: CommandSpec = spec("fold.unfold-all", "Unfold every heading", "View");
+
 /// Commands only some platforms have. The registry leaves them out
 /// elsewhere, but rules may still name them, as a vault's config goes
 /// from machine to machine.
-pub const PLATFORM_COMMANDS: &[&str] = &[LOOK_UP.id, HIDE_KEYBOARD.id];
+pub const PLATFORM_COMMANDS: &[&str] = &[
+    LOOK_UP.id,
+    HIDE_KEYBOARD.id,
+    FOLD_TOGGLE.id,
+    FOLD_ALL.id,
+    UNFOLD_ALL.id,
+];
 
 /// Every built-in command on this platform.
 pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
@@ -312,6 +324,12 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     LOOK_UP,
     #[cfg(target_os = "ios")]
     HIDE_KEYBOARD,
+    #[cfg(target_os = "ios")]
+    FOLD_TOGGLE,
+    #[cfg(target_os = "ios")]
+    FOLD_ALL,
+    #[cfg(target_os = "ios")]
+    UNFOLD_ALL,
     spec("code.copy-block", "Copy code block", "Editing"),
     spec("table.insert", "Insert table", "Tables"),
     spec("table.insert-row-above", "Insert table row above", "Tables"),
