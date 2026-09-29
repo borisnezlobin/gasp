@@ -1,4 +1,4 @@
-//! The app's end of `editor mcp`: what it reports about the window, and
+//! The app's end of `gasp mcp`: what it reports about the window, and
 //! a patch to a note with unsaved edits landing in its editor as one
 //! undoable edit, both called directly and through the real socket.
 
@@ -178,7 +178,7 @@ fn the_server_patches_through_the_socket(cx: &mut TestAppContext) {
     assert!(cx.read(|cx| workspace.read(cx).mcp_bridge_running()));
     open_and_edit(&workspace, cx, "Plan.md");
 
-    // The server side runs on its own thread, as `editor mcp` would;
+    // The server side runs on its own thread, as `gasp mcp` would;
     // the test keeps the app's main thread turning until it's done.
     let root = vault.path().to_path_buf();
     let server = std::thread::spawn(move || {

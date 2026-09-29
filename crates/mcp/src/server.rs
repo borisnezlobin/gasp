@@ -11,6 +11,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use base64::Engine;
+use editor_config::{COMMAND_NAME, app_name, config_dir};
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation,
     ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerConfig,
@@ -24,11 +25,17 @@ use crate::context::Context;
 use crate::tool::{Output, ToolResult, ToolSpec};
 
 /// What the client is told about the server as a whole.
-const INSTRUCTIONS: &str = "Tools for one Markdown vault in the editor app. Paths are relative \
-to the vault and use /; a note's .md may be left off. Hidden folders (.git, .editor, .trash) \
-are off limits except through the settings, theme, rules, snippets and replacements tools. \
-Prefer patch_note over write_note for small changes. editor_state, run_command and open_note \
-need the app running with this vault open; the other tools work either way.";
+const INSTRUCTIONS: &str = concat!(
+    "Tools for one Markdown vault in the ",
+    app_name!(),
+    " app. Paths are relative to the vault and use /; a note's .md may be left off. Hidden \
+     folders (.git, ",
+    config_dir!(),
+    ", .trash) are off limits except through the settings, theme, rules, snippets and \
+     replacements tools. Prefer patch_note over write_note for small changes. editor_state, \
+     run_command and open_note need the app running with this vault open; the other tools \
+     work either way."
+);
 
 /// The server for one vault.
 #[derive(Clone)]
@@ -72,7 +79,7 @@ impl Server {
     }
 }
 
-/// Runs the server for `vault` on stdin and stdout: `editor mcp`.
+/// Runs the server for `vault` on stdin and stdout: `gasp mcp`.
 pub fn serve_stdio(vault: &Path) -> io::Result<()> {
     let context = Context::open(vault)?;
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -84,7 +91,7 @@ pub fn serve_stdio(vault: &Path) -> io::Result<()> {
 impl ServerHandler for Server {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new("editor", env!("CARGO_PKG_VERSION")))
+            .with_server_info(Implementation::new(COMMAND_NAME, env!("CARGO_PKG_VERSION")))
             .with_instructions(INSTRUCTIONS)
     }
 

@@ -1,4 +1,4 @@
-//! Reading and writing the vault's `.editor/settings.toml` one key at a
+//! Reading and writing the vault's `.gasp/settings.toml` one key at a
 //! time, keeping the user's comments, layout and unrelated keys. Only
 //! values that differ from the defaults are written.
 

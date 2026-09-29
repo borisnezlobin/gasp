@@ -2,13 +2,20 @@
 
 use std::path::PathBuf;
 
+use editor_config::command_name;
+
 use crate::bench::BenchConfig;
 
-pub const USAGE: &str = "\
-usage: editor [PATH]
-       editor --bench-layout PATH [--keystrokes N] [--scroll-pages N] [--in-code] [--in-math] [--in-table] [--no-prose]
-       editor --bench-index VAULT
-       editor mcp [VAULT]
+pub const USAGE: &str = concat!(
+    "usage: ",
+    command_name!(),
+    " [PATH]\n       ",
+    command_name!(),
+    " --bench-layout PATH [--keystrokes N] [--scroll-pages N] [--in-code] [--in-math] [--in-table] [--no-prose]\n       ",
+    command_name!(),
+    " --bench-index VAULT\n       ",
+    command_name!(),
+    " mcp [VAULT]
 
 PATH is a folder of notes (a vault) or a note, which opens its vault
 with that note showing. With no PATH, the last vault opens again.
@@ -29,7 +36,8 @@ save, a backlinks list, an unlinked-mentions search and a rename take.
 mcp serves VAULT (the last vault when left out) to an agent over MCP on
 stdin and stdout. Its tools read and change notes, attachments and the
 vault's config whether or not the app is running; with the app open on
-the vault, they also see its tabs and cursor and run its commands.";
+the vault, they also see its tabs and cursor and run its commands."
+);
 
 /// What the binary was asked to do.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,7 +48,7 @@ pub enum Command {
         config: BenchConfig,
     },
     BenchIndex(PathBuf),
-    /// `editor mcp`: the MCP server on stdio for a vault, or the last one.
+    /// `gasp mcp`: the MCP server on stdio for a vault, or the last one.
     Mcp(Option<PathBuf>),
     Help,
 }

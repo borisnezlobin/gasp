@@ -3,7 +3,7 @@
 //! ([`link_update`]), the file operations behind the file tree ([`ops`])
 //! and atomic writes ([`files`]).
 //!
-//! The desktop app and the MCP server (`editor mcp`) both use it, so a
+//! The desktop app and the MCP server (`gasp mcp`) both use it, so a
 //! rename, a delete or a backlinks list means the same in either. Nothing
 //! here depends on GPUI, so the server starts without loading it.
 

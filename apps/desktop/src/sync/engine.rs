@@ -101,7 +101,7 @@ pub fn open(root: &Path, settings: &SyncSettings, store: &dyn CredentialStore) -
     let device = device_name();
     let author = probe
         .author
-        .unwrap_or_else(|| Author::new(device.clone(), "editor@localhost"));
+        .unwrap_or_else(|| Author::new(device.clone(), editor_sync::FALLBACK_AUTHOR_EMAIL));
     let engine = Engine {
         vault: Mutex::new(vault),
         author,

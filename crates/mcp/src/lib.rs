@@ -1,4 +1,4 @@
-//! The MCP server behind `editor mcp`: tools over one vault, its config
+//! The MCP server behind `gasp mcp`: tools over one vault, its config
 //! and, through [`bridge`], the desktop app when it has the vault open.
 //!
 //! The headless tools use the vault crates directly and never load GPUI,

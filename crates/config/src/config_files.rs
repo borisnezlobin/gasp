@@ -1,5 +1,5 @@
-//! Writing the vault's `.editor/theme.toml` one token at a time and
-//! changing keys in `.editor/rules.toml`: adding the user's own, removing
+//! Writing the vault's `.gasp/theme.toml` one token at a time and
+//! changing keys in `.gasp/rules.toml`: adding the user's own, removing
 //! them, turning a built-in one off with `delete = true` under its id,
 //! and putting a command back to its built-in keys. Everything else in
 //! both files stays as the user wrote it.

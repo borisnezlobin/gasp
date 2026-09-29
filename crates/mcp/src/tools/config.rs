@@ -1,4 +1,4 @@
-//! Tools on the vault's config in `.editor/`: settings, theme tokens,
+//! Tools on the vault's config in `.gasp/`: settings, theme tokens,
 //! commands and their keys, rules, snippets and replacements.
 //!
 //! Every write goes through the same writers the settings screen uses,
@@ -10,14 +10,15 @@ use std::path::Path;
 
 use editor_config::commands::BUILTIN_COMMANDS;
 use editor_config::config_files::{
-    RULES_FILE, default_number, default_token, known_commands, load_rules, load_tokens,
-    replacements_path, rules_path, snippets_path, write_theme_number, write_theme_token,
+    REPLACEMENTS_FILE, RULES_FILE, SNIPPETS_FILE, default_number, default_token, known_commands,
+    load_rules, load_tokens, replacements_path, rules_path, snippets_path, write_theme_number,
+    write_theme_token,
 };
 use editor_config::loader::{build_rules, build_settings};
 use editor_config::schema::{SettingDescriptor, SettingKind, setting_descriptors};
 use editor_config::settings::SettingsIndex;
 use editor_config::store::{SETTINGS_FILE, SettingsFile, save, settings_path, write_setting};
-use editor_config::{Diagnostic, Platform};
+use editor_config::{CONFIG_DIR, Diagnostic, Platform, config_dir};
 use editor_snippets::{
     DEFAULT_REPLACEMENTS, DEFAULT_SNIPPETS, Replacements, SnippetEngine, SnippetFile,
 };
@@ -32,17 +33,24 @@ pub fn tools() -> Vec<ToolSpec> {
     let mut tools = vec![
         ToolSpec::reads(
             "get_settings",
-            "Read settings: each one's dotted key, kind, value in effect, default, whether \
-             the vault's .editor/settings.toml sets it, and what it does. Give `key` for one \
-             setting or a group, such as `files` or `editor.smart-quotes`.",
+            concat!(
+                "Read settings: each one's dotted key, kind, value in effect, default, whether \
+                 the vault's ",
+                config_dir!(),
+                "/settings.toml sets it, and what it does. Give `key` for one setting or a \
+                 group, such as `files` or `editor.smart-quotes`."
+            ),
             get_settings,
         ),
         ToolSpec::writes(
             "set_setting",
-            "Change one setting by dotted key, such as `files.trash` or `mcp.enabled`; null \
-             puts it back to its default. The value is checked and written to \
-             .editor/settings.toml the way the settings screen writes it, keeping comments. \
-             The app picks the change up at once.",
+            concat!(
+                "Change one setting by dotted key, such as `files.trash` or `mcp.enabled`; null \
+                 puts it back to its default. The value is checked and written to ",
+                config_dir!(),
+                "/settings.toml the way the settings screen writes it, keeping comments. \
+                 The app picks the change up at once."
+            ),
             set_setting,
         ),
         ToolSpec::reads(
@@ -53,10 +61,14 @@ pub fn tools() -> Vec<ToolSpec> {
         ),
         ToolSpec::writes(
             "set_theme_token",
-            "Change one theme token in .editor/theme.toml, such as `color.accent` = \
-             \"#2f5fd0\" or `font.line-height.body` = 1.6; `dark.` before a colour's name \
-             sets it for dark mode. A value may reference another token as \
-             \"{color.black}\". null puts the built-in value back.",
+            concat!(
+                "Change one theme token in ",
+                config_dir!(),
+                "/theme.toml, such as `color.accent` = \"#2f5fd0\" or \
+                 `font.line-height.body` = 1.6; `dark.` before a colour's name sets it for \
+                 dark mode. A value may reference another token as \"{color.black}\". null \
+                 puts the built-in value back."
+            ),
             set_theme_token,
         ),
         ToolSpec::reads(
@@ -75,37 +87,60 @@ fn file_tools() -> Vec<ToolSpec> {
     vec![
         ToolSpec::reads(
             "get_rules",
-            "Read .editor/rules.toml, the vault's rules (keys, pointer and typing events) \
-             layered over the built-in ones, and the key rules in effect.",
+            concat!(
+                "Read ",
+                config_dir!(),
+                "/rules.toml, the vault's rules (keys, pointer and typing events) layered \
+                 over the built-in ones, and the key rules in effect."
+            ),
             get_rules,
         ),
         ToolSpec::writes(
             "set_rules",
-            "Replace .editor/rules.toml with `text`. It's checked first; a file that doesn't \
-             load is refused with the reason. Unknown commands come back as warnings.",
+            concat!(
+                "Replace ",
+                config_dir!(),
+                "/rules.toml with `text`. It's checked first; a file that doesn't load is \
+                 refused with the reason. Unknown commands come back as warnings."
+            ),
             set_rules,
         ),
         ToolSpec::reads(
             "get_snippets",
-            "Read the math snippets file (.editor/snippets.txt, else the built-in one), one \
-             snippet per line as `trigger → expansion  options`.",
+            concat!(
+                "Read the math snippets file (",
+                config_dir!(),
+                "/snippets.txt, else the built-in one), one snippet per line as \
+                 `trigger → expansion  options`."
+            ),
             get_snippets,
         ),
         ToolSpec::writes(
             "set_snippets",
-            "Replace .editor/snippets.txt with `text`. Every snippet is parsed and compiled \
-             first; any error is refused with its line.",
+            concat!(
+                "Replace ",
+                config_dir!(),
+                "/snippets.txt with `text`. Every snippet is parsed and compiled first; any \
+                 error is refused with its line."
+            ),
             set_snippets,
         ),
         ToolSpec::reads(
             "get_replacements",
-            "Read the typing replacements table (.editor/replacements.toml, else the \
-             built-in one), such as -> becoming →.",
+            concat!(
+                "Read the typing replacements table (",
+                config_dir!(),
+                "/replacements.toml, else the built-in one), such as -> becoming →."
+            ),
             get_replacements,
         ),
         ToolSpec::writes(
             "set_replacements",
-            "Replace .editor/replacements.toml with `text`, checked first.",
+            concat!(
+                "Replace ",
+                config_dir!(),
+                "/replacements.toml with `text`, checked first."
+            ),
             set_replacements,
         ),
     ]
@@ -381,7 +416,7 @@ fn get_rules(context: &Context, _: NoArguments) -> ToolResult {
         })
         .collect();
     Ok(Output::Json(json!({
-        "path": ".editor/rules.toml",
+        "path": vault_relative(RULES_FILE),
         "text": text.unwrap_or_default(),
         "key_rules_in_effect": keys,
     })))
@@ -398,7 +433,7 @@ fn set_rules(context: &Context, args: FileText) -> ToolResult {
     let (_, warnings) = build_rules(RULES_FILE, Some(&args.text), &known_commands())
         .map_err(|errors| refused("rules.toml", &errors))?;
     write_config(&rules_path(context.root()), &args.text)?;
-    let mut said = "Saved .editor/rules.toml.".to_string();
+    let mut said = format!("Saved {}.", vault_relative(RULES_FILE));
     if !warnings.is_empty() {
         said.push_str(&format!(" Warnings: {}", describe(&warnings)));
     }
@@ -410,7 +445,7 @@ fn set_rules(context: &Context, args: FileText) -> ToolResult {
 fn get_snippets(context: &Context, _: NoArguments) -> ToolResult {
     config_text(
         &snippets_path(context.root()),
-        ".editor/snippets.txt",
+        &vault_relative(SNIPPETS_FILE),
         DEFAULT_SNIPPETS,
     )
 }
@@ -424,21 +459,34 @@ fn set_snippets(context: &Context, args: FileText) -> ToolResult {
         .map_err(|error| ToolError::new(format!("snippets.txt wasn't saved: {error}")))?;
     write_config(&snippets_path(context.root()), &args.text)?;
     Ok(Output::Text(format!(
-        "Saved .editor/snippets.txt with {} snippets.",
+        "Saved {} with {} snippets.",
+        vault_relative(SNIPPETS_FILE),
         file.snippets().count()
     )))
 }
 
 fn get_replacements(context: &Context, _: NoArguments) -> ToolResult {
     let path = replacements_path(context.root());
-    config_text(&path, ".editor/replacements.toml", DEFAULT_REPLACEMENTS)
+    config_text(
+        &path,
+        &vault_relative(REPLACEMENTS_FILE),
+        DEFAULT_REPLACEMENTS,
+    )
 }
 
 fn set_replacements(context: &Context, args: FileText) -> ToolResult {
     Replacements::from_toml(&args.text)
         .map_err(|error| ToolError::new(format!("replacements.toml wasn't saved: {error}")))?;
     write_config(&replacements_path(context.root()), &args.text)?;
-    Ok(Output::Text("Saved .editor/replacements.toml.".into()))
+    Ok(Output::Text(format!(
+        "Saved {}.",
+        vault_relative(REPLACEMENTS_FILE)
+    )))
+}
+
+/// A config file's path as the vault sees it, such as `.gasp/rules.toml`.
+fn vault_relative(file: &str) -> String {
+    format!("{CONFIG_DIR}/{file}")
 }
 
 /// A config file's text, or the built-in one when the vault has none.
@@ -478,12 +526,13 @@ mod tests {
     use crate::tools::testing::{call, call_err, text, vault};
 
     fn read(dir: &tempfile::TempDir, file: &str) -> String {
-        std::fs::read_to_string(dir.path().join(".editor").join(file)).unwrap_or_default()
+        std::fs::read_to_string(dir.path().join(CONFIG_DIR).join(file)).unwrap_or_default()
     }
 
     #[test]
     fn settings_read_with_their_defaults() {
-        let (_dir, context) = vault(&[(".editor/settings.toml", "[files]\ntrash = \"vault\"\n")]);
+        let settings = vault_relative(SETTINGS_FILE);
+        let (_dir, context) = vault(&[(settings.as_str(), "[files]\ntrash = \"vault\"\n")]);
         let files = call(&context, "get_settings", json!({"key": "files"}));
         let trash = files["settings"]
             .as_array()
@@ -503,7 +552,7 @@ mod tests {
     #[test]
     fn set_setting_keeps_comments_and_checks_values() {
         let (dir, context) = vault(&[(
-            ".editor/settings.toml",
+            vault_relative(SETTINGS_FILE).as_str(),
             "# Mine.\n[files]\ntrash = \"vault\"   # keep it here\n",
         )]);
         let set = call(
@@ -545,7 +594,7 @@ mod tests {
 
     #[test]
     fn a_broken_settings_file_is_reported() {
-        let (_dir, context) = vault(&[(".editor/settings.toml", "[files\n")]);
+        let (_dir, context) = vault(&[(vault_relative(SETTINGS_FILE).as_str(), "[files\n")]);
         let read = call(&context, "get_settings", json!({"key": "files.trash"}));
         assert!(read["file_error"].is_string());
         assert_eq!(read["settings"][0]["value"], "system");

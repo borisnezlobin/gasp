@@ -7,6 +7,7 @@ use std::sync::{Mutex, PoisonError};
 
 use editor_config::Settings;
 use editor_config::loader::build_settings;
+use editor_config::migration::migrate_config_dir_and_log;
 use editor_config::store::{SETTINGS_FILE, settings_path};
 use editor_search::engine::{Note, NoteCache};
 use editor_vault::index::LinkIndex;
@@ -27,9 +28,11 @@ pub struct Context {
 }
 
 impl Context {
-    /// The vault at `vault`, and the app if it opens it.
+    /// The vault at `vault`, and the app if it opens it. A legacy
+    /// `.editor` folder in the vault moves to `.gasp` first.
     pub fn open(vault: &Path) -> io::Result<Context> {
         let root = canonical_vault(vault)?;
+        migrate_config_dir_and_log(&root);
         let endpoint = Endpoint::for_vault(&root);
         Ok(Context::with_app(root, AppLink::new(endpoint)))
     }

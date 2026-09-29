@@ -1,11 +1,11 @@
-//! Loading a vault's `.editor/` folder over the built-in defaults.
+//! Loading a vault's `.gasp/` folder over the built-in defaults.
 
 use std::fs;
 use std::path::Path;
 
 use editor_config::layout::SlotContent;
 use editor_config::settings::SidebarMode;
-use editor_config::{ConfigLoader, KeyChord, Platform, Severity};
+use editor_config::{CONFIG_DIR, ConfigLoader, KeyChord, Platform, Severity};
 use tempfile::TempDir;
 
 fn write(dir: &Path, name: &str, text: &str) {
@@ -14,7 +14,7 @@ fn write(dir: &Path, name: &str, text: &str) {
 
 fn vault() -> (TempDir, ConfigLoader) {
     let vault = TempDir::new().unwrap();
-    fs::create_dir(vault.path().join(".editor")).unwrap();
+    fs::create_dir(vault.path().join(CONFIG_DIR)).unwrap();
     let loader = ConfigLoader::for_vault(vault.path());
     (vault, loader)
 }

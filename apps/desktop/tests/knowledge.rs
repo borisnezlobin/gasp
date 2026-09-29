@@ -2,6 +2,7 @@
 //! in a real workspace: every panel is reached by its command and by its
 //! buttons, and what it shows follows the active note and the index.
 
+use editor_config::CONFIG_DIR;
 use std::path::{Path, PathBuf};
 
 use editor_config::{Platform, RuleSet};
@@ -14,6 +15,8 @@ use editor_desktop::vault_search::VaultSearch;
 use editor_desktop::workspace::{OpenIn, Workspace};
 use gpui::{Entity, Focusable, Modifiers, TestAppContext, VisualTestContext};
 use tempfile::TempDir;
+
+const VAULT_SETTINGS: &str = concat!(editor_config::config_dir!(), "/settings.toml");
 
 fn vault_with(notes: &[(&str, &str)]) -> TempDir {
     let vault = tempfile::tempdir().unwrap();
@@ -340,9 +343,9 @@ fn buttons_and_commands_show_hide_and_remember_the_sidebar(cx: &mut TestAppConte
 #[gpui::test]
 fn the_sidebar_opens_where_it_was_left(cx: &mut TestAppContext) {
     let vault = linked_vault();
-    std::fs::create_dir_all(vault.path().join(".editor")).unwrap();
+    std::fs::create_dir_all(vault.path().join(CONFIG_DIR)).unwrap();
     std::fs::write(
-        vault.path().join(".editor/device.toml"),
+        vault.path().join(CONFIG_DIR).join("device.toml"),
         "[right-sidebar]\nopen = true\nview = \"tags\"\nwidth = 300\n",
     )
     .unwrap();
@@ -392,10 +395,7 @@ fn renaming_leaves_links_alone_when_the_setting_is_off(cx: &mut TestAppContext) 
     let vault = vault_with(&[
         ("Old.md", ""),
         ("A.md", "[[Old]]"),
-        (
-            ".editor/settings.toml",
-            "[files]\nupdate-links-on-rename = false\n",
-        ),
+        (VAULT_SETTINGS, "[files]\nupdate-links-on-rename = false\n"),
     ]);
     let (workspace, cx) = open_workspace(cx, vault.path());
     open(&workspace, cx, "Old.md");
@@ -469,7 +469,7 @@ fn todays_note_starts_from_its_template(cx: &mut TestAppContext) {
     let vault = vault_with(&[
         ("Templates/Day.md", "# {{date:YYYY}}\n\n{{title}}\n"),
         (
-            ".editor/settings.toml",
+            VAULT_SETTINGS,
             "[daily-notes]\nfolder = \"Journal\"\ntemplate = \"Templates/Day\"\n",
         ),
     ]);

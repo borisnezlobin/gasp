@@ -1,5 +1,6 @@
 //! The migrator's output must load cleanly through the real config loader.
 
+use editor_config::CONFIG_DIR;
 use std::path::PathBuf;
 
 use editor_config::{ConfigLoader, Severity};
@@ -13,7 +14,7 @@ fn reference_dir() -> PathBuf {
 fn migrated_files_load_without_errors() {
     let vault = tempfile::tempdir().unwrap();
     let migration = migrate_obsidian(&reference_dir()).unwrap();
-    migration.write_to(&vault.path().join(".editor")).unwrap();
+    migration.write_to(&vault.path().join(CONFIG_DIR)).unwrap();
 
     let mut loader = ConfigLoader::for_vault(vault.path());
     let errors: Vec<_> = loader

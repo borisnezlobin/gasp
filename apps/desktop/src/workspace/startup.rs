@@ -93,19 +93,16 @@ mod tests {
     fn a_background_read_matches_a_direct_one() {
         let vault = tempfile::tempdir().unwrap();
         std::fs::write(vault.path().join("a.md"), "A").unwrap();
-        std::fs::create_dir(vault.path().join(".editor")).unwrap();
-        std::fs::write(
-            vault.path().join(".editor/device.toml"),
-            "open-tabs = [\"a.md\"]\n",
-        )
-        .unwrap();
+        let device_file = crate::workspace::state::device_path(vault.path());
+        std::fs::create_dir(device_file.parent().unwrap()).unwrap();
+        std::fs::write(&device_file, "open-tabs = [\"a.md\"]\n").unwrap();
         let direct = VaultStart::load(vault.path());
         let background = VaultStart::spawn(vault.path().to_path_buf()).wait();
         assert_eq!(background.vault, direct.vault);
         assert_eq!(background.config.device.open_tabs, ["a.md"]);
         // The saved tab reopens, so there's no launcher to fill.
         assert_eq!(direct.recent, None);
-        std::fs::remove_file(vault.path().join(".editor/device.toml")).unwrap();
+        std::fs::remove_file(&device_file).unwrap();
         let fresh = VaultStart::load(vault.path());
         assert_eq!(fresh.recent, Some(vec![fresh.vault.join("a.md")]));
     }

@@ -10,7 +10,7 @@ publish = false
 path = "src/lib.rs"
 
 [[bin]]
-name = "editor"
+name = "gasp"
 path = "src/main.rs"
 
 [features]

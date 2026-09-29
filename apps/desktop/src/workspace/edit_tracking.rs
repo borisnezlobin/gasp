@@ -1,5 +1,5 @@
 //! Counting the time spent editing each note, for the status bar, and
-//! keeping it in this device's file under `.editor/stats/` (see
+//! keeping it in this device's file under `.gasp/stats/` (see
 //! [`crate::edit_time`]). Reading and writing happen off the main thread.
 
 use std::path::Path;

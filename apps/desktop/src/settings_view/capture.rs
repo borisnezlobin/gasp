@@ -1,5 +1,5 @@
 //! Changing keyboard shortcuts: "+" waits for the next chord, like the
-//! command palette does, and writes it to `.editor/rules.toml`; a key's
+//! command palette does, and writes it to `.gasp/rules.toml`; a key's
 //! cross removes it, whether the user added it or it's built in; reset
 //! puts a command back to its built-in keys. "Search by keys" waits for a
 //! chord the same way and searches for it.

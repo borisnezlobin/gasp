@@ -6,7 +6,7 @@
 //! on its own thread for the life of the app, and editors send it
 //! paragraphs in batches. Nothing on the main thread waits for it.
 //!
-//! Dismissed phrases live in the vault's `.editor/prose/ignored.txt`, one
+//! Dismissed phrases live in the vault's `.gasp/prose/ignored.txt`, one
 //! per line, so they sync to every device like the rest of the config.
 
 use std::collections::HashSet;
@@ -24,7 +24,7 @@ use gpui::{App, AppContext, Global};
 use crate::note_texts::NoteTexts;
 
 /// Where dismissed phrases are kept, from the vault root.
-pub const IGNORED_FILE: &str = ".editor/prose/ignored.txt";
+pub const IGNORED_FILE: &str = concat!(editor_config::config_dir!(), "/prose/ignored.txt");
 
 /// How long after a vault opens the checker starts building, so it
 /// doesn't compete with the first frames.

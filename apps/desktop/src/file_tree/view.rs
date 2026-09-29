@@ -41,7 +41,7 @@ impl FileTreeOptions {
         }
     }
 
-    /// The options in the vault's `.editor/settings.toml`, over the defaults.
+    /// The options in the vault's `.gasp/settings.toml`, over the defaults.
     pub fn for_vault(root: &Path) -> FileTreeOptions {
         let mut loader = ConfigLoader::for_vault(root);
         loader.load_all();

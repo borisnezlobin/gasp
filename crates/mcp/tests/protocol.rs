@@ -61,7 +61,10 @@ async fn initialize_list_and_call() {
             }),
         )
         .await;
-    assert_eq!(init["result"]["serverInfo"]["name"], "editor");
+    assert_eq!(
+        init["result"]["serverInfo"]["name"],
+        editor_config::COMMAND_NAME
+    );
     assert!(
         init["result"]["capabilities"]["tools"].is_object(),
         "{init}"

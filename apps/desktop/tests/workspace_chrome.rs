@@ -3,6 +3,7 @@
 //! right-click menu. Every test works in a temporary vault with the
 //! standalone views wired in.
 
+use editor_config::CONFIG_DIR;
 use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -32,7 +33,7 @@ fn vault_with(notes: &[(&str, &str)]) -> TempDir {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, text).unwrap();
     }
-    let settings = vault.path().join(".editor/settings.toml");
+    let settings = vault.path().join(CONFIG_DIR).join("settings.toml");
     std::fs::create_dir_all(settings.parent().unwrap()).unwrap();
     std::fs::write(settings, PINNED_SIDEBAR).unwrap();
     vault
@@ -182,7 +183,7 @@ fn the_wheel_over_a_sidebar_on_the_note_scrolls_only_the_sidebar(cx: &mut TestAp
     let long = "A line of the note.\n\n".repeat(200);
     let vault = vault_with(&[("a.md", &long)]);
     std::fs::write(
-        vault.path().join(".editor/settings.toml"),
+        vault.path().join(CONFIG_DIR).join("settings.toml"),
         "[sidebar.files]\nreveal = \"always\"\nmode = \"overlay\"\n",
     )
     .unwrap();
@@ -563,7 +564,7 @@ fn reveal_hover_sidebar(
 ) -> (TempDir, Entity<Workspace>, &mut VisualTestContext) {
     let vault = vault_with(&[("a.md", "A")]);
     std::fs::write(
-        vault.path().join(".editor/settings.toml"),
+        vault.path().join(CONFIG_DIR).join("settings.toml"),
         "[sidebar.files]\nreveal = \"hover\"\nmode = \"overlay\"\n",
     )
     .unwrap();

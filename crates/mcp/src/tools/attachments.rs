@@ -228,7 +228,7 @@ mod tests {
         assert_eq!(moved["updated_notes"], json!(["Note.md"]));
         let note = std::fs::read_to_string(dir.path().join("Note.md")).unwrap();
         assert_eq!(note, "![[chart.png]] and ![](img/chart.png)\n");
-        let settings = dir.path().join(".editor/settings.toml");
+        let settings = editor_config::store::settings_path(dir.path());
         std::fs::create_dir_all(settings.parent().unwrap()).unwrap();
         std::fs::write(settings, "[files]\ntrash = \"vault\"\n").unwrap();
         call(
