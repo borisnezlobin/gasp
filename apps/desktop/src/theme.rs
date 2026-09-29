@@ -134,6 +134,8 @@ palette! {
     shadow = "color.shadow",
     syncing = "color.syncing",
     conflict = "color.conflict",
+    /// The app icon's red caret: the welcome tour's mark.
+    caret_mark = "color.caret-mark",
     highlight = "color.highlight",
     code_background = "color.code-background",
     code_highlight = "color.code-highlight",
@@ -2254,6 +2256,16 @@ pub struct UiTheme {
     pub print: PrintTheme,
     /// Toolbars' sizes, from the theme's `toolbar.` tokens.
     pub toolbar: ToolbarTheme,
+    /// The welcome tour's sizes and motions, from the `tour.` tokens.
+    pub tour: TourTheme,
+    /// The app icon's red caret, which the welcome tour marks things with.
+    pub caret_mark: Hsla,
+    /// Text that has to stand out from its neighbours, such as a heading.
+    pub text_strong: Hsla,
+    /// The strongest of the translucent fills, which reads on every surface.
+    pub fill_strong: Hsla,
+    /// A highlighted word's background.
+    pub highlight: Hsla,
 }
 
 /// Sizes for toolbars, read from the theme's `toolbar.` tokens so a vault
@@ -2323,6 +2335,54 @@ impl ToolbarTheme {
     /// A floating bar's corners: concentric with its buttons'.
     pub fn bar_radius(&self) -> Pixels {
         self.button_radius + self.padding
+    }
+}
+
+/// The welcome tour's sizes and motions, read from the theme's `tour.`
+/// tokens. Its colours are [`UiTheme`]'s, plus the palette's caret mark.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TourTheme {
+    pub title_size: Pixels,
+    pub heading_size: Pixels,
+    /// The whale breaching on the first step.
+    pub breach_width: Pixels,
+    /// The whale swimming along the sea at the bottom of every step.
+    pub swimmer_width: Pixels,
+    /// The height of one line of the sea, which is drawn as lines of text.
+    pub sea_line: Pixels,
+    /// The red caret's width.
+    pub caret_width: Pixels,
+    pub breach_rise: std::time::Duration,
+    pub swim: std::time::Duration,
+    pub step_enter: std::time::Duration,
+    pub press: std::time::Duration,
+}
+
+impl Default for TourTheme {
+    fn default() -> Self {
+        Self::from_tokens(&Config::defaults().theme)
+    }
+}
+
+impl TourTheme {
+    pub fn from_tokens(tokens: &Tokens) -> Self {
+        let read = TokenReader { tokens };
+        let size = |name: &str, default: f32| px(read.number(name, default));
+        let millis = |name: &str, default: f32| {
+            std::time::Duration::from_millis(read.number(name, default).max(0.) as u64)
+        };
+        TourTheme {
+            title_size: size("tour.title-size", 150.),
+            heading_size: size("tour.heading-size", 34.),
+            breach_width: size("tour.breach-width", 380.),
+            swimmer_width: size("tour.swimmer-width", 132.),
+            sea_line: size("tour.sea-line", 6.),
+            caret_width: size("tour.caret-width", 2.),
+            breach_rise: millis("tour.breach-rise", 1400.),
+            swim: millis("tour.swim", 900.),
+            step_enter: millis("tour.step-enter", 360.),
+            press: millis("tour.press", 700.),
+        }
     }
 }
 
@@ -2506,6 +2566,11 @@ impl UiTheme {
             overlay_shadow: p.shadow,
             print: PrintTheme::from_palette(p),
             toolbar: ToolbarTheme::default(),
+            tour: TourTheme::default(),
+            caret_mark: p.caret_mark,
+            text_strong: p.text_strong,
+            fill_strong: p.fill_strong,
+            highlight: p.highlight,
         }
     }
 }

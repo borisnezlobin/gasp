@@ -22,7 +22,7 @@ pub const USAGE: &str = concat!(
     command_name!(),
     " --snapshot NOTE OUT.png [--width N] [--height N] [--theme light|dark] [--cursor LINE:COL]\n       ",
     command_name!(),
-    " --snapshot --vault VAULT --script SCRIPT --out DIR [--open NOTE] [--window WxH] [--theme light|dark] [--allow-writes] [--keep-temp]\n       ",
+    " --snapshot --vault VAULT --script SCRIPT --out DIR [--open NOTE] [--window WxH] [--theme light|dark] [--allow-writes] [--keep-temp] [--tour]\n       ",
     command_name!(),
     " mcp [VAULT]
 
@@ -53,7 +53,8 @@ PNG into DIR at each `snap`. Scripts move, click, drag, scroll, type,
 run commands and print elements' bounds; PLAN.md lists the steps. The
 copy and the app's own folders are removed at the end unless
 --keep-temp; nothing syncs, and notes are only saved (in the copy) with
---allow-writes.
+--allow-writes. --tour opens the welcome tour instead of the vault, as a
+first launch does; a vault chosen there opens in the same window.
 
 --bench-index builds VAULT's link index and prints how long that, a
 save, a backlinks list, an unlinked-mentions search and a rename take.
@@ -170,7 +171,7 @@ fn apply_snapshot_option(
 }
 
 /// Flags of the whole-window form that take no value.
-const WINDOW_SWITCHES: [&str; 2] = ["--allow-writes", "--keep-temp"];
+const WINDOW_SWITCHES: [&str; 3] = ["--allow-writes", "--keep-temp", "--tour"];
 
 fn parse_window_snapshot(args: &[String]) -> Result<Command, String> {
     let mut values: Vec<(&str, &str)> = Vec::new();
@@ -198,6 +199,7 @@ fn parse_window_snapshot(args: &[String]) -> Result<Command, String> {
     );
     request.allow_writes = switches.contains(&"--allow-writes");
     request.keep_temp = switches.contains(&"--keep-temp");
+    request.tour = switches.contains(&"--tour");
     for (flag, value) in values {
         apply_window_option(&mut request, flag, value)?;
     }

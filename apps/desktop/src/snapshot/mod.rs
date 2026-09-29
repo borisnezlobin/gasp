@@ -131,6 +131,8 @@ pub struct WindowSnapshotRequest {
     pub allow_writes: bool,
     /// Whether the copy of the vault stays when the run ends.
     pub keep_temp: bool,
+    /// Whether the window opens on the welcome tour instead of the vault.
+    pub tour: bool,
 }
 
 impl WindowSnapshotRequest {
@@ -145,6 +147,7 @@ impl WindowSnapshotRequest {
             dark: false,
             allow_writes: false,
             keep_temp: false,
+            tour: false,
         }
     }
 }

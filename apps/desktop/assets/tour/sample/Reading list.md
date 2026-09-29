@@ -1,0 +1,5 @@
+# Reading list
+
+- [x] Moby-Dick
+- [ ] The Old Man and the Sea
+- [ ] Twenty Thousand Leagues Under the Seas

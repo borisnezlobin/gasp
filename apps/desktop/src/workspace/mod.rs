@@ -49,7 +49,6 @@ mod tab_moves;
 mod tabs;
 mod toolbars;
 pub mod watcher;
-pub mod welcome;
 pub mod window;
 
 use std::collections::HashMap;
