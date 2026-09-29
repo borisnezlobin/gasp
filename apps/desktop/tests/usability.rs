@@ -241,3 +241,31 @@ fn one_command_switches_between_light_and_dark(cx: &mut TestAppContext) {
     let expected = if before { "\"dark\"" } else { "\"light\"" };
     assert!(settings.contains(expected), "{settings}");
 }
+
+#[gpui::test]
+fn the_welcome_screen_offers_a_new_vault_and_walks_by_keyboard(cx: &mut TestAppContext) {
+    use gasp_desktop::workspace::welcome::{Welcome, WelcomeChoice};
+    let recent = vec![std::path::PathBuf::from("/notes/Work")];
+    let (welcome, cx) =
+        cx.add_window_view(move |window, cx| Welcome::with_recent(recent.clone(), window, cx));
+    cx.run_until_parked();
+    let choices = welcome.read_with(cx, |welcome, _| welcome.choices());
+    assert_eq!(
+        choices,
+        vec![
+            WelcomeChoice::OpenFolder,
+            WelcomeChoice::NewVault,
+            WelcomeChoice::Recent("/notes/Work".into()),
+        ]
+    );
+    let selected =
+        |cx: &mut VisualTestContext| welcome.read_with(cx, |welcome, _| welcome.selected());
+    cx.simulate_keystrokes("tab");
+    assert_eq!(selected(cx), 1);
+    cx.simulate_keystrokes("down");
+    assert_eq!(selected(cx), 2, "the recent vaults are reachable too");
+    cx.simulate_keystrokes("down");
+    assert_eq!(selected(cx), 0);
+    cx.simulate_keystrokes("shift-tab");
+    assert_eq!(selected(cx), 2);
+}
