@@ -1,8 +1,8 @@
 //! Toolbars: rows of buttons for commands, and the status bar's widgets,
 //! each with a place in the window, a behaviour that says when it shows,
 //! and a style. They're described in `toolbars.toml`, whose built-in file
-//! holds the status bar, the floating selection bar and the iPhone's
-//! keyboard bar.
+//! holds the status bar, the floating selection bar, and the iPhone's
+//! keyboard bar and bottom bar.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -35,10 +35,13 @@ pub enum Place {
     CursorLine,
     /// Above the iPhone's software keyboard.
     Keyboard,
+    /// The iPhone's bar at the bottom of the screen, around the title of
+    /// the note showing, which its spacer stands for.
+    BrowserBar,
 }
 
 impl Place {
-    pub const ALL: [Place; 8] = [
+    pub const ALL: [Place; 9] = [
         Place::StatusBar,
         Place::EditorTop,
         Place::EditorBottom,
@@ -47,6 +50,7 @@ impl Place {
         Place::Selection,
         Place::CursorLine,
         Place::Keyboard,
+        Place::BrowserBar,
     ];
 
     /// Whether the bar floats over the note rather than taking a strip of
@@ -60,10 +64,10 @@ impl Place {
         matches!(self, Place::WindowLeft | Place::WindowRight)
     }
 
-    /// Whether the desktop app draws bars here; the keyboard bar is the
-    /// iPhone's.
+    /// Whether the desktop app draws bars here; the keyboard bar and the
+    /// browser bar are the iPhone's.
     pub fn on_desktop(self) -> bool {
-        self != Place::Keyboard
+        !matches!(self, Place::Keyboard | Place::BrowserBar)
     }
 }
 
@@ -695,10 +699,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_built_in_toolbars_are_the_status_bar_selection_and_keyboard() {
+    fn the_built_in_toolbars_are_the_status_bar_selection_and_the_phones_two() {
         let toolbars = Toolbars::defaults();
         let ids: Vec<&str> = toolbars.toolbars.iter().map(|t| t.id.as_str()).collect();
-        assert_eq!(ids, ["status", "selection", "keyboard"]);
+        assert_eq!(ids, ["status", "selection", "keyboard", "browser-bar"]);
         let status = toolbars.get("status").unwrap();
         assert_eq!(status.place, Place::StatusBar);
         assert_eq!(status.items[0], ToolbarItem::Spacer);
@@ -734,7 +738,17 @@ place = \"window-left\"
         let (toolbars, warnings) = build_toolbars("toolbars.toml", Some(text), &[]).unwrap();
         assert!(warnings.is_empty(), "{warnings:?}");
         let ids: Vec<&str> = toolbars.toolbars.iter().map(|t| t.id.as_str()).collect();
-        assert_eq!(ids, ["status", "selection", "keyboard", "zeta", "alpha"]);
+        assert_eq!(
+            ids,
+            [
+                "status",
+                "selection",
+                "keyboard",
+                "browser-bar",
+                "zeta",
+                "alpha"
+            ]
+        );
         let selection = toolbars.get("selection").unwrap();
         assert!(!selection.enabled);
         assert_eq!(selection.items.len(), 5, "the other fields stay built in");

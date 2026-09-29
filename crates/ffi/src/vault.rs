@@ -14,7 +14,7 @@ use gasp_vault::files::atomic_write;
 use gasp_vault::index::{LinkIndex, is_note_path};
 use gasp_vault::link_update::{file_name, parent_dir};
 
-use crate::commands::{self, CommandInfo, KeyBinding, KeyboardToolbar};
+use crate::commands::{self, CommandInfo, KeyBinding};
 use crate::display::{DisplayState, SharedDisplay, SymbolVisibility};
 use crate::document::NoteDocument;
 use crate::theme::{ThemeTokens, theme};
@@ -158,12 +158,6 @@ impl VaultFolder {
     /// The keys that run commands with a hardware keyboard.
     pub fn key_bindings(&self) -> Vec<KeyBinding> {
         commands::key_bindings(&self.config())
-    }
-
-    /// The bar above the software keyboard: the `keyboard` toolbar in
-    /// `toolbars.toml`.
-    pub fn keyboard_toolbar(&self) -> KeyboardToolbar {
-        commands::keyboard_toolbar(&self.config())
     }
 
     pub fn symbol_visibility(&self) -> SymbolVisibility {
