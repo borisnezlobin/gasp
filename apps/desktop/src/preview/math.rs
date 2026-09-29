@@ -18,6 +18,11 @@ pub type RenderFn =
 /// Rasterise at twice the device resolution so edges stay smooth.
 const OVERSAMPLE: f32 = 2.;
 
+/// Rasterised equations one store keeps, in bytes, before it lets go of
+/// those drawn least recently: a long, math-heavy note's worth. One that's
+/// scrolled back to renders again.
+const KEPT_BYTES: usize = 32 << 20;
+
 /// One equation at one size, scale and colour.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MathKey {
@@ -105,11 +110,35 @@ impl MathRequest {
 /// Rendered equations by key, plus the renders still to start. Only
 /// equations looked up since the last [`MathStore::begin_frame`] start, so
 /// laying out lines off screen (to move the cursor, say) renders nothing.
+/// Past [`KEPT_BYTES`] of rendered equations, those not drawn lately are
+/// let go.
 pub struct MathStore {
     render: RenderFn,
-    entries: HashMap<MathKey, MathState>,
+    entries: HashMap<MathKey, Entry>,
     started: HashSet<MathKey>,
     queued: Vec<MathKey>,
+    /// Counts [`MathStore::begin_frame`]s.
+    frame: u64,
+    /// The pixels of every ready equation, in bytes.
+    ready_bytes: usize,
+    kept_bytes: usize,
+}
+
+struct Entry {
+    state: MathState,
+    /// The frame it was last looked up in.
+    last_used: u64,
+}
+
+/// The bytes a render's pixels take.
+fn pixel_bytes(state: &MathState) -> usize {
+    match state {
+        MathState::Ready(image) => {
+            let size = image.image.size(0);
+            size.width.0.max(0) as usize * size.height.0.max(0) as usize * 4
+        }
+        MathState::Pending | MathState::Failed(_) => 0,
+    }
 }
 
 impl Default for MathStore {
@@ -129,16 +158,27 @@ impl MathStore {
             entries: HashMap::new(),
             started: HashSet::new(),
             queued: Vec::new(),
+            frame: 0,
+            ready_bytes: 0,
+            kept_bytes: KEPT_BYTES,
         }
+    }
+
+    /// Keeps `bytes` of rendered equations instead of [`KEPT_BYTES`].
+    pub fn keeping(mut self, bytes: usize) -> Self {
+        self.kept_bytes = bytes;
+        self
     }
 
     /// The equation's state, queueing its render if it hasn't started.
     pub fn lookup(&mut self, key: MathKey) -> MathState {
-        let state = self
-            .entries
-            .entry(key.clone())
-            .or_insert(MathState::Pending)
-            .clone();
+        let frame = self.frame;
+        let entry = self.entries.entry(key.clone()).or_insert(Entry {
+            state: MathState::Pending,
+            last_used: frame,
+        });
+        entry.last_used = frame;
+        let state = entry.state.clone();
         let waiting = matches!(state, MathState::Pending) && !self.started.contains(&key);
         if waiting && !self.queued.contains(&key) {
             self.queued.push(key);
@@ -151,13 +191,14 @@ impl MathStore {
         self.entries
             .iter()
             .find(|(key, _)| key.tex == tex)
-            .map(|(_, state)| state)
+            .map(|(_, entry)| &entry.state)
     }
 
     /// Forgets renders queued by earlier layouts; the frame about to be laid
     /// out queues the ones it shows.
     pub fn begin_frame(&mut self) {
         self.queued.clear();
+        self.frame += 1;
     }
 
     /// Renders to start now.
@@ -175,7 +216,45 @@ impl MathStore {
     /// Stores a finished render.
     pub fn finish(&mut self, key: MathKey, state: MathState) {
         self.started.remove(&key);
-        self.entries.insert(key, state);
+        self.ready_bytes += pixel_bytes(&state);
+        let last_used = self
+            .entries
+            .get(&key)
+            .map_or(self.frame, |old| old.last_used);
+        let replaced = self.entries.insert(key, Entry { state, last_used });
+        if let Some(old) = replaced {
+            self.ready_bytes -= pixel_bytes(&old.state);
+        }
+        if self.ready_bytes > self.kept_bytes {
+            self.let_go_of_unused();
+        }
+    }
+
+    /// Lets go of every rendered equation; the next draw renders them again.
+    pub fn release_renders(&mut self) {
+        self.entries
+            .retain(|_, entry| !matches!(entry.state, MathState::Ready(_)));
+        self.ready_bytes = 0;
+    }
+
+    /// Lets go of the equations drawn least recently, but none the last
+    /// frame drew, until a quarter of what it keeps is free.
+    fn let_go_of_unused(&mut self) {
+        let mut unused: Vec<(u64, MathKey, usize)> = self
+            .entries
+            .iter()
+            .filter(|(_, entry)| entry.last_used < self.frame)
+            .map(|(key, entry)| (entry.last_used, key.clone(), pixel_bytes(&entry.state)))
+            .filter(|(_, _, bytes)| *bytes > 0)
+            .collect();
+        unused.sort_unstable_by_key(|(last_used, _, _)| *last_used);
+        for (_, key, bytes) in unused {
+            if self.ready_bytes <= self.kept_bytes / 4 * 3 {
+                break;
+            }
+            self.entries.remove(&key);
+            self.ready_bytes -= bytes;
+        }
     }
 
     /// Whether no render is queued or running.
@@ -297,6 +376,35 @@ pub(crate) mod tests {
             panic!("the render failed");
         };
         assert_eq!(message.as_ref(), "unknown command");
+    }
+
+    #[test]
+    fn equations_not_drawn_lately_are_let_go_past_the_limit() {
+        // Each stub render of a 25-letter source is 200 by 20 pixels.
+        let bytes = 200 * 20 * 4;
+        let mut store = MathStore::with_renderer(stub_renderer()).keeping(bytes * 4);
+        let source = |n: usize| format!("{n:0>25}");
+        for n in 0..4 {
+            store.begin_frame();
+            store.lookup(key(&source(n)));
+            run_all(&mut store);
+        }
+        assert!(
+            store
+                .entries
+                .values()
+                .all(|entry| pixel_bytes(&entry.state) == bytes)
+        );
+        store.begin_frame();
+        store.lookup(key(&source(0)));
+        store.lookup(key(&source(4)));
+        run_all(&mut store);
+        assert!(store.ready_bytes <= bytes * 3, "back under three quarters");
+        let kept = |n: usize| store.entries.contains_key(&key(&source(n)));
+        assert!(kept(0) && kept(4), "the frame's own equations stay");
+        assert!(!kept(1) && !kept(2), "the oldest go first");
+        assert!(kept(3));
+        assert!(matches!(store.lookup(key(&source(1))), MathState::Pending));
     }
 
     #[test]

@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use gpui::{AppContext, Application, Bounds, WindowBounds, WindowOptions, px, size};
+use gpui::{App, AppContext, Application, Bounds, WindowBounds, WindowOptions, px, size};
 
 use crate::actions::bind_keys;
 use crate::bench::BenchConfig;
@@ -46,11 +46,8 @@ pub fn launch(target: LaunchTarget) {
             bind_keys(cx);
             crate::features::bind_view_keys(cx);
         }
-        {
-            let _span = trace::span("app-menus");
-            set_app_menus(cx, &built_in_available(&crate::features::WIRED_COMMANDS));
-            use_in_window_prompts(cx);
-        }
+        crate::first_frame::defer(set_menus);
+        use_in_window_prompts(cx);
         #[cfg(target_os = "macos")]
         crate::look_up::install(cx);
         crate::window_drag::install();
@@ -68,14 +65,33 @@ pub fn launch(target: LaunchTarget) {
             }
         })
         .detach();
+        trace::mark("launched");
     });
+}
+
+/// Builds the menu bar. The first frame doesn't show it, and AppKit takes
+/// about 15 ms to build it (it adds the Edit menu's system items, which
+/// loads Writing Tools), so launch leaves it until the window is on screen.
+fn set_menus(cx: &mut App) {
+    let _span = trace::span("app-menus");
+    set_app_menus(cx, &built_in_available(&crate::features::WIRED_COMMANDS));
 }
 
 /// Opens a lone editor on `note`, runs the layout benchmark and quits.
 pub fn launch_bench(note: LoadedNote, bench: BenchConfig) {
     start_watchdog();
     start_x11_wake();
-    Application::new().with_assets(Assets).run(move |cx| {
+    let hidden = bench.hidden && cfg!(target_os = "macos");
+    #[cfg(target_os = "macos")]
+    if hidden {
+        crate::snapshot::hidden::prepare();
+    }
+    let application = Application::new().with_assets(Assets);
+    #[cfg(target_os = "macos")]
+    if hidden {
+        crate::snapshot::hidden::keep_app_in_background();
+    }
+    application.run(move |cx| {
         bind_keys(cx);
         // The app lists the fonts just after its first frame and the
         // theme then settles on installed ones; the bench measures that
@@ -89,6 +105,8 @@ pub fn launch_bench(note: LoadedNote, bench: BenchConfig) {
         );
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
+            show: !hidden,
+            focus: !hidden,
             ..Default::default()
         };
         let opened = cx.open_window(options, |_, cx| {
@@ -112,7 +130,14 @@ pub fn launch_bench(note: LoadedNote, bench: BenchConfig) {
                 view.apply_prose_settings(&prose, cx);
             }
             view.start_bench(bench, window, cx);
-            cx.activate(true);
+            if !hidden {
+                cx.activate(true);
+            }
+            #[cfg(target_os = "macos")]
+            if hidden && let Err(error) = crate::snapshot::hidden::keep_drawing(window, cx) {
+                eprintln!("could not draw the hidden window: {error}");
+                std::process::exit(1);
+            }
         });
         if let Err(error) = started {
             eprintln!("could not start {}: {error}", gasp_config::APP_NAME);

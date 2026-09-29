@@ -410,6 +410,21 @@ impl VisualLine {
         self.rows.is_empty()
     }
 
+    /// Swaps every picture the line holds (images, equations, previews)
+    /// for `stand_in`, so they can be let go while the line's geometry
+    /// stays. Lines with pictures are laid out again before they're drawn.
+    pub fn forget_pictures(&mut self, stand_in: &Arc<RenderImage>) {
+        let pieces = self.rows.iter_mut().flat_map(|row| row.pieces.iter_mut());
+        for piece in pieces {
+            if let PieceContent::Image { image, .. } = &mut piece.content {
+                *image = stand_in.clone();
+            }
+        }
+        for overlay in &mut self.overlays {
+            overlay.image = stand_in.clone();
+        }
+    }
+
     /// The right edge of the widest row.
     pub fn width(&self) -> Pixels {
         self.rows
