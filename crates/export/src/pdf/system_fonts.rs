@@ -102,6 +102,7 @@ fn list_font_files(dir: &Path, depth: usize, files: &mut Vec<PathBuf>) {
     }
 }
 
+#[cfg(not(target_os = "ios"))]
 fn home() -> Option<PathBuf> {
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
@@ -130,7 +131,14 @@ fn font_dirs() -> Vec<PathBuf> {
     dirs
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+/// An iPhone app may read the system's own fonts, Charter and Iowan Old
+/// Style among them.
+#[cfg(target_os = "ios")]
+fn font_dirs() -> Vec<PathBuf> {
+    vec![PathBuf::from("/System/Library/Fonts")]
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
 fn font_dirs() -> Vec<PathBuf> {
     let mut dirs = vec![
         PathBuf::from("/usr/share/fonts"),
