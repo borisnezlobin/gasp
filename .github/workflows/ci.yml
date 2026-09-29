@@ -102,8 +102,10 @@ jobs:
         run: >-
           cargo build --release --locked
           -p gasp-core -p gasp-config -p gasp-ffi -p gasp-search -p gasp-vault
+          -p gasp-math -p gasp-prose -p gasp-export
           --example core_bench --example config_bench --example ffi_bench
           --example search_bench --example vault_bench
+          --example math_bench --example prose_bench --example export_bench
       - name: Parser, planner and typing
         timeout-minutes: 5
         run: cargo run --release --locked -p gasp-core --example core_bench
@@ -119,6 +121,15 @@ jobs:
       - name: Vault
         timeout-minutes: 5
         run: cargo run --release --locked -p gasp-vault --example vault_bench
+      - name: Math
+        timeout-minutes: 5
+        run: cargo run --release --locked -p gasp-math --example math_bench
+      - name: Prose and grammar
+        timeout-minutes: 5
+        run: cargo run --release --locked -p gasp-prose --example prose_bench
+      - name: Export
+        timeout-minutes: 5
+        run: cargo run --release --locked -p gasp-export --example export_bench
 
   lint:
     name: Format and complexity
