@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the Rust core for iPhones and the Apple-silicon simulator into
-# apps/ios/Core/EditorCore.xcframework, and generates its Swift bindings
+# apps/ios/Core/GaspCore.xcframework, and generates its Swift bindings
 # into apps/ios/Core/Generated. Run it from anywhere, after any change to
 # the Rust code, before building the app.
 #
@@ -50,13 +50,13 @@ cargo run --quiet -p uniffi-bindgen -- generate \
 cp "$work_dir/bindings/editor_ffiFFI.h" "$work_dir/headers/"
 cp "$work_dir/bindings/editor_ffiFFI.modulemap" "$work_dir/headers/module.modulemap"
 
-echo "Packing EditorCore.xcframework"
-rm -rf "$core_dir/EditorCore.xcframework"
+echo "Packing GaspCore.xcframework"
+rm -rf "$core_dir/GaspCore.xcframework"
 mkdir -p "$core_dir/Generated"
 xcodebuild -create-xcframework \
   -library "$(library aarch64-apple-ios)" -headers "$work_dir/headers" \
   -library "$(library aarch64-apple-ios-sim)" -headers "$work_dir/headers" \
-  -output "$core_dir/EditorCore.xcframework" >/dev/null
+  -output "$core_dir/GaspCore.xcframework" >/dev/null
 cp "$work_dir/bindings/editor_ffi.swift" "$core_dir/Generated/editor_ffi.swift"
 
 echo "Done: $core_dir"

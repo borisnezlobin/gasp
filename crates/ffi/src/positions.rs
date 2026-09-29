@@ -1,4 +1,4 @@
-//! Where the reader was in each note, kept in `.editor/device.toml`
+//! Where the reader was in each note, kept in `.gasp/device.toml`
 //! (which never syncs) so a note opens where it was left after a relaunch:
 //! the cursor, the line at the top of the view and the folded headings.
 

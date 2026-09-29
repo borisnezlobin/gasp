@@ -6,7 +6,7 @@ import Foundation
 final class NoteSaver {
     private let vault: VaultFolder
     var path: String
-    private let disk = DispatchQueue(label: "com.borisnezlobin.editor.save")
+    private let disk = DispatchQueue(label: "com.borisnezlobin.gasp.save")
     private var unsavedText: String?
     private var afterSave: (() -> Void)?
     private var timer: DispatchWorkItem?

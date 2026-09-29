@@ -1,5 +1,5 @@
 included:
-  - Editor
+  - Gasp
 
 excluded:
   - Core

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Every setting in the vault's `.editor/settings.toml`, grouped as the
+/// Every setting in the vault's `.gasp/settings.toml`, grouped as the
 /// schema groups them, each with the control its kind needs. Changes are
 /// written back at once, and a value the app wouldn't load is refused
 /// with the reason.
