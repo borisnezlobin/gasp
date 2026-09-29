@@ -2,6 +2,8 @@
 
 use std::ops::Range;
 
+use smallvec::SmallVec;
+
 use super::kinds::{MarkupKind, NodeKind};
 
 /// Index of a node in a [`SyntaxTree`].
@@ -15,6 +17,13 @@ pub struct Markup {
     pub range: Range<usize>,
 }
 
+/// A node's markup tokens. Most nodes have none, one or two, which are
+/// kept in the node itself rather than in an allocation of their own.
+pub type MarkupTokens = SmallVec<[Markup; 2]>;
+
+/// A node's content ranges. Nearly every node has exactly one.
+pub type ContentRanges = SmallVec<[Range<usize>; 1]>;
+
 /// One node of the tree.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Node {
@@ -22,9 +31,9 @@ pub struct Node {
     /// The whole source range, markup included, without trailing newlines.
     pub range: Range<usize>,
     /// Markup tokens in source order.
-    pub markup: Vec<Markup>,
+    pub markup: MarkupTokens,
     /// The node's range minus its markup, in source order.
-    pub content: Vec<Range<usize>>,
+    pub content: ContentRanges,
     pub parent: Option<NodeId>,
     pub children: Vec<NodeId>,
 }
@@ -34,8 +43,8 @@ impl Node {
         Self {
             kind,
             range,
-            markup: Vec::new(),
-            content: Vec::new(),
+            markup: MarkupTokens::new(),
+            content: ContentRanges::new(),
             parent: None,
             children: Vec::new(),
         }
@@ -90,6 +99,24 @@ impl LineIndex {
         }
     }
 
+    /// [`LineIndex::edited`] in place, moving the lines after the edit
+    /// rather than copying the whole index.
+    pub fn edit(&mut self, new_text: &str, edit: &super::Edit) {
+        let new_end = edit.old.start + edit.new_len;
+        let kept = self
+            .starts
+            .partition_point(|&start| start <= edit.old.start);
+        let after = self.starts.partition_point(|&start| start <= edit.old.end);
+        let delta = edit.new_len as isize - edit.old.len() as isize;
+        for start in &mut self.starts[after..] {
+            *start = (*start as isize + delta) as usize;
+        }
+        let inserted =
+            memchr_newlines(&new_text[edit.old.start..new_end]).map(|at| edit.old.start + at + 1);
+        self.starts.splice(kept..after, inserted);
+        self.len = new_text.len();
+    }
+
     pub fn line_count(&self) -> usize {
         self.starts.len()
     }
@@ -119,10 +146,7 @@ impl LineIndex {
 }
 
 fn memchr_newlines(text: &str) -> impl Iterator<Item = usize> + '_ {
-    text.bytes()
-        .enumerate()
-        .filter(|(_, byte)| *byte == b'\n')
-        .map(|(at, _)| at)
+    memchr::memchr_iter(b'\n', text.as_bytes())
 }
 
 /// A parsed document.
@@ -255,6 +279,9 @@ mod tests {
             };
             let edited = index.edited(&new_text, &edit);
             assert_eq!(edited, LineIndex::new(&new_text), "{old:?} {insert:?}");
+            let mut in_place = index.clone();
+            in_place.edit(&new_text, &edit);
+            assert_eq!(in_place, edited, "in place, {old:?} {insert:?}");
         }
     }
 

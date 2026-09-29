@@ -12,6 +12,8 @@ regex = "1"
 gasp-config = { path = "../config" }
 gasp-snippets = { path = "../snippets" }
 pulldown-cmark = { version = "0.13.4", default-features = false }
+memchr = "2"
+smallvec = { version = "1", features = ["union"] }
 unicode-width = "0.2"
 url = "2"
 
