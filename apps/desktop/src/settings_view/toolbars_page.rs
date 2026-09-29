@@ -9,7 +9,7 @@
 use gasp_config::commands::{BUILTIN_COMMANDS, command_spec};
 use gasp_config::toolbar_files;
 use gasp_config::toolbars::{
-    Behaviour, ButtonStyle, Density, MENU_PREFIX, Place, SEPARATOR, SPACER, Toolbar,
+    Behaviour, ButtonStyle, Density, MENU_PREFIX, Place, SEPARATOR, SPACER, Surface, Toolbar,
     ToolbarContext, ToolbarItem, Toolbars, Widget, choice_name,
 };
 use gpui::{Context, Window};
@@ -29,15 +29,23 @@ pub enum ToolbarField {
     Behaviour,
     Style,
     Density,
+    Surface,
 }
 
 impl ToolbarField {
-    pub const ALL: [ToolbarField; 4] = [
+    pub const ALL: [ToolbarField; 5] = [
         ToolbarField::Place,
+        ToolbarField::Surface,
         ToolbarField::Behaviour,
         ToolbarField::Style,
         ToolbarField::Density,
     ];
+
+    /// Whether `toolbar` has the choice: only a bar docked along the
+    /// note can float over it.
+    pub fn applies_to(self, toolbar: &Toolbar) -> bool {
+        self != ToolbarField::Surface || toolbar.place.can_overlay()
+    }
 
     /// The field's name in `toolbars.toml`.
     pub fn key(self) -> &'static str {
@@ -46,6 +54,7 @@ impl ToolbarField {
             ToolbarField::Behaviour => "behaviour",
             ToolbarField::Style => "style",
             ToolbarField::Density => "density",
+            ToolbarField::Surface => "surface",
         }
     }
 
@@ -55,6 +64,7 @@ impl ToolbarField {
             ToolbarField::Behaviour => "When it shows",
             ToolbarField::Style => "Buttons show",
             ToolbarField::Density => "Size",
+            ToolbarField::Surface => "How it sits",
         }
     }
 
@@ -65,6 +75,7 @@ impl ToolbarField {
             ToolbarField::Behaviour => Behaviour::ALL.map(choice_name).to_vec(),
             ToolbarField::Style => ButtonStyle::ALL.map(choice_name).to_vec(),
             ToolbarField::Density => Density::ALL.map(choice_name).to_vec(),
+            ToolbarField::Surface => Surface::ALL.map(choice_name).to_vec(),
         }
     }
 
@@ -75,6 +86,7 @@ impl ToolbarField {
             ToolbarField::Behaviour => choice_name(toolbar.behaviour),
             ToolbarField::Style => choice_name(toolbar.style),
             ToolbarField::Density => choice_name(toolbar.density),
+            ToolbarField::Surface => choice_name(toolbar.surface),
         }
     }
 
@@ -105,6 +117,8 @@ const TOOLBAR_LABELS: &[(&str, &str)] = &[
     ("labels", "Labels"),
     ("compact", "Compact"),
     ("comfortable", "Comfortable"),
+    ("strip", "Sits beside the note"),
+    ("overlay", "Floats over the note"),
     ("text", "Text"),
     ("math", "Math"),
     ("code", "Code"),
@@ -123,7 +137,11 @@ fn toolbar_summary(toolbar: &Toolbar) -> String {
     if !toolbar.enabled {
         return "Turned off.".to_owned();
     }
-    let place = place_phrase(toolbar.place);
+    let place = if toolbar.floats_over_note() {
+        floating_place_phrase(toolbar.place)
+    } else {
+        place_phrase(toolbar.place)
+    };
     let when = match toolbar.behaviour {
         Behaviour::Always => "always",
         Behaviour::OnHover => "when the pointer comes near",
@@ -146,6 +164,17 @@ fn place_phrase(place: Place) -> &'static str {
         Place::CursorLine => "At the end of the cursor’s line",
         Place::Keyboard => "Above the iPhone’s keyboard",
         Place::BrowserBar => "Along the bottom of the iPhone’s screen",
+    }
+}
+
+/// Where a bar floating over the note sits, to start the summary's
+/// sentence.
+fn floating_place_phrase(place: Place) -> &'static str {
+    match place {
+        Place::EditorBottom => "Floating over the bottom of the note",
+        Place::WindowLeft => "Floating over the note’s left side",
+        Place::WindowRight => "Floating over the note’s right side",
+        _ => "Floating over the top of the note",
     }
 }
 
@@ -242,6 +271,7 @@ impl SettingsView {
         rows.extend(
             ToolbarField::ALL
                 .into_iter()
+                .filter(|field| field.applies_to(toolbar))
                 .map(|field| ControlRow::ToolbarField {
                     toolbar: id.clone(),
                     field,

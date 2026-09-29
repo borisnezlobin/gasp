@@ -1,25 +1,30 @@
-//! The toolbars the workspace draws, docked in the status bar, above or
-//! below the notes and down the window's sides, and the keyboard's way
-//! through every toolbar: `toolbar.focus` moves into them (again, to the
-//! next one), the arrows move between buttons, Enter or Space presses,
-//! Tab goes to the next bar and Escape goes back to the note.
+//! The toolbars the workspace draws, docked in the status bar, down the
+//! window's sides and on the note's card in the active pane (a strip at
+//! its top or bottom, or a pill floating over the note), and the
+//! keyboard's way through every toolbar: `toolbar.focus` moves into them
+//! (again, to the next one), the arrows move between buttons, Enter or
+//! Space presses, Tab goes to the next bar and Escape goes back to the
+//! note.
 
 use std::collections::HashMap;
 
 use gasp_config::toolbars::{Behaviour, Place, Toolbar, ToolbarConditions, ToolbarItem};
 use gpui::{
-    AnyElement, Context, Div, KeyDownEvent, MouseButton, MouseDownEvent, Task, Window, div,
-    prelude::*,
+    AnyElement, App, Context, Div, KeyDownEvent, MouseButton, MouseDownEvent, SharedString, Task,
+    Window, div, prelude::*,
 };
 
 use super::Workspace;
+use super::pane::CardBars;
 use crate::icons::IconName;
 use crate::keymap::RunCommand;
+use crate::toolbar::fitted::{FittedItems, OverflowCell};
 use crate::toolbar::render::{
-    BarFrame, BarState, WidgetWidths, add_button, bar, bar_items, floating_surface,
+    BarFrame, BarState, WidgetWidths, add_button, bar, bar_items, bar_thickness, fitted_bar_items,
 };
 use crate::toolbar::{
-    AddToToolbar, FocusStop, PressToolbarItem, ToolbarFocus, focus_stops, item_key, step_stop,
+    AddToToolbar, FocusStop, OpenToolbarOverflow, PressToolbarItem, ToolbarFocus, fitted_stops,
+    focus_stops, item_key, more_key, overflow_items, step_stop,
 };
 use crate::ui::Selectable;
 use crate::ui::{DrawnArea, MenuAnchor, MenuItem};
@@ -33,6 +38,14 @@ const DOCKED: [Place; 5] = [
     Place::StatusBar,
 ];
 
+/// The edges of the note's card a bar can float over.
+const CARD_EDGES: [Place; 4] = [
+    Place::EditorTop,
+    Place::EditorBottom,
+    Place::WindowLeft,
+    Place::WindowRight,
+];
+
 /// Bars shown on hover: which edges have one showing, and the timers
 /// that show or hide one after the pointer rests.
 #[derive(Default)]
@@ -41,13 +54,34 @@ pub(crate) struct ToolbarHover {
     reveal: Option<(Place, Task<()>)>,
     hide: HashMap<Place, Task<()>>,
     /// Where each place's shown bars were last drawn.
-    areas: HashMap<Place, DrawnArea>,
+    areas: HashMap<(Layer, Place), DrawnArea>,
     /// Where the pointer was last seen, in the window or leaving it.
     pointer: Option<gpui::Point<gpui::Pixels>>,
     /// Whether the pointer is on the status bar, which shows its add button.
     on_status_bar: bool,
     /// The status widgets' widest widths, so they don't shuffle.
     status_widths: WidgetWidths,
+    /// Each fitted bar's first item that went into its More button.
+    overflow: HashMap<String, OverflowCell>,
+}
+
+/// A place's bars sorted by how they sit.
+#[derive(Default)]
+struct PlaceBars {
+    /// In a strip of their own.
+    steady: Vec<Toolbar>,
+    /// Shown on hover, floating over the strip's edge.
+    hovering: Vec<Toolbar>,
+    /// Floating over the note as pills.
+    over_note: Vec<Toolbar>,
+}
+
+/// Where a bar shown on hover or over the note floats: over the window's
+/// edge, or over the note's card.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Layer {
+    Window,
+    Card,
 }
 
 /// A place's docked bars: the strip they take in the layout, and the
@@ -96,20 +130,33 @@ impl Workspace {
             .map(|focus| focus.stop)
     }
 
-    /// The docked bars at `place`, drawn for this frame.
+    fn bars_at(&self, place: Place) -> PlaceBars {
+        let mut bars = PlaceBars::default();
+        for toolbar in self.config.toolbars.at(place).cloned() {
+            let group = match (toolbar.floats_over_note(), toolbar.behaviour) {
+                (true, _) => &mut bars.over_note,
+                (false, Behaviour::OnHover) => &mut bars.hovering,
+                (false, _) => &mut bars.steady,
+            };
+            group.push(toolbar);
+        }
+        bars
+    }
+
+    /// The bars along the window's edge at `place` (the status bar and
+    /// its sides), drawn for this frame.
     pub(crate) fn docked_bars(
         &mut self,
         place: Place,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> DockedBars {
-        let toolbars: Vec<Toolbar> = self.config.toolbars.at(place).cloned().collect();
-        let (hovering, steady): (Vec<Toolbar>, Vec<Toolbar>) = toolbars
-            .into_iter()
-            .partition(|toolbar| toolbar.behaviour == Behaviour::OnHover);
+        let PlaceBars {
+            steady, hovering, ..
+        } = self.bars_at(place);
         let strip = (!steady.is_empty()).then(|| self.strip(place, &steady, window, cx));
-        let overlay = self.hover_overlay(place, &hovering, window, cx);
-        let edge = (!hovering.is_empty()).then(|| self.hover_edge(place, cx));
+        let overlay = self.floating_bars(place, Layer::Window, &hovering, cx);
+        let edge = (!hovering.is_empty()).then(|| self.hover_edge(place, Layer::Window, cx));
         DockedBars {
             strip,
             overlay,
@@ -117,11 +164,88 @@ impl Workspace {
         }
     }
 
+    /// The bars a pane's card holds this frame. The active pane's card has
+    /// the bars at the top and bottom of the notes and the ones floating
+    /// over the note; the others keep the strips' room, empty, so nothing
+    /// moves when another pane becomes the active one.
+    pub(crate) fn card_bars(
+        &mut self,
+        active: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> CardBars {
+        let top = self.card_strip(Place::EditorTop, active, window, cx);
+        let bottom = self.card_strip(Place::EditorBottom, active, window, cx);
+        let over_note = if active {
+            CARD_EDGES
+                .into_iter()
+                .flat_map(|place| self.card_layers(place, cx))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        CardBars {
+            top,
+            bottom,
+            over_note,
+        }
+    }
+
+    fn card_strip(
+        &mut self,
+        place: Place,
+        active: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let steady = self.bars_at(place).steady;
+        if steady.is_empty() {
+            return None;
+        }
+        if active {
+            return Some(self.strip(place, &steady, window, cx));
+        }
+        let ui = crate::ui::ui_theme(cx);
+        let frame = Self::frame_for(place);
+        let depth = steady
+            .iter()
+            .map(|toolbar| bar_thickness(frame, toolbar.density, &ui))
+            .fold(gpui::px(0.), gpui::Pixels::max);
+        Some(div().flex_none().w_full().h(depth).into_any_element())
+    }
+
+    /// The bars floating over the card's edge at `place`, and the strip
+    /// that reveals the ones shown on hover.
+    fn card_layers(&mut self, place: Place, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let PlaceBars {
+            hovering,
+            over_note,
+            ..
+        } = self.bars_at(place);
+        let mut floating = over_note;
+        if !place.is_vertical() {
+            floating.extend(hovering);
+        }
+        let reveals = floating
+            .iter()
+            .any(|toolbar| toolbar.behaviour == Behaviour::OnHover);
+        let edge = reveals.then(|| self.hover_edge(place, Layer::Card, cx));
+        let bars = self.floating_bars(place, Layer::Card, &floating, cx);
+        edge.into_iter().chain(bars).collect()
+    }
+
     fn frame_for(place: Place) -> BarFrame {
         match place {
             Place::StatusBar => BarFrame::StatusBar,
             Place::WindowLeft | Place::WindowRight => BarFrame::Column,
             _ => BarFrame::Row,
+        }
+    }
+
+    fn floating_frame_for(place: Place) -> BarFrame {
+        match place {
+            Place::WindowLeft | Place::WindowRight => BarFrame::FloatingColumn,
+            _ => BarFrame::Floating,
         }
     }
 
@@ -142,7 +266,7 @@ impl Workspace {
         let bars: Vec<AnyElement> = toolbars
             .iter()
             .map(|toolbar| {
-                let items = self.items_if_shown(toolbar, frame, None, window, cx);
+                let items = self.fitted_if_shown(toolbar, frame, cx);
                 self.with_context_menu(
                     bar(frame, toolbar.density, &ui).children(items),
                     toolbar,
@@ -223,6 +347,50 @@ impl Workspace {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
+        self.draw_items(toolbar, frame, cx, |state, attached, cx| {
+            bar_items(toolbar, state, attached, add, cx)
+        })
+    }
+
+    /// A bar's items fitted to its length when it shows now, else none.
+    fn fitted_if_shown(
+        &mut self,
+        toolbar: &Toolbar,
+        frame: BarFrame,
+        cx: &mut Context<Self>,
+    ) -> Option<FittedItems> {
+        let overflow = self
+            .toolbar_hover
+            .overflow
+            .entry(toolbar.id.clone())
+            .or_default()
+            .clone();
+        if !toolbar.is_shown(&self.conditions_for(toolbar, cx)) {
+            overflow.set(None);
+            return None;
+        }
+        Some(self.draw_items(toolbar, frame, cx, |state, attached, cx| {
+            fitted_bar_items(toolbar, state, attached, overflow, cx)
+        }))
+    }
+
+    /// The first of `toolbar`'s items that went into its More button, as
+    /// it was last drawn.
+    fn first_hidden(&self, toolbar: &str) -> Option<usize> {
+        self.toolbar_hover
+            .overflow
+            .get(toolbar)
+            .and_then(|overflow| overflow.get())
+    }
+
+    /// Draws `toolbar`'s items with `draw`, from what they show now.
+    fn draw_items<R>(
+        &mut self,
+        toolbar: &Toolbar,
+        frame: BarFrame,
+        cx: &mut Context<Self>,
+        draw: impl FnOnce(&BarState<'_>, &mut dyn FnMut(&str) -> Option<AnyElement>, &mut App) -> R,
+    ) -> R {
         let active = self
             .active_editor(cx)
             .map(|editor| editor.read(cx).active_commands())
@@ -252,7 +420,7 @@ impl Workspace {
             menus: &menus,
             frame,
         };
-        bar_items(toolbar, &state, &mut attached, add, cx)
+        draw(&state, &mut attached, cx)
     }
 
     /// A right-click on a bar offers to add to it, customize toolbars or
@@ -321,10 +489,10 @@ impl Workspace {
     // ---- Shown on hover ----
 
     /// The strip along `place`'s edge that shows its hover bars.
-    fn hover_edge(&self, place: Place, cx: &mut Context<Self>) -> AnyElement {
+    fn hover_edge(&self, place: Place, layer: Layer, cx: &mut Context<Self>) -> AnyElement {
         let ui = crate::ui::ui_theme(cx);
         let edge = edge_at(div(), place, ui.toolbar.hover_edge).id(gpui::ElementId::Name(
-            format!("toolbar-edge-{place:?}").into(),
+            format!("toolbar-edge-{layer:?}-{place:?}").into(),
         ));
         edge.on_hover(cx.listener(move |workspace, hovered: &bool, window, cx| {
             if *hovered {
@@ -381,8 +549,8 @@ impl Workspace {
         let pointer = self.toolbar_hover.pointer.is_some_and(|pointer| {
             self.toolbar_hover
                 .areas
-                .get(&place)
-                .is_some_and(|area| area.contains(pointer))
+                .iter()
+                .any(|((_, at), area)| *at == place && area.contains(pointer))
         });
         let keyboard = self.toolbar_focus.as_ref().is_some_and(|focus| {
             self.config
@@ -414,44 +582,52 @@ impl Workspace {
         self.toolbar_hover.hide.insert(place, task);
     }
 
-    /// A place's hover bars, floating over its edge while they show.
-    fn hover_overlay(
+    /// Bars floating over `place`'s edge while they show, as pills
+    /// centred along it and inset by the theme's spacing. They take no
+    /// room, and each fits its items to the room the edge has.
+    fn floating_bars(
         &mut self,
         place: Place,
+        layer: Layer,
         toolbars: &[Toolbar],
-        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        let frame = Self::frame_for(place);
+        let frame = Self::floating_frame_for(place);
         let ui = crate::ui::ui_theme(cx);
-        let shown: Vec<&Toolbar> = toolbars
+        let bars: Vec<AnyElement> = toolbars
             .iter()
-            .filter(|toolbar| toolbar.is_shown(&self.conditions_for(toolbar, cx)))
-            .collect();
-        let bars: Vec<AnyElement> = shown
-            .into_iter()
-            .map(|toolbar| {
-                let items = self.render_items(toolbar, frame, None, window, cx);
-                let body = floating_surface(bar(frame, toolbar.density, &ui), &ui).children(items);
-                self.with_context_menu(body, toolbar, cx)
+            .filter_map(|toolbar| {
+                let items = self.fitted_if_shown(toolbar, frame, cx)?;
+                let pill = bar(frame, toolbar.density, &ui)
+                    .occlude()
+                    .child(items.hug());
+                Some(self.with_context_menu(pill, toolbar, cx))
             })
             .collect();
-        let area = self.toolbar_hover.areas.entry(place).or_default().clone();
+        let area = self
+            .toolbar_hover
+            .areas
+            .entry((layer, place))
+            .or_default()
+            .clone();
         if bars.is_empty() {
             area.set(None);
             return None;
         }
         let overlay = edge_at(div().flex().gap(ui.space_md), place, gpui::px(0.))
-            .when(frame == BarFrame::Column, |overlay| {
-                overlay.flex_col().p(ui.space_md)
+            .map(|overlay| {
+                if frame.is_column() {
+                    overlay.flex_col()
+                } else {
+                    overlay.flex_row()
+                }
             })
-            .when(frame != BarFrame::Column, |overlay| {
-                overlay.flex_row().justify_center().p(ui.space_xs)
-            })
+            .justify_center()
+            .items_center()
+            .p(ui.space_md)
             .id(gpui::ElementId::Name(
-                format!("toolbar-overlay-{place:?}").into(),
+                format!("toolbar-overlay-{layer:?}-{place:?}").into(),
             ))
-            .occlude()
             .child(area.probe().size_full())
             .children(bars);
         Some(overlay.into_any_element())
@@ -466,7 +642,11 @@ impl Workspace {
         let docked = DOCKED
             .iter()
             .flat_map(|place| self.config.toolbars.at(*place))
-            .map(|toolbar| (toolbar.id.clone(), focus_stops(toolbar, has_add(toolbar))));
+            .map(|toolbar| {
+                let stops = focus_stops(toolbar, has_add(toolbar));
+                let first_hidden = self.first_hidden(&toolbar.id);
+                (toolbar.id.clone(), fitted_stops(stops, first_hidden))
+            });
         let floating: Vec<(String, Vec<FocusStop>)> = self
             .active_editor(cx)
             .map(|editor| {
@@ -605,6 +785,7 @@ impl Workspace {
     fn press_stop(&mut self, focus: &ToolbarFocus, window: &mut Window, cx: &mut Context<Self>) {
         match focus.stop {
             FocusStop::Add => self.add_to_toolbar(&focus.toolbar, window, cx),
+            FocusStop::More => self.open_overflow(&focus.toolbar, window, cx),
             FocusStop::Item(index) => {
                 let press = PressToolbarItem {
                     toolbar: focus.toolbar.clone().into(),
@@ -670,30 +851,77 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(menu) = self.config.toolbars.menu(menu_id).cloned() else {
+        let Some(items) = self.menu_commands(menu_id, cx) else {
             return;
         };
-        let workspace = cx.entity().downgrade();
-        let items = menu
-            .items
-            .iter()
-            .map(|id| {
-                let command = id.clone();
-                let workspace = workspace.clone();
-                MenuItem::command(id, cx)
-                    .with_icon(IconName::for_command(id))
-                    .disabled(!self.can_run(id))
-                    .with_handler(move |window, cx| {
-                        workspace
-                            .update(cx, |workspace, cx| {
-                                workspace.press_command(&command, window, cx)
-                            })
-                            .ok();
-                    })
-            })
-            .collect();
         let anchor = self.menu_anchor(toolbar, index, by_pointer, window, cx);
         self.menu.open(items, anchor, window, cx);
+    }
+
+    /// The commands of `[menu.<menu_id>]`, each pressed as a bar's
+    /// button would be.
+    fn menu_commands(&self, menu_id: &str, cx: &mut Context<Self>) -> Option<Vec<MenuItem>> {
+        let menu = self.config.toolbars.menu(menu_id)?;
+        Some(
+            menu.items
+                .iter()
+                .map(|id| self.command_menu_item(id, cx))
+                .collect(),
+        )
+    }
+
+    fn command_menu_item(&self, id: &str, cx: &mut Context<Self>) -> MenuItem {
+        let command = id.to_owned();
+        let workspace = cx.entity().downgrade();
+        MenuItem::command(id, cx)
+            .with_icon(IconName::for_command(id))
+            .disabled(!self.can_run(id))
+            .with_handler(move |window, cx| {
+                workspace
+                    .update(cx, |workspace, cx| {
+                        workspace.press_command(&command, window, cx)
+                    })
+                    .ok();
+            })
+    }
+
+    pub(crate) fn on_open_toolbar_overflow(
+        &mut self,
+        action: &OpenToolbarOverflow,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_overflow(&action.toolbar, window, cx);
+    }
+
+    /// Opens the menu of `id`'s items that didn't fit on it, under (or
+    /// over) its More button.
+    fn open_overflow(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let (Some(toolbar), Some(first_hidden)) = (self.toolbar_by_id(id), self.first_hidden(id))
+        else {
+            return;
+        };
+        let items: Vec<MenuItem> = overflow_items(&toolbar.items[first_hidden..])
+            .iter()
+            .filter_map(|item| self.overflow_entry(item, cx))
+            .collect();
+        let anchor = more_anchor(toolbar.place, more_key(id).into());
+        self.menu.open(items, anchor, window, cx);
+    }
+
+    fn overflow_entry(&self, item: &ToolbarItem, cx: &mut Context<Self>) -> Option<MenuItem> {
+        match item {
+            ToolbarItem::Command(id) => Some(self.command_menu_item(id, cx)),
+            ToolbarItem::Menu(id) => {
+                let menu = self.config.toolbars.menu(id)?;
+                let icon = IconName::from_name(&menu.icon).unwrap_or(IconName::DotsThree);
+                let title = menu.title.clone();
+                let commands = self.menu_commands(id, cx)?;
+                Some(MenuItem::submenu(title, commands).with_icon(icon))
+            }
+            ToolbarItem::Separator => Some(MenuItem::Separator),
+            _ => None,
+        }
     }
 
     /// Under a docked bar's button, over one in the status bar, and at the
@@ -708,13 +936,7 @@ impl Workspace {
     ) -> MenuAnchor {
         let key = item_key(&toolbar.id, index).into();
         if !toolbar.place.is_floating() {
-            return match toolbar.place {
-                Place::StatusBar | Place::EditorBottom => MenuAnchor::Above { key },
-                _ => MenuAnchor::Below {
-                    key,
-                    align_right: toolbar.place == Place::WindowRight,
-                },
-            };
+            return docked_anchor(toolbar.place, key);
         }
         let corner = self
             .active_editor(cx)
@@ -746,6 +968,31 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.add_to_toolbar(&action.toolbar, window, cx);
+    }
+}
+
+/// Where a docked bar's menu hangs from the button called `key`: over it
+/// at the bottom of the window or the notes, else under it, lined up with
+/// its right edge down the window's right side.
+fn docked_anchor(place: Place, key: SharedString) -> MenuAnchor {
+    match place {
+        Place::StatusBar | Place::EditorBottom => MenuAnchor::Above { key },
+        _ => MenuAnchor::Below {
+            key,
+            align_right: place == Place::WindowRight,
+        },
+    }
+}
+
+/// Where the More menu hangs: a row's More button sits at its right end,
+/// so the menu lines up with the button's right edge.
+fn more_anchor(place: Place, key: SharedString) -> MenuAnchor {
+    match docked_anchor(place, key) {
+        MenuAnchor::Below { key, .. } if !place.is_vertical() => MenuAnchor::Below {
+            key,
+            align_right: true,
+        },
+        anchor => anchor,
     }
 }
 

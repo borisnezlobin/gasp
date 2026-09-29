@@ -5,8 +5,12 @@
 //! [`render`] draws a bar's items wherever it sits. The workspace draws the
 //! docked bars and moves keyboard focus through every bar
 //! (`toolbar.focus`); the editor draws the floating ones, where it knows
-//! the text's place on screen, in [`floating`].
+//! the text's place on screen, in [`floating`]. A docked bar's items are
+//! fitted to its length by [`fitted`], as [`fit`] decides, and the ones
+//! that don't fit go into a More button at its end.
 
+pub mod fit;
+pub mod fitted;
 pub mod floating;
 pub mod render;
 
@@ -26,6 +30,13 @@ pub struct PressToolbarItem {
     pub by_pointer: bool,
 }
 
+/// Opens the menu of toolbar `toolbar`'s items that don't fit on it.
+#[derive(Clone, Debug, PartialEq, Eq, Action)]
+#[action(namespace = toolbar, no_json)]
+pub struct OpenToolbarOverflow {
+    pub toolbar: SharedString,
+}
+
 /// Opens the Toolbars settings page with toolbar `toolbar`'s picker of
 /// things to add.
 #[derive(Clone, Debug, PartialEq, Eq, Action)]
@@ -38,6 +49,8 @@ pub struct AddToToolbar {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FocusStop {
     Item(usize),
+    /// The button holding the items that don't fit.
+    More,
     /// The button that adds to the bar.
     Add,
 }
@@ -61,6 +74,48 @@ pub fn focus_stops(toolbar: &Toolbar, has_add: bool) -> Vec<FocusStop> {
     items.chain(has_add.then_some(FocusStop::Add)).collect()
 }
 
+/// `stops` as a bar fitted to its length shows them: the items before
+/// `first_hidden`, then its More button, when some didn't fit.
+pub fn fitted_stops(stops: Vec<FocusStop>, first_hidden: Option<usize>) -> Vec<FocusStop> {
+    let Some(first_hidden) = first_hidden else {
+        return stops;
+    };
+    let shown = |stop: &FocusStop| match stop {
+        FocusStop::Item(index) => *index < first_hidden,
+        _ => true,
+    };
+    let (items, rest): (Vec<FocusStop>, Vec<FocusStop>) = stops
+        .into_iter()
+        .filter(shown)
+        .partition(|stop| matches!(stop, FocusStop::Item(_)));
+    items
+        .into_iter()
+        .chain([FocusStop::More])
+        .chain(rest)
+        .collect()
+}
+
+/// What a bar's More menu offers from the items that didn't fit: its
+/// commands, menus and the separators between them, never two separators
+/// in a row or one at either end.
+pub fn overflow_items(items: &[ToolbarItem]) -> Vec<ToolbarItem> {
+    let mut offered: Vec<ToolbarItem> = Vec::new();
+    for item in items {
+        let after_separator = offered
+            .last()
+            .is_none_or(|last| *last == ToolbarItem::Separator);
+        match item {
+            ToolbarItem::Command(_) | ToolbarItem::Menu(_) => offered.push(item.clone()),
+            ToolbarItem::Separator if !after_separator => offered.push(item.clone()),
+            _ => {}
+        }
+    }
+    if offered.last() == Some(&ToolbarItem::Separator) {
+        offered.pop();
+    }
+    offered
+}
+
 /// The stop `step` places after `current` in `stops`, wrapping.
 pub fn step_stop(stops: &[FocusStop], current: FocusStop, step: isize) -> Option<FocusStop> {
     let at = stops.iter().position(|stop| *stop == current).unwrap_or(0) as isize;
@@ -71,6 +126,11 @@ pub fn step_stop(stops: &[FocusStop], current: FocusStop, step: isize) -> Option
 /// The element id and test selector of a bar's item.
 pub fn item_key(toolbar: &str, index: usize) -> String {
     format!("toolbar-{toolbar}-{index}")
+}
+
+/// The element id and test selector of a bar's More button.
+pub fn more_key(toolbar: &str) -> String {
+    format!("toolbar-{toolbar}-more")
 }
 
 /// The element id and test selector of a bar's add button.
@@ -136,6 +196,44 @@ mod tests {
         assert_eq!(
             step_stop(&stops, FocusStop::Item(1), -1),
             Some(FocusStop::Add)
+        );
+    }
+
+    #[test]
+    fn more_offers_commands_and_menus_with_separators_only_between() {
+        let command = |id: &str| ToolbarItem::Command(id.into());
+        let items = [
+            ToolbarItem::Separator,
+            command("format.bold"),
+            ToolbarItem::Separator,
+            ToolbarItem::Spacer,
+            ToolbarItem::Separator,
+            ToolbarItem::Menu("insert".into()),
+            ToolbarItem::Widget(gasp_config::toolbars::Widget::WordCount),
+            ToolbarItem::Separator,
+        ];
+        assert_eq!(
+            overflow_items(&items),
+            [
+                command("format.bold"),
+                ToolbarItem::Separator,
+                ToolbarItem::Menu("insert".into())
+            ]
+        );
+    }
+
+    #[test]
+    fn the_keyboard_stops_on_more_instead_of_items_that_do_not_fit() {
+        let stops = vec![
+            FocusStop::Item(0),
+            FocusStop::Item(2),
+            FocusStop::Item(3),
+            FocusStop::Add,
+        ];
+        assert_eq!(fitted_stops(stops.clone(), None), stops);
+        assert_eq!(
+            fitted_stops(stops, Some(2)),
+            [FocusStop::Item(0), FocusStop::More, FocusStop::Add]
         );
     }
 }
