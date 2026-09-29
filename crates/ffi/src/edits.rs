@@ -314,8 +314,12 @@ mod tests {
         else {
             panic!("expected an edit");
         };
-        let texts: Vec<&str> = replacements.iter().map(|r| r.text.as_str()).collect();
-        assert_eq!(texts.concat(), "****");
+        let mut text: Vec<u16> = "make this bold".encode_utf16().collect();
+        for replacement in replacements.iter().rev() {
+            let range = replacement.range.start as usize..replacement.range.end as usize;
+            text.splice(range, replacement.text.encode_utf16());
+        }
+        assert_eq!(String::from_utf16_lossy(&text), "make **this** bold");
         assert_eq!(selection, TextRange { start: 7, end: 11 });
     }
 

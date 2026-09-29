@@ -150,7 +150,7 @@ impl NoteDocument {
             .filter_map(|node| match node.kind {
                 NodeKind::Heading { level, .. } => Some(OutlineHeading {
                     level,
-                    title: joined(&parsed.text, &node.content).trim().to_owned(),
+                    title: plain_text(&parsed.text, &parsed.tree, node.range.clone()),
                     range: parsed.offsets.range(&node.range),
                 }),
                 _ => None,
@@ -251,8 +251,26 @@ fn sentence_length(length: Length) -> SentenceLength {
     }
 }
 
-fn joined(text: &str, ranges: &[Range<usize>]) -> String {
-    ranges.iter().map(|range| &text[range.clone()]).collect()
+/// The text in `range` as it reads, without the markup of any node in it,
+/// so `## Two *parts*` is "Two parts".
+fn plain_text(text: &str, tree: &SyntaxTree, range: Range<usize>) -> String {
+    let mut markup: Vec<Range<usize>> = tree
+        .nodes_overlapping(range.clone())
+        .into_iter()
+        .flat_map(|id| tree.node(id).markup.iter().map(|mark| mark.range.clone()))
+        .filter(|mark| range.start <= mark.start && mark.end <= range.end)
+        .collect();
+    markup.sort_by_key(|mark| mark.start);
+    let mut plain = String::new();
+    let mut at = range.start;
+    for mark in markup {
+        if mark.start > at {
+            plain.push_str(&text[at..mark.start]);
+        }
+        at = at.max(mark.end);
+    }
+    plain.push_str(&text[at.min(range.end)..range.end]);
+    plain.trim().to_owned()
 }
 
 fn link_target(kind: &NodeKind) -> Option<String> {

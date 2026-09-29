@@ -378,8 +378,8 @@ pub(crate) mod tests {
     #[test]
     fn cycling_symbols_changes_every_note() {
         let (_dir, vault) = vault_with(&[]);
-        let note = vault.document("**bold**".into());
-        let cursor_away = crate::offsets::TextRange { start: 8, end: 8 };
+        let note = vault.document("**bold** and more".into());
+        let cursor_away = crate::offsets::TextRange { start: 17, end: 17 };
         assert!(!note.plan(cursor_away).lines[0].hidden.is_empty());
         assert_eq!(vault.cycle_symbols(), SymbolVisibility::AlwaysHidden);
         assert_eq!(vault.cycle_symbols(), SymbolVisibility::AlwaysShown);
