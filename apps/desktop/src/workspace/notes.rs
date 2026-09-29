@@ -342,7 +342,7 @@ impl Workspace {
         self.forget_path(path, cx);
         if let Some(text) = text {
             let path = path.to_path_buf();
-            self.remember_deleted(super::deleted::DeletedNote { path, text }, cx);
+            self.remember_deleted(super::deleted::DeletedNote::new(path, text), cx);
         }
         Ok(())
     }

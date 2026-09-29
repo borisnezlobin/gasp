@@ -199,7 +199,7 @@ fn on_tree_event(
             let text = workspace.text_before_delete(path, cx).or(text.clone());
             if let Some(text) = text {
                 let path = path.clone();
-                workspace.remember_deleted(DeletedNote { path, text }, cx);
+                workspace.remember_deleted(DeletedNote::new(path, text), cx);
             }
         }
         FileTreeEvent::Failed { message } => {

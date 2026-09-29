@@ -180,6 +180,10 @@ fn a_deleted_note_comes_back_with_its_unsaved_edits(cx: &mut TestAppContext) {
         active_text(&workspace, cx).as_deref(),
         Some("first draft, and more")
     );
+    let offers_undo = shown_notices(cx)
+        .iter()
+        .any(|(_, message)| message.contains("to the trash"));
+    assert!(!offers_undo, "the Undo goes once the note is back");
 }
 
 #[gpui::test]
