@@ -32,7 +32,7 @@ pub(crate) fn assemble(
             })
             .collect(),
     };
-    let spans = sorter.sort_spans(effects.spans);
+    let spans = sorter.sort_spans(&effects.spans);
     sorter.sort_hidden(effects.hidden);
     sorter.sort_widgets(effects.widgets);
     sorter.sort_line_styles(effects.line_styles);
@@ -40,9 +40,10 @@ pub(crate) fn assemble(
     sorter.sort_table_rows(effects.table_rows);
     sorter.sort_shown_markers(effects.shown_markers);
     let mut plans = sorter.plans;
-    for (plan, line_spans) in plans.iter_mut().zip(spans) {
-        plan.runs = build_runs(&plan.range, &line_spans);
-        plan.hidden = merge(&plan.range, std::mem::take(&mut plan.hidden));
+    let mut cuts = Vec::new();
+    for (slot, plan) in plans.iter_mut().enumerate() {
+        plan.runs = build_runs(&plan.range, spans.line(slot), &mut cuts);
+        merge(&plan.range, &mut plan.hidden);
         plan.collapsed |= is_blank_after_hiding(revealer, plan);
     }
     plans
@@ -61,23 +62,44 @@ impl LineSorter<'_> {
             .filter(|&i| i < self.plans.len())
     }
 
-    fn slots_of(&self, range: &Range<usize>) -> Vec<usize> {
-        line_span(self.tree, range)
-            .filter_map(|line| self.slot(line))
-            .collect()
+    /// The slots of the planned lines that `range` touches.
+    fn slots_of(&self, range: &Range<usize>) -> Range<usize> {
+        self.slots_of_lines(line_span(self.tree, range))
     }
 
-    fn sort_spans(
-        &self,
-        spans: Vec<(Range<usize>, StyleKey)>,
-    ) -> Vec<Vec<(Range<usize>, StyleKey)>> {
-        let mut per_line = vec![Vec::new(); self.plans.len()];
-        for (range, style) in spans {
-            for slot in self.slots_of(&range) {
-                per_line[slot].push((range.clone(), style));
+    fn slots_of_lines(&self, lines: Range<usize>) -> Range<usize> {
+        let planned = self.first..self.first + self.plans.len();
+        let start = lines.start.clamp(planned.start, planned.end);
+        let end = lines.end.clamp(start, planned.end);
+        start - self.first..end - self.first
+    }
+
+    /// Each line's spans, in the order they came, gathered by a counting
+    /// sort into one list.
+    fn sort_spans<'s>(&self, spans: &'s [(Range<usize>, StyleKey)]) -> SpansByLine<'s> {
+        let slots: Vec<Range<usize>> = spans
+            .iter()
+            .map(|(range, _)| self.slots_of(range))
+            .collect();
+        let mut starts = vec![0; self.plans.len() + 1];
+        for slot in slots.iter().flat_map(Range::clone) {
+            starts[slot + 1] += 1;
+        }
+        for slot in 1..starts.len() {
+            starts[slot] += starts[slot - 1];
+        }
+        let mut next = starts.clone();
+        let mut entries = Vec::new();
+        if let Some(first) = spans.first() {
+            entries = vec![first; starts[starts.len() - 1]];
+        }
+        for (span, slots) in spans.iter().zip(slots) {
+            for slot in slots {
+                entries[next[slot]] = span;
+                next[slot] += 1;
             }
         }
-        per_line
+        SpansByLine { entries, starts }
     }
 
     fn sort_hidden(&mut self, hidden: Vec<Range<usize>>) {
@@ -102,8 +124,7 @@ impl LineSorter<'_> {
 
     fn sort_line_styles(&mut self, styles: Vec<(Range<usize>, LineStyle)>) {
         for (lines, style) in styles {
-            let slots: Vec<usize> = lines.filter_map(|line| self.slot(line)).collect();
-            for slot in slots {
+            for slot in self.slots_of_lines(lines) {
                 self.plans[slot].line_styles.push(style);
             }
         }
@@ -142,6 +163,19 @@ impl LineSorter<'_> {
     }
 }
 
+/// The styled spans touching each planned line.
+struct SpansByLine<'s> {
+    entries: Vec<&'s (Range<usize>, StyleKey)>,
+    /// Where each line's entries start, with the end after the last.
+    starts: Vec<usize>,
+}
+
+impl<'s> SpansByLine<'s> {
+    fn line(&self, slot: usize) -> &[&'s (Range<usize>, StyleKey)] {
+        &self.entries[self.starts[slot]..self.starts[slot + 1]]
+    }
+}
+
 fn line_span(tree: &SyntaxTree, range: &Range<usize>) -> Range<usize> {
     let lines = tree.lines();
     lines.line_of(range.start)..lines.line_of(range.end) + 1
@@ -149,11 +183,16 @@ fn line_span(tree: &SyntaxTree, range: &Range<usize>) -> Range<usize> {
 
 /// Splits `line` at every span boundary and gives each piece the styles of
 /// the spans covering it.
-fn build_runs(line: &Range<usize>, spans: &[(Range<usize>, StyleKey)]) -> Vec<StyledRun> {
+fn build_runs(
+    line: &Range<usize>,
+    spans: &[&(Range<usize>, StyleKey)],
+    cuts: &mut Vec<usize>,
+) -> Vec<StyledRun> {
     if line.is_empty() {
         return Vec::new();
     }
-    let mut cuts: Vec<usize> = vec![line.start, line.end];
+    cuts.clear();
+    cuts.extend([line.start, line.end]);
     for (range, _) in spans {
         cuts.extend(
             [range.start, range.end]
@@ -163,42 +202,49 @@ fn build_runs(line: &Range<usize>, spans: &[(Range<usize>, StyleKey)]) -> Vec<St
     }
     cuts.sort_unstable();
     cuts.dedup();
-    let mut runs: Vec<StyledRun> = Vec::with_capacity(cuts.len());
+    let mut runs: Vec<StyledRun> = Vec::with_capacity(cuts.len() - 1);
+    let mut styles: Vec<StyleKey> = Vec::new();
     for piece in cuts.windows(2) {
         let (start, end) = (piece[0], piece[1]);
-        let mut styles: Vec<StyleKey> = spans
-            .iter()
-            .filter(|(range, _)| range.start <= start && end <= range.end)
-            .map(|(_, style)| *style)
-            .collect();
+        styles.clear();
+        styles.extend(
+            spans
+                .iter()
+                .filter(|(range, _)| range.start <= start && end <= range.end)
+                .map(|(_, style)| *style),
+        );
         styles.sort_unstable();
         styles.dedup();
         match runs.last_mut() {
             Some(last) if last.styles == styles => last.range.end = end,
             _ => runs.push(StyledRun {
                 range: start..end,
-                styles,
+                styles: styles.clone(),
             }),
         }
     }
     runs
 }
 
-/// Clips ranges to the line, then sorts and merges them.
-fn merge(line: &Range<usize>, mut ranges: Vec<Range<usize>>) -> Vec<Range<usize>> {
+/// Clips ranges to the line, then sorts and merges them, in place.
+fn merge(line: &Range<usize>, ranges: &mut Vec<Range<usize>>) {
     ranges.iter_mut().for_each(|range| {
         *range = range.start.max(line.start)..range.end.min(line.end);
     });
     ranges.retain(|range| !range.is_empty());
     ranges.sort_by_key(|range| range.start);
-    let mut merged: Vec<Range<usize>> = Vec::with_capacity(ranges.len());
-    for range in ranges {
-        match merged.last_mut() {
+    let mut kept: usize = 0;
+    for index in 0..ranges.len() {
+        let range = ranges[index].clone();
+        match kept.checked_sub(1).map(|last| &mut ranges[last]) {
             Some(last) if range.start <= last.end => last.end = last.end.max(range.end),
-            _ => merged.push(range),
+            _ => {
+                ranges[kept] = range;
+                kept += 1;
+            }
         }
     }
-    merged
+    ranges.truncate(kept);
 }
 
 /// A line whose text is all hidden, with no widget and no cursor on it,

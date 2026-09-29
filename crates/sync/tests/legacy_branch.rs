@@ -122,3 +122,29 @@ fn without_a_legacy_branch_a_missing_branch_is_an_error() {
     let cloned = Vault::clone_remote(&world.remote_url, world.path("strict"), config, None);
     assert!(cloned.is_err());
 }
+
+#[test]
+fn main_is_merged_again_after_master_is_moved_back_by_hand() {
+    let world = world_on_main();
+    let app = world.device("laptop");
+    write(&app, NOTE, b"first line\nfrom the app\n");
+    sync(&app, "laptop");
+    let old_tool = world.device_with("phone", old_tool_config());
+    write(&old_tool, "notes/from-phone.md", b"written by GitSync\n");
+    sync(&old_tool, "phone");
+    sync(&app, "laptop");
+    sync(&app, "laptop");
+    assert_eq!(read(&app, "notes/from-phone.md"), "written by GitSync\n");
+
+    let repo = git2::Repository::open(app.root()).unwrap();
+    let merge = repo.head().unwrap().peel_to_commit().unwrap();
+    let before_merge = merge.parent(0).unwrap();
+    repo.reset(before_merge.as_object(), git2::ResetType::Hard, None)
+        .unwrap();
+    let tracking = repo.find_reference("refs/remotes/origin/master");
+    tracking.unwrap().delete().unwrap();
+    assert!(!app.root().join("notes/from-phone.md").exists());
+
+    app.merge(&author("laptop")).unwrap();
+    assert_eq!(read(&app, "notes/from-phone.md"), "written by GitSync\n");
+}

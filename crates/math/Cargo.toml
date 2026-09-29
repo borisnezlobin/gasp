@@ -11,11 +11,16 @@ mitex = "0.2.4"
 typst = "0.15.1"
 typst-svg = "0.15.1"
 typst-layout = "0.15.1"
+# Rasterises equations straight from the layout, with no SVG in between.
+typst-render = "0.15.1"
 typst-assets = { version = "0.15.1", features = ["fonts"] }
 
 [lints]
 workspace = true
 
 [dev-dependencies]
+gasp-bench = { path = "../bench" }
+# What the apps rasterise the SVG with, to time the whole path to pixels.
+resvg = { version = "0.45", default-features = false }
 mitex-spec-gen = "0.2.4"
 mitex-spec = "0.2.4"

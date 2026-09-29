@@ -303,6 +303,62 @@ pub struct LinePlan {
     pub shown_marker: Option<Range<usize>>,
 }
 
+impl LinePlan {
+    /// A line with nothing planned yet, holding its place.
+    pub(crate) fn unplanned(line: usize) -> Self {
+        Self {
+            line,
+            range: 0..0,
+            line_styles: Vec::new(),
+            runs: Vec::new(),
+            hidden: Vec::new(),
+            widgets: Vec::new(),
+            collapsed: false,
+            table_row: None,
+            shown_marker: None,
+        }
+    }
+
+    /// Moves the plan `lines` lines on and every offset in it `bytes` on,
+    /// for text put in or taken out before it.
+    pub(crate) fn shift(&mut self, bytes: isize, lines: isize) {
+        self.line = moved(self.line, lines);
+        let range = |range: &mut Range<usize>| *range = moved_range(range, bytes);
+        range(&mut self.range);
+        self.runs.iter_mut().for_each(|run| range(&mut run.range));
+        self.hidden.iter_mut().for_each(range);
+        for widget in &mut self.widgets {
+            range(&mut widget.range);
+            widget.kind.shift(bytes);
+        }
+        if let Some(row) = &mut self.table_row {
+            row.cells.iter_mut().for_each(range);
+            row.table_start = moved(row.table_start, bytes);
+        }
+        self.shown_marker.iter_mut().for_each(range);
+    }
+}
+
+impl WidgetKind {
+    fn shift(&mut self, bytes: isize) {
+        match self {
+            WidgetKind::CalloutHeader {
+                title: Some(title), ..
+            } => *title = moved_range(title, bytes),
+            WidgetKind::CodeBlock { content, .. } => *content = moved_range(content, bytes),
+            _ => {}
+        }
+    }
+}
+
+fn moved(at: usize, by: isize) -> usize {
+    (at as isize + by) as usize
+}
+
+fn moved_range(range: &Range<usize>, by: isize) -> Range<usize> {
+    moved(range.start, by)..moved(range.end, by)
+}
+
 /// The plan for a range of lines.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RenderPlan {

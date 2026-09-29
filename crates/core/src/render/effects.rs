@@ -3,7 +3,9 @@
 
 use std::ops::Range;
 
-use crate::syntax::{ConflictSide, Markup, MarkupKind, Node, NodeId, NodeKind, SyntaxKind};
+use crate::syntax::{
+    CalloutKind, ConflictSide, Markup, MarkupKind, Node, NodeId, NodeKind, SyntaxKind,
+};
 
 use super::html;
 use super::output::{LineStyle, Placement, StyleKey, TableRowPlan, Widget, WidgetKind};
@@ -144,8 +146,7 @@ impl<'a> Planner<'a> {
         if self.node(id).kind == NodeKind::Frontmatter {
             self.frontmatter_properties(id);
         }
-        let markup = self.node(id).markup.clone();
-        for token in &markup {
+        for token in &self.node(id).markup {
             self.markup_effect(id, token);
         }
     }
@@ -258,47 +259,52 @@ impl<'a> Planner<'a> {
 
     pub(super) fn add_line_styles(&mut self, id: NodeId) {
         let node = self.node(id);
-        let lines = self.lines_of(&node.range);
-        let styles: Vec<(Range<usize>, LineStyle)> = match &node.kind {
-            NodeKind::Heading { level, .. } => vec![(lines, LineStyle::Heading(*level))],
-            NodeKind::BlockQuote => vec![(
-                lines,
-                LineStyle::Quote {
-                    depth: self.quote_depth(id),
-                },
-            )],
-            NodeKind::Callout(info) => vec![
-                (
-                    lines.clone(),
-                    LineStyle::Callout {
-                        kind: info.kind,
-                        depth: self.quote_depth(id),
-                    },
-                ),
-                (
-                    lines.start..lines.start + 1,
-                    LineStyle::CalloutHeader { kind: info.kind },
-                ),
-            ],
-            NodeKind::CodeBlock(_) => lines
-                .clone()
-                .map(|line| {
-                    (
-                        line..line + 1,
-                        LineStyle::CodeBlock {
-                            index: line - lines.start,
-                        },
-                    )
-                })
-                .collect(),
-            NodeKind::Conflict => self.conflict_line_styles(node),
-            NodeKind::Html(_) => html::alignment(node)
-                .map(|align| vec![(lines, LineStyle::Align(align))])
-                .unwrap_or_default(),
-            kind => simple_line_style(kind)
-                .map(|style| vec![(lines, style)])
-                .unwrap_or_default(),
+        let style = match &node.kind {
+            NodeKind::Heading { level, .. } => LineStyle::Heading(*level),
+            NodeKind::BlockQuote => LineStyle::Quote {
+                depth: self.quote_depth(id),
+            },
+            NodeKind::Callout(info) => return self.callout_line_styles(id, info.kind),
+            NodeKind::CodeBlock(_) => return self.code_line_styles(node),
+            NodeKind::Conflict => {
+                let styles = self.conflict_line_styles(node);
+                return self.effects.line_styles.extend(styles);
+            }
+            NodeKind::Html(_) => match html::alignment(node) {
+                Some(align) => LineStyle::Align(align),
+                None => return,
+            },
+            kind => match simple_line_style(kind) {
+                Some(style) => style,
+                None => return,
+            },
         };
+        let lines = self.lines_of(&node.range);
+        self.effects.line_styles.push((lines, style));
+    }
+
+    fn callout_line_styles(&mut self, id: NodeId, kind: CalloutKind) {
+        let lines = self.lines_of(&self.node(id).range);
+        let depth = self.quote_depth(id);
+        let header = lines.start..lines.start + 1;
+        self.effects
+            .line_styles
+            .push((lines, LineStyle::Callout { kind, depth }));
+        self.effects
+            .line_styles
+            .push((header, LineStyle::CalloutHeader { kind }));
+    }
+
+    /// Each line of a code block gets its index in the block; only the
+    /// lines being planned are recorded.
+    fn code_line_styles(&mut self, node: &Node) {
+        let lines = self.lines_of(&node.range);
+        let planned = self.lines_of(&self.span);
+        let shown = lines.start.max(planned.start)..lines.end.min(planned.end);
+        let styles = shown.map(|line| {
+            let index = line - lines.start;
+            (line..line + 1, LineStyle::CodeBlock { index })
+        });
         self.effects.line_styles.extend(styles);
     }
 

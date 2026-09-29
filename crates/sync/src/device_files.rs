@@ -68,7 +68,8 @@ impl DeviceOnlyFiles {
         self.globs.iter().map(|glob| gitignore_line(glob)).collect()
     }
 
-    /// Rewrites the managed block of `.git/info/exclude`, keeping everything else.
+    /// Rewrites the managed block of `.git/info/exclude`, keeping everything
+    /// else. A file that already says the same is left untouched.
     pub fn write_exclude(&self, git_dir: &Path) -> SyncResult<()> {
         let info_dir = git_dir.join("info");
         fs::create_dir_all(&info_dir)?;
@@ -78,7 +79,10 @@ impl DeviceOnlyFiles {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
             Err(error) => return Err(error.into()),
         };
-        fs::write(&exclude_path, self.merged_exclude(&existing))?;
+        let merged = self.merged_exclude(&existing);
+        if merged != existing {
+            fs::write(&exclude_path, merged)?;
+        }
         Ok(())
     }
 
