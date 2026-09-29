@@ -9,6 +9,14 @@ extension EditingController {
     /// Text checked beyond each edge of the screen, in UTF-16 units.
     private static let checkMargin = 3000
 
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        scheduleGrammarCheck()
+    }
+
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        if !decelerate { scheduleGrammarCheck() }
+    }
+
     func scheduleGrammarCheck() {
         guard grammar.isEnabled() else { return }
         grammarCheck?.cancel()

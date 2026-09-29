@@ -288,14 +288,6 @@ final class EditingController: NSObject, UITextViewDelegate {
         restyle(edited: nil)
     }
 
-    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
-        scheduleGrammarCheck()
-    }
-
-    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-        if !decelerate { scheduleGrammarCheck() }
-    }
-
     /// Keeps the text the saved edits replaced, once the recovery interval
     /// has passed since the last snapshot.
     private func keepSnapshot() {
