@@ -212,7 +212,12 @@ fn spawn_worker() -> Sender<Request> {
 fn run_worker(requests: Receiver<Request>) {
     let mut checkers = Checkers::default();
     loop {
-        match requests.recv_timeout(IDLE_EXIT) {
+        // Without a child to let go of, there's nothing to wake up for.
+        let next = match checkers.child {
+            Some(_) => requests.recv_timeout(IDLE_EXIT),
+            None => requests.recv().map_err(|_| RecvTimeoutError::Disconnected),
+        };
+        match next {
             Ok(request) => {
                 let checked = checkers.check(request.setup, request.jobs);
                 request.reply.send(checked).ok();
