@@ -26,21 +26,30 @@ struct KnownMerge {
 }
 
 impl Vault {
-    /// Whether `tip` of `branch` is known to be in the local branch.
-    pub(super) fn known_merged(&self, branch: &str, tip: Oid) -> bool {
-        let Ok(Some(head)) = self.head_commit() else {
-            return false;
+    /// Whether `tip` of `branch` is known to be in the local branch. When
+    /// it is and the branch has moved on since, the record moves with it,
+    /// so the next check walks back only as far as this one.
+    pub(super) fn known_merged(&self, branch: &str, tip: Oid) -> SyncResult<bool> {
+        let Some(head) = self.head_commit()? else {
+            return Ok(false);
         };
-        let known = load(self.repo.path());
-        let Some(known) = known.iter().find(|known| known.branch == branch) else {
-            return false;
+        let mut known = load(self.repo.path());
+        let Some(entry) = known.iter_mut().find(|known| known.branch == branch) else {
+            return Ok(false);
         };
-        known.tip == tip
-            && (known.head == head
-                || self
-                    .repo
-                    .graph_descendant_of(head, known.head)
-                    .unwrap_or(false))
+        if entry.tip != tip {
+            return Ok(false);
+        }
+        if entry.head == head {
+            return Ok(true);
+        }
+        let descends = self.repo.graph_descendant_of(head, entry.head);
+        if !descends.unwrap_or(false) {
+            return Ok(false);
+        }
+        entry.head = head;
+        save(self.repo.path(), &known)?;
+        Ok(true)
     }
 
     /// Records that `tip` of `branch` is in the local branch as it is now.
@@ -49,23 +58,23 @@ impl Vault {
             return Ok(());
         };
         let mut known = load(self.repo.path());
-        let entry = KnownMerge {
+        known.retain(|known| known.branch != branch);
+        known.push(KnownMerge {
             branch: branch.to_owned(),
             tip,
             head,
-        };
-        if known.contains(&entry) {
-            return Ok(());
-        }
-        known.retain(|known| known.branch != branch);
-        known.push(entry);
-        let text: String = known
-            .iter()
-            .map(|known| format!("{} {} {}\n", known.branch, known.tip, known.head))
-            .collect();
-        fs::write(self.repo.path().join(RECORD_FILE), text)?;
-        Ok(())
+        });
+        save(self.repo.path(), &known)
     }
+}
+
+fn save(git_dir: &Path, known: &[KnownMerge]) -> SyncResult<()> {
+    let text: String = known
+        .iter()
+        .map(|known| format!("{} {} {}\n", known.branch, known.tip, known.head))
+        .collect();
+    fs::write(git_dir.join(RECORD_FILE), text)?;
+    Ok(())
 }
 
 /// The record, or nothing when it's missing or unreadable: then git's

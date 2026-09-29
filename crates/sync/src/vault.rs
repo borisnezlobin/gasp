@@ -566,8 +566,7 @@ impl Vault {
             return Ok(MergeOutcome::NothingToMerge);
         };
         let theirs = self.repo.reference_to_annotated_commit(&tracking)?;
-        if self.known_merged(branch, theirs.id()) {
-            self.remember_merged(branch, theirs.id())?;
+        if self.known_merged(branch, theirs.id())? {
             return Ok(MergeOutcome::UpToDate);
         }
         let (analysis, _) = self.repo.merge_analysis(&[&theirs])?;
