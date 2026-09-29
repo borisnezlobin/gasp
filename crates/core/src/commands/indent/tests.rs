@@ -140,3 +140,27 @@ fn the_selection_stays_on_its_text() {
     assert_eq!(run("- a\n|- b", indent), "- a\n\t|- b");
     assert_eq!(run("- a\n\t|- b", outdent), "- a\n|- b");
 }
+
+#[test]
+fn availability_says_whether_each_direction_changes_the_text() {
+    let text = "# Heading\n\nA paragraph.\n\n- one\n- two\n\t- nested\n\n> quoted\n> > deeper\n\n\
+                > [!note] Callout\n> body\n\n```\ncode\n\tindented\n```\n\n1. first\n2. second\n\n\
+                \tindented paragraph\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n---\n\n$$\nx\n$$\n";
+    let doc = Document::from(text);
+    let tree = crate::syntax::parse(text);
+    let offsets = (0..=text.len()).filter(|&at| text.is_char_boundary(at));
+    for at in offsets {
+        let spans = [at..at, at..(at + 9).min(text.len())];
+        for span in spans {
+            let selection = Selection::single(SelectionRange::new(span.start, span.end));
+            let available = shift_availability(text, &tree, &selection);
+            let indents = !indent(&doc, &selection, 0).changes.is_empty();
+            let outdents = !outdent(&doc, &selection, 0).changes.is_empty();
+            assert_eq!(
+                (available.indent, available.outdent),
+                (indents, outdents),
+                "{span:?}"
+            );
+        }
+    }
+}
