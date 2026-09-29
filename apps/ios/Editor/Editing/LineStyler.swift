@@ -22,6 +22,10 @@ struct LineStyler {
     let storage: NSTextStorage
     let text: NSString
     let line: LinePlan
+    /// Rendered math and the vault's images, when the note has them.
+    var media: NoteMedia?
+    /// Whether the line is a heading that folds, and is folded.
+    var fold: Bool?
 
     /// Hidden text is drawn this small and clear, so it takes no room while
     /// staying in the storage as the source.
@@ -30,8 +34,13 @@ struct LineStyler {
     private var shape: LineShape { LineShape(line.decorations) }
 
     var baseLook: RunLook {
+        Self.baseLook(of: line, tokens: tokens)
+    }
+
+    /// How the line's text looks before its runs' own styles.
+    static func baseLook(of line: LinePlan, tokens: Tokens) -> RunLook {
         var look = RunLook(tokens: tokens)
-        let shape = shape
+        let shape = LineShape(line.decorations)
         look.headingLevel = shape.headingLevel
         look.typeface = shape.isCode ? .code : .text
         look.calloutKind = shape.calloutKind
@@ -50,8 +59,11 @@ struct LineStyler {
         switch presentation {
         case .asPlanned:
             line.hidden.forEach { hide($0.nsRange, paragraphStyle) }
-            line.widgets.forEach { present($0, paragraphStyle) }
+            let pictures = line.widgets.map { present($0, paragraphStyle) }.contains(true)
             hangListItem(paragraph, paragraphStyle)
+            addExtras(paragraph, paragraphStyle)
+            if pictures { makeRoomForPictures(paragraph) }
+            markFold(paragraph)
             if line.collapsed { collapse(paragraph) }
         case .mathSource:
             showMathSource(paragraphStyle)
@@ -134,6 +146,37 @@ struct LineStyler {
         else { return 0 }
         let bracket = NSAttributedString(string: "[", attributes: [.font: font]).size().width
         return DisplayParagraphs.symbolImage("square", color: .black, font: font).size.width - bracket
+    }
+
+    /// Changes the paragraph style on every run of `paragraph`.
+    func adjustParagraphStyle(_ paragraph: NSRange, _ change: (NSMutableParagraphStyle) -> Void) {
+        guard let range = clamped(paragraph) else { return }
+        storage.enumerateAttribute(.paragraphStyle, in: range) { value, run, _ in
+            guard let style = (value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle else { return }
+            change(style)
+            storage.addAttribute(.paragraphStyle, value: style, range: run)
+        }
+    }
+
+    /// Lets a line holding math or an image grow past the text's line
+    /// height; a display block also sits centred.
+    private func makeRoomForPictures(_ paragraph: NSRange) {
+        let centred = line.widgets.contains { widget in
+            switch widget.kind {
+            case .mathBlock: true
+            case .inlineMath(_, let display): display && widget.range.nsRange == line.range.nsRange
+            default: false
+            }
+        }
+        adjustParagraphStyle(paragraph) { style in
+            style.maximumLineHeight = 0
+            if centred { style.alignment = .center }
+        }
+    }
+
+    private func markFold(_ paragraph: NSRange) {
+        guard let fold, let range = clamped(paragraph) else { return }
+        storage.addAttribute(.headingFold, value: HeadingFoldMark(folded: fold), range: range)
     }
 
     private func collapse(_ paragraph: NSRange) {

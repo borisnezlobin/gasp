@@ -4,22 +4,26 @@ import UIKit
 /// source; these bring back the parts worth showing, draw a symbol in place
 /// of a marker, or leave the drawing to the line's layout fragment.
 extension LineStyler {
-    func present(_ widget: Widget, _ paragraph: NSParagraphStyle) {
-        guard widget.placement == .replace else { return }
+    /// Draws a widget that replaces its source. Answers whether it drew a
+    /// picture, which may be taller than the line.
+    func present(_ widget: Widget, _ paragraph: NSParagraphStyle) -> Bool {
+        guard widget.placement == .replace else { return false }
         let range = widget.range.nsRange
         switch widget.kind {
         case .listBullet(let ordered, _, _): presentBullet(range, ordered: ordered, paragraph)
         case .checkbox(let checked): presentCheckbox(range, checked: checked, paragraph)
         case .footnoteSuperscript(let label): presentFootnote(range, label: label, paragraph)
-        case .inlineMath: presentInlineMath(range, paragraph)
-        case .mathBlock: presentInlineMath(range, paragraph)
-        case .image(let target, let alt, _, _, _):
-            presentImage(range, name: alt.isEmpty ? target : alt, paragraph)
+        case .inlineMath(let tex, let display): return presentMath(range, tex: tex, display: display, paragraph)
+        case .mathBlock(let tex): return presentMath(range, tex: tex, display: true, paragraph)
+        case .image(let target, let alt, let width, let height, _):
+            return presentImage(range, target: target, name: alt.isEmpty ? target : alt,
+                                requested: (width, height), paragraph)
         case .codeBlock(let language, _, _): presentCodeFence(range, language: language, paragraph)
         case .calloutHeader(let kind, let typeName, let title, _, _):
             presentCalloutHeader(range, kind: kind, typeName: typeName, hasTitle: title != nil, paragraph)
         default: break
         }
+        return false
     }
 
     private func markerLook() -> RunLook {
@@ -54,12 +58,25 @@ extension LineStyler {
         guard found.location != NSNotFound else { return }
         let look = RunLook(styles: [.footnoteRef], base: baseLook, tokens: tokens)
         set(attributes(look, paragraph), on: found)
+        storage.addAttribute(.footnoteLabel, value: label, range: found)
         revealTrailingSpace(range, paragraph)
     }
 
-    /// Math isn't rendered on the phone yet, so it shows as its TeX in the
-    /// math colour, without its dollar signs.
-    private func presentInlineMath(_ range: NSRange, _ paragraph: NSParagraphStyle) {
+    /// Rendered math in place of its source, on the text's baseline. Until
+    /// it's rendered it shows as its TeX in the math colour, without its
+    /// dollar signs.
+    private func presentMath(_ range: NSRange, tex: String, display: Bool, _ paragraph: NSParagraphStyle) -> Bool {
+        let key = MathKey(tex: tex, display: display, fontSize: baseLook.size(tokens))
+        guard let rendered = media?.math(key) else {
+            presentMathSource(range, paragraph)
+            return false
+        }
+        let attachment = MathAttachment(rendered, color: tokens.color(\.text))
+        substitute(NSRange(location: range.location, length: 1), with: .attachment(attachment))
+        return true
+    }
+
+    private func presentMathSource(_ range: NSRange, _ paragraph: NSParagraphStyle) {
         let source = text.substring(with: range)
         let delimiter = source.prefix { $0 == "$" }.count
         guard range.length > delimiter * 2 else { return }
@@ -70,7 +87,37 @@ extension LineStyler {
         set(attributes(look, paragraph), on: tex)
     }
 
-    private func presentImage(_ range: NSRange, name: String, _ paragraph: NSParagraphStyle) {
+    /// The image from the vault at the width of the text, or a symbol and
+    /// its name when the file isn't there.
+    private func presentImage(
+        _ range: NSRange, target: String, name: String, requested: (UInt32?, UInt32?),
+        _ paragraph: NSParagraphStyle
+    ) -> Bool {
+        guard let attachment = imageAttachment(target: target, requested: requested, paragraph) else {
+            presentMissingImage(range, name: name, paragraph)
+            return false
+        }
+        substitute(NSRange(location: range.location, length: 1), with: .attachment(attachment))
+        return true
+    }
+
+    /// The picture for an image widget, sized to the column less the
+    /// line's indent, and queued to decode at that size.
+    func imageAttachment(target: String, requested: (UInt32?, UInt32?), _ paragraph: NSParagraphStyle)
+        -> ImageAttachment? {
+        guard let media, let file = media.imageFile(target),
+              let pixels = VaultImages.shared.pixelSize(of: file) else { return nil }
+        let width = media.columnWidth - paragraph.headIndent + min(paragraph.tailIndent, 0)
+        let size = ImageDrawing.displaySize(pixels: pixels, requested: requested, columnWidth: width)
+        let attachment = ImageAttachment(
+            file: file, size: size, placeholderColor: tokens.color(\.fill),
+            cornerRadius: CGFloat(tokens.spacing.radiusMd)
+        )
+        media.wantImage(file, pixels: attachment.pixels)
+        return attachment
+    }
+
+    private func presentMissingImage(_ range: NSRange, name: String, _ paragraph: NSParagraphStyle) {
         let icon = NSRange(location: range.location, length: 1)
         set(attributes(markerLook(), paragraph), on: icon)
         substitute(icon, with: .symbol(name: "photo", color: tokens.color(\.textMuted)))
@@ -100,6 +147,7 @@ extension LineStyler {
         let icon = NSRange(location: range.location, length: 1)
         set(attributes(baseLook, paragraph), on: icon)
         substitute(icon, with: .symbol(name: CalloutSymbols.name(for: kind), color: tokens.calloutColor(kind)))
+        if let icon = clamped(icon) { storage.addAttribute(.calloutFold, value: range.location, range: icon) }
         revealTrailingSpace(range, paragraph)
         guard !hasTitle else { return }
         let found = text.range(of: typeName, options: [], range: range)
