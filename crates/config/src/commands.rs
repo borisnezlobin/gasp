@@ -160,7 +160,7 @@ const IMPORT_OBSIDIAN: CommandSpec = spec(
 /// The selection or note as formatted text on the clipboard, which the
 /// macOS pasteboard can hold beside its plain text.
 const COPY_RICH_TEXT: CommandSpec =
-    spec("edit.copy-rich-text", "Copy as rich text", "Editing").icon("clipboard");
+    spec("export.copy-rich-text", "Copy as rich text", "App").icon("clipboard");
 
 /// Light or dark, whichever isn't showing, which the desktop writes as
 /// the theme setting.

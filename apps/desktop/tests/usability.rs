@@ -294,3 +294,68 @@ fn a_note_moves_to_a_folder_picked_by_name(cx: &mut TestAppContext) {
     );
     assert_eq!(active_text(&workspace, cx).as_deref(), Some("the plan"));
 }
+
+#[gpui::test]
+fn turning_readable_width_off_gives_the_note_the_whole_pane(cx: &mut TestAppContext) {
+    let vault = vault_with(&[("Note.md", "text")]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "Note.md");
+    let readable = cx.debug_bounds("pane-column").expect("the column is drawn");
+    run(&workspace, cx, "view.toggle-readable-width");
+    let full = cx.debug_bounds("pane-column").expect("the column is drawn");
+    let window = cx.update(|window, _| window.viewport_size().width);
+    assert!(full.size.width > readable.size.width);
+    assert!(
+        full.size.width > window * 0.9,
+        "{:?} of {window:?}",
+        full.size.width
+    );
+    assert!(cx.debug_bounds("pane-gutter-left").is_none());
+}
+
+#[gpui::test]
+fn zoom_and_width_apply_to_every_note_and_are_kept(cx: &mut TestAppContext) {
+    let vault = vault_with(&[("One.md", "one"), ("Two.md", "two"), ("Three.md", "three")]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "One.md");
+    run(&workspace, cx, "pane.split-right");
+    open(&workspace, cx, "Two.md");
+    run(&workspace, cx, "view.zoom-in");
+    run(&workspace, cx, "view.toggle-readable-width");
+    let views = |cx: &mut VisualTestContext| {
+        cx.read(|cx| {
+            workspace
+                .read(cx)
+                .panes()
+                .iter()
+                .filter_map(|pane| pane.read(cx).active_tab()?.note().cloned())
+                .map(|note| {
+                    let view = note.editor.read(cx);
+                    (view.zoom(), view.is_readable_width())
+                })
+                .collect::<Vec<_>>()
+        })
+    };
+    for (zoom, readable) in views(cx) {
+        assert!(
+            (zoom - 1.1).abs() < 1e-4,
+            "every pane zooms, not only the active one"
+        );
+        assert!(!readable);
+    }
+    open(&workspace, cx, "Three.md");
+    let (zoom, _) = views(cx)[1];
+    assert!(
+        (zoom - 1.1).abs() < 1e-4,
+        "a note opened later starts zoomed"
+    );
+    let device = std::fs::read_to_string(
+        vault
+            .path()
+            .join(gasp_config::CONFIG_DIR)
+            .join("device.toml"),
+    )
+    .unwrap();
+    assert!(device.contains("text-zoom"), "{device}");
+    assert!(device.contains("full-width = true"), "{device}");
+}

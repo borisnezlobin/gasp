@@ -31,6 +31,9 @@ impl Workspace {
         if let EditorEvent::OpenLink(target) = event {
             return self.follow_link(target, editor, window, cx);
         }
+        if *event == EditorEvent::ViewChanged {
+            return self.editor_view_changed(editor, cx);
+        }
         if *event == EditorEvent::Edited {
             self.count_edit(editor, window, cx);
         }
@@ -48,6 +51,25 @@ impl Workspace {
         if self.active_editor(cx).as_ref() == Some(editor) {
             self.refresh_status(cx);
         }
+    }
+
+    /// One note was zoomed or widened: every open note follows, and the
+    /// device keeps it for notes opened later and the next launch.
+    fn editor_view_changed(&mut self, changed: &Entity<EditorView>, cx: &mut Context<Self>) {
+        let (zoom, readable) = {
+            let view = changed.read(cx);
+            (view.zoom(), view.is_readable_width())
+        };
+        self.config.device.text_zoom = ((zoom - 1.).abs() > f32::EPSILON).then_some(zoom);
+        self.config.device.full_width = !readable;
+        let config = self.config.clone();
+        for editor in self.open_editors(cx) {
+            if editor != *changed {
+                editor.update(cx, |editor, cx| editor.follow_device_view(&config, cx));
+            }
+        }
+        self.save_device_now(cx);
+        cx.notify();
     }
 
     fn record_jump(&mut self, editor: &Entity<EditorView>, from: usize, cx: &mut Context<Self>) {

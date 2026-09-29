@@ -492,9 +492,9 @@ impl Workspace {
     }
 
     /// Gives every open note the current config and theme.
-    fn restyle_editors(&mut self, cx: &mut Context<Self>) {
-        let editors: Vec<Entity<EditorView>> = self
-            .panes()
+    /// The editor of every note open in a tab.
+    pub(crate) fn open_editors(&self, cx: &App) -> Vec<Entity<EditorView>> {
+        self.panes()
             .iter()
             .flat_map(|pane| {
                 pane.read(cx)
@@ -503,7 +503,11 @@ impl Workspace {
                     .filter_map(|tab| tab.note().map(|note| note.editor.clone()))
                     .collect::<Vec<_>>()
             })
-            .collect();
+            .collect()
+    }
+
+    fn restyle_editors(&mut self, cx: &mut Context<Self>) {
+        let editors = self.open_editors(cx);
         let config = self.config.clone();
         for editor in editors {
             editor.update(cx, |editor, cx| editor.apply_config(&config, cx));

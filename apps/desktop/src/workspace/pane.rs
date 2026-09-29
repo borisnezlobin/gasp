@@ -474,6 +474,8 @@ impl Pane {
                 })
         };
         let column = div()
+            .id("pane-column")
+            .selector(|| "pane-column".to_owned())
             .flex()
             .flex_col()
             .flex_shrink()
@@ -484,6 +486,9 @@ impl Pane {
             .min_w_0()
             .h_full()
             .child(self.render_note_body(note, cx));
+        // At full width the column takes the whole row; gutters beside it
+        // would share the width with it.
+        let readable = column_width.is_some();
         div()
             .id("pane-note")
             .flex()
@@ -491,9 +496,9 @@ impl Pane {
             .flex_1()
             .min_h_0()
             .on_mouse_down(MouseButton::Right, cx.listener(Self::on_note_right_click))
-            .child(gutter("pane-gutter-left"))
+            .when(readable, |row| row.child(gutter("pane-gutter-left")))
             .child(column)
-            .child(gutter("pane-gutter-right"))
+            .when(readable, |row| row.child(gutter("pane-gutter-right")))
             .into_any_element()
     }
 
