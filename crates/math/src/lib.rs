@@ -21,4 +21,5 @@ pub use placeholders::fill_empty_arguments;
 pub use raster::{MathCoverage, rasterize_latex};
 pub use render::{RenderedMath, evict_layout_memory, render_latex, render_typst, warm_up};
 pub use scan::{MathSnippet, find_math};
+pub use scope::mitex_scope_for;
 pub use world::{MITEX_SOURCES, SCOPE_MODULE_PATH, embedded_fonts};
