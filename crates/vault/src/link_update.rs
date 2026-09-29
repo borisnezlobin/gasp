@@ -29,7 +29,8 @@ pub fn expand_folder_move(files: &[String], from: &str, to: &str) -> Vec<(String
 pub struct LinkUpdater {
     moves: BTreeMap<String, String>,
     before: FileIndex,
-    after: FileIndex,
+    /// How many files have each lowercased file name after the moves.
+    names_after: HashMap<String, usize>,
     needles: Vec<String>,
 }
 
@@ -38,14 +39,17 @@ impl LinkUpdater {
     /// pairs each moved file's old path with its new one.
     pub fn new(files: &[String], moves: &[(String, String)]) -> LinkUpdater {
         let moves: BTreeMap<String, String> = moves.iter().cloned().collect();
-        let after: Vec<String> = files
-            .iter()
-            .map(|file| moves.get(file).unwrap_or(file).clone())
-            .collect();
+        let mut names_after: HashMap<String, usize> = HashMap::new();
+        for file in files {
+            let after = moves.get(file).unwrap_or(file);
+            *names_after
+                .entry(file_name(after).to_lowercase())
+                .or_default() += 1;
+        }
         let needles = moves.keys().flat_map(|old| needles_for(old)).collect();
         LinkUpdater {
             before: FileIndex::new(files),
-            after: FileIndex::new(&after),
+            names_after,
             moves,
             needles,
         }
@@ -154,7 +158,8 @@ impl LinkUpdater {
     /// The file name when it's unique after the moves, else the full path.
     fn shortest_linkpath(&self, path: &str) -> String {
         let name = file_name(path);
-        if self.after.by_name(name).len() > 1 {
+        let sharing = self.names_after.get(&name.to_lowercase()).copied();
+        if sharing.unwrap_or(0) > 1 {
             path.to_string()
         } else {
             name.to_string()
@@ -468,9 +473,9 @@ fn percent_encode(path: &str, fully: bool) -> String {
 fn find_wikilinks(text: &str) -> Vec<Range<usize>> {
     let mut found = Vec::new();
     let mut from = 0;
-    while let Some(open) = text[from..].find("[[").map(|at| at + from) {
+    while let Some(open) = find_from(text, from, "[[") {
         let body_start = open + 2;
-        let Some(close) = text[body_start..].find("]]").map(|at| at + body_start) else {
+        let Some(close) = find_from(text, body_start, "]]") else {
             break;
         };
         let body = &text[body_start..close];
@@ -495,7 +500,7 @@ fn wikilink_target_len(body: &str) -> usize {
 pub fn find_markdown_destinations(text: &str) -> Vec<Range<usize>> {
     let mut found = Vec::new();
     let mut from = 0;
-    while let Some(at) = text[from..].find("](").map(|at| at + from) {
+    while let Some(at) = find_from(text, from, "](") {
         let start = at + 2;
         if let Some(len) = destination_len(&text[start..]) {
             found.push(start..start + len);
@@ -603,13 +608,18 @@ fn inline_code_spans(text: &str) -> Vec<Range<usize>> {
 
 fn backtick_runs(text: &str) -> Vec<Range<usize>> {
     let mut runs: Vec<Range<usize>> = Vec::new();
-    for (at, ch) in text.char_indices().filter(|(_, ch)| *ch == '`') {
+    for at in memchr::memchr_iter(b'`', text.as_bytes()) {
         match runs.last_mut() {
-            Some(run) if run.end == at => run.end = at + ch.len_utf8(),
+            Some(run) if run.end == at => run.end = at + 1,
             _ => runs.push(at..at + 1),
         }
     }
     runs
+}
+
+/// Where `needle` next starts in `text`, at or after byte `from`.
+pub(crate) fn find_from(text: &str, from: usize, needle: &str) -> Option<usize> {
+    memchr::memmem::find(&text.as_bytes()[from..], needle.as_bytes()).map(|at| from + at)
 }
 
 fn apply_edits(text: &str, mut edits: Vec<(Range<usize>, String)>) -> String {

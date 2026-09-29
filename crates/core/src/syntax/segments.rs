@@ -14,6 +14,9 @@ pub(crate) enum Segment {
 /// The separator line between a sync conflict's two versions.
 pub(crate) const SEPARATOR: &str = "=======";
 
+/// What the line opening a sync conflict starts with.
+const OPEN_MARKER: &str = "<<<<<<<";
+
 /// A sync conflict written into a note: this device's version and the
 /// other device's, between marker lines. The versions are parsed as
 /// Markdown on their own, so the separator can't turn the line above it
@@ -81,7 +84,7 @@ pub(crate) fn conflict_marker(line: &str) -> Option<ConflictMarker> {
     };
     if line == SEPARATOR {
         Some(ConflictMarker::Separator)
-    } else if labelled("<<<<<<<") {
+    } else if labelled(OPEN_MARKER) {
         Some(ConflictMarker::Open)
     } else if labelled(">>>>>>>") {
         Some(ConflictMarker::Close)
@@ -94,6 +97,9 @@ pub(crate) fn conflict_marker(line: &str) -> Option<ConflictMarker> {
 /// line, in that order. Markers inside a fenced code block, such as an
 /// example of a merge in a note, don't open one.
 fn conflicts(text: &str, range: Range<usize>) -> Vec<ConflictRegion> {
+    if memchr::memmem::find(&text.as_bytes()[range.clone()], OPEN_MARKER.as_bytes()).is_none() {
+        return Vec::new();
+    }
     let mut scanner = ConflictScanner::default();
     lines_from(text, range.start)
         .take_while(|(start, _)| *start < range.end)
@@ -223,6 +229,9 @@ fn strip_indent(line: &str) -> Option<&str> {
 /// Ranges of `%%` comments that start a line and run over several lines.
 fn comment_blocks(text: &str, from: usize) -> Vec<Range<usize>> {
     let mut blocks = Vec::new();
+    if memchr::memmem::find(&text.as_bytes()[from..], b"%%").is_none() {
+        return blocks;
+    }
     let mut fences = FenceTracker { open: None };
     let mut open: Option<usize> = None;
     for (start, line) in lines_from(text, from) {
