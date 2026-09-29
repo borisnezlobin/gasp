@@ -31,7 +31,9 @@ final class VaultLibrary {
     private(set) var commands: [CommandInfo] = []
     /// The bar above the software keyboard: the `keyboard` toolbar in
     /// toolbars.toml.
-    private(set) var keyboardToolbar = KeyboardToolbar(enabled: true, labels: .icons, entries: [])
+    private(set) var keyboardToolbar = PhoneToolbar(enabled: true, labels: .icons, entries: [])
+    /// The bar at the bottom of the screen: the `browser-bar` toolbar.
+    private(set) var browserBar = PhoneToolbar(enabled: true, labels: .icons, entries: [.spacer])
     private(set) var keyBindings: [KeyBinding] = []
     private(set) var problem: String?
     /// Bumped whenever the vault's config is read again, so views that
@@ -109,6 +111,7 @@ final class VaultLibrary {
         tokens = Tokens(theme: vault.theme())
         commands = vault.commands()
         keyboardToolbar = vault.keyboardToolbar()
+        browserBar = vault.browserBar()
         keyBindings = vault.keyBindings()
         configGeneration += 1
     }

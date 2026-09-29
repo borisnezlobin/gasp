@@ -35,6 +35,8 @@ enum CommandSymbols {
         "daily.open": "calendar",
         "tab.new": "plus.square.on.square",
         "tab.close": "xmark.square",
+        "tab.overview": "square.on.square",
+        "toolbar.customize": "slider.horizontal.3",
         "settings.open": "gearshape",
         "app.export": "square.and.arrow.up",
         "app.print": "printer",

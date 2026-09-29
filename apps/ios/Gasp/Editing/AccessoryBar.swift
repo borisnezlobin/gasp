@@ -4,16 +4,21 @@ import UIKit
 /// vault's toolbars.toml, its commands as buttons (icons, labels or both,
 /// as the toolbar says), separators as thin lines and menus as buttons
 /// that open a menu of commands, in a row that scrolls sideways when they
-/// don't fit.
+/// don't fit. The button that hides the keyboard stays put at the right
+/// end, and the row fades out as it passes under it.
 final class AccessoryBar: UIInputView {
+    /// Holds the scrolling row, and fades it out at its right edge.
+    private let rail = UIView()
     private let scroller = UIScrollView()
     private let row = UIStackView()
+    private let fade = CAGradientLayer()
     private let run: (String) -> Void
     private let tokens: Tokens
     private static let height: CGFloat = 46
     private static let buttonSide: CGFloat = 44
+    private static let hideCommand = "keyboard.hide"
 
-    init(toolbar: KeyboardToolbar, tokens: Tokens, run: @escaping (String) -> Void) {
+    init(toolbar: PhoneToolbar, tokens: Tokens, run: @escaping (String) -> Void) {
         self.run = run
         self.tokens = tokens
         super.init(frame: CGRect(x: 0, y: 0, width: 0, height: Self.height), inputViewStyle: .keyboard)
@@ -31,8 +36,15 @@ final class AccessoryBar: UIInputView {
         CGSize(width: UIView.noIntrinsicMetric, height: Self.height)
     }
 
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        fade.frame = rail.bounds
+        let fadeWidth = CGFloat(tokens.spacing.lg) / max(rail.bounds.width, 1)
+        fade.locations = [0, NSNumber(value: 1 - fadeWidth), 1]
+    }
+
     /// Replaces what's on the bar, after toolbars.toml changed.
-    func show(_ toolbar: KeyboardToolbar) {
+    func show(_ toolbar: PhoneToolbar) {
         row.arrangedSubviews.forEach { $0.removeFromSuperview() }
         for entry in toolbar.entries {
             row.addArrangedSubview(view(for: entry, labels: toolbar.labels))
@@ -43,23 +55,55 @@ final class AccessoryBar: UIInputView {
         scroller.showsHorizontalScrollIndicator = false
         scroller.alwaysBounceHorizontal = true
         scroller.translatesAutoresizingMaskIntoConstraints = false
+        fade.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor]
+        fade.startPoint = CGPoint(x: 0, y: 0.5)
+        fade.endPoint = CGPoint(x: 1, y: 0.5)
+        rail.layer.mask = fade
+        rail.translatesAutoresizingMaskIntoConstraints = false
         row.axis = .horizontal
         row.alignment = .center
         row.spacing = CGFloat(tokens.spacing.xs)
         row.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(scroller)
+        let hide = hideButton()
+        addSubview(rail)
+        addSubview(hide)
+        rail.addSubview(scroller)
         scroller.addSubview(row)
+        constrain(hide: hide)
+    }
+
+    private func constrain(hide: UIButton) {
         let inset = CGFloat(tokens.spacing.sm)
         NSLayoutConstraint.activate([
-            scroller.leadingAnchor.constraint(equalTo: leadingAnchor),
-            scroller.trailingAnchor.constraint(equalTo: trailingAnchor),
-            scroller.topAnchor.constraint(equalTo: topAnchor),
-            scroller.bottomAnchor.constraint(equalTo: bottomAnchor),
+            rail.leadingAnchor.constraint(equalTo: leadingAnchor),
+            rail.trailingAnchor.constraint(equalTo: hide.leadingAnchor),
+            rail.topAnchor.constraint(equalTo: topAnchor),
+            rail.bottomAnchor.constraint(equalTo: bottomAnchor),
+            scroller.leadingAnchor.constraint(equalTo: rail.leadingAnchor),
+            scroller.trailingAnchor.constraint(equalTo: rail.trailingAnchor),
+            scroller.topAnchor.constraint(equalTo: rail.topAnchor),
+            scroller.bottomAnchor.constraint(equalTo: rail.bottomAnchor),
+            hide.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -inset),
+            hide.centerYAnchor.constraint(equalTo: centerYAnchor),
+            hide.heightAnchor.constraint(equalToConstant: Self.height - inset * 2),
             row.leadingAnchor.constraint(equalTo: scroller.contentLayoutGuide.leadingAnchor, constant: inset),
-            row.trailingAnchor.constraint(equalTo: scroller.contentLayoutGuide.trailingAnchor, constant: -inset),
+            row.trailingAnchor.constraint(
+                equalTo: scroller.contentLayoutGuide.trailingAnchor, constant: -CGFloat(tokens.spacing.lg)
+            ),
             row.centerYAnchor.constraint(equalTo: scroller.frameLayoutGuide.centerYAnchor),
             row.heightAnchor.constraint(equalToConstant: Self.height - inset * 2)
         ])
+    }
+
+    /// Hides the keyboard. It's on every keyboard bar, whatever the
+    /// toolbar's items say, so the keyboard can always be put away.
+    private func hideButton() -> UIButton {
+        let button = UIButton(
+            configuration: configuration(title: nil, symbol: CommandSymbols.name(for: Self.hideCommand)),
+            primaryAction: UIAction { [weak self] _ in self?.run(Self.hideCommand) }
+        )
+        button.translatesAutoresizingMaskIntoConstraints = false
+        return styled(button, title: "Hide the keyboard", labelled: false)
     }
 
     private func view(for entry: ToolbarEntry, labels: ToolbarLabels) -> UIView {
@@ -72,6 +116,8 @@ final class AccessoryBar: UIInputView {
             return gap()
         case let .menu(title, commands):
             return menuButton(title: title, commands: commands, labels: labels)
+        case .widget:
+            return gap()
         }
     }
 
@@ -101,6 +147,11 @@ final class AccessoryBar: UIInputView {
             button.configuration?.background.backgroundColor = fill
         }
         button.accessibilityLabel = title
+        // A labelled button is as wide as its label on one line, neither
+        // stretched nor squeezed by the scrolling row.
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        button.setContentCompressionResistancePriority(.required, for: .horizontal)
+        button.configuration?.titleLineBreakMode = .byClipping
         let width = labelled
             ? button.widthAnchor.constraint(greaterThanOrEqualToConstant: Self.buttonSide)
             : button.widthAnchor.constraint(equalToConstant: Self.buttonSide)
