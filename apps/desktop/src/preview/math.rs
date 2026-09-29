@@ -1,24 +1,19 @@
 //! Rendered math for the math widgets. LaTeX goes through `gasp-math`
-//! (mitex and Typst) to SVG, which is rasterised with resvg and tinted with
-//! the text colour, all on a background thread.
-//!
-//! GPUI 0.2.2 can turn SVG bytes into an image (`Image::to_image_data`), but
-//! only at 1x and without converting to the BGRA order its images use, and
-//! the size type of its `SvgRenderer` isn't public. Calling resvg (the
-//! version GPUI already builds) gives crisp, correctly coloured equations.
+//! (mitex and Typst), which rasterises the layout straight into coverage;
+//! that is tinted with the text colour in the BGRA order GPUI's images use,
+//! all on a background thread.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
-use gasp_math::{MathError, RenderedMath, evict_layout_memory, render_latex};
+use gasp_math::{MathCoverage, MathError, rasterize_latex};
 use gpui::{Hsla, Pixels, RenderImage, Rgba, SharedString, px};
 use image::{Frame, RgbaImage};
-use resvg::{tiny_skia, usvg};
 
-/// Renders LaTeX (`tex`, display mode, font size) to SVG.
+/// Renders LaTeX (`tex`, display mode, font size, pixels per point) to
+/// coverage.
 pub type RenderFn =
-    Arc<dyn Fn(&str, bool, f64) -> Result<Arc<RenderedMath>, MathError> + Send + Sync>;
+    Arc<dyn Fn(&str, bool, f64, f32) -> Result<MathCoverage, MathError> + Send + Sync>;
 
 /// Rasterise at twice the device resolution so edges stay smooth.
 const OVERSAMPLE: f32 = 2.;
@@ -27,13 +22,6 @@ const OVERSAMPLE: f32 = 2.;
 /// those drawn least recently: a long, math-heavy note's worth. One that's
 /// scrolled back to renders again.
 const KEPT_BYTES: usize = 32 << 20;
-
-/// Typst memoises layouts; every this many renders, the ones not used
-/// lately are let go so memory doesn't grow with every equation seen.
-const RENDERS_BETWEEN_EVICTIONS: usize = 200;
-const EVICTION_AGE: usize = 2;
-
-static RENDERS: AtomicUsize = AtomicUsize::new(0);
 
 /// One equation at one size, scale and colour.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -102,16 +90,16 @@ impl MathRequest {
     /// Renders and rasterises the equation. Safe to call on any thread.
     pub fn run(&self) -> MathState {
         let key = &self.key;
-        let rendered = (self.render)(&key.tex, key.display, f64::from(key.font_size()));
-        if RENDERS
-            .fetch_add(1, Ordering::Relaxed)
-            .is_multiple_of(RENDERS_BETWEEN_EVICTIONS)
-        {
-            evict_layout_memory(EVICTION_AGE);
-        }
+        let pixels_per_point = key.scale() * OVERSAMPLE;
+        let rendered = (self.render)(
+            &key.tex,
+            key.display,
+            f64::from(key.font_size()),
+            pixels_per_point,
+        );
         let image = rendered
             .map_err(|error| error.message().to_owned())
-            .and_then(|rendered| rasterize(&rendered, key));
+            .and_then(|coverage| tint(coverage, key));
         match image {
             Ok(image) => MathState::Ready(Arc::new(image)),
             Err(message) => MathState::Failed(message.into()),
@@ -155,12 +143,10 @@ fn pixel_bytes(state: &MathState) -> usize {
 
 impl Default for MathStore {
     /// Renders with Typst. The store caches by source, size, scale and
-    /// colour itself, so renders call `render_latex` directly and run in
-    /// parallel rather than queueing on a shared `MathCache`.
+    /// colour itself, so renders call `rasterize_latex` directly and run in
+    /// parallel.
     fn default() -> Self {
-        Self::with_renderer(Arc::new(|tex, display, font_size| {
-            render_latex(tex, display, font_size).map(Arc::new)
-        }))
+        Self::with_renderer(Arc::new(rasterize_latex))
     }
 }
 
@@ -277,28 +263,15 @@ impl MathStore {
     }
 }
 
-/// The SVG's coverage, filled with the key's colour, in GPUI's BGRA order.
-fn rasterize(rendered: &RenderedMath, key: &MathKey) -> Result<MathImage, String> {
-    let tree = usvg::Tree::from_str(&rendered.svg, &usvg::Options::default())
-        .map_err(|error| error.to_string())?;
-    let pixels_per_point = key.scale() * OVERSAMPLE;
-    let width = (rendered.width as f32 * pixels_per_point).ceil().max(1.);
-    let height = (rendered.height as f32 * pixels_per_point).ceil().max(1.);
-    let mut pixmap =
-        tiny_skia::Pixmap::new(width as u32, height as u32).ok_or("the equation has no area")?;
-    let svg_size = tree.size();
-    let transform = tiny_skia::Transform::from_scale(
-        width / svg_size.width().max(f32::EPSILON),
-        height / svg_size.height().max(f32::EPSILON),
-    );
-    resvg::render(&tree, transform, &mut pixmap.as_mut());
+/// The coverage filled with the key's colour, in GPUI's BGRA order.
+fn tint(rendered: MathCoverage, key: &MathKey) -> Result<MathImage, String> {
     let [red, green, blue, alpha] = key.color.to_be_bytes();
-    let mut pixels = Vec::with_capacity(pixmap.pixels().len() * 4);
-    for pixel in pixmap.pixels() {
-        let coverage = u16::from(pixel.alpha()) * u16::from(alpha) / 255;
+    let mut pixels = Vec::with_capacity(rendered.coverage.len() * 4);
+    for coverage in rendered.coverage {
+        let coverage = u16::from(coverage) * u16::from(alpha) / 255;
         pixels.extend([blue, green, red, coverage as u8]);
     }
-    let buffer = RgbaImage::from_raw(pixmap.width(), pixmap.height(), pixels)
+    let buffer = RgbaImage::from_raw(rendered.pixel_width, rendered.pixel_height, pixels)
         .ok_or("the rasterised equation has the wrong size")?;
     Ok(MathImage {
         image: Arc::new(RenderImage::new(vec![Frame::new(buffer)])),
@@ -312,24 +285,24 @@ fn rasterize(rendered: &RenderedMath, key: &MathKey) -> Result<MathImage, String
 pub(crate) mod tests {
     use super::*;
 
-    /// A renderer that draws a box `4 * tex.len()` wide and 10 high, with
-    /// its baseline 8 from the top. `\bad` fails.
+    /// A renderer that draws a solid box `4 * tex.len()` wide and 10
+    /// high, with its baseline 8 from the top. `\bad` fails.
     pub fn stub_renderer() -> RenderFn {
-        Arc::new(|tex, _display, _size| {
+        Arc::new(|tex, _display, _size, pixels_per_point| {
             if tex.contains("\\bad") {
                 return Err(MathError::Convert("unknown command".into()));
             }
             let width = 4. * tex.len() as f64;
-            let svg = format!(
-                "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"10\" \
-                 viewBox=\"0 0 {width} 10\"><rect width=\"{width}\" height=\"10\"/></svg>"
-            );
-            Ok(Arc::new(RenderedMath {
-                svg,
+            let pixel_width = (width as f32 * pixels_per_point).ceil() as u32;
+            let pixel_height = (10. * pixels_per_point).ceil() as u32;
+            Ok(MathCoverage {
                 width,
                 height: 10.,
                 baseline: 8.,
-            }))
+                pixel_width,
+                pixel_height,
+                coverage: vec![255; (pixel_width * pixel_height) as usize],
+            })
         })
     }
 

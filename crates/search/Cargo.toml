@@ -8,9 +8,13 @@ publish = false
 
 [dependencies]
 gasp-config = { path = "../config" }
+memchr = "2.7"
+rayon = "1.12"
 unicode-normalization = "0.1.25"
 
 [dev-dependencies]
+gasp-bench = { path = "../bench" }
+gasp-vault = { path = "../vault" }
 tempfile = "3"
 
 [lints]

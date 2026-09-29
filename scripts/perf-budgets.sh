@@ -6,10 +6,10 @@
 #
 # On Linux run it under a display (on CI: xvfb-run with openbox). On macOS
 # the benches draw into windows that are never shown, so it runs with the
-# screen locked. The app's own folders go in a temporary HOME.
+# screen locked. The app's own folders and the copy of the vault go in a
+# temporary HOME.
 set -euo pipefail
 binary=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
-vault=$2
 
 # Budgets, in milliseconds and megabytes.
 LAUNCH_MS=300          # main to the first frame, median of 5 warm launches
@@ -21,6 +21,10 @@ OPEN_MEMORY_MB=300     # after opening the 30 longest notes, 9 tabs open
 
 home=$(mktemp -d)
 trap 'rm -rf "$home"' EXIT
+# The app saves its window and tabs in the vault it opens, so it opens a
+# copy.
+vault=$home/vault
+cp -R "$2" "$vault"
 export HOME=$home XDG_CONFIG_HOME=$home/.config XDG_DATA_HOME=$home/.local/share \
     XDG_CACHE_HOME=$home/.cache
 hidden=()

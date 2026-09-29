@@ -215,9 +215,12 @@ fn dm_opens_a_math_block(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn tab_indents_where_nothing_else_takes_it(cx: &mut TestAppContext) {
-    let (view, cx) = open(cx, "- item");
+    let (view, cx) = open(cx, "- first\n- item");
     tab(cx);
-    assert_eq!(view.read_with(cx, |view, _| view.text()), "\t- item");
+    assert_eq!(
+        view.read_with(cx, |view, _| view.text()),
+        "- first\n\t- item"
+    );
 }
 
 #[gpui::test]

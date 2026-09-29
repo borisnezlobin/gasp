@@ -11,8 +11,11 @@ pub mod grammar;
 pub mod markdown;
 pub mod projection;
 pub mod segment;
+mod sentence_cache;
+mod spelling;
 pub mod vocabulary;
 
 pub use grammar::{CheckOptions, Checker, English, Flag, FlagKind};
 pub use markdown::{Purpose, Unit, sentence_lengths, units};
 pub use segment::{Length, Sentence, Thresholds, sentences, word_count};
+pub use sentence_cache::SentenceLengthCache;

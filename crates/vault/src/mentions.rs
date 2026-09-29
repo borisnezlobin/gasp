@@ -275,11 +275,18 @@ fn find_ignoring_case(haystack: &str, needle: &str) -> Vec<usize> {
     let Some(&first) = pin.first() else {
         return Vec::new();
     };
+    let (lower, upper) = (first.to_ascii_lowercase(), first.to_ascii_uppercase());
     let mut found = Vec::new();
     let mut at = 0;
     while at + pin.len() <= hay.len() {
-        if hay[at].eq_ignore_ascii_case(&first)
-            && hay[at..at + pin.len()].eq_ignore_ascii_case(pin)
+        let Some(next) = memchr::memchr2(lower, upper, &hay[at..]) else {
+            break;
+        };
+        at += next;
+        if at + pin.len() > hay.len() {
+            break;
+        }
+        if hay[at..at + pin.len()].eq_ignore_ascii_case(pin)
             && haystack.is_char_boundary(at)
             && haystack.is_char_boundary(at + pin.len())
         {

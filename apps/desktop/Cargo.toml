@@ -45,7 +45,6 @@ toml_edit = "0.22"
 jiff = "0.2"
 gasp-math = { path = "../../crates/math" }
 gasp-highlight = { path = "../../crates/highlight" }
-resvg = { version = "0.45", default-features = false }
 # Code block colours. Typst already builds both with these features, so
 # they add no new crates.
 syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy"] }

@@ -6,7 +6,10 @@
 
 use std::collections::HashSet;
 use std::ops::Range;
+use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+use memchr::memmem::Finder;
 
 use super::engine::{Note, NoteResult, TAG_WEIGHT, fold, line_hits};
 
@@ -35,14 +38,16 @@ pub fn search_tagged(
     generation: &AtomicUsize,
     current: usize,
 ) -> Vec<NoteResult> {
+    // Paths compare by their parts, so a `/` matches a Windows `\`.
+    let tagged: HashSet<&Path> = tagged.iter().map(Path::new).collect();
+    let name = fold(tag).text;
     let mut results = Vec::new();
     for note in notes {
         if generation.load(Ordering::Relaxed) != current {
             return Vec::new();
         }
-        let path = slash_path(&note.path);
-        if tagged.contains(&path) {
-            let matches = tag_matches(&note.text, tag);
+        if tagged.contains(note.path.as_path()) {
+            let matches = tag_matches(note, &name);
             results.push(NoteResult {
                 path: note.path.clone(),
                 score: TAG_WEIGHT,
@@ -55,27 +60,22 @@ pub fn search_tagged(
     results
 }
 
-/// A relative path with `/` separators, as the link index keys notes.
-fn slash_path(path: &std::path::Path) -> String {
-    path.components()
-        .map(|part| part.as_os_str().to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("/")
-}
-
-/// Where `tag` is written in `text`: each `#tag` (or a tag nested under
-/// it) in the body, and the tag's name on the frontmatter's lines.
-fn tag_matches(text: &str, tag: &str) -> Vec<Range<usize>> {
-    let folded = fold(text);
+/// Where the tag (`name`, folded) is written in `note`: each `#name` (or
+/// a tag nested under it) in the body, and the name on the frontmatter's
+/// lines.
+fn tag_matches(note: &Note, name: &str) -> Vec<Range<usize>> {
+    if name.is_empty() {
+        return Vec::new();
+    }
+    let text = &*note.text;
     let front = frontmatter_end(text);
-    let name = fold(tag).text;
     let written = format!("#{name}");
-    let in_body = folded.find_all(&written).into_iter().filter(|range| {
+    let (written, name) = (Finder::new(&written), Finder::new(name));
+    let in_body = note.matches(&written).filter(|range| {
         range.start >= front && ends_tag(text, range.end) && starts_word(text, range.start)
     });
-    let in_front = folded
-        .find_all(&name)
-        .into_iter()
+    let in_front = note
+        .matches(&name)
         .filter(|range| range.end <= front && ends_tag(text, range.end));
     let mut matches: Vec<Range<usize>> = in_front.chain(in_body).collect();
     matches.sort_by_key(|range| range.start);
@@ -125,10 +125,11 @@ mod tests {
     #[test]
     fn frontmatter_and_inline_tags_are_found() {
         let text = "---\ntags: [physics, maths]\n---\nWaves #physics/waves and #physicsy.\n";
-        let found: Vec<&str> = tag_matches(text, "physics")
-            .into_iter()
-            .map(|range| &text[range])
-            .collect();
+        let found: Vec<&str> =
+            tag_matches(&Note::new(PathBuf::from("n.md"), text.into()), "physics")
+                .into_iter()
+                .map(|range| &text[range])
+                .collect();
         assert_eq!(found, ["physics", "#physics"]);
     }
 

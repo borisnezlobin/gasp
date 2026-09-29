@@ -13,7 +13,7 @@ BUNDLE_ID := com.borisnezlobin.gasp
 # the paid account, but its installs stop opening after 7 days.
 IOS_TEAM ?= K2MB68Z582
 
-.PHONY: help build run dmg dmg-local icon ios-core ios-project ios-sim ios-phone snapshot
+.PHONY: help build run dmg dmg-local notarize icon ios-core ios-project ios-sim ios-phone snapshot
 
 help:
 	@echo "make build       Build the desktop app, signed so the Keychain remembers it"
@@ -22,6 +22,7 @@ help:
 	@echo "                 make snapshot SCRIPT=steps.txt VAULT=path [OUT=dir] [OPEN=note]"
 	@echo "make dmg         Signed, notarized Gasp.dmg for other Macs (target/package/)"
 	@echo "make dmg-local   Unsigned Gasp.dmg that only runs on this Mac"
+	@echo "make notarize    Notarize the Gasp.dmg already built (needs the Mac unlocked)"
 	@echo "make icon        Rebuild AppIcon.icns from the whale render"
 	@echo "make ios-sim     Build the iPhone app and run it in the simulator (no window)"
 	@echo "make ios-phone   Build the iPhone app and install it on the plugged-in iPhone"
@@ -43,6 +44,13 @@ snapshot:
 
 dmg:
 	DEVELOPER_ID="$(DEVELOPER_ID)" NOTARY_PROFILE="$(NOTARY_PROFILE)" scripts/package-macos.sh
+
+VERSION := $(shell sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
+
+notarize:
+	xcrun notarytool submit target/package/Gasp-$(VERSION).dmg --keychain-profile "$(NOTARY_PROFILE)" --wait
+	xcrun stapler staple target/package/Gasp-$(VERSION).dmg
+	spctl -a -vv -t install target/package/Gasp-$(VERSION).dmg
 
 dmg-local:
 	DEVELOPER_ID= NOTARY_PROFILE= scripts/package-macos.sh

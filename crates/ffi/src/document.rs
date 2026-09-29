@@ -7,10 +7,11 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use gasp_core::link_card::meta::card_from_html;
 use gasp_core::link_card::{card_replacement, url_on_line};
 use gasp_core::render::folds::Folds;
-use gasp_core::render::{RenderInput, reveal_settings};
+use gasp_core::render::{KeptPlan, RenderInput, reveal_settings};
 use gasp_core::syntax::{self, Edit, NodeKind, SyntaxTree, WikiInfo};
 use gasp_core::table::Table;
-use gasp_prose::{Length, Purpose, sentence_lengths, units};
+use gasp_prose::segment::Thresholds;
+use gasp_prose::{Length, SentenceLengthCache};
 
 use crate::display::{DisplayState, SharedDisplay};
 use crate::edits::{self, CommandInput, CommandOutcome, TextReplacement};
@@ -31,6 +32,15 @@ pub(crate) struct ParsedText {
     source_table: Option<Range<usize>>,
     /// Headings and callouts folded in this view.
     pub(crate) folds: Folds,
+    /// The sentence tints of this text, kept for cursor moves, with the
+    /// thresholds they were measured against.
+    tints: Option<(Thresholds, Vec<SentenceTint>)>,
+    /// Each paragraph's sentence lengths by its text, so an edit measures
+    /// only the paragraphs it changed.
+    sentence_lengths: SentenceLengthCache,
+    /// The last whole-note plan, so a cursor move plans only the blocks
+    /// it leaves and enters.
+    kept_plan: KeptPlan,
 }
 
 impl ParsedText {
@@ -41,6 +51,9 @@ impl ParsedText {
             text,
             source_table: None,
             folds: Folds::default(),
+            tints: None,
+            sentence_lengths: SentenceLengthCache::new(),
+            kept_plan: KeptPlan::default(),
         }
     }
 
@@ -48,11 +61,36 @@ impl ParsedText {
         let Some(edit) = changed_span(&self.text, &text) else {
             return;
         };
-        self.tree.edit(&text, &edit);
+        let reparsed = self.tree.edit(&text, &edit);
         self.folds.map(&edit);
-        self.offsets = Utf16Offsets::new(&text);
+        self.offsets.edited(&text, &edit);
         self.text = text;
         self.source_table = None;
+        self.tints = None;
+        self.kept_plan.edited(&edit, &reparsed, &self.tree);
+    }
+
+    fn sentence_tints(&mut self, thresholds: Thresholds) -> Vec<SentenceTint> {
+        if let Some((measured_with, tints)) = &self.tints
+            && *measured_with == thresholds
+        {
+            return tints.clone();
+        }
+        let lengths = self.sentence_lengths.sentence_lengths(
+            &self.text,
+            &self.tree,
+            0..self.text.len(),
+            thresholds,
+        );
+        let tints: Vec<SentenceTint> = lengths
+            .into_iter()
+            .map(|(range, length)| SentenceTint {
+                range: self.offsets.range(&range),
+                length: sentence_length(length),
+            })
+            .collect();
+        self.tints = Some((thresholds, tints.clone()));
+        tints
     }
 
     fn table_at(&self, offset: usize) -> Option<Range<usize>> {
@@ -116,16 +154,26 @@ impl NoteDocument {
         let mut settings = reveal_settings(&self.display.lock().symbols);
         settings.source_table = parsed.source_table.as_ref().map(|table| table.start);
         let selections = [selected];
-        let mut plan = gasp_core::render::plan(&RenderInput {
-            text: &parsed.text,
-            tree: &parsed.tree,
+        let ParsedText {
+            text,
+            tree,
+            offsets,
+            folds,
+            kept_plan,
+            ..
+        } = &mut *parsed;
+        let lines = kept_plan.plan(&RenderInput {
+            text,
+            tree,
             selections: &selections,
             settings: &settings,
         });
-        parsed
-            .folds
-            .apply(&mut plan.lines, &parsed.tree, &selections);
-        note_plan(&plan, &parsed.offsets)
+        if folds.is_empty() {
+            return note_plan(lines, offsets);
+        }
+        let mut folded = lines.to_vec();
+        folds.apply(&mut folded, tree, &selections);
+        note_plan(&folded, offsets)
     }
 
     /// Runs the editing command `id` on `selection`.
@@ -153,7 +201,7 @@ impl NoteDocument {
         let parsed = self.lock();
         parsed
             .tree
-            .preorder()
+            .block_preorder()
             .into_iter()
             .map(|id| parsed.tree.node(id))
             .filter_map(|node| match node.kind {
@@ -214,15 +262,7 @@ impl NoteDocument {
         let Some(thresholds) = self.display.lock().sentence_lengths else {
             return Vec::new();
         };
-        let parsed = self.lock();
-        units(&parsed.tree, 0..parsed.text.len(), Purpose::Rhythm)
-            .iter()
-            .flat_map(|unit| sentence_lengths(&parsed.text, unit, thresholds))
-            .map(|(range, length)| SentenceTint {
-                range: parsed.offsets.range(&range),
-                length: sentence_length(length),
-            })
-            .collect()
+        self.lock().sentence_tints(thresholds)
     }
 }
 
@@ -300,10 +340,11 @@ fn wiki_target(info: &WikiInfo) -> String {
 /// The one edit that turns `old` into `new`: everything between their
 /// common start and common end. `None` when they're the same.
 fn changed_span(old: &str, new: &str) -> Option<Edit> {
-    if old == new {
+    let prefix = common_prefix(old.as_bytes(), new.as_bytes());
+    if prefix == old.len() && prefix == new.len() {
         return None;
     }
-    let prefix = floor_boundary(old, common_prefix(old.as_bytes(), new.as_bytes()));
+    let prefix = floor_boundary(old, prefix);
     let suffix_limit = old.len().min(new.len()) - prefix;
     let suffix = common_suffix(old.as_bytes(), new.as_bytes()).min(suffix_limit);
     let old_end = ceil_boundary(old, old.len() - suffix);
@@ -317,16 +358,39 @@ fn changed_span(old: &str, new: &str) -> Option<Edit> {
     })
 }
 
+/// Compared a block at a time first, so long equal stretches cost a
+/// `memcmp` rather than a loop over bytes.
+const COMPARED_BLOCK: usize = 256;
+
 fn common_prefix(a: &[u8], b: &[u8]) -> usize {
-    a.iter().zip(b).take_while(|(x, y)| x == y).count()
+    let limit = a.len().min(b.len());
+    let mut at = 0;
+    while at + COMPARED_BLOCK <= limit && a[at..at + COMPARED_BLOCK] == b[at..at + COMPARED_BLOCK] {
+        at += COMPARED_BLOCK;
+    }
+    at + a[at..limit]
+        .iter()
+        .zip(&b[at..limit])
+        .take_while(|(x, y)| x == y)
+        .count()
 }
 
 fn common_suffix(a: &[u8], b: &[u8]) -> usize {
-    a.iter()
-        .rev()
-        .zip(b.iter().rev())
-        .take_while(|(x, y)| x == y)
-        .count()
+    let limit = a.len().min(b.len());
+    let mut matched = 0;
+    while matched + COMPARED_BLOCK <= limit
+        && a[a.len() - matched - COMPARED_BLOCK..a.len() - matched]
+            == b[b.len() - matched - COMPARED_BLOCK..b.len() - matched]
+    {
+        matched += COMPARED_BLOCK;
+    }
+    matched
+        + a[..a.len() - matched]
+            .iter()
+            .rev()
+            .zip(b[..b.len() - matched].iter().rev())
+            .take_while(|(x, y)| x == y)
+            .count()
 }
 
 fn floor_boundary(text: &str, mut at: usize) -> usize {
@@ -371,6 +435,50 @@ mod tests {
             let edit = changed_span(old, new).unwrap();
             assert_eq!(apply(old, &edit, new), new, "{old:?} → {new:?}");
         }
+    }
+
+    #[test]
+    fn plans_after_cursor_moves_and_edits_match_fresh_ones() {
+        let text = "# Title *em*\n\nText **bold** $x^2$ [link](https://a.org)\n\n- one\n- two\n\n\
+                    > [!note]- Folded\n> body\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nlast";
+        let document = NoteDocument::new(text.into());
+        document.toggle_fold(text.find("> [!note]").unwrap() as u32);
+        let utf16_len = text.encode_utf16().count() as u32;
+        for step in 0..=utf16_len {
+            if step % 7 == 3 {
+                let mut edited = document.text();
+                let insert = ["x", "\n", "*"][step as usize % 3];
+                edited.insert_str(step as usize * 5 % edited.len(), insert);
+                document.update(edited);
+            }
+            let selection = TextRange {
+                start: step,
+                end: (step + step % 3 * 4).min(utf16_len),
+            };
+            let fresh = NoteDocument::new(document.text());
+            fresh.lock().folds = document.lock().folds.clone();
+            assert_eq!(document.plan(selection), fresh.plan(selection), "{step}");
+        }
+    }
+
+    #[test]
+    fn kept_sentence_tints_follow_edits_and_thresholds() {
+        let mut parsed = ParsedText::new("One two three. Four.\n".into());
+        let thresholds = Thresholds {
+            short_below: 3,
+            long_above: 10,
+        };
+        let first = parsed.sentence_tints(thresholds);
+        assert_eq!(parsed.sentence_tints(thresholds), first);
+        parsed.update("One two three. Four five six seven.\n".into());
+        let fresh = ParsedText::new(parsed.text.clone()).sentence_tints(thresholds);
+        assert_eq!(parsed.sentence_tints(thresholds), fresh);
+        let stricter = Thresholds {
+            short_below: 1,
+            long_above: 2,
+        };
+        let fresh = ParsedText::new(parsed.text.clone()).sentence_tints(stricter);
+        assert_eq!(parsed.sentence_tints(stricter), fresh);
     }
 
     #[test]

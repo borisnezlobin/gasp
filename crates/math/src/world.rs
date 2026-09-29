@@ -1,7 +1,7 @@
 //! A minimal in-memory Typst [`World`]: embedded fonts, the vendored mitex
 //! package and one main source. It never touches the file system.
 
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Once};
 
 use typst::diag::{FileError, FileResult};
 use typst::foundations::{Bytes, Datetime, Duration};
@@ -33,39 +33,57 @@ pub const MITEX_SOURCES: [(&str, &str); 4] = [
     ),
 ];
 
-/// Everything that is shared between compilations: the standard library,
-/// fonts and the vendored package sources.
-struct SharedEnvironment {
-    library: LazyHash<Library>,
-    book: LazyHash<FontBook>,
+/// The fonts Typst embeds, parsed once and shared with every other world
+/// in the process.
+struct EmbeddedFonts {
     fonts: Vec<Font>,
-    sources: Vec<Source>,
+    book: LazyHash<FontBook>,
 }
 
-static ENVIRONMENT: LazyLock<SharedEnvironment> = LazyLock::new(SharedEnvironment::new);
+static FONTS: LazyLock<EmbeddedFonts> = LazyLock::new(|| {
+    let fonts: Vec<Font> = typst_assets::fonts()
+        .flat_map(|data| Font::iter(Bytes::new(data)))
+        .collect();
+    let book = LazyHash::new(FontBook::from_fonts(&fonts));
+    EmbeddedFonts { fonts, book }
+});
 
-impl SharedEnvironment {
-    fn new() -> Self {
-        let fonts: Vec<Font> = typst_assets::fonts()
-            .flat_map(|data| Font::iter(Bytes::new(data)))
-            .collect();
-        let book = FontBook::from_fonts(&fonts);
-        let sources = MITEX_SOURCES
-            .iter()
-            .map(|(path, text)| Source::new(file_id(path), (*text).to_owned()))
-            .collect();
-        Self {
-            library: LazyHash::new(Library::default()),
-            book: LazyHash::new(book),
-            fonts,
-            sources,
+static LIBRARY: LazyLock<LazyHash<Library>> = LazyLock::new(|| LazyHash::new(Library::default()));
+
+static SOURCES: LazyLock<Vec<Source>> = LazyLock::new(|| {
+    MITEX_SOURCES
+        .iter()
+        .map(|(path, text)| Source::new(file_id(path), (*text).to_owned()))
+        .collect()
+});
+
+/// The fonts Typst embeds (New Computer Modern, Libertinus Serif, DejaVu
+/// Sans Mono), parsed on first use.
+pub fn embedded_fonts() -> &'static [Font] {
+    &FONTS.fonts
+}
+
+/// Starts parsing the fonts on another thread, once, so it overlaps with
+/// evaluating the mitex scope, which needs no fonts. Laying out waits for
+/// the fonts if they aren't ready.
+fn load_fonts_in_background() {
+    static STARTED: Once = Once::new();
+    STARTED.call_once(|| {
+        let spawned = std::thread::Builder::new()
+            .name("math fonts".into())
+            .spawn(|| LazyLock::force(&FONTS));
+        if spawned.is_err() {
+            LazyLock::force(&FONTS);
         }
-    }
+    });
 }
 
 /// Forces the one-time setup (font parsing, library construction).
 pub(crate) fn warm_up() {
-    LazyLock::force(&ENVIRONMENT);
+    load_fonts_in_background();
+    LazyLock::force(&LIBRARY);
+    LazyLock::force(&SOURCES);
+    LazyLock::force(&FONTS);
 }
 
 fn file_id(path: &str) -> FileId {
@@ -89,17 +107,17 @@ impl MathWorld {
         if id == self.main.id() {
             return Some(&self.main);
         }
-        ENVIRONMENT.sources.iter().find(|source| source.id() == id)
+        SOURCES.iter().find(|source| source.id() == id)
     }
 }
 
 impl World for MathWorld {
     fn library(&self) -> &LazyHash<Library> {
-        &ENVIRONMENT.library
+        &LIBRARY
     }
 
     fn book(&self) -> &LazyHash<FontBook> {
-        &ENVIRONMENT.book
+        &FONTS.book
     }
 
     fn main(&self) -> FileId {
@@ -119,7 +137,7 @@ impl World for MathWorld {
     }
 
     fn font(&self, index: usize) -> Option<Font> {
-        ENVIRONMENT.fonts.get(index).cloned()
+        FONTS.fonts.get(index).cloned()
     }
 
     fn today(&self, _offset: Option<Duration>) -> Option<Datetime> {
@@ -129,6 +147,7 @@ impl World for MathWorld {
 
 /// Compiles `main_text` to a paged document, joining error messages on failure.
 pub(crate) fn compile_document(main_text: String) -> Result<PagedDocument, String> {
+    load_fonts_in_background();
     let world = MathWorld::new(main_text);
     typst::compile::<PagedDocument>(&world)
         .output

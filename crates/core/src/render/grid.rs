@@ -15,14 +15,14 @@ impl Planner<'_> {
     /// A table: its source while it shows it, its grid otherwise.
     pub(super) fn visit_table(&mut self, id: NodeId) {
         self.add_line_styles(id);
-        let markup = self.revealer.tree.node(id).markup.clone();
-        for token in &markup {
+        let markup = &self.revealer.tree.node(id).markup;
+        for token in markup {
             self.markup_effect(id, token);
         }
         if self.revealer.table_shows_source(id) {
             return;
         }
-        for delimiter in &markup {
+        for delimiter in markup {
             let line = self.revealer.tree.lines().line_of(delimiter.range.start);
             self.effects.collapsed.push(line..line + 1);
         }

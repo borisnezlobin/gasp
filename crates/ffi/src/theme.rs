@@ -42,6 +42,8 @@ pub struct Palette {
     pub accent: ThemeColor,
     pub on_accent: ThemeColor,
     pub icon: ThemeColor,
+    /// An icon on a button that can't do anything now.
+    pub icon_disabled: ThemeColor,
     pub link: ThemeColor,
     pub link_underline: ThemeColor,
     pub highlight: ThemeColor,
@@ -210,6 +212,7 @@ fn palette(read: &TokenReader<'_>) -> Palette {
         accent: read.color("color.accent"),
         on_accent: read.color("color.on-accent"),
         icon: read.color("color.icon"),
+        icon_disabled: read.color("color.icon-disabled"),
         link: read.color("color.link"),
         link_underline: read.color("color.link-underline"),
         highlight: read.color("color.highlight"),
