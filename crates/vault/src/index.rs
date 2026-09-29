@@ -55,7 +55,9 @@ pub struct LinkIndex {
 
 /// Whether a path is a note the index reads.
 pub fn is_note_path(path: &str) -> bool {
-    path.to_lowercase().ends_with(".md")
+    // Only ASCII letters lowercase to `m` and `d`, so the last three bytes
+    // decide it.
+    path.len() >= 3 && path.as_bytes()[path.len() - 3..].eq_ignore_ascii_case(b".md")
 }
 
 /// The key links and files meet on: the lowercased file name without
@@ -161,12 +163,13 @@ impl LinkIndex {
         }
     }
 
-    fn remove_file(&mut self, path: &str) {
-        self.unindex_note(path);
-        self.notes.remove(path);
+    /// Forgets the file at `path`, handing back its entry if it's a note.
+    fn remove_file(&mut self, path: &str) -> Option<NoteEntry> {
+        let entry = self.unindex_note(path);
         if self.files.remove(path) {
             self.reresolve_key(&name_key(path), None);
         }
+        entry
     }
 
     /// Follows a move of a file or folder without reading anything again.
@@ -191,9 +194,7 @@ impl LinkIndex {
             .collect();
         let mut notes = Vec::new();
         for (old, new) in &moved {
-            let entry = self.notes.get(old).cloned();
-            self.remove_file(old);
-            match entry {
+            match self.remove_file(old) {
                 Some(entry) => notes.push((new.clone(), entry)),
                 None => self.add_file(new),
             }
@@ -263,10 +264,9 @@ impl LinkIndex {
         }
     }
 
-    fn unindex_note(&mut self, path: &str) {
-        let Some(entry) = self.notes.remove(path) else {
-            return;
-        };
+    /// Takes the note at `path` out of the index, handing back its entry.
+    fn unindex_note(&mut self, path: &str) -> Option<NoteEntry> {
+        let entry = self.notes.remove(path)?;
         self.unlink(path, &entry);
         for key in link_keys(&entry.parsed.links) {
             if let Some(sources) = self.by_key.get_mut(&key) {
@@ -285,6 +285,7 @@ impl LinkIndex {
                 }
             }
         }
+        Some(entry)
     }
 
     /// Drops `path`'s resolved links from the backlinks.
@@ -311,25 +312,18 @@ impl LinkIndex {
             .cloned()
             .collect();
         for source in sources {
-            let Some(entry) = self.notes.get(&source).cloned() else {
+            let Some(mut entry) = self.notes.remove(&source) else {
                 continue;
             };
             self.unlink(&source, &entry);
-            let resolved: Vec<Option<String>> = entry
-                .parsed
-                .links
-                .iter()
-                .map(|link| self.resolve(&source, link))
-                .collect();
-            for target in resolved.iter().flatten() {
+            entry.resolved = self.files.resolve_all(&source, &entry.parsed.links);
+            for target in entry.resolved.iter().flatten() {
                 self.backlinks
                     .entry(target.clone())
                     .or_default()
                     .insert(source.clone());
             }
-            if let Some(entry) = self.notes.get_mut(&source) {
-                entry.resolved = resolved;
-            }
+            self.notes.insert(source, entry);
         }
     }
 
