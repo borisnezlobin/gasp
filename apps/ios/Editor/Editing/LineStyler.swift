@@ -5,7 +5,15 @@ import UIKit
 enum LinePresentation {
     case asPlanned
     case mathSource
+    case cardField(CardField)
     case collapsed
+}
+
+/// The lines of a link card the phone shows, from its `embed` block.
+enum CardField {
+    case title
+    case detail
+    case address
 }
 
 /// Styles one line of the plan into the text storage.
@@ -47,6 +55,8 @@ struct LineStyler {
             if line.collapsed { collapse(paragraph) }
         case .mathSource:
             showMathSource(paragraphStyle)
+        case .cardField(let field):
+            showCardField(field, paragraphStyle)
         case .collapsed:
             hide(line.range.nsRange, paragraphStyle)
             collapse(paragraph)
@@ -129,6 +139,40 @@ struct LineStyler {
     private func collapse(_ paragraph: NSRange) {
         guard let range = clamped(paragraph) else { return }
         storage.addAttribute(.collapsedLine, value: true, range: range)
+    }
+
+    /// Shows only the field's value, between its quotes.
+    private func showCardField(_ field: CardField, _ paragraph: NSParagraphStyle) {
+        let range = line.range.nsRange
+        hide(range, paragraph)
+        let source = text.substring(with: range)
+        guard let colon = source.firstIndex(of: ":") else { return }
+        let value = source[source.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+        let unquoted = value.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        let found = text.range(of: unquoted, options: [], range: range)
+        guard !unquoted.isEmpty, found.location != NSNotFound else { return }
+        let inset = paragraph.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+        inset.firstLineHeadIndent = CGFloat(tokens.spacing.lg)
+        inset.headIndent = CGFloat(tokens.spacing.lg)
+        inset.tailIndent = -CGFloat(tokens.spacing.lg)
+        storage.addAttribute(.paragraphStyle, value: inset, range: range)
+        set(attributes(cardLook(field), inset), on: found)
+    }
+
+    private func cardLook(_ field: CardField) -> RunLook {
+        var look = baseLook
+        look.typeface = .text
+        switch field {
+        case .title:
+            look.bold = true
+            look.ink = \.textStrong
+        case .detail:
+            look.ink = \.textMuted
+        case .address:
+            look.ink = \.link
+            look.sizeFactor = CGFloat(tokens.typography.smallScale)
+        }
+        return look
     }
 
     private func showMathSource(_ paragraph: NSMutableParagraphStyle) {
