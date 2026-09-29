@@ -541,6 +541,22 @@ Every feature ships as a package with three parts: a plain-language spec, the co
   These are targets we set, not measurements yet. The spikes and the first builds will show whether they're realistic.
 
   Idle CPU is measured by `scripts/idle-cpu.sh`, which CI runs after the layout bench: an untouched window must draw no frames and stay under 1.5% CPU. It measures 0.6% on Linux; the owner measured 0.9% on macOS (Obsidian: 1.7%). What's left isn't the app's work: GPUI 0.2.2 keeps a loop running at the display's refresh rate while a window is visible (a `CVDisplayLink` on macOS, a timer on X11), and each tick asks whether the window needs drawing. Reaching 0% means patching GPUI so the loop stops after a few frames with nothing to draw and restarts when anything invalidates the window. That's a fork of GPUI's platform code; the macOS half can only be proven on a Mac, and a mistake there leaves a window that doesn't redraw, so it waits for a run on the owner's machine.
+- **Benches of the shared crates.** Each crate's hot paths have an example bench built on `crates/bench` (`gasp-bench`: timing, a counting allocator, budgets and corpus fixtures), run with `cargo run --release -p <crate> --example <name>_bench`. CI's Core benches job runs `core_bench`, `config_bench`, `ffi_bench`, `search_bench`, `vault_bench`, `math_bench`, `prose_bench` and `export_bench` with `GASP_BENCH_ENFORCE=1`, and a measurement over its budget (about three to eight times what it measures on a Mac) fails the build. `plan_digest` prints a digest of every parse and plan of the corpus, to show a change to the parser or planner changes no output. On a busy machine, `GASP_BENCH_CLOCK=cpu` times the thread's CPU instead of the wall clock. Measured on an M-series Mac, CPU clock:
+
+  | Hot path | Now |
+  |---|---|
+  | Full parse of a 200 KB note | 3.5 ms, 22.7k allocations, 1.7 MB tree |
+  | Reparse per keystroke, 200 KB note | 26 µs mid-note, 48 µs near the top |
+  | Plan a 60-line viewport | 15 µs |
+  | Input pipeline per key, the owner's 226 snippets and 82 replacements | 3 to 6 µs |
+  | Phone keystroke (update, plan, sentence tints, folds, lowering), median note / longest corpus note / 200 KB note | 27 µs / 87 µs / 1.0 ms |
+  | Phone cursor move, same notes | 10 µs / 54 µs / 0.66 ms |
+  | Vault search per keystroke, the corpus | 125 µs median, 1.3 ms p95 |
+  | New equation to pixels / keystroke inside an equation | 92 to 110 µs / 27 to 33 µs |
+  | Sentence tints after a keystroke, 200 KB note | 0.25 to 0.33 ms |
+  | Loading the owner's migrated config / compiling its snippets | 1.3 ms / 8.4 ms, in the background |
+
+  What the phone does is still whole-note work per keystroke in two places the core can't fix alone: UniFFI encodes the whole plan (330 KB for a 200 KB note) for Swift to decode, and `PlanStyler` compares line plans by value with absolute offsets, so every line after an edit reads as changed and is restyled. A plan delta (changed lines plus a shift for the rest) with Swift keeping its own copy would make both proportional to the edit.
 - **Code quality.** Clippy with a cyclomatic complexity limit of 15, and SwiftLint with the same limit on the iPhone app. A complexity failure blocks a merge like a failing test.
 
 ## Phases
@@ -568,8 +584,8 @@ This covers the document model, transactions and undo, the parser with Obsidian 
 | Document, selections, transactions | `crates/core/src/document.rs`, `transaction/` | Done. A rope with byte offsets, and change sets that apply, invert, compose and map offsets, with property tests. |
 | Undo | `crates/core/src/history.rs` | Done. Typing groups into steps within 500 ms, commands get their own step, and remote edits rebase both stacks. |
 | Input pipeline | `crates/core/src/pipeline/`, `steps/` | Done except emoji. List continuation, auto-pair, snippets and replacements run as named steps with context filters. The emoji slot is an empty placeholder. |
-| Parser | `crates/core/src/syntax/` | Done. It uses pulldown-cmark plus Obsidian's extensions, keeps markup ranges apart from content, reparses only the changed blocks, and answers `context_at`. A 200 KB note parses in about 20 ms in full, and a one-character edit reparses in under 1 ms. |
-| Render planner | `crates/core/src/render/` | Done. It produces styled runs, hidden ranges and widgets per line for all three reveal modes and scopes. A 60-line viewport plans in about 55 µs. Heading folding isn't in the plan output yet. |
+| Parser | `crates/core/src/syntax/` | Done. It uses pulldown-cmark plus Obsidian's extensions, keeps markup ranges apart from content, reparses only the changed blocks, and answers `context_at`. On an M-series Mac a 200 KB note parses in about 3.6 ms in full (22.7k allocations, a 1.7 MB tree), and a one-character edit reparses in 26 to 50 µs; `SyntaxTree::edit` answers which top-level blocks it parsed again. |
+| Render planner | `crates/core/src/render/` | Done. It produces styled runs, hidden ranges and widgets per line for all three reveal modes and scopes. A 60-line viewport plans in about 15 µs and a whole 200 KB note in about 0.9 ms. `KeptPlan` keeps a whole-note plan and re-plans only the blocks an edit reparsed or the cursor left or entered, which the phone uses. Heading folding isn't in the plan output yet. |
 | Footnotes | `crates/core/src/footnotes/`, `commands/footnote.rs` | Done. Every Footnotes Plus test is ported. |
 | Formatting commands | `crates/core/src/commands/format.rs` | Done for the eight toggles in the keymap. `format.link` isn't built yet. |
 | Config, rules, commands | `crates/config` | Done. Layered defaults, a settings schema, theme tokens, the layout tree, the rules engine, the command registry and the whole default keymap, with the keyboard-reachability check. |
