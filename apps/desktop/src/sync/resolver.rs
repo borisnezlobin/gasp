@@ -1,7 +1,7 @@
 //! The conflict resolver: each place where this device and another one
 //! changed the same lines, side by side, with a choice per place of which
-//! version to keep. Finishing hands the choices to sync, which commits
-//! the merge and carries on.
+//! version to keep. Finishing hands the choices to sync, which writes the
+//! settled notes and sends them right away. Other notes sync all along.
 //!
 //! It works from the keyboard alone: 1, 2 and 3 keep this device's
 //! version, the other device's or both for the current place and move on
@@ -263,13 +263,16 @@ impl ConflictResolver {
         if !self.is_complete() {
             return;
         }
-        let resolutions: Vec<Vec<Resolution>> = self
-            .choices
-            .iter()
-            .map(|file| file.iter().flatten().map(|c| c.resolution()).collect())
-            .collect();
+        let resolutions = self.choices.iter().map(|file| {
+            file.iter()
+                .flatten()
+                .map(|choice| choice.resolution())
+                .collect()
+        });
+        let choices: Vec<(ConflictedFile, Vec<Resolution>)> =
+            self.files.iter().cloned().zip(resolutions).collect();
         self.service
-            .update(cx, |service, cx| service.resolve(resolutions, cx));
+            .update(cx, |service, cx| service.resolve(choices, cx));
         cx.emit(DismissEvent);
     }
 

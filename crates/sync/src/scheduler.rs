@@ -42,7 +42,8 @@ pub enum SyncStatus {
     Failed {
         waiting: usize,
     },
-    /// A merge is paused on `files` conflicted files.
+    /// Synced, except that `files` files changed in the same place on two
+    /// devices and wait for a person. Sync carries on for everything else.
     Conflict {
         files: usize,
     },
@@ -62,7 +63,10 @@ pub enum SyncStep {
 pub enum MergeReport {
     UpToDate,
     Merged,
-    Conflicts { files: usize },
+    /// The merge finished, and `files` files wait for a person.
+    Conflicts {
+        files: usize,
+    },
 }
 
 /// What kind of trouble stopped a step, which decides what the status
@@ -135,6 +139,8 @@ pub struct Scheduler {
     in_flight: Option<SyncStep>,
     retry_at: Option<Duration>,
     last_synced_at: Option<Duration>,
+    /// Files waiting for a person, as of the last merge.
+    waiting_conflicts: usize,
     log: VecDeque<SyncEvent>,
 }
 
@@ -149,6 +155,7 @@ impl Scheduler {
             in_flight: None,
             retry_at: None,
             last_synced_at: None,
+            waiting_conflicts: 0,
             log: VecDeque::new(),
         }
     }
@@ -186,18 +193,16 @@ impl Scheduler {
         self.sync_requested = true;
     }
 
-    /// Call after the person resolved every conflict; the next poll pushes the merge.
+    /// Call after the person resolved conflicts; the next poll syncs the
+    /// files they settled.
     pub fn conflicts_resolved(&mut self, now: Duration) {
-        if matches!(self.status, SyncStatus::Conflict { .. }) {
-            self.record(now, SyncEventKind::ConflictsResolved);
-            self.status = SyncStatus::Syncing;
-            self.sync_requested = true;
-        }
+        self.record(now, SyncEventKind::ConflictsResolved);
+        self.sync_requested = true;
     }
 
     /// Returns the first step of a sync when one is due.
     pub fn poll(&mut self, now: Duration) -> Option<SyncStep> {
-        if self.in_flight.is_some() || matches!(self.status, SyncStatus::Conflict { .. }) {
+        if self.in_flight.is_some() {
             return None;
         }
         if !self.is_due(now) {
@@ -211,10 +216,14 @@ impl Scheduler {
         self.start(SyncStep::Commit)
     }
 
-    /// The earliest time a poll could start a sync, if nothing else happens.
+    /// The earliest time a poll could start a sync, if nothing else
+    /// happens. A requested sync is due at once.
     pub fn next_wake(&self) -> Option<Duration> {
-        if self.in_flight.is_some() || matches!(self.status, SyncStatus::Conflict { .. }) {
+        if self.in_flight.is_some() {
             return None;
+        }
+        if self.sync_requested {
+            return Some(Duration::ZERO);
         }
         [
             self.debounce_deadline(),
@@ -246,7 +255,7 @@ impl Scheduler {
             StepReport::Merged(merge) => self.after_merge(now, merge),
             StepReport::Pushed => {
                 self.record(now, SyncEventKind::Pushed);
-                self.status = SyncStatus::Synced;
+                self.status = self.synced_status();
                 self.last_synced_at = Some(now);
                 None
             }
@@ -257,17 +266,34 @@ impl Scheduler {
         }
     }
 
+    /// Files waiting for a person don't stop the sync: it pushes everything
+    /// else, and the status keeps showing them until they're resolved.
     fn after_merge(&mut self, now: Duration, merge: MergeReport) -> Option<SyncStep> {
-        match merge {
-            MergeReport::UpToDate => self.record(now, SyncEventKind::UpToDate),
-            MergeReport::Merged => self.record(now, SyncEventKind::Merged),
-            MergeReport::Conflicts { files } => {
-                self.record(now, SyncEventKind::Conflict { files });
-                self.status = SyncStatus::Conflict { files };
-                return None;
+        let waiting = match merge {
+            MergeReport::UpToDate => {
+                self.record(now, SyncEventKind::UpToDate);
+                0
             }
-        }
+            MergeReport::Merged => {
+                self.record(now, SyncEventKind::Merged);
+                0
+            }
+            MergeReport::Conflicts { files } => {
+                if files != self.waiting_conflicts {
+                    self.record(now, SyncEventKind::Conflict { files });
+                }
+                files
+            }
+        };
+        self.waiting_conflicts = waiting;
         self.start(SyncStep::Push)
+    }
+
+    fn synced_status(&self) -> SyncStatus {
+        match self.waiting_conflicts {
+            0 => SyncStatus::Synced,
+            files => SyncStatus::Conflict { files },
+        }
     }
 
     fn fail(&mut self, now: Duration, failure: StepFailure) {
@@ -310,7 +336,7 @@ impl Scheduler {
     }
 
     fn poll_deadline(&self) -> Option<Duration> {
-        if self.status != SyncStatus::Synced {
+        if self.status != self.synced_status() {
             return None;
         }
         Some(self.last_synced_at? + self.config.poll_every?)
@@ -482,20 +508,51 @@ mod tests {
         assert_eq!(scheduler.next_wake(), Some(secs(65)));
     }
 
+    fn sync_with_conflicts(scheduler: &mut Scheduler, now: Duration, files: usize) {
+        assert_eq!(scheduler.poll(now), Some(SyncStep::Commit));
+        scheduler.report(now, StepReport::Committed { new_commit: true });
+        scheduler.report(now, StepReport::Fetched);
+        let merge = StepReport::Merged(MergeReport::Conflicts { files });
+        assert_eq!(scheduler.report(now, merge), Some(SyncStep::Push));
+        assert_eq!(scheduler.report(now, StepReport::Pushed), None);
+    }
+
     #[test]
-    fn conflict_pauses_until_resolved() {
+    fn a_conflict_shows_but_sync_carries_on() {
         let mut scheduler = Scheduler::default();
         scheduler.request_sync();
-        scheduler.poll(secs(0));
-        scheduler.report(secs(0), StepReport::Committed { new_commit: false });
-        scheduler.report(secs(0), StepReport::Fetched);
-        let merge = StepReport::Merged(MergeReport::Conflicts { files: 2 });
-        assert_eq!(scheduler.report(secs(0), merge), None);
+        sync_with_conflicts(&mut scheduler, secs(0), 2);
         assert_eq!(scheduler.status(), SyncStatus::Conflict { files: 2 });
+        assert_eq!(scheduler.last_synced_at(), Some(secs(0)));
+
+        // Edits to other notes still go out a minute later.
         scheduler.edited(secs(1));
-        assert_eq!(scheduler.poll(secs(500)), None);
-        scheduler.conflicts_resolved(secs(501));
-        assert_eq!(scheduler.poll(secs(501)), Some(SyncStep::Commit));
+        assert_eq!(scheduler.next_wake(), Some(secs(61)));
+        sync_with_conflicts(&mut scheduler, secs(61), 2);
+        // A sync now runs right away, too.
+        scheduler.request_sync();
+        sync_with_conflicts(&mut scheduler, secs(62), 2);
+        let conflicts = scheduler
+            .log()
+            .filter(|event| matches!(event.kind, SyncEventKind::Conflict { .. }))
+            .count();
+        assert_eq!(conflicts, 1, "the same conflicts are logged once");
+    }
+
+    #[test]
+    fn resolving_conflicts_syncs_at_once_and_ends_synced() {
+        let mut scheduler = Scheduler::default();
+        scheduler.request_sync();
+        sync_with_conflicts(&mut scheduler, secs(0), 1);
+        scheduler.conflicts_resolved(secs(5));
+        assert_eq!(scheduler.next_wake(), Some(Duration::ZERO));
+        run_clean_sync(&mut scheduler, secs(5));
+        assert_eq!(scheduler.status(), SyncStatus::Synced);
+        assert!(
+            scheduler
+                .log()
+                .any(|event| event.kind == SyncEventKind::ConflictsResolved)
+        );
     }
 
     #[test]

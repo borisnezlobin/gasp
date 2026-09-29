@@ -5,9 +5,9 @@
 //! resets a setting or removes a row's last shortcut; Escape closes.
 
 use editor_config::schema::SettingKind;
-use gpui::{Context, DismissEvent, Focusable, KeyDownEvent, Keystroke, Window};
+use gpui::{App, Context, DismissEvent, Focusable, KeyDownEvent, Keystroke, Window};
 
-use super::model::SettingItem;
+use super::model::{ICON_SOURCE_URL, SettingItem};
 use super::view::{ControlRow, SettingsFocus, SettingsView};
 
 impl SettingsView {
@@ -217,6 +217,7 @@ impl SettingsView {
             ControlRow::Font(slot) => self.font_key(index, slot.token(), key, window, cx),
             ControlRow::Accent => self.accent_key(key, window, cx),
             ControlRow::Vault => self.button_key(key, cx),
+            ControlRow::IconCredit => open_url_key(key, ICON_SOURCE_URL, cx),
             ControlRow::Shortcut(shortcut) => self.shortcut_key(row, &shortcut.id, key, window, cx),
             ControlRow::MapAdd(_) => self.menu_button_key(index, row, key, window, cx),
             ControlRow::SyncAccount => self.account_key(key, cx),
@@ -399,4 +400,13 @@ impl SettingsView {
         }
         true
     }
+}
+
+/// Enter or Space on a row whose only control is a link opens it.
+fn open_url_key(key: &str, url: &str, cx: &mut App) -> bool {
+    if matches!(key, "space" | "enter") {
+        cx.open_url(url);
+        return true;
+    }
+    false
 }

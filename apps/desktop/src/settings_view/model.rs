@@ -359,6 +359,12 @@ pub const DARK_ACCENT_TOKEN: &str = "dark.color.accent";
 pub const ACCENT_TITLE: &str = "Accent colour";
 pub const ACCENT_DESCRIPTION: &str = "Used for the cursor, links and switches that are on.";
 
+/// The App icon row's credit. The whale's source model is CC BY 4.0, which asks for a credit people can find.
+pub const ICON_CREDIT: &str = "The humpback is drawn from a 3D model by Gutarra Díaz, Stubbs, Moon, Palmer and Benton, shared under CC BY 4.0.";
+
+/// The archive the whale's source model is published in.
+pub const ICON_SOURCE_URL: &str = "https://doi.org/10.5281/zenodo.5979631";
+
 /// Where a row on a page comes from.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RowSpec {
@@ -369,6 +375,8 @@ pub enum RowSpec {
     /// The vault's folder, with a button to open another.
     Vault,
     Version,
+    /// Credit for the whale in the app icon, which its licence requires.
+    IconCredit,
     /// The address of the repository the vault syncs with.
     SyncRemote,
     /// Signing in to it with a token.
@@ -403,6 +411,7 @@ pub const PAGES: &[PageSpec] = &[
         cards: &[
             &[RowSpec::Vault, RowSpec::Version],
             &[setting("mcp.enabled")],
+            &[RowSpec::IconCredit],
         ],
     },
     PageSpec {

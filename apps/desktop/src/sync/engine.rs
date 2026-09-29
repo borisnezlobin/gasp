@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 
 use editor_config::settings::SyncSettings;
 use editor_sync::{
-    Author, ConflictedFile, CredentialStore, DeviceOnlyFiles, MergeReport, Resolution, StepReport,
-    SyncStep, Token, Vault, VaultConfig, run_step,
+    Author, ConflictedFile, CredentialStore, DeviceOnlyFiles, Resolution, StepReport, SyncStep,
+    Token, Vault, VaultConfig, run_step,
 };
 
 use super::state::SetupProblem;
@@ -22,7 +22,8 @@ pub const REMOTE: &str = "origin";
 pub struct Engine {
     vault: Mutex<Vault>,
     author: Author,
-    message: String,
+    /// Names this device in commit messages.
+    device: String,
     remote_url: String,
 }
 
@@ -48,8 +49,9 @@ pub struct StepOutcome {
     pub took: Duration,
     /// Files the step brought in (merge) or sent (push).
     pub changed: Vec<PathBuf>,
-    /// The files a paused merge needs a person for.
-    pub conflicts: Vec<ConflictedFile>,
+    /// The files waiting for a person after a commit or merge step, which
+    /// can settle some or add more; `None` after the other steps.
+    pub conflicts: Option<Vec<ConflictedFile>>,
 }
 
 /// The vault settings the engine uses.
@@ -96,14 +98,14 @@ pub fn open(root: &Path, settings: &SyncSettings, store: &dyn CredentialStore) -
     let token = store.load(&remote_url).ok().flatten();
     let signed_in = token.is_some();
     vault.set_token(token);
+    let device = device_name();
     let author = probe
         .author
-        .unwrap_or_else(|| Author::new(device_name(), "editor@localhost"));
-    let message = format!("Sync from {}", device_name());
+        .unwrap_or_else(|| Author::new(device.clone(), "editor@localhost"));
     let engine = Engine {
         vault: Mutex::new(vault),
         author,
-        message,
+        device,
         remote_url,
     };
     Opened::Ready {
@@ -137,18 +139,16 @@ impl Engine {
             SyncStep::Push => vault.tracking_commit(),
             SyncStep::Commit | SyncStep::Fetch => None,
         };
-        let report = run_step(&vault, step, &self.author, &self.message);
-        let changed = match report {
-            StepReport::Merged(MergeReport::Merged) | StepReport::Pushed => vault
+        let report = run_step(&vault, step, &self.author, &self.device);
+        let changed = match (step, &report) {
+            (_, StepReport::Failed(_)) | (SyncStep::Commit | SyncStep::Fetch, _) => Vec::new(),
+            (SyncStep::Merge | SyncStep::Push, _) => vault
                 .changed_paths(before, vault.head_commit().ok().flatten())
                 .unwrap_or_default(),
-            _ => Vec::new(),
         };
-        let conflicts = match report {
-            StepReport::Merged(MergeReport::Conflicts { .. }) => {
-                vault.conflicts().unwrap_or_default()
-            }
-            _ => Vec::new(),
+        let conflicts = match step {
+            SyncStep::Commit | SyncStep::Merge => vault.conflicts().ok(),
+            SyncStep::Fetch | SyncStep::Push => None,
         };
         StepOutcome {
             report,
@@ -158,18 +158,20 @@ impl Engine {
         }
     }
 
-    /// Applies one resolution per hunk to each file, which finishes the
-    /// merge once the last file is settled.
-    pub fn resolve(&self, choices: &[(ConflictedFile, Vec<Resolution>)]) -> Result<(), String> {
+    /// Applies one resolution per hunk to each file; the next sync's commit
+    /// sends them. Returns the files still waiting, which a refused
+    /// resolution leaves among them.
+    pub fn resolve(
+        &self,
+        choices: &[(ConflictedFile, Vec<Resolution>)],
+    ) -> (Vec<ConflictedFile>, Result<(), String>) {
         let vault = self.vault();
+        let mut result = Ok(());
         for (file, resolutions) in choices {
-            vault
-                .resolve(file, resolutions, &self.author)
-                .map_err(|error| error.to_string())?;
+            if let Err(error) = vault.resolve(file, resolutions) {
+                result = Err(error.to_string());
+            }
         }
-        if vault.is_merging() {
-            return Err("some files still have conflicts".to_owned());
-        }
-        Ok(())
+        (vault.conflicts().unwrap_or_default(), result)
     }
 }
