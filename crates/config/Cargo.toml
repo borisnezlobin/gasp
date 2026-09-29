@@ -18,6 +18,8 @@ toml_edit = "0.22"
 
 [dev-dependencies]
 tempfile = "3"
+gasp-bench = { path = "../bench" }
+gasp-migrate = { path = "../../tools/migrate" }
 
 [lints]
 workspace = true
