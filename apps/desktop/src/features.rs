@@ -27,6 +27,7 @@ use crate::switcher::{QuickSwitcher, SwitcherEvent};
 use crate::sync::{ConflictResolver, SyncIndicator, SyncIndicatorEvent, SyncPhase, SyncService};
 use crate::text_input::{self, TEXT_INPUT_CONTEXT};
 use crate::vault_search::{VaultSearch, VaultSearchEvent};
+use crate::workspace::deleted::DeletedNote;
 use crate::workspace::{OpenIn, Workspace};
 
 /// How many palette commands count as recent.
@@ -185,6 +186,13 @@ fn on_tree_event(
             workspace.entry_moved(from, to, cx);
         }
         FileTreeEvent::Dismissed => workspace.leave_left_panel(window, cx),
+        FileTreeEvent::Trashed { path, text } => {
+            let text = workspace.text_before_delete(path, cx).or(text.clone());
+            if let Some(text) = text {
+                let path = path.clone();
+                workspace.remember_deleted(DeletedNote { path, text }, cx);
+            }
+        }
         FileTreeEvent::Failed { message } => {
             crate::notices::problem(message.clone(), cx);
         }
