@@ -96,10 +96,11 @@ fn set_up(root: &Path, shape: Shape, report: &mut Report) -> Devices {
     let mac_author = Author::new("Mac", "mac@devices.invalid");
     let mut first_commit = Samples::new();
     first_commit.time(|| mac.commit_changes(&mac_author, DEVICE).expect("commit"));
+    backdate_first_commit(&mac_root);
     let mut first_push = Samples::new();
     first_push.time(|| mac.push().expect("first push"));
     start_legacy_branch(&remote);
-    write_history(&mac, &mac_author);
+    write_history(&mac);
     let (files, bytes) = committed_size(&mac_root);
     let mut clone = Samples::new();
     let phone = clone.time(|| {
@@ -123,13 +124,50 @@ fn set_up(root: &Path, shape: Shape, report: &mut Report) -> Devices {
 }
 
 /// Months of syncing since the old tools last pushed to the legacy branch:
-/// a commit for each of a few hundred edits, pushed.
-fn write_history(mac: &Vault, author: &Author) {
+/// a commit a minute for each of a few hundred edits, the last a minute
+/// ago, then pushed. Git's history walks stop by commit date, so the dates
+/// have to advance as real ones do.
+fn write_history(mac: &Vault) {
+    let repo = Repository::open(mac.root()).expect("the vault opens");
+    let mut index = repo.index().expect("the index reads");
     for edit in 0..HISTORY_COMMITS {
         append_line(mac.root(), HISTORY_NOTE, &format!("Entry {edit}."));
-        mac.commit_changes(author, DEVICE).expect("commit");
+        index.add_path(Path::new(HISTORY_NOTE)).expect("staged");
+        let tree = repo.find_tree(index.write_tree().expect("a tree"));
+        let parent = repo.head().and_then(|head| head.peel_to_commit());
+        let signature = minutes_ago(HISTORY_COMMITS - edit);
+        repo.commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            "mac: Log.md",
+            &tree.expect("the tree"),
+            &[&parent.expect("a parent")],
+        )
+        .expect("committed");
     }
+    index.write().expect("the index writes");
     mac.push().expect("push");
+}
+
+/// Dates the first commit before the history that follows it.
+fn backdate_first_commit(root: &Path) {
+    let repo = Repository::open(root).expect("the vault opens");
+    let first = repo.head().and_then(|head| head.peel_to_commit());
+    let signature = minutes_ago(HISTORY_COMMITS + 1);
+    let when = Some(&signature);
+    first
+        .and_then(|first| first.amend(Some("HEAD"), when, when, None, None, None))
+        .expect("the first commit is dated");
+}
+
+fn minutes_ago(minutes: usize) -> git2::Signature<'static> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("after 1970")
+        .as_secs() as i64;
+    let when = git2::Time::new(now - minutes as i64 * 60, 0);
+    git2::Signature::new("Mac", "mac@devices.invalid", &when).expect("a signature")
 }
 
 fn init_bare_remote(path: &Path) -> String {
