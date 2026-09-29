@@ -260,6 +260,9 @@ impl EditorView {
             if let Some(phases) = crate::keytrace::report() {
                 println!("{phases}");
             }
+            if let Some(memory) = crate::memory::report() {
+                println!("{memory}");
+            }
         }
         cx.quit();
     }

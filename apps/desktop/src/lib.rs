@@ -3,6 +3,7 @@
 
 pub mod actions;
 pub mod app;
+pub mod atlas;
 pub mod bench;
 pub mod cli;
 pub mod code_copy;
@@ -30,6 +31,7 @@ pub mod line_layout;
 pub mod link_cards;
 pub use gasp_vault::link_update;
 pub mod look_up;
+pub mod memory;
 pub mod metrics;
 pub mod navigation;
 pub mod note;

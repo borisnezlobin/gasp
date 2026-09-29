@@ -2,12 +2,11 @@
 //! bullets, footnote marks, callout headers, rules and code block headers.
 
 use std::ops::Range;
-use std::sync::Arc;
 
 use gasp_core::render::{StyleKey, WidgetKind};
 use gasp_core::syntax::{CalloutKind, ConflictSide, Fold};
 use gasp_math::fill_empty_arguments;
-use gpui::{Pixels, RenderImage, SharedString, px};
+use gpui::{Pixels, SharedString, px};
 
 use crate::icons::IconName;
 use crate::images::display_size;
@@ -85,9 +84,8 @@ impl LineLayouter<'_, '_> {
                 height,
                 ..
             } => {
-                let image = self.resources.images.image(target);
                 let limit = builder.limit() - builder.x().min(builder.limit());
-                let piece = self.image_piece(range, image, (*width, *height), limit);
+                let piece = self.image_piece(range, target, (*width, *height), limit);
                 let extent = Extent::on_baseline(piece.height);
                 builder.push_atomic(piece, extent);
                 builder.advance(self.theme().image_gap);
@@ -179,22 +177,26 @@ impl LineLayouter<'_, '_> {
         )
     }
 
+    /// The image `target` links to, sized from its file and decoded as
+    /// sharp as it's drawn.
     fn image_piece(
-        &self,
+        &mut self,
         range: &Range<usize>,
-        image: Arc<RenderImage>,
+        target: &str,
         requested: (Option<u32>, Option<u32>),
         max_width: Pixels,
     ) -> Piece {
-        let theme = self.theme();
-        let shown = display_size(&image, requested, self.context.zoom, max_width);
+        let natural = self.resources.images.natural_size(target);
+        let shown = display_size(natural, requested, self.context.zoom, max_width);
+        let drawn_pixels = (f32::from(shown.width) * self.context.scale_factor).ceil() as u32;
+        let image = self.resources.images.image(target, drawn_pixels).image;
         blank_piece(
             range.clone(),
             shown.width,
             shown.height,
             PieceContent::Image {
                 image,
-                radius: theme.image_corner_radius,
+                radius: self.theme().image_corner_radius,
             },
         )
     }
@@ -461,8 +463,7 @@ impl LineLayouter<'_, '_> {
                 height: h,
                 ..
             } => {
-                let image = self.resources.images.image(target);
-                let mut piece = self.image_piece(range, image, (*w, *h), width);
+                let mut piece = self.image_piece(range, target, (*w, *h), width);
                 piece.x = left;
                 piece.top = self.theme().image_gap;
                 vec![piece]

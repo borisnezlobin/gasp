@@ -292,7 +292,11 @@ pub fn serve(input: impl BufRead, output: impl Write) -> io::Result<()> {
                 .map(|(key, flags)| (key, flags.into_iter().map(WireFlag::of).collect()))
                 .collect(),
         };
-        write_line(&mut output, &reply)?;
+        match write_line(&mut output, &reply) {
+            // The app quit while this was checking.
+            Err(error) if error.kind() == io::ErrorKind::BrokenPipe => return Ok(()),
+            written => written?,
+        }
     }
     Ok(())
 }

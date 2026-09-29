@@ -1,30 +1,72 @@
-//! Images for inline widgets: decoded from the note's folder when found,
+//! Images for inline widgets: read from the note's folder when found,
 //! else from wherever the vault index finds the file name (Obsidian
 //! resolves `![[name.png]]` anywhere in the vault), otherwise a generated
 //! placeholder. Images on the web, such as a link
 //! card's preview, are downloaded in the background and show once they
 //! arrive.
+//!
+//! A file's size is read from its header straight away, so layout gives it
+//! its room at once; the pixels are decoded on a background thread, no
+//! larger than they're drawn on screen (a screenshot of a Retina display
+//! shown in the text column needs a quarter of its pixels), and decoded
+//! again, sharper, if the image is later drawn larger.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use gpui::{Pixels, RenderImage, Size, px, size};
-use image::{Frame, RgbaImage};
+use image::imageops::FilterType;
+use image::{DynamicImage, Frame, RgbaImage};
 
 const PLACEHOLDER_SIZE: (u32, u32) = (96, 64);
 const MAX_ASPECT_RATIO: f32 = 4.;
+/// Decoded widths are rounded up to a multiple of this, so resizing the
+/// window a little doesn't decode the image again.
+const DECODE_WIDTH_STEP: u32 = 256;
+
+/// An image as layout needs it.
+#[derive(Clone)]
+pub struct NoteImage {
+    /// What to draw: nothing yet while the file decodes.
+    pub image: Arc<RenderImage>,
+    /// The file's own size in pixels, which layout sizes the image by.
+    pub natural: (u32, u32),
+}
+
+/// One image the store knows.
+struct Entry {
+    shown: NoteImage,
+    /// The file to decode, or `None` for the placeholder.
+    path: Option<PathBuf>,
+    /// How wide `shown` was decoded, zero before the first decode.
+    decoded_width: u32,
+    /// The width a decode on its way was asked for.
+    decoding_width: Option<u32>,
+}
+
+/// A local file to decode in the background at `width` pixels (or its
+/// own width, if that's smaller).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Decode {
+    pub target: String,
+    pub path: PathBuf,
+    pub width: u32,
+}
 
 /// Decoded images by their link target.
 pub struct ImageStore {
     search_dirs: Vec<PathBuf>,
-    by_target: HashMap<String, Arc<RenderImage>>,
+    by_target: HashMap<String, Entry>,
     /// Targets not found next to the note, drawn as the placeholder until
     /// the vault index finds them.
     missing: HashSet<String>,
     /// Missing targets still to look up in the vault index.
     vault_lookups: Vec<String>,
     placeholder: Arc<RenderImage>,
+    /// Drawn in an image's place while it decodes.
+    blank: Arc<RenderImage>,
+    decodes: Vec<Decode>,
     /// Web images by URL: `None` while downloading or after failing.
     remote: HashMap<String, Option<Arc<RenderImage>>>,
     remote_requests: Vec<RemoteImage>,
@@ -47,6 +89,8 @@ impl ImageStore {
             missing: HashSet::new(),
             vault_lookups: Vec::new(),
             placeholder: Arc::new(render_image(placeholder_pixels())),
+            blank: Arc::new(render_image(RgbaImage::new(1, 1))),
+            decodes: Vec::new(),
             remote: HashMap::new(),
             remote_requests: Vec::new(),
         }
@@ -75,21 +119,126 @@ impl ImageStore {
         self.remote.insert(url, image.map(Arc::new));
     }
 
-    pub fn image(&mut self, target: &str) -> Arc<RenderImage> {
-        if let Some(image) = self.by_target.get(target) {
-            return image.clone();
+    /// The image `target` links to, as far as it has decoded, sharp
+    /// enough to draw `width` pixels wide: a decode at that width is
+    /// queued for [`ImageStore::take_decodes`] when it isn't.
+    pub fn image(&mut self, target: &str, width: u32) -> NoteImage {
+        self.know(target);
+        self.decode_if_blurry(target, width);
+        self.by_target[target].shown.clone()
+    }
+
+    /// The image's size in pixels, which is known before it decodes.
+    pub fn natural_size(&mut self, target: &str) -> (u32, u32) {
+        self.know(target);
+        self.by_target[target].shown.natural
+    }
+
+    /// Makes an entry for `target` on first sight.
+    fn know(&mut self, target: &str) {
+        if self.by_target.contains_key(target) {
+            return;
         }
-        let image = match self.find(target) {
-            Some(path) => decode(&path).map(Arc::new),
+        let entry = match self.find(target) {
+            Some(path) => self.entry_for_file(path),
             None => {
                 self.missing.insert(target.to_owned());
                 self.vault_lookups.push(target.to_owned());
                 None
             }
         };
-        let image = image.unwrap_or_else(|| self.placeholder.clone());
-        self.by_target.insert(target.to_owned(), image.clone());
-        image
+        let entry = entry.unwrap_or_else(|| self.placeholder_entry());
+        self.by_target.insert(target.to_owned(), entry);
+    }
+
+    fn decode_if_blurry(&mut self, target: &str, width: u32) {
+        let Some(entry) = self.by_target.get_mut(target) else {
+            return;
+        };
+        let Some(path) = entry.path.clone() else {
+            return;
+        };
+        let wanted = decode_width(width, entry.shown.natural.0);
+        let enough = entry.decoded_width.max(entry.decoding_width.unwrap_or(0));
+        if wanted <= enough {
+            return;
+        }
+        entry.decoding_width = Some(wanted);
+        self.decodes.push(Decode {
+            target: target.to_owned(),
+            path,
+            width: wanted,
+        });
+    }
+
+    /// An entry for the file at `path`, sized from its header; `None`
+    /// when it isn't an image.
+    fn entry_for_file(&self, path: PathBuf) -> Option<Entry> {
+        let natural = image::image_dimensions(&path).ok()?;
+        Some(Entry {
+            shown: NoteImage {
+                image: self.blank.clone(),
+                natural,
+            },
+            path: Some(path),
+            decoded_width: 0,
+            decoding_width: None,
+        })
+    }
+
+    fn placeholder_entry(&self) -> Entry {
+        Entry {
+            shown: NoteImage {
+                image: self.placeholder.clone(),
+                natural: PLACEHOLDER_SIZE,
+            },
+            path: None,
+            decoded_width: 0,
+            decoding_width: None,
+        }
+    }
+
+    /// Files to decode in the background, then hand to
+    /// [`ImageStore::finish_decode`].
+    pub fn take_decodes(&mut self) -> Vec<Decode> {
+        std::mem::take(&mut self.decodes)
+    }
+
+    /// Shows a finished decode, unless a sharper one was asked for since.
+    /// `None` (the file wouldn't decode) shows the placeholder.
+    pub fn finish_decode(&mut self, decode: &Decode, image: Option<RenderImage>) {
+        let placeholder = self.placeholder_entry();
+        let Some(entry) = self.by_target.get_mut(&decode.target) else {
+            return;
+        };
+        if entry.decoding_width != Some(decode.width) {
+            return;
+        }
+        entry.decoding_width = None;
+        match image {
+            Some(image) => {
+                entry.shown.image = Arc::new(image);
+                entry.decoded_width = decode.width;
+            }
+            None => *entry = placeholder,
+        }
+    }
+
+    /// The empty image drawn in place of one that's decoding.
+    pub fn blank(&self) -> Arc<RenderImage> {
+        self.blank.clone()
+    }
+
+    /// Lets go of every decoded file's pixels, keeping their sizes; the
+    /// next draw decodes them again.
+    pub fn release_pixels(&mut self) {
+        for entry in self.by_target.values_mut() {
+            if entry.path.is_some() {
+                entry.shown.image = self.blank.clone();
+                entry.decoded_width = 0;
+                entry.decoding_width = None;
+            }
+        }
     }
 
     /// The images layout couldn't find near the note, for the vault index
@@ -104,13 +253,13 @@ impl ImageStore {
     }
 
     /// Shows the file the vault index found for `target`. False when it
-    /// can't be decoded, which leaves the placeholder.
+    /// isn't an image, which leaves the placeholder.
     pub fn found_in_vault(&mut self, target: &str, path: &Path) -> bool {
-        let Some(image) = decode(path) else {
+        let Some(entry) = self.entry_for_file(path.to_path_buf()) else {
             return false;
         };
         self.missing.remove(target);
-        self.by_target.insert(target.to_owned(), Arc::new(image));
+        self.by_target.insert(target.to_owned(), entry);
         true
     }
 
@@ -134,17 +283,45 @@ impl ImageStore {
     }
 }
 
+/// The width to decode an image `natural_width` pixels wide at, to draw
+/// it `drawn` pixels wide: rounded up a step, never wider than the file.
+fn decode_width(drawn: u32, natural_width: u32) -> u32 {
+    drawn
+        .max(1)
+        .div_ceil(DECODE_WIDTH_STEP)
+        .saturating_mul(DECODE_WIDTH_STEP)
+        .min(natural_width.max(1))
+}
+
+/// Decodes `decode`'s file no wider than it asks for. Slow for a large
+/// file, so call it off the main thread.
+pub fn decode_file(decode: &Decode) -> Option<RenderImage> {
+    let decoded = image::open(&decode.path).ok()?;
+    Some(render_image(
+        shrink_to_width(decoded, decode.width).to_rgba8(),
+    ))
+}
+
+fn shrink_to_width(image: DynamicImage, width: u32) -> DynamicImage {
+    if image.width() <= width {
+        return image;
+    }
+    let height = (u64::from(image.height()) * u64::from(width))
+        .div_ceil(u64::from(image.width()))
+        .max(1) as u32;
+    image.resize_exact(width, height, FilterType::CatmullRom)
+}
+
 /// The size an image is drawn at: the width written in the note (`|300`)
 /// or its natural size, scaled by the view's zoom, never wider than
 /// `max_width`, keeping its aspect ratio unless a height is written too.
 pub fn display_size(
-    image: &RenderImage,
+    natural: (u32, u32),
     requested: (Option<u32>, Option<u32>),
     zoom: f32,
     max_width: Pixels,
 ) -> Size<Pixels> {
-    let pixels = image.size(0);
-    let natural = (pixels.width.0.max(1) as f32, pixels.height.0.max(1) as f32);
+    let natural = (natural.0.max(1) as f32, natural.1.max(1) as f32);
     let aspect = (natural.0 / natural.1).clamp(1. / MAX_ASPECT_RATIO, MAX_ASPECT_RATIO);
     let wanted_width = requested.0.map_or(natural.0, |width| width as f32) * zoom;
     let wanted_height = match requested {
@@ -153,11 +330,6 @@ pub fn display_size(
     };
     let shrink = (f32::from(max_width.max(px(1.))) / wanted_width).min(1.);
     size(px(wanted_width * shrink), px(wanted_height * shrink))
-}
-
-fn decode(path: &Path) -> Option<RenderImage> {
-    let pixels = image::open(path).ok()?.to_rgba8();
-    Some(render_image(pixels))
 }
 
 /// GPUI wants BGRA.
@@ -181,37 +353,61 @@ fn placeholder_pixels() -> RgbaImage {
 mod tests {
     use super::*;
 
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("editor-images-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Decodes what the store queued, as the view does in the background.
+    fn run_decodes(store: &mut ImageStore) {
+        for decode in store.take_decodes() {
+            let image = decode_file(&decode);
+            store.finish_decode(&decode, image);
+        }
+    }
+
     #[test]
     fn missing_images_use_the_placeholder() {
         let mut store = ImageStore::new(vec![]);
-        let image = store.image("missing.png");
-        assert_eq!(image.size(0).width.0, PLACEHOLDER_SIZE.0 as i32);
-        assert!(Arc::ptr_eq(&image, &store.image("missing.png")));
+        let image = store.image("missing.png", 100);
+        assert_eq!(image.natural, PLACEHOLDER_SIZE);
+        assert_eq!(image.image.size(0).width.0, PLACEHOLDER_SIZE.0 as i32);
+        assert!(Arc::ptr_eq(
+            &image.image,
+            &store.image("missing.png", 100).image
+        ));
+        assert!(store.take_decodes().is_empty());
     }
 
     #[test]
     fn missing_images_wait_for_the_vault_index() {
-        let dir = std::env::temp_dir().join(format!("editor-images-{}", std::process::id()));
+        let dir = temp_dir("vault");
         std::fs::create_dir_all(dir.join("elsewhere")).unwrap();
         let found = dir.join("elsewhere/pic.png");
         RgbaImage::new(3, 2).save(&found).unwrap();
         let mut store = ImageStore::new(vec![dir.join("notes")]);
         assert_eq!(store.note_dir(), Some(dir.join("notes").as_path()));
 
-        assert!(Arc::ptr_eq(&store.image("pic.png"), &store.placeholder));
+        assert!(Arc::ptr_eq(
+            &store.image("pic.png", 3).image,
+            &store.placeholder
+        ));
         assert_eq!(store.take_vault_lookups(), ["pic.png"]);
-        store.image("pic.png");
+        store.image("pic.png", 3);
         assert!(store.take_vault_lookups().is_empty(), "asked once");
 
         assert!(!store.found_in_vault("pic.png", &dir.join("nothing.png")));
         assert!(store.found_in_vault("pic.png", &found));
-        assert_eq!(store.image("pic.png").size(0).width.0, 3);
+        assert_eq!(store.image("pic.png", 3).natural, (3, 2));
+        run_decodes(&mut store);
+        assert_eq!(store.image("pic.png", 3).image.size(0).width.0, 3);
         assert!(!store.retry_missing(), "nothing is missing now");
 
-        store.image("gone.png");
+        store.image("gone.png", 3);
         assert!(store.retry_missing());
         assert!(store.take_vault_lookups().is_empty());
-        store.image("gone.png");
+        store.image("gone.png", 3);
         assert_eq!(
             store.take_vault_lookups(),
             ["gone.png"],
@@ -221,17 +417,90 @@ mod tests {
     }
 
     #[test]
+    fn images_decode_no_wider_than_drawn_and_sharpen_when_drawn_wider() {
+        let dir = temp_dir("sizes");
+        RgbaImage::new(2000, 1000)
+            .save(dir.join("wide.png"))
+            .unwrap();
+        let mut store = ImageStore::new(vec![dir.clone()]);
+        let pending = store.image("wide.png", 600);
+        assert_eq!(pending.natural, (2000, 1000), "sized before it decodes");
+        assert!(Arc::ptr_eq(&pending.image, &store.blank));
+        run_decodes(&mut store);
+        let drawn = store.image("wide.png", 600).image.size(0);
+        assert_eq!((drawn.width.0, drawn.height.0), (768, 384));
+        assert!(store.take_decodes().is_empty(), "sharp enough already");
+        store.image("wide.png", 1500);
+        run_decodes(&mut store);
+        assert_eq!(store.image("wide.png", 1500).image.size(0).width.0, 1536);
+        store.image("wide.png", 4000);
+        run_decodes(&mut store);
+        let full = store.image("wide.png", 4000).image.size(0);
+        assert_eq!(full.width.0, 2000, "never wider than the file");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn released_pixels_decode_again_when_drawn() {
+        let dir = temp_dir("release");
+        RgbaImage::new(40, 20).save(dir.join("pic.png")).unwrap();
+        let mut store = ImageStore::new(vec![dir.clone()]);
+        store.image("pic.png", 40);
+        run_decodes(&mut store);
+        store.release_pixels();
+        let released = store.image("pic.png", 40);
+        assert!(Arc::ptr_eq(&released.image, &store.blank));
+        assert_eq!(released.natural, (40, 20));
+        assert_eq!(store.take_decodes().len(), 1);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_stale_decode_never_replaces_a_sharper_one() {
+        let dir = temp_dir("stale");
+        RgbaImage::new(2000, 1000)
+            .save(dir.join("wide.png"))
+            .unwrap();
+        let mut store = ImageStore::new(vec![dir.clone()]);
+        store.image("wide.png", 300);
+        let small = store.take_decodes();
+        store.image("wide.png", 1500);
+        let large = store.take_decodes();
+        for decode in large.iter().chain(&small) {
+            let image = decode_file(decode);
+            store.finish_decode(decode, image);
+        }
+        assert_eq!(store.image("wide.png", 1500).image.size(0).width.0, 1536);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_file_that_will_not_decode_shows_the_placeholder() {
+        let dir = temp_dir("broken");
+        RgbaImage::new(40, 20).save(dir.join("pic.png")).unwrap();
+        let mut store = ImageStore::new(vec![dir.clone()]);
+        store.image("pic.png", 40);
+        std::fs::write(dir.join("pic.png"), b"not a png any more").unwrap();
+        run_decodes(&mut store);
+        assert!(Arc::ptr_eq(
+            &store.image("pic.png", 40).image,
+            &store.placeholder
+        ));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn display_size_keeps_the_aspect_ratio() {
-        let image = render_image(RgbaImage::new(40, 20));
-        let natural = display_size(&image, (None, None), 1., px(1000.));
+        let image = (40, 20);
+        let natural = display_size(image, (None, None), 1., px(1000.));
         assert_eq!((natural.width, natural.height), (px(40.), px(20.)));
-        let wide = display_size(&image, (Some(300), None), 1., px(1000.));
+        let wide = display_size(image, (Some(300), None), 1., px(1000.));
         assert_eq!((wide.width, wide.height), (px(300.), px(150.)));
-        let capped = display_size(&image, (Some(300), None), 1., px(100.));
+        let capped = display_size(image, (Some(300), None), 1., px(100.));
         assert_eq!((capped.width, capped.height), (px(100.), px(50.)));
-        let zoomed = display_size(&image, (Some(300), None), 1.5, px(1000.));
+        let zoomed = display_size(image, (Some(300), None), 1.5, px(1000.));
         assert_eq!(zoomed.width, px(450.));
-        let explicit = display_size(&image, (Some(100), Some(100)), 1., px(1000.));
+        let explicit = display_size(image, (Some(100), Some(100)), 1., px(1000.));
         assert_eq!(explicit.height, px(100.));
     }
 
@@ -249,8 +518,11 @@ mod tests {
             .find(|name| name.ends_with(".png"))
             .unwrap();
         let mut store = ImageStore::new(vec![note_dir]);
-        let image = store.image(&name);
+        store.image(&name, 800);
+        run_decodes(&mut store);
+        let image = store.image(&name, 800).image;
         assert!(!Arc::ptr_eq(&image, &store.placeholder));
+        assert!(!Arc::ptr_eq(&image, &store.blank));
     }
 
     fn first_images_dir(root: &Path) -> Option<PathBuf> {

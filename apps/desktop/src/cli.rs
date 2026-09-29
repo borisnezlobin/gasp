@@ -18,7 +18,7 @@ pub const USAGE: &str = concat!(
     command_name!(),
     " --bench-index VAULT\n       ",
     command_name!(),
-    " --bench-open VAULT [--notes N] [--hidden]\n       ",
+    " --bench-open VAULT [--notes N] [--linger SECONDS] [--hidden]\n       ",
     command_name!(),
     " --snapshot NOTE OUT.png [--width N] [--height N] [--theme light|dark] [--cursor LINE:COL]\n       ",
     command_name!(),
@@ -61,8 +61,9 @@ save, a backlinks list, an unlinked-mentions search and a rename take.
 --bench-open opens a copy of VAULT in the whole window, opens its N
 longest notes (30 unless --notes says) one after another, then switches
 between tabs, and prints how long each took to reach the screen and to
-finish drawing its equations and code. --hidden works as for
---bench-layout.
+finish drawing its equations and code, and the app's memory.
+--linger keeps the window open that many seconds more and reports the
+memory again. --hidden works as for --bench-layout.
 
 mcp serves VAULT (the last vault when left out) to an agent over MCP on
 stdin and stdout. Its tools read and change notes, attachments and the
@@ -249,13 +250,10 @@ fn parse_bench_open(args: &[String]) -> Result<Command, String> {
     while let Some(flag) = rest.next() {
         match flag {
             "--hidden" => config.hidden = true,
-            "--notes" => {
-                let count = rest.next().ok_or("--notes needs a number")?;
-                config.notes = count
-                    .parse::<usize>()
-                    .ok()
-                    .filter(|&count| count >= 1)
-                    .ok_or_else(|| format!("--notes needs a number, not {count}"))?;
+            "--notes" => config.notes = positive_number(flag, rest.next())?,
+            "--linger" => {
+                let seconds = positive_number(flag, rest.next())?;
+                config.linger = Some(std::time::Duration::from_secs(seconds as u64));
             }
             _ => return Err(format!("unknown option {flag}")),
         }
@@ -264,6 +262,16 @@ fn parse_bench_open(args: &[String]) -> Result<Command, String> {
         vault: PathBuf::from(vault),
         config,
     })
+}
+
+/// The whole number of at least one that `flag` was given.
+fn positive_number(flag: &str, value: Option<&str>) -> Result<usize, String> {
+    let value = value.ok_or_else(|| format!("{flag} needs a number"))?;
+    value
+        .parse::<usize>()
+        .ok()
+        .filter(|&number| number >= 1)
+        .ok_or_else(|| format!("{flag} needs a number, not {value}"))
 }
 
 /// Turns one of the bench's switches on.

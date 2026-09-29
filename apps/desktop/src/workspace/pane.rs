@@ -376,6 +376,7 @@ impl Pane {
     pub fn replace_tab(&mut self, index: usize, tab: Tab, cx: &mut Context<Self>) -> Option<Tab> {
         let slot = self.tabs.get_mut(index)?;
         let old = std::mem::replace(slot, tab);
+        self.tell_editors_if_shown(cx);
         cx.notify();
         Some(old)
     }
@@ -384,8 +385,25 @@ impl Pane {
         if index < self.tabs.len() {
             self.active = index;
             self.tab_scroll.scroll_to_item(index);
+            self.tell_editors_if_shown(cx);
             cx.notify();
         }
+    }
+
+    /// Tells each note's editor whether its tab is the one showing, once
+    /// whatever changed the tabs is done (an editor may be what did).
+    fn tell_editors_if_shown(&self, cx: &mut Context<Self>) {
+        let editors: Vec<(Entity<EditorView>, bool)> = self
+            .tabs
+            .iter()
+            .enumerate()
+            .filter_map(|(index, tab)| Some((tab.note()?.editor.clone(), index != self.active)))
+            .collect();
+        cx.defer(move |cx| {
+            for (editor, hidden) in editors {
+                editor.update(cx, |editor, cx| editor.set_hidden(hidden, cx));
+            }
+        });
     }
 
     /// Removes a tab. The one to its right, or else its left, becomes
@@ -398,6 +416,7 @@ impl Pane {
         if index < self.active || self.active >= self.tabs.len() {
             self.active = self.active.saturating_sub(1);
         }
+        self.tell_editors_if_shown(cx);
         cx.notify();
         Some(tab)
     }
