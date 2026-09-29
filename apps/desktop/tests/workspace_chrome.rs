@@ -241,6 +241,55 @@ fn tree_tools_sort_collapse_and_make_folders(cx: &mut TestAppContext) {
     assert!(tree.read_with(cx, |tree, _| tree.editing_field().is_some()));
 }
 
+fn run_command(workspace: &Entity<Workspace>, cx: &mut VisualTestContext, id: &str) {
+    cx.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            assert!(workspace.run_command(id, window, cx), "{id} runs");
+        })
+    });
+    cx.run_until_parked();
+}
+
+/// The sidebar's buttons that had no keyboard way: the sort menu, collapse
+/// all, a new folder, the vault switcher and the shortcuts list. Each is a
+/// command now, and one run with the sidebar hidden brings it out.
+#[gpui::test]
+fn the_sidebar_tools_are_commands_too(cx: &mut TestAppContext) {
+    let (_vault, workspace, cx) = reveal_from_the_edge(cx, "push");
+    rest(cx, point(px(900.), px(400.)));
+    wait_out_the_hide_delay(cx);
+    assert!(!panel_visible(&workspace, cx));
+
+    run_command(&workspace, cx, "file-tree.sort");
+    assert!(
+        panel_visible(&workspace, cx),
+        "the sort menu needs its sidebar"
+    );
+    assert_eq!(
+        menu_labels(&workspace, cx).map(|items| items.len()),
+        Some(4)
+    );
+    cx.simulate_keystrokes("down enter");
+    assert!(menu_labels(&workspace, cx).is_none());
+
+    run_command(&workspace, cx, "vault.switch");
+    let items = menu_labels(&workspace, cx).expect("the vault menu is open");
+    assert_eq!(
+        items.last().map(String::as_str),
+        Some("Open another vault…")
+    );
+    cx.simulate_keystrokes("escape");
+
+    run_command(&workspace, cx, "help.shortcuts");
+    assert!(cx.read(|cx| workspace.read(cx).active_modal::<ShortcutsHelp>().is_some()));
+    cx.simulate_keystrokes("escape");
+
+    run_command(&workspace, cx, "file-tree.collapse-all");
+    run_command(&workspace, cx, "file-tree.new-folder");
+    let tree = cx.read(|cx| workspace.read(cx).file_tree().unwrap().clone());
+    assert!(tree.read_with(cx, |tree, _| tree.editing_field().is_some()));
+}
+
 #[gpui::test]
 fn the_tab_list_shows_every_tab_and_switches(cx: &mut TestAppContext) {
     let vault = vault_with(&[("a.md", "A"), ("b.md", "B"), ("c.md", "C")]);

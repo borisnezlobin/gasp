@@ -334,6 +334,21 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("toolbar.focus", "Focus toolbars", "Tabs and panels").icon("app-window"),
     spec("toolbar.customize", "Customize toolbars", "App").icon("sliders-horizontal"),
     spec("vault.open", "Open another vault", "App").icon("vault"),
+    spec("vault.switch", "Switch vault", "App").icon("caret-up-down"),
+    spec("help.shortcuts", "Show keyboard shortcuts", "App").icon("question"),
+    spec("file-tree.new-folder", "New folder", "Notes and navigation").icon("folder-plus"),
+    spec(
+        "file-tree.sort",
+        "Change file sort order",
+        "Tabs and panels",
+    )
+    .icon("sort-ascending"),
+    spec(
+        "file-tree.collapse-all",
+        "Collapse all folders",
+        "Tabs and panels",
+    )
+    .icon("arrows-in-line-vertical"),
     spec("pane.split-right", "Split right", "Tabs and panels").icon("square-split-horizontal"),
     spec("pane.split-down", "Split down", "Tabs and panels").icon("square-split-vertical"),
     spec("pane.close", "Close pane", "Tabs and panels").icon("x"),

@@ -9,8 +9,17 @@ use gasp_config::toolbars::{ButtonStyle, Place, ToolbarItem, Toolbars};
 use gasp_config::{Config, Platform};
 
 /// Commands the phone leaves out: it shows one note at a time, so there are
-/// no panes to split or move tabs between.
-const NOT_ON_THE_PHONE: &[&str] = &["pane."];
+/// no panes to split or move tabs between, and the desktop sidebar's own
+/// buttons (the vault switcher, the shortcuts list, the file tree's tools)
+/// have no counterpart there.
+const NOT_ON_THE_PHONE: &[&str] = &[
+    "pane.",
+    "vault.switch",
+    "help.shortcuts",
+    "file-tree.new-folder",
+    "file-tree.sort",
+    "file-tree.collapse-all",
+];
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct CommandInfo {
