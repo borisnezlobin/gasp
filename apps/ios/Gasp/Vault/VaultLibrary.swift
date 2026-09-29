@@ -29,7 +29,9 @@ final class VaultLibrary {
     private(set) var folders: [String] = []
     private(set) var tokens: Tokens
     private(set) var commands: [CommandInfo] = []
-    private(set) var toolbar: [CommandInfo] = []
+    /// The bar above the software keyboard: the `keyboard` toolbar in
+    /// toolbars.toml.
+    private(set) var keyboardToolbar = KeyboardToolbar(enabled: true, labels: .icons, entries: [])
     private(set) var keyBindings: [KeyBinding] = []
     private(set) var problem: String?
     /// Bumped whenever the vault's config is read again, so views that
@@ -106,7 +108,7 @@ final class VaultLibrary {
         guard let vault else { return }
         tokens = Tokens(theme: vault.theme())
         commands = vault.commands()
-        toolbar = vault.toolbar()
+        keyboardToolbar = vault.keyboardToolbar()
         keyBindings = vault.keyBindings()
         configGeneration += 1
     }
