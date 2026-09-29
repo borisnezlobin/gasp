@@ -4,9 +4,9 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use gasp_config::settings::TrashMode;
 use gpui::{Context, Entity, Focusable, PromptLevel, Window};
 
+use super::deleted::{DeletedNote, TrashedTo};
 use super::files::{atomic_write, clean_title, note_title, renamed_path, unique_untitled};
 use super::history::{BIG_JUMP_LINES, Location};
 use super::note_doc::{DiskOutcome, NoteDoc};
@@ -16,9 +16,6 @@ use super::watcher::DiskChange;
 use super::{CursorSeen, OpenIn, Workspace};
 use crate::editor::{EditorEvent, EditorView};
 use crate::text_input::{TextInput, TextInputEvent};
-
-/// Where `trash = "vault"` puts deleted notes, as Obsidian does.
-const VAULT_TRASH: &str = ".trash";
 
 impl Workspace {
     pub(crate) fn on_editor_event(
@@ -331,19 +328,15 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> io::Result<()> {
         let text = self.text_before_delete(path, cx);
-        match crate::sandbox::trash_mode(self.config.settings.files.trash) {
-            TrashMode::System => trash::delete(path).map_err(io::Error::other)?,
-            TrashMode::Vault => move_to_vault_trash(&self.vault, path)?,
-            TrashMode::Delete => std::fs::remove_file(path)?,
-        }
+        let mode = self.config.settings.files.trash;
+        let relative = path.strip_prefix(&self.vault).unwrap_or(path);
+        let trashed_to = crate::trashing::move_to_trash(&self.vault, relative, mode)?;
         if let Some(doc) = self.doc_for_path(path, cx) {
             self.close_doc_tabs(&doc, window, cx);
         }
         self.forget_path(path, cx);
-        if let Some(text) = text {
-            let path = path.to_path_buf();
-            self.remember_deleted(super::deleted::DeletedNote::new(path, text), cx);
-        }
+        let trashed_to = TrashedTo::of(trashed_to, mode);
+        self.remember_deleted(DeletedNote::new(path.to_path_buf(), text, trashed_to), cx);
         Ok(())
     }
 
@@ -562,22 +555,4 @@ fn is_same_file(a: &Path, b: &Path) -> bool {
         (Ok(a), Ok(b)) => a == b,
         _ => false,
     }
-}
-
-fn move_to_vault_trash(vault: &Path, path: &Path) -> io::Result<()> {
-    let trash = vault.join(VAULT_TRASH);
-    std::fs::create_dir_all(&trash)?;
-    let name = path
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .into_owned();
-    let stem = note_title(path);
-    let mut target = trash.join(&name);
-    let mut number = 1;
-    while target.exists() {
-        target = trash.join(format!("{stem} {number}.md"));
-        number += 1;
-    }
-    std::fs::rename(path, target)
 }

@@ -230,6 +230,7 @@ impl Workspace {
         let positions = config.device.positions.clone();
         let right_panel =
             RightPanel::new(&config.device.right_sidebar, theme.workspace.sidebar_width);
+        let deleted = deleted::remembered(&vault, &config.device.deleted_notes);
         let mut workspace = Workspace {
             vault,
             config,
@@ -271,7 +272,7 @@ impl Workspace {
             toolbar_focus: None,
             toolbar_hover: Default::default(),
             toolbar_to_add_to: None,
-            deleted: Vec::new(),
+            deleted,
             rename_notice: None,
             _subscriptions: Vec::new(),
         };

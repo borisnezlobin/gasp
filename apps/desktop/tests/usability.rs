@@ -237,6 +237,80 @@ fn a_deleted_note_comes_back_with_its_unsaved_edits(cx: &mut TestAppContext) {
     assert!(!offers_undo, "the Undo goes once the note is back");
 }
 
+fn trash(workspace: &Entity<Workspace>, cx: &mut VisualTestContext, name: &str) {
+    let note = cx.read(|cx| workspace.read(cx).vault().join(name));
+    cx.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            workspace.trash_note(&note, window, cx).unwrap()
+        })
+    });
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn a_deleted_note_comes_back_after_a_relaunch(cx: &mut TestAppContext) {
+    let vault = vault_with(&[
+        ("Plan.md", "the plan"),
+        ("Other.md", "other"),
+        TRASH_IN_VAULT,
+    ]);
+    {
+        let (workspace, cx) = open_workspace(cx, vault.path());
+        trash(&workspace, cx, "Plan.md");
+        cx.update(|window, _| window.remove_window());
+    }
+    let trashed = vault.path().join(".trash/Plan.md");
+    assert!(trashed.exists());
+    let device = std::fs::read_to_string(
+        vault
+            .path()
+            .join(gasp_config::CONFIG_DIR)
+            .join("device.toml"),
+    )
+    .unwrap();
+    assert!(device.contains("deleted-notes"), "{device}");
+
+    // A new window on the vault, as after a restart, still has it.
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    run(&workspace, cx, "note.restore-deleted");
+    assert_eq!(
+        std::fs::read_to_string(vault.path().join("Plan.md")).unwrap(),
+        "the plan"
+    );
+    assert!(!trashed.exists(), "it came out of the trash");
+    assert_eq!(active_text(&workspace, cx).as_deref(), Some("the plan"));
+    let remembered = cx.read(|cx| workspace.read(cx).config().device.deleted_notes.len());
+    assert_eq!(remembered, 0);
+}
+
+#[gpui::test]
+fn a_note_emptied_from_the_trash_says_it_cant_come_back(cx: &mut TestAppContext) {
+    let vault = vault_with(&[("Plan.md", "the plan"), TRASH_IN_VAULT]);
+    {
+        let (workspace, cx) = open_workspace(cx, vault.path());
+        trash(&workspace, cx, "Plan.md");
+        cx.update(|window, _| window.remove_window());
+    }
+    std::fs::remove_file(vault.path().join(".trash/Plan.md")).unwrap();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    run(&workspace, cx, "note.restore-deleted");
+    assert!(!vault.path().join("Plan.md").exists());
+    assert!(shown_notices(cx).contains(&(
+        NoticeKind::Problem,
+        "“Plan” isn’t in the trash any more, so it can’t come back.".to_owned()
+    )));
+    let remembered = cx.read(|cx| workspace.read(cx).deleted_notes().len());
+    assert_eq!(remembered, 0, "the record is dropped");
+    let device = std::fs::read_to_string(
+        vault
+            .path()
+            .join(gasp_config::CONFIG_DIR)
+            .join("device.toml"),
+    )
+    .unwrap_or_default();
+    assert!(!device.contains("deleted-notes"), "{device}");
+}
+
 #[gpui::test]
 fn obsidian_settings_are_offered_once_then_imported(cx: &mut TestAppContext) {
     let vault = vault_with(&[
