@@ -15,6 +15,7 @@ pub mod demo;
 pub mod edit_time;
 pub mod editor;
 pub mod element;
+pub mod embeds;
 pub mod export_ui;
 pub mod features;
 pub mod file_tree;

@@ -5,11 +5,11 @@ use std::ops::Range;
 use std::time::Instant;
 
 use gpui::{
-    App, AvailableSpace, BorderStyle, Bounds, BoxShadow, ContentMask, Corners, CursorStyle,
-    DispatchPhase, Element, ElementId, ElementInputHandler, Entity, GlobalElementId, Hitbox,
-    HitboxBehavior, Hsla, InspectorElementId, IntoElement, LayoutId, MouseMoveEvent, Pixels,
-    SharedString, Style, TextRun, TransformationMatrix, UnderlineStyle, Window, fill, point, px,
-    quad, relative, size, transparent_black,
+    AnyElement, App, AvailableSpace, BorderStyle, Bounds, BoxShadow, ContentMask, Corners,
+    CursorStyle, DispatchPhase, Element, ElementId, ElementInputHandler, Entity, GlobalElementId,
+    Hitbox, HitboxBehavior, Hsla, InspectorElementId, IntoElement, LayoutId, MouseMoveEvent,
+    Pixels, SharedString, Style, TextRun, TransformationMatrix, UnderlineStyle, Window, fill,
+    point, px, quad, relative, size, transparent_black,
 };
 
 use crate::code_copy::{CopyButton, blocks_on_screen, copied_width, copy_icon_size};
@@ -58,6 +58,8 @@ pub struct Prepainted {
     chevrons: Vec<FoldChevron>,
     /// The line whose folded heading's count is under the pointer.
     hot_count: Option<usize>,
+    /// The views of embedded notes, drawn in their cards.
+    embeds: Vec<AnyElement>,
 }
 
 impl IntoElement for EditorElement {
@@ -111,6 +113,9 @@ impl Element for EditorElement {
                 && view.focus_handle.is_focused(window)
                 && view.table_edit.drag.is_none();
             let mut frame = view.layout_frame(bounds, window);
+            if view.make_wanted_embeds(window, cx) {
+                frame = view.layout_frame(bounds, window);
+            }
             let phase = crate::keytrace::span("selection-and-highlights");
             frame.highlights = view.highlight_rects(&frame);
             let selection = view
@@ -122,6 +127,7 @@ impl Element for EditorElement {
             let focused = view.focus_handle.is_focused(window);
             let tables = view.table_marks(&frame, focused && !view.read_only);
             let chevrons = view.fold_chevrons_for(&frame);
+            let embeds = view.embed_elements(&frame, window, cx);
             if tables.animating {
                 window.request_animation_frame();
             }
@@ -184,6 +190,7 @@ impl Element for EditorElement {
                 prose,
                 chevrons,
                 hot_count: view.hot_count_line(),
+                embeds,
             }
         })
     }
@@ -209,6 +216,9 @@ impl Element for EditorElement {
         let focused = focus_handle.is_focused(window);
         window.with_content_mask(Some(ContentMask { bounds }), |window| {
             paint_contents(prepainted, focused, window, cx);
+            for embed in &mut prepainted.embeds {
+                embed.paint(window, cx);
+            }
             if let Some((button, hitbox)) = &prepainted.copy_button {
                 window.set_cursor_style(CursorStyle::PointingHand, hitbox);
                 paint_copy_button(button, &prepainted.theme, window, cx);
@@ -638,7 +648,11 @@ fn paint_line(placed: &PlacedLine, context: &PaintContext<'_>, window: &mut Wind
                 let hot = context.hot_count == Some(placed.visual.line);
                 paint_count_fill(piece, row_top, hot, context, window);
             }
-            if !matches!(piece.hit, Hit::Link { .. }) {
+            if let Hit::Open { .. } = piece.hit {
+                let on = card.is_some_and(|(_, on_button)| on_button);
+                let piece = open_control_piece(piece, on, context.theme);
+                paint_piece(&piece, context, row_top, window, cx);
+            } else if !matches!(piece.hit, Hit::Link { .. }) {
                 paint_piece(piece, context, row_top, window, cx);
             } else if let Some((_, on_button)) = card {
                 let piece = open_button_piece(piece, on_button, context.theme);
@@ -704,6 +718,18 @@ fn paint_fold_chevrons(chevrons: &[FoldChevron], theme: &Theme, window: &mut Win
         let transform = TransformationMatrix::unit();
         report(window.paint_svg(icon_bounds, icon.path(), transform, color, cx));
     }
+}
+
+/// A piece of an embedded note's Open control or Create note button,
+/// filled under the pointer.
+fn open_control_piece(piece: &Piece, on: bool, theme: &Theme) -> Piece {
+    let mut piece = piece.clone();
+    if let PieceContent::Quad { color, .. } = &mut piece.content
+        && on
+    {
+        *color = theme.embed.open_fill;
+    }
+    piece
 }
 
 /// A piece of a link card's Open button, darker under the pointer as a
@@ -806,6 +832,7 @@ fn paint_piece(
         PieceContent::Checkbox { checked } => {
             paint_checkbox(piece, bounds, *checked, context, window, cx);
         }
+        PieceContent::Embed { .. } => {}
         PieceContent::TabStop => {
             let theme = context.theme;
             window.paint_quad(fill(bounds, theme.tab_stop).corner_radii(theme.radius_sm / 2.));

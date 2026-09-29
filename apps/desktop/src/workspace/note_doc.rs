@@ -111,6 +111,11 @@ impl NoteDoc {
         self.dirty
     }
 
+    /// The text as last saved or read from disk.
+    pub fn saved_text(&self) -> &str {
+        &self.saved_text
+    }
+
     pub fn conflict(&self) -> Option<Conflict> {
         self.conflict
     }

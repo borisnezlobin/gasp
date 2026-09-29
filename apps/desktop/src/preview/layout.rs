@@ -48,6 +48,7 @@ pub struct LayoutResources<'a> {
     pub math: &'a mut MathStore,
     pub code: &'a mut CodeHighlighter,
     pub tables: &'a mut TableStore,
+    pub embeds: &'a mut crate::embeds::EmbedStore,
 }
 
 /// Lays out a planned line.

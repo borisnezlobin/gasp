@@ -256,6 +256,13 @@ pub enum WidgetKind {
     /// Where an empty snippet tab stop waits: a small block the text
     /// makes room for. The app adds it; the planner never does.
     EmptyTabStop,
+    /// A note, or a heading's section or a block of one, embedded with
+    /// `![[target#subpath]]` and drawn as a card holding its text. Only
+    /// planned when [`crate::render::RevealSettings::embed_notes`] is on.
+    EmbeddedNote {
+        target: String,
+        subpath: Option<String>,
+    },
     /// How many lines a folded heading hides, drawn after its text. Only
     /// [`crate::render::folds::Folds::mark_folded_headings`] adds it.
     FoldedLines {

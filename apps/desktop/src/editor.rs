@@ -97,6 +97,11 @@ pub struct EditorView {
     pub(crate) folds: Folds,
     /// Heading folds' chevrons, hover and the folds waiting for a parse.
     pub(crate) fold_ui: crate::folding::FoldUi,
+    /// The cards of notes embedded with `![[…]]`.
+    pub(crate) embeds: crate::embeds::EmbedStore,
+    /// A view drawing an embedded note inside another note's card: no
+    /// background or scrolling of its own.
+    pub(crate) embedded: bool,
     pub(crate) images: ImageStore,
     pub(crate) code: CodeHighlighter,
     /// Width of the text column in the last frame.
@@ -254,6 +259,8 @@ impl EditorView {
             math: MathStore::default(),
             folds: Folds::default(),
             fold_ui: Default::default(),
+            embeds: Default::default(),
+            embedded: false,
             images: ImageStore::new(image_dirs),
             code: CodeHighlighter::default(),
             column_width,
@@ -330,7 +337,7 @@ impl EditorView {
         theme.resolve_fonts(&crate::ui::installed_fonts(cx).unwrap_or_default());
         self.base_theme = theme;
         self.symbols = config.settings.markdown.symbols.clone();
-        self.reveal = reveal_settings(&self.symbols);
+        self.refresh_reveal();
         self.apply_typing_settings(config);
         self.clear_preview_cache();
         self.code_line_numbers = config.settings.editor.code_line_numbers;
@@ -367,6 +374,13 @@ impl EditorView {
 
     pub fn reveal_settings(&self) -> &RevealSettings {
         &self.reveal
+    }
+
+    /// Plans with the settings' reveal modes; embedded notes become cards
+    /// once the editor has the vault's notes to show in them.
+    pub(crate) fn refresh_reveal(&mut self) {
+        self.reveal = reveal_settings(&self.symbols);
+        self.reveal.embed_notes = self.suggest.index.is_some();
     }
 
     /// The primary selection as an ordered byte range.
@@ -450,6 +464,11 @@ impl EditorView {
 
     pub fn frame(&self) -> Option<&FrameLayout> {
         self.frame.as_ref()
+    }
+
+    /// The cards of the notes this one embeds.
+    pub fn embeds(&self) -> &crate::embeds::EmbedStore {
+        &self.embeds
     }
 
     pub fn set_log_timings(&mut self, enabled: bool) {
@@ -985,6 +1004,7 @@ impl EditorView {
             math: &mut self.math,
             code: &mut self.code,
             tables: &mut self.tables,
+            embeds: &mut self.embeds,
         };
         let cache = &mut self.line_cache;
         cache.begin_frame(LayoutEpoch {
