@@ -3,6 +3,7 @@
 
 pub mod actions;
 pub mod app;
+pub mod appearance_toggle;
 pub mod bench;
 pub mod cli;
 pub mod code_copy;

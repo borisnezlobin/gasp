@@ -93,6 +93,7 @@ const VIEW: &[Entry] = &[
     Command("view.zoom-out"),
     Command("view.zoom-reset"),
     Command("view.toggle-readable-width"),
+    Command("view.toggle-dark-mode"),
 ];
 
 const GO: &[Entry] = &[

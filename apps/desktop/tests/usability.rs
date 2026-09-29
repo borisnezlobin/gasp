@@ -220,3 +220,24 @@ fn obsidian_settings_are_offered_once_then_imported(cx: &mut TestAppContext) {
         .any(|(kind, message)| kind == NoticeKind::Done && message.contains("settings"));
     assert!(done);
 }
+
+#[gpui::test]
+fn one_command_switches_between_light_and_dark(cx: &mut TestAppContext) {
+    let vault = vault_with(&[("Note.md", "text")]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    let dark = |cx: &mut VisualTestContext| cx.update(|_, cx| gasp_desktop::ui::is_dark(cx));
+    let before = dark(cx);
+    run(&workspace, cx, "view.toggle-dark-mode");
+    assert_eq!(dark(cx), !before);
+    run(&workspace, cx, "view.toggle-dark-mode");
+    assert_eq!(dark(cx), before);
+    let settings = std::fs::read_to_string(
+        vault
+            .path()
+            .join(gasp_config::CONFIG_DIR)
+            .join("settings.toml"),
+    )
+    .unwrap();
+    let expected = if before { "\"dark\"" } else { "\"light\"" };
+    assert!(settings.contains(expected), "{settings}");
+}
