@@ -144,6 +144,7 @@ pub(crate) fn is_settled(kind: &WidgetKind) -> bool {
             | WidgetKind::MathPreview { .. }
             | WidgetKind::Image { .. }
             | WidgetKind::LinkCard(_)
+            | WidgetKind::EmbeddedNote { .. }
     )
 }
 

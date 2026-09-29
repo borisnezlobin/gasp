@@ -36,6 +36,9 @@ pub struct RevealSettings {
     /// grid, for editing the table as text. Tables are grids otherwise,
     /// unless tables' symbols are always shown.
     pub source_table: Option<usize>,
+    /// Whether `![[Note]]` embeds become [`super::WidgetKind::EmbeddedNote`]
+    /// cards. Off, they read as links, for an app that doesn't draw them.
+    pub embed_notes: bool,
 }
 
 impl Default for RevealSettings {
@@ -53,6 +56,7 @@ impl RevealSettings {
             overrides: HashMap::new(),
             bracket_colours: true,
             source_table: None,
+            embed_notes: false,
         }
     }
 

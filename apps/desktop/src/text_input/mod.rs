@@ -34,6 +34,9 @@ use element::TextLine;
 /// The key context every input sets.
 pub const TEXT_INPUT_CONTEXT: &str = "TextInput";
 
+/// What a secure input shows for each character.
+const SECURE_DOT: char = '•';
+
 actions!(text_input, [Submit, Cancel]);
 
 /// What an input tells its owner.
@@ -114,6 +117,9 @@ pub struct TextInput {
     style: TextInputStyle,
     theme: InputTheme,
     invalid: bool,
+    /// Shows a dot for each character and keeps the text off the clipboard,
+    /// for a secret such as a token.
+    secure: bool,
     bubbles_enter_and_escape: bool,
     is_selecting: bool,
     /// How far the text is scrolled left to keep the cursor in view.
@@ -146,6 +152,7 @@ impl TextInput {
             style: TextInputStyle::default(),
             theme: crate::ui::input_theme(cx),
             invalid: false,
+            secure: false,
             bubbles_enter_and_escape: false,
             is_selecting: false,
             scroll_x: Pixels::ZERO,
@@ -194,8 +201,51 @@ impl TextInput {
         self
     }
 
+    /// Hides the text behind a dot per character and never copies it, for
+    /// a secret such as a token. Pasting still works.
+    pub fn secure(mut self) -> Self {
+        self.secure = true;
+        self
+    }
+
+    pub fn is_secure(&self) -> bool {
+        self.secure
+    }
+
     pub fn style(&self) -> TextInputStyle {
         self.style
+    }
+
+    /// What the input draws for its text: the text, or a dot for each of
+    /// its characters while it's secure.
+    fn shown_text(&self) -> String {
+        let text = self.state.text();
+        if self.secure {
+            SECURE_DOT.to_string().repeat(text.chars().count())
+        } else {
+            text.to_owned()
+        }
+    }
+
+    /// Where byte `offset` of the text is in [`TextInput::shown_text`].
+    fn shown_offset(&self, offset: usize) -> usize {
+        if !self.secure {
+            return offset;
+        }
+        let text = self.state.text();
+        text[..offset.min(text.len())].chars().count() * SECURE_DOT.len_utf8()
+    }
+
+    /// The byte offset in the text of `shown` in [`TextInput::shown_text`].
+    fn text_offset(&self, shown: usize) -> usize {
+        if !self.secure {
+            return shown;
+        }
+        let text = self.state.text();
+        let characters = shown / SECURE_DOT.len_utf8();
+        text.char_indices()
+            .nth(characters)
+            .map_or(text.len(), |(offset, _)| offset)
     }
 
     pub fn text(&self) -> &str {
@@ -290,6 +340,9 @@ impl TextInput {
     }
 
     fn copy(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.secure {
+            return false;
+        }
         if let Some(text) = self.state.selected_text() {
             cx.write_to_clipboard(ClipboardItem::new_string(text.to_owned()));
         }
@@ -297,6 +350,9 @@ impl TextInput {
     }
 
     fn cut(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.secure {
+            return false;
+        }
         self.copy(cx);
         let selection = self.state.selected_range();
         !selection.is_empty() && self.state.edit(selection, "", EditKind::Other).changed
@@ -378,8 +434,8 @@ impl TextInput {
         let Some(line) = painted.line.as_ref() else {
             return 0;
         };
-        line.closest_index_for_x(position.x - painted.origin.x)
-            .min(self.state.text().len())
+        let shown = line.closest_index_for_x(position.x - painted.origin.x);
+        self.text_offset(shown).min(self.state.text().len())
     }
 }
 

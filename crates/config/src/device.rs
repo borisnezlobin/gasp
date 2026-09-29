@@ -36,7 +36,29 @@ pub struct DeviceSettings {
     /// settings, which it does once.
     #[serde(skip_serializing_if = "is_false")]
     pub obsidian_import_offered: bool,
+    /// Notes this device moved to the trash, oldest first, so
+    /// `note.restore-deleted` can bring one back after a restart.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub deleted_notes: Vec<DeletedNoteRecord>,
 }
+
+/// A note that went to the trash: where it was, where it went and when.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct DeletedNoteRecord {
+    /// The note, vault-relative.
+    pub path: String,
+    /// Where it went: vault-relative in the vault's own trash, else an
+    /// absolute path in the system's. Empty where the system doesn't say,
+    /// which leaves searching its trash by `path`.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub trashed_to: String,
+    /// Seconds since the Unix epoch.
+    pub deleted_at: u64,
+}
+
+/// How many deleted notes are remembered; the oldest go first.
+pub const KEPT_DELETED_NOTES: usize = 20;
 
 /// Where the reader was in a note: the cursor, and the start of the line
 /// at the top of the view, both as byte offsets, and which headings were
@@ -165,6 +187,22 @@ mod tests {
             ..DeviceSettings::default()
         };
         let parsed: DeviceSettings = toml::from_str(&device.to_toml()).unwrap();
+        assert_eq!(parsed, device);
+    }
+
+    #[test]
+    fn deleted_notes_round_trip() {
+        let device = DeviceSettings {
+            deleted_notes: vec![DeletedNoteRecord {
+                path: "Daily/Plan.md".into(),
+                trashed_to: ".trash/Plan.md".into(),
+                deleted_at: 1_790_000_000,
+            }],
+            ..DeviceSettings::default()
+        };
+        let text = device.to_toml();
+        assert!(text.contains("[[deleted-notes]]"), "{text}");
+        let parsed: DeviceSettings = toml::from_str(&text).unwrap();
         assert_eq!(parsed, device);
     }
 

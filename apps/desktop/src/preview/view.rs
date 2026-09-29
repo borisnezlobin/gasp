@@ -13,7 +13,6 @@ use crate::editor::{EditorEvent, EditorView};
 use crate::pending_renders::PendingRender;
 use crate::preview::code_highlight::load_syntaxes;
 use crate::preview::links::link_target_at;
-use crate::preview::reveal::reveal_settings;
 
 /// Each zoom step scales text by this much.
 pub const ZOOM_STEP: f32 = 1.1;
@@ -26,7 +25,11 @@ pub const RELEASE_HIDDEN_AFTER: std::time::Duration = std::time::Duration::from_
 impl EditorView {
     /// Scales every size in the editor and re-measures the lines.
     pub fn set_zoom(&mut self, zoom: f32, cx: &mut Context<Self>) {
-        self.zoom = zoom.clamp(MIN_ZOOM, MAX_ZOOM);
+        let zoom = zoom.clamp(MIN_ZOOM, MAX_ZOOM);
+        if zoom != self.zoom {
+            self.embeds.clear();
+        }
+        self.zoom = zoom;
         self.theme = self.base_theme.scaled(self.zoom);
         self.remeasure();
         cx.notify();
@@ -83,7 +86,7 @@ impl EditorView {
 
     pub fn set_symbol_mode(&mut self, mode: SymbolMode, cx: &mut Context<Self>) {
         self.symbols.mode = mode;
-        self.reveal = reveal_settings(&self.symbols);
+        self.refresh_reveal();
         self.remeasure();
         cx.notify();
     }

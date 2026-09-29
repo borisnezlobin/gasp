@@ -104,6 +104,10 @@ impl EditorView {
     ) -> Option<(HoverTarget, Range<usize>)> {
         let frame = self.frame.as_ref()?;
         let (placed, piece) = frame.piece_at(position)?;
+        // A card already shows what its link would preview.
+        if matches!(piece.hit, Hit::Open { .. } | Hit::Card { .. }) {
+            return None;
+        }
         let offset = match piece.hit {
             Hit::Text => frame.offset_at(position)?,
             _ => placed.visual.start + piece.range.start,
@@ -435,6 +439,7 @@ impl EditorView {
         self.hover.cache.clear();
         self.line_cache.clear();
         self.tables.clear();
+        self.embeds.clear();
     }
 }
 

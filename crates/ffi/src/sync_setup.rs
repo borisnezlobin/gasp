@@ -30,26 +30,13 @@ pub struct SyncSetup {
 /// shorthand becomes an HTTPS address, anything with a scheme stays.
 #[uniffi::export]
 pub fn repository_url(typed: String) -> Option<String> {
-    let typed = typed.trim().trim_end_matches('/');
-    if typed.is_empty() || typed.chars().any(char::is_whitespace) {
-        return None;
-    }
-    if typed.contains("://") {
-        return Some(typed.to_owned());
-    }
-    let path = typed
-        .strip_prefix("github.com/")
-        .or_else(|| typed.strip_prefix("www.github.com/"))
-        .unwrap_or(typed);
-    let parts: Vec<&str> = path.split('/').collect();
-    let is_owner_and_name = parts.len() == 2 && parts.iter().all(|part| !part.is_empty());
-    is_owner_and_name.then(|| format!("https://github.com/{path}"))
+    gasp_sync::repository_url(&typed)
 }
 
 /// Whether the remote signs in with a token: GitHub over HTTPS does, a
 /// folder doesn't.
 pub(crate) fn takes_token(url: &str) -> bool {
-    url.starts_with("https://") || url.starts_with("http://")
+    gasp_sync::url_takes_token(url)
 }
 
 /// Clones the notes and keeps the token, so the folder can be opened as

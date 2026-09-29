@@ -181,7 +181,7 @@ pub fn trash(root: &Path, path: &Path, mode: TrashMode) -> io::Result<()> {
     let full = root.join(path);
     match mode {
         TrashMode::System => move_to_system_trash(root, path),
-        TrashMode::Vault => move_to_vault_trash(root, path),
+        TrashMode::Vault => move_to_vault_trash(root, path).map(drop),
         TrashMode::Delete if full.is_dir() => fs::remove_dir_all(full),
         TrashMode::Delete => fs::remove_file(full),
     }
@@ -196,10 +196,12 @@ fn move_to_system_trash(root: &Path, path: &Path) -> io::Result<()> {
 /// vault's own.
 #[cfg(target_os = "ios")]
 fn move_to_system_trash(root: &Path, path: &Path) -> io::Result<()> {
-    move_to_vault_trash(root, path)
+    move_to_vault_trash(root, path).map(drop)
 }
 
-fn move_to_vault_trash(root: &Path, path: &Path) -> io::Result<()> {
+/// Moves `path` into the vault's own `.trash`, beside anything of the same
+/// name already there, and returns where it went.
+pub fn move_to_vault_trash(root: &Path, path: &Path) -> io::Result<PathBuf> {
     let trash_dir = root.join(VAULT_TRASH_DIR);
     fs::create_dir_all(&trash_dir)?;
     let name = path
@@ -214,7 +216,9 @@ fn move_to_vault_trash(root: &Path, path: &Path) -> io::Result<()> {
         })
         .find(|candidate| !trash_dir.join(candidate).exists())
         .unwrap_or(name);
-    fs::rename(root.join(path), trash_dir.join(free))
+    let target = trash_dir.join(free);
+    fs::rename(root.join(path), &target)?;
+    Ok(target)
 }
 
 /// Every visible file in the vault, as `/`-separated relative paths.
