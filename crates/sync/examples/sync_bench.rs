@@ -33,6 +33,8 @@ const HARPER_BYTES: usize = 19 * 1024 * 1024;
 const PASTED_PHOTO_BYTES: usize = 2 * 1024 * 1024;
 const EDITED_NOTE: &str = "Habit Ideas.md";
 const PHONE_NOTE: &str = "Derivation Ideas.md";
+const HISTORY_NOTE: &str = "Daily Notes/Log.md";
+const HISTORY_COMMITS: usize = 500;
 
 /// How big the vault is and how often each step runs.
 #[derive(Clone, Copy)]
@@ -97,6 +99,7 @@ fn set_up(root: &Path, shape: Shape, report: &mut Report) -> Devices {
     let mut first_push = Samples::new();
     first_push.time(|| mac.push().expect("first push"));
     start_legacy_branch(&remote);
+    write_history(&mac, &mac_author);
     let (files, bytes) = committed_size(&mac_root);
     let mut clone = Samples::new();
     let phone = clone.time(|| {
@@ -107,12 +110,26 @@ fn set_up(root: &Path, shape: Shape, report: &mut Report) -> Devices {
     report.note_time("first commit of the whole vault", first_commit.median());
     report.note_time("first push of the whole vault", first_push.median());
     report.note_time("clone onto the phone", clone.median());
+    report.note_count(
+        "commits since the legacy branch last moved",
+        HISTORY_COMMITS as f64,
+    );
     Devices {
         mac,
         phone,
         mac_author,
         phone_author: Author::new("Phone", "phone@devices.invalid"),
     }
+}
+
+/// Months of syncing since the old tools last pushed to the legacy branch:
+/// a commit for each of a few hundred edits, pushed.
+fn write_history(mac: &Vault, author: &Author) {
+    for edit in 0..HISTORY_COMMITS {
+        append_line(mac.root(), HISTORY_NOTE, &format!("Entry {edit}."));
+        mac.commit_changes(author, DEVICE).expect("commit");
+    }
+    mac.push().expect("push");
 }
 
 fn init_bare_remote(path: &Path) -> String {
@@ -466,7 +483,7 @@ fn send(vault: &Vault, author: &Author) {
 
 fn append_line(root: &Path, note: &str, line: &str) {
     let path = root.join(note);
-    let mut text = fs::read_to_string(&path).expect("the note reads");
+    let mut text = fs::read_to_string(&path).unwrap_or_default();
     text.push_str(line);
     text.push('\n');
     fs::write(&path, text).expect("the note writes");
