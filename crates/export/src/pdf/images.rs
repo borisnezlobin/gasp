@@ -137,7 +137,7 @@ fn closest_match<'a>(files: &'a [String], note_dir: &str, target: &str) -> Optio
 }
 
 /// Every file under `root` outside hidden folders (`.git`, `.obsidian`,
-/// the editor's own `.editor`), vault-relative.
+/// the app's own `.gasp`), vault-relative.
 fn visible_files(root: &Path) -> Vec<String> {
     let mut files = Vec::new();
     let mut pending = vec![root.to_path_buf()];

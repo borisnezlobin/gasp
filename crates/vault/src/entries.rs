@@ -82,7 +82,7 @@ pub fn display_name(file_name: &str, kind: EntryKind) -> &str {
     }
 }
 
-/// Dot-folders and dot-files (`.git`, `.obsidian`, `.editor`, `.trash`)
+/// Dot-folders and dot-files (`.git`, `.obsidian`, `.gasp`, `.trash`)
 /// never show.
 pub fn is_hidden(name: &str) -> bool {
     name.starts_with('.')
@@ -342,7 +342,13 @@ mod tests {
 
     #[test]
     fn dot_names_are_hidden() {
-        for name in [".git", ".obsidian", ".editor", ".trash", ".DS_Store"] {
+        for name in [
+            ".git",
+            ".obsidian",
+            editor_config::CONFIG_DIR,
+            ".trash",
+            ".DS_Store",
+        ] {
             assert!(is_hidden(name), "{name}");
         }
         assert!(!is_hidden("Notes"));

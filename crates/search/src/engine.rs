@@ -14,6 +14,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::SystemTime;
 
+use editor_config::CONFIG_DIR;
 use unicode_normalization::UnicodeNormalization;
 use unicode_normalization::char::is_combining_mark;
 
@@ -32,7 +33,7 @@ const EXCERPT_LEAD: usize = 40;
 const EXCERPT_CHARS: usize = 160;
 
 /// Folders never searched: the app's config, git and other apps' data.
-const SKIPPED_FOLDERS: [&str; 4] = [".editor", ".git", ".obsidian", ".trash"];
+const SKIPPED_FOLDERS: [&str; 4] = [CONFIG_DIR, ".git", ".obsidian", ".trash"];
 
 /// A note in memory, with what every search reads from it prepared once.
 /// Cloning one is cheap: the text is shared.
@@ -762,10 +763,10 @@ mod tests {
         let vault = tempfile::tempdir().unwrap();
         let root = vault.path();
         std::fs::create_dir_all(root.join("Maths")).unwrap();
-        std::fs::create_dir_all(root.join(".editor")).unwrap();
+        std::fs::create_dir_all(root.join(CONFIG_DIR)).unwrap();
         std::fs::write(root.join("Maths/Lemma.md"), "old and Old").unwrap();
         std::fs::write(root.join("Other.md"), "nothing").unwrap();
-        std::fs::write(root.join(".editor/settings.md"), "old").unwrap();
+        std::fs::write(root.join(CONFIG_DIR).join("settings.md"), "old").unwrap();
         std::fs::write(root.join("image.png"), "old").unwrap();
         let loaded = load_vault(root);
         let paths: Vec<_> = loaded.iter().map(|note| note.path.clone()).collect();

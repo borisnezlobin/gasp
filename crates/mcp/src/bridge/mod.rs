@@ -1,4 +1,4 @@
-//! The link between `editor mcp` and a running desktop app with the same
+//! The link between `gasp mcp` and a running desktop app with the same
 //! vault open, for what only the app knows: its tabs, cursor and
 //! selection, its commands, and notes with unsaved edits.
 //!

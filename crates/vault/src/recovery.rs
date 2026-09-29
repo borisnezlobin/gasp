@@ -36,7 +36,7 @@ fn throwaway_data_dir(vault: &Path) -> Option<PathBuf> {
     let vault = vault.canonicalize().unwrap_or_else(|_| vault.to_path_buf());
     vault
         .starts_with(&temp)
-        .then(|| temp.join("editor-throwaway-data"))
+        .then(|| temp.join(concat!(editor_config::command_name!(), "-throwaway-data")))
 }
 
 /// One saved version of a note.
@@ -60,7 +60,7 @@ impl SnapshotStore {
             .cloned()
             .or_else(|| std::env::var_os(DATA_DIR_ENV).map(PathBuf::from))
             .or_else(|| throwaway_data_dir(vault))
-            .or_else(|| dirs::data_local_dir().map(|dir| dir.join("editor")))?;
+            .or_else(|| dirs::data_local_dir().map(|dir| dir.join(editor_config::APP_FOLDER)))?;
         Some(SnapshotStore::at(
             data.join("snapshots").join(vault_key(vault)),
         ))
