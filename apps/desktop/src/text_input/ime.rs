@@ -28,10 +28,9 @@ impl TextInput {
     /// The x of byte `offset` in the painted line.
     fn x_for_offset(&self, offset: usize) -> Option<Pixels> {
         let painted = self.painted.as_ref()?;
-        let x = painted
-            .line
-            .as_ref()
-            .map_or(Pixels::ZERO, |line| line.x_for_index(offset));
+        let x = painted.line.as_ref().map_or(Pixels::ZERO, |line| {
+            line.x_for_index(self.shown_offset(offset))
+        });
         Some(painted.origin.x + x)
     }
 }

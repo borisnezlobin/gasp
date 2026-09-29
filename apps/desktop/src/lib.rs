@@ -70,6 +70,7 @@ pub mod text_offsets;
 pub mod theme;
 pub mod toolbar;
 pub mod trace;
+pub mod trashing;
 pub mod typing;
 pub mod ui;
 pub mod vault_index;

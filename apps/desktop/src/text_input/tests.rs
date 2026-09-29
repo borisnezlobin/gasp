@@ -104,6 +104,31 @@ fn copy_cut_and_paste_keep_one_line(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_secure_input_shows_dots_and_never_copies(cx: &mut TestAppContext) {
+    cx.update(|cx| bind_keys(&RuleSet::defaults(), cx));
+    let (input, cx) = cx.add_window_view(|window, cx| TextInput::new(window, cx).secure());
+    cx.update(|window, cx| window.focus(&input.focus_handle(cx)));
+    cx.write_to_clipboard(ClipboardItem::new_string("ghp_sécret".into()));
+    cx.simulate_keystrokes("secondary-v");
+    assert_eq!(text(&input, cx), "ghp_sécret");
+    input.read_with(cx, |input, _| {
+        assert_eq!(input.shown_text(), "••••••••••");
+        // "é" is two bytes and one dot.
+        assert_eq!(input.shown_offset(7), 6 * '•'.len_utf8());
+        assert_eq!(input.text_offset(6 * '•'.len_utf8()), 7);
+        assert_eq!(input.text_offset(10 * '•'.len_utf8()), "ghp_sécret".len());
+    });
+    cx.write_to_clipboard(ClipboardItem::new_string("left alone".into()));
+    cx.simulate_keystrokes("secondary-a secondary-c");
+    cx.simulate_keystrokes("secondary-x");
+    assert_eq!(
+        cx.read_from_clipboard().and_then(|item| item.text()),
+        Some("left alone".to_owned())
+    );
+    assert_eq!(text(&input, cx), "ghp_sécret", "cut takes nothing away");
+}
+
+#[gpui::test]
 fn enter_escape_and_blur_are_reported(cx: &mut TestAppContext) {
     let (input, cx, events) = input(cx);
     cx.update(|window, _| window.activate_window());

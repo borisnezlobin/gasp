@@ -19,22 +19,26 @@ use crate::keymap::{
     KEY_CONTEXT, RunCommand, WORKSPACE_CONTEXT, keystroke_for, keystroke_variants,
 };
 use crate::note::markdown_files;
+use crate::notices::Notice;
 use crate::outline::{OutlineEvent, OutlinePicker};
 use crate::palette::{CommandPalette, PaletteEvent};
 use crate::print::PrintDialog;
 use crate::settings_view::{SettingsEvent, SettingsRequest, SettingsView};
 use crate::switcher::{QuickSwitcher, SwitcherEvent};
-use crate::sync::{ConflictResolver, SyncIndicator, SyncIndicatorEvent, SyncPhase, SyncService};
+use crate::sync::{
+    ConflictResolver, SyncIndicator, SyncIndicatorEvent, SyncPhase, SyncService, SyncSetup,
+    SyncSetupEvent,
+};
 use crate::text_input::{self, TEXT_INPUT_CONTEXT};
 use crate::vault_search::{VaultSearch, VaultSearchEvent};
-use crate::workspace::deleted::DeletedNote;
+use crate::workspace::deleted::{DeletedNote, TrashedTo};
 use crate::workspace::{OpenIn, Workspace};
 
 /// How many palette commands count as recent.
 const RECENT_COMMANDS: usize = 8;
 
 /// Commands this module gives a handler, for the menus.
-pub const WIRED_COMMANDS: [&str; 30] = [
+pub const WIRED_COMMANDS: [&str; 31] = [
     "palette.open",
     "switcher.open",
     "outline.jump-to-heading",
@@ -53,6 +57,7 @@ pub const WIRED_COMMANDS: [&str; 30] = [
     "file-tree.focus",
     "sync.now",
     "sync.resolve-conflicts",
+    "sync.set-up",
     "sidebar.right.toggle",
     "sidebar.right.focus",
     "sidebar.backlinks",
@@ -95,6 +100,11 @@ struct Features {
     find_bars: HashMap<EntityId, (EntityId, Entity<FindBar>)>,
     /// Each window's sync indicator, by its sync service.
     sync_indicators: HashMap<EntityId, Entity<SyncIndicator>>,
+    /// Whether Mod+S in a vault that doesn't sync has offered to set sync
+    /// up, which it does once a session.
+    set_up_offered: bool,
+    /// The last notice saying what Mod+S saved.
+    save_notice: Option<u64>,
     subscriptions: Vec<Subscription>,
 }
 
@@ -121,6 +131,8 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     if crate::sandbox::reaches_outside() {
         install_sync(workspace, window, cx);
     }
+    workspace.on_command("sync.now", sync_now);
+    workspace.on_command("sync.set-up", open_sync_setup);
     crate::knowledge::install(workspace, window, cx);
     crate::prose::commands::install(workspace, cx);
     crate::recovery::install(workspace, cx);
@@ -195,12 +207,16 @@ fn on_tree_event(
             workspace.entry_moved(from, to, cx);
         }
         FileTreeEvent::Dismissed => workspace.leave_left_panel(window, cx),
-        FileTreeEvent::Trashed { path, text } => {
+        FileTreeEvent::Trashed {
+            path,
+            text,
+            trashed_to,
+        } => {
             let text = workspace.text_before_delete(path, cx).or(text.clone());
-            if let Some(text) = text {
-                let path = path.clone();
-                workspace.remember_deleted(DeletedNote::new(path, text), cx);
-            }
+            let mode = workspace.config().settings.files.trash;
+            let trashed_to = TrashedTo::of(trashed_to.clone(), mode);
+            let note = DeletedNote::new(path.clone(), text, trashed_to);
+            workspace.remember_deleted(note, cx);
         }
         FileTreeEvent::Failed { message } => {
             crate::notices::problem(message.clone(), cx);
@@ -271,7 +287,6 @@ fn install_sync(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::C
         .sync_indicators
         .insert(workspace_key(&service), indicator.clone());
     workspace.set_sync(service, indicator.into(), cx);
-    workspace.on_command("sync.now", sync_now);
     workspace.on_command("sync.resolve-conflicts", open_resolver);
 }
 
@@ -281,16 +296,21 @@ fn workspace_key(service: &Entity<SyncService>) -> EntityId {
 
 /// `sync.now`: syncs, or shows what's in the way (signing in, a vault on
 /// the wrong branch) in the sync popover. Notes waiting on a conflict
-/// aren't in the way: everything else syncs.
+/// aren't in the way: everything else syncs. In a vault that doesn't
+/// sync, where Mod+S is pressed out of habit, it saves every note.
 fn sync_now(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Context<Workspace>) {
+    let phase = workspace
+        .sync()
+        .map_or(SyncPhase::Hidden, |service| service.read(cx).phase());
+    match phase {
+        SyncPhase::Hidden => return save_everything(workspace, cx),
+        SyncPhase::Starting => return,
+        _ => {}
+    }
     let Some(service) = workspace.sync().cloned() else {
         return;
     };
-    let phase = service.read(cx).phase();
     let blocked = matches!(phase, SyncPhase::Setup(_) | SyncPhase::SignIn { .. });
-    if matches!(phase, SyncPhase::Hidden | SyncPhase::Starting) {
-        return;
-    }
     if !blocked {
         service.update(cx, |service, cx| service.sync_now(cx));
         return;
@@ -302,6 +322,67 @@ fn sync_now(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Conte
     if let Some(indicator) = indicator.filter(|indicator| !indicator.read(cx).is_open()) {
         indicator.update(cx, |indicator, cx| indicator.toggle(window, cx));
     }
+}
+
+/// Saves every note with unsaved edits and says so in a notice that
+/// leaves by itself. The first time in a session it also offers to set
+/// sync up. A new one takes the last one's place rather than stacking.
+fn save_everything(workspace: &mut Workspace, cx: &mut gpui::Context<Workspace>) {
+    let saved = workspace.save_all_and_list(cx);
+    let mut notice = Notice::done(saved_message(&saved));
+    let state = features(cx);
+    if !state.set_up_offered {
+        state.set_up_offered = true;
+        notice = notice.with_action("Set up sync", "sync.set-up");
+    }
+    if let Some(last) = state.save_notice.take() {
+        crate::notices::dismiss(last, cx);
+    }
+    let shown = crate::notices::show(notice, cx);
+    features(cx).save_notice = Some(shown);
+}
+
+/// "Everything’s saved.", "Saved “Plan”." or "Saved 3 notes."
+pub fn saved_message(saved: &[PathBuf]) -> String {
+    match saved {
+        [] => "Everything’s saved.".to_owned(),
+        [one] => format!("Saved “{}”.", crate::workspace::files::note_title(one)),
+        many => format!("Saved {} notes.", many.len()),
+    }
+}
+
+/// `sync.set-up`: the dialog that makes the vault a clone of a
+/// repository. A vault that already syncs gets the Sync settings instead.
+fn open_sync_setup(
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    let syncs = workspace
+        .sync()
+        .is_some_and(|sync| sync.read(cx).is_present());
+    if syncs {
+        open_settings_at(workspace, "sync", window, cx);
+        return;
+    }
+    let host = cx.weak_entity();
+    let root = workspace.vault().to_path_buf();
+    let settings = workspace.config().settings.sync.clone();
+    workspace.toggle_modal(window, cx, |window, cx| {
+        SyncSetup::new(host, root, settings, window, cx)
+    });
+    let Some(setup) = workspace.active_modal::<SyncSetup>() else {
+        return;
+    };
+    let requests = cx.subscribe_in(
+        &setup,
+        window,
+        |_, _, request: &SyncSetupEvent, window, cx| {
+            let SyncSetupEvent::RunCommand(id) = request;
+            run_after_modal_closes(id.clone(), window, cx);
+        },
+    );
+    features(cx).subscriptions.push(requests);
 }
 
 /// `sync.resolve-conflicts`: the resolver, over the window.

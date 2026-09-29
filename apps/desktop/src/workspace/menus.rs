@@ -46,6 +46,7 @@ const FILE: &[Entry] = &[
     Command("export.html"),
     Command("export.pdf"),
     Command("sync.now"),
+    Command("sync.set-up"),
     Separator,
     Command("tab.reopen"),
     Command("tab.close"),

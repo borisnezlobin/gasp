@@ -66,11 +66,22 @@ fn look(phase: &SyncPhase, ui: &UiTheme) -> (IconName, gpui::Hsla) {
 /// The phase's icon, turning slowly while a sync runs.
 pub fn phase_icon(phase: &SyncPhase, size: gpui::Pixels, ui: &UiTheme) -> AnyElement {
     let (name, color) = look(phase, ui);
-    let glyph = icon(name).size(size).flex_none().text_color(color);
-    if !matches!(phase, SyncPhase::Syncing(_)) {
-        return glyph.into_any_element();
+    if matches!(phase, SyncPhase::Syncing(_)) {
+        return turning_icon(size, color, ui);
     }
-    glyph
+    icon(name)
+        .size(size)
+        .flex_none()
+        .text_color(color)
+        .into_any_element()
+}
+
+/// Sync's turning arrows in `color`, for work that's under way.
+pub fn turning_icon(size: gpui::Pixels, color: gpui::Hsla, ui: &UiTheme) -> AnyElement {
+    icon(IconName::ArrowsClockwise)
+        .size(size)
+        .flex_none()
+        .text_color(color)
         .with_animation(
             "sync-spin",
             Animation::new(ui.sync_spin).repeat(),

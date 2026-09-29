@@ -123,12 +123,11 @@ impl Element for TextLine {
         let input = self.input.read(cx);
         let theme = &input.theme;
         let look = input.look();
-        let text = input.state.text();
-        let is_placeholder = text.is_empty();
+        let is_placeholder = input.state.text().is_empty();
         let (shown, color): (SharedString, _) = if is_placeholder {
             (input.placeholder.clone(), theme.placeholder)
         } else {
-            (text.to_owned().into(), look.text)
+            (input.shown_text().into(), look.text)
         };
         let base = TextRun {
             len: shown.len(),
@@ -138,7 +137,13 @@ impl Element for TextLine {
             underline: None,
             strikethrough: None,
         };
-        let marked = input.state.marked().filter(|_| !is_placeholder);
+        let shown_range =
+            |range: Range<usize>| input.shown_offset(range.start)..input.shown_offset(range.end);
+        let marked = input
+            .state
+            .marked()
+            .filter(|_| !is_placeholder)
+            .map(shown_range);
         let runs = text_runs(base, marked, theme.composition_underline_thickness);
         let line = window
             .text_system()
@@ -146,7 +151,10 @@ impl Element for TextLine {
         let (selected, cursor) = if is_placeholder {
             (0..0, 0)
         } else {
-            (input.state.selected_range(), input.state.cursor())
+            (
+                shown_range(input.state.selected_range()),
+                input.shown_offset(input.state.cursor()),
+            )
         };
         let caret_x = line.x_for_index(cursor);
         let visible = bounds.size.width - theme.caret_width;
