@@ -235,7 +235,7 @@ impl Workspace {
             .map(|vault| {
                 MenuItem::action(folder_name(&vault), move |_, cx| {
                     if let Err(error) = open_vault_window(&vault, None, cx) {
-                        eprintln!("could not open {}: {error}", vault.display());
+                        crate::notices::open_failed(&vault, error, cx);
                     }
                 })
                 .with_icon(IconName::Folder)

@@ -77,7 +77,7 @@ const HANDLERS: [(&str, Handler); 34] = [
     }),
     ("note.new", |ws, window, cx| {
         if let Err(error) = ws.new_note(window, cx) {
-            eprintln!("could not create a note: {error}");
+            crate::notices::problem(format!("Couldn’t make a note: {error}"), cx);
         }
     }),
     ("note.rename", |ws, window, cx| ws.focus_title(window, cx)),

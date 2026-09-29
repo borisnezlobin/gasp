@@ -187,8 +187,9 @@ impl EditorView {
             insert_or_jump_footnote(self.doc(), self.state.selection(), &settings, self.now_ms());
         match outcome {
             FootnoteCommand::Apply(transaction) => self.apply_transaction(transaction, cx),
-            // Notices have no surface yet; the plugin showed this one as a toast.
-            FootnoteCommand::Notice(message) => eprintln!("{message}"),
+            FootnoteCommand::Notice(message) => {
+                crate::notices::show(crate::notices::Notice::problem(message), cx);
+            }
         }
     }
 }

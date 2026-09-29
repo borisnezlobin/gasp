@@ -185,7 +185,9 @@ fn on_tree_event(
             workspace.entry_moved(from, to, cx);
         }
         FileTreeEvent::Dismissed => workspace.leave_left_panel(window, cx),
-        FileTreeEvent::Failed { message } => eprintln!("{message}"),
+        FileTreeEvent::Failed { message } => {
+            crate::notices::problem(message.clone(), cx);
+        }
         _ => {}
     }
 }
@@ -209,7 +211,7 @@ fn open_note(
     cx: &mut gpui::Context<Workspace>,
 ) {
     if let Err(error) = workspace.open_path(path, open_in, window, cx) {
-        eprintln!("could not open {}: {error}", path.display());
+        crate::notices::open_failed(path, error, cx);
         return;
     }
     // A picker that opened the note closes after this and hands focus back
@@ -344,7 +346,7 @@ fn on_palette_event(
         }
         PaletteEvent::Bind { command, chord } => {
             if let Err(error) = bind_user_key(workspace.vault(), command, chord, cx) {
-                eprintln!("could not save the shortcut: {error}");
+                crate::notices::problem(format!("Couldn’t save the shortcut: {error}"), cx);
             }
         }
     }
@@ -498,7 +500,7 @@ fn create_note(
             .map_or(Ok(()), std::fs::create_dir_all)
             .and_then(|()| std::fs::write(&path, ""));
         if let Err(error) = created {
-            eprintln!("could not create {}: {error}", path.display());
+            crate::notices::problem(format!("Couldn’t make “{name}”: {error}"), cx);
             return;
         }
     }

@@ -14,13 +14,14 @@ use std::time::Duration;
 use gasp_core::document::Selection;
 use gasp_core::footnotes::{
     AUTO_RENUMBER_DEBOUNCE_MS, AutoRenumber, FootnoteEdit, FootnoteProblem, FootnoteProblemKind,
-    FootnoteSettings, apply_renumber, fix_inline_typos, fix_typos_message, highlight_problems,
-    parse_footnotes, tidy_message,
+    FootnoteSettings, apply_renumber, blocking_labels, fix_inline_typos, fix_typos_message,
+    highlight_problems, parse_footnotes, tidy_message,
 };
 use gasp_core::transaction::{ChangeSet, Origin, TextEdit, Transaction};
 use gpui::{AppContext, Context, Task};
 
 use crate::editor::{EditorView, HighlightKind};
+use crate::notices::Notice;
 
 /// How long typing pauses before problems are underlined.
 pub const LINT_DELAY: Duration = Duration::from_millis(250);
@@ -183,8 +184,13 @@ impl EditorView {
     /// `footnote.tidy`: renumbers now, whatever the cursor is doing.
     pub(crate) fn tidy_footnotes(&mut self, cx: &mut Context<Self>) {
         let outcome = apply_renumber(&self.text(), self.cursor(), false);
-        // Notices have no surface yet; the plugin showed this one as a toast.
-        eprintln!("{}", tidy_message(&outcome.result, outcome.applied));
+        let message = tidy_message(&outcome.result, outcome.applied);
+        let notice = if blocking_labels(&outcome.result.problems).is_empty() {
+            Notice::done(message)
+        } else {
+            Notice::problem(message)
+        };
+        crate::notices::show(notice, cx);
         if outcome.applied {
             let tidy = Tidy {
                 edits: outcome.result.edits,
@@ -197,10 +203,8 @@ impl EditorView {
     /// `footnote.fix-typos`: every `^[1]` becomes `[^1]`, then renumbers.
     pub(crate) fn fix_footnote_typos(&mut self, cx: &mut Context<Self>) {
         let fix = fix_inline_typos(&self.text(), self.cursor());
-        eprintln!(
-            "{}",
-            fix_typos_message(fix.as_ref().map_or(0, |fix| fix.fixed))
-        );
+        let message = fix_typos_message(fix.as_ref().map_or(0, |fix| fix.fixed));
+        crate::notices::show(Notice::done(message), cx);
         if let Some(fix) = fix {
             let tidy = Tidy {
                 edits: fix.edits,

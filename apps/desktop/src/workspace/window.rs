@@ -184,7 +184,7 @@ pub(crate) fn build_started_workspace(
     if let Some(note) = note
         && let Err(error) = open_or_create(&mut workspace, note, window, cx)
     {
-        eprintln!("could not open {}: {error}", note.display());
+        crate::notices::open_failed(note, error, cx);
     }
     if crate::sandbox::writes_allowed() {
         workspace.watch_vault(window, cx);
@@ -429,7 +429,7 @@ impl Workspace {
             };
             cx.update(|_, cx| {
                 if let Err(error) = open_vault_window(&vault, None, cx) {
-                    eprintln!("could not open {}: {error}", vault.display());
+                    crate::notices::open_failed(&vault, error, cx);
                 }
             })
             .ok();

@@ -312,7 +312,9 @@ impl Workspace {
     fn hide_toolbar(&mut self, id: &str, cx: &mut Context<Self>) {
         match gasp_config::toolbar_files::remove_toolbar(&self.vault, id) {
             Ok(_) => self.reload_config(cx),
-            Err(error) => eprintln!("could not hide the toolbar: {error}"),
+            Err(error) => {
+                crate::notices::problem(format!("Couldn’t hide the toolbar: {error}"), cx);
+            }
         }
     }
 

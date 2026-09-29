@@ -275,6 +275,7 @@ impl Workspace {
         workspace.watch_keystrokes_for_sheet(window, cx);
         workspace.start_edit_time(cx);
         workspace.add_launcher_tab(&pane, window, cx);
+        workspace._subscriptions.push(crate::notices::observe(cx));
         workspace
     }
 
