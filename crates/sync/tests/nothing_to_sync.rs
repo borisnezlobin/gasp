@@ -5,8 +5,8 @@ mod common;
 use std::path::Path;
 use std::time::Duration;
 
-use common::{World, author, sync, write};
-use gasp_sync::{Vault, VaultConfig};
+use common::{World, author, numbered_note, replace_line, sync, write};
+use gasp_sync::{MergeOutcome, Vault, VaultConfig};
 use git2::Repository;
 
 fn remote_tip(world: &World) -> Option<git2::Oid> {
@@ -130,7 +130,7 @@ fn a_fast_forward_writes_every_changed_file_and_keeps_local_edits() {
 
     laptop.fetch().unwrap();
     let outcome = laptop.merge(&author("laptop")).unwrap();
-    assert_eq!(outcome, gasp_sync::MergeOutcome::FastForward);
+    assert_eq!(outcome, MergeOutcome::FastForward);
     let on_disk = |path: &str| std::fs::read(laptop.root().join(path)).ok();
     assert_eq!(on_disk("edited.md").unwrap(), b"one, then two\n");
     assert_eq!(
@@ -144,4 +144,40 @@ fn a_fast_forward_writes_every_changed_file_and_keeps_local_edits() {
     assert_eq!(on_disk("kept.md").unwrap(), b"kept, edited on the laptop\n");
     assert_eq!(on_disk("draft.md").unwrap(), b"not committed yet\n");
     assert_eq!(laptop.unpushed_changes().unwrap(), 2);
+}
+
+#[test]
+fn a_merge_writes_renames_and_edits_from_both_sides() {
+    let note = numbered_note(12);
+    let world = World::seeded(&[("plan.md", note.as_bytes()), ("old.md", b"old\n")]);
+    let laptop = world.device("laptop");
+    let phone = world.device("phone");
+    let renamed = replace_line(&note, 1, "Line 1, edited on the laptop.");
+    std::fs::remove_file(laptop.root().join("plan.md")).unwrap();
+    write(&laptop, "Plans/plan.md", renamed.as_bytes());
+    sync(&laptop, "laptop");
+    let edited = replace_line(&note, 12, "Line 12, edited on the phone.");
+    write(&phone, "plan.md", edited.as_bytes());
+    std::fs::remove_file(phone.root().join("old.md")).unwrap();
+    write(&phone, "New/new.md", b"new\n");
+
+    let outcome = sync(&phone, "phone");
+    assert!(
+        matches!(outcome, MergeOutcome::Merged { .. }),
+        "{outcome:?}"
+    );
+    let on_disk = |path: &str| std::fs::read_to_string(phone.root().join(path)).ok();
+    let merged = on_disk("Plans/plan.md").unwrap();
+    assert!(
+        merged.starts_with("Line 1, edited on the laptop.\n"),
+        "{merged}"
+    );
+    assert!(
+        merged.ends_with("Line 12, edited on the phone.\n"),
+        "{merged}"
+    );
+    assert_eq!(on_disk("plan.md"), None);
+    assert_eq!(on_disk("old.md"), None);
+    assert_eq!(on_disk("New/new.md").unwrap(), "new\n");
+    assert_eq!(phone.unpushed_changes().unwrap(), 0);
 }

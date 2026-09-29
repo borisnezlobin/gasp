@@ -572,23 +572,32 @@ impl Vault {
         merged
     }
 
-    /// Moves the branch to `target`, writing only the files that differ
-    /// between the two commits rather than checking the whole work tree.
+    /// Restricts `checkout` to the paths whose entries differ between the
+    /// local head and `target`, matched literally, so it visits only those
+    /// instead of the whole work tree. A merge can only change a file the
+    /// two sides disagree on. Returns false when no path differs, which
+    /// leaves `checkout` unrestricted.
+    fn checkout_only_differences(
+        &self,
+        checkout: &mut CheckoutBuilder<'_>,
+        target: &Commit<'_>,
+    ) -> SyncResult<bool> {
+        let Some(head) = self.local_head()? else {
+            return Ok(true);
+        };
+        let paths = self.differing_paths(&head.tree()?, &target.tree()?)?;
+        checkout.disable_pathspec_match(true);
+        for path in &paths {
+            checkout.path(path);
+        }
+        Ok(!paths.is_empty())
+    }
+
     fn fast_forward(&self, target: Oid) -> SyncResult<()> {
         let commit = self.repo.find_commit(target)?;
         let mut checkout = CheckoutBuilder::new();
         checkout.safe();
-        let differing = match self.local_head()? {
-            Some(head) => Some(self.differing_paths(&head.tree()?, &commit.tree()?)?),
-            None => None,
-        };
-        if let Some(paths) = &differing {
-            checkout.disable_pathspec_match(true);
-            for path in paths {
-                checkout.path(path);
-            }
-        }
-        if differing.is_none_or(|paths| !paths.is_empty()) {
+        if self.checkout_only_differences(&mut checkout, &commit)? {
             self.repo
                 .checkout_tree(commit.as_object(), Some(&mut checkout))?;
         }
@@ -608,6 +617,7 @@ impl Vault {
     ) -> SyncResult<MergeOutcome> {
         let mut checkout = CheckoutBuilder::new();
         checkout.safe().allow_conflicts(true);
+        self.checkout_only_differences(&mut checkout, &self.repo.find_commit(theirs.id())?)?;
         self.repo.merge(
             &[theirs],
             Some(&mut MergeOptions::new()),
