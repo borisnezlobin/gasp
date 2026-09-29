@@ -849,6 +849,20 @@ fn the_hover_sidebar_stays_while_it_has_the_keyboard(cx: &mut TestAppContext) {
     );
 }
 
+/// A sidebar over the note used to take the window buttons' room and its
+/// show button out of the tab bar under it, so the tabs past its edge
+/// jumped left each time it showed and back each time it hid.
+#[gpui::test]
+fn tabs_stay_put_as_a_sidebar_over_the_note_comes_and_goes(cx: &mut TestAppContext) {
+    let (_vault, workspace, cx) = reveal_from_the_edge(cx, "overlay");
+    open(&workspace, cx, "a.md", OpenIn::NewTab);
+    let shown = cx.debug_bounds("tab-a").expect("the tab is drawn");
+    rest(cx, point(px(900.), px(400.)));
+    wait_out_the_hide_delay(cx);
+    assert!(!panel_visible(&workspace, cx));
+    assert_eq!(cx.debug_bounds("tab-a"), Some(shown));
+}
+
 /// The top row, where the window's buttons sit, is the sidebar's too.
 #[gpui::test]
 fn the_title_bar_row_counts_as_the_hover_sidebar(cx: &mut TestAppContext) {

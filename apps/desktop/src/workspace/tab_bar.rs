@@ -351,7 +351,9 @@ impl Pane {
                     })
                     .hover(move |style| style.bg(hovered))
                     .active(move |style| style.bg(pressed))
-                    .tooltip(Tooltip::for_command("tab.close", cx).builder())
+                    // The shortcut closes the active tab, so only its
+                    // button names it.
+                    .tooltip(close_tooltip(active, cx).builder())
                     .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                     .on_click(cx.listener(move |_, _, _, cx| cx.emit(PaneEvent::CloseTab(index))))
                     .child(
@@ -360,6 +362,15 @@ impl Pane {
                             .text_color(ui.icon),
                     ),
             )
+    }
+}
+
+fn close_tooltip(active: bool, cx: &gpui::App) -> Tooltip {
+    let tooltip = Tooltip::for_command("tab.close", cx);
+    if active {
+        tooltip
+    } else {
+        Tooltip::new(tooltip.label, None)
     }
 }
 
