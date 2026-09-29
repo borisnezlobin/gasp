@@ -72,9 +72,10 @@ divider-active = "rgba(0, 0, 0, 0.18)"
 drop-zone   = "rgba(0, 0, 0, 0.06)"
 drop-zone-ring = "rgba(0, 0, 0, 0.16)"
 drop-indicator = "{color.text}"
-# A find or search match; the current one takes the highlight colour.
+# A find or search match, and the current one in a deeper amber so it
+# stands out from the rest.
 search-match = "rgba(250, 219, 56, 0.45)"
-active-search-match = "{color.highlight}"
+active-search-match = "#fbbf24"
 # The wavy underlines the grammar checker draws: a misspelling, then a
 # spacing, repeated-word or article problem.
 flag-spelling   = "#d1162d"
