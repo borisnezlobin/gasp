@@ -8,7 +8,7 @@ use typst_layout::Page;
 
 use crate::MathError;
 use crate::convert::latex_to_typst;
-use crate::scope::scope_for;
+use crate::scope::mitex_scope_for;
 use crate::world::{SCOPE_MODULE_PATH, compile_document};
 
 /// A rendered equation. Lengths are in typographic points.
@@ -124,7 +124,7 @@ fn main_source(equation: &str, font_size: f64) -> String {
          #set text(size: {font_size}pt, top-edge: \"bounds\", bottom-edge: \"bounds\")\n\
          #eval(\"{}\", scope: {})\n",
         escape_typst_string(equation),
-        scope_for(equation)
+        mitex_scope_for(equation)
     )
 }
 

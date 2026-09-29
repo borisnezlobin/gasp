@@ -44,12 +44,23 @@ fn candidate_names(equation: &str) -> impl Iterator<Item = &str> {
     equation
         .split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '-'))
         .filter(|run| !run.is_empty())
+        .flat_map(|run| std::iter::once(run).chain(after_escape_letter(run)))
         .flat_map(|run| std::iter::once(run).chain(run.split(['_', '-'])))
 }
 
-/// A Typst expression for the scope `equation` needs: a dictionary of the
-/// mitex bindings it names, or the whole scope when the names are unknown.
-pub(crate) fn scope_for(equation: &str) -> String {
+/// The run without its first character, which in an escaped string
+/// literal may be the letter of `\n`, `\r` or `\t`.
+fn after_escape_letter(run: &str) -> Option<&str> {
+    let first = run.chars().next()?;
+    Some(&run[first.len_utf8()..]).filter(|rest| !rest.is_empty())
+}
+
+/// A Typst expression for the scope `equation` (converted Typst, bare or
+/// as an escaped string literal) needs: a dictionary of the mitex bindings
+/// it names, or the whole scope when the names are unknown. It refers to
+/// `mitex-scope`, which must be in scope where it is evaluated, and
+/// evaluating the equation with it gives what the whole scope gives.
+pub fn mitex_scope_for(equation: &str) -> String {
     if SCOPE_NAMES.is_empty() {
         return "mitex-scope".to_owned();
     }
@@ -82,6 +93,14 @@ mod tests {
     }
 
     #[test]
+    fn candidates_cover_names_after_an_escaped_line_break() {
+        let names: Vec<&str> = candidate_names(r#""$ a\nmitex-color(x) \\frac $""#).collect();
+        for name in ["mitex-color", "mitex", "color", "frac", "a"] {
+            assert!(names.contains(&name), "{name} in {names:?}");
+        }
+    }
+
+    #[test]
     fn candidates_cover_every_identifier() {
         let names: Vec<&str> = candidate_names("frac(a_1, #mitex-color(x2)) + sym.arrow").collect();
         for name in [
@@ -100,12 +119,12 @@ mod tests {
 
     #[test]
     fn only_named_bindings_are_passed() {
-        let scope = scope_for("$frac(a, b) + x$");
+        let scope = mitex_scope_for("$frac(a, b) + x$");
         assert!(
             scope.contains("\"frac\": mitex-scope.at(\"frac\")"),
             "{scope}"
         );
         assert!(!scope.contains("mitexsqrt"), "{scope}");
-        assert_eq!(scope_for("$1 + 2$"), "(:)");
+        assert_eq!(mitex_scope_for("$1 + 2$"), "(:)");
     }
 }
