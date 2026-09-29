@@ -201,6 +201,7 @@ impl EditorView {
             .map(|focus| focus.stop);
         let state = BarState {
             status: None,
+            widths: None,
             sync: None,
             active: &active,
             focus,

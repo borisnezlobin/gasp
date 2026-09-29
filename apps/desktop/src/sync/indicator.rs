@@ -163,6 +163,7 @@ impl SyncIndicator {
             .rounded(ui.icon_button_radius)
             .cursor_pointer()
             .hover(|style| style.bg(ui.control_hover))
+            .active(|style| style.bg(ui.control_pressed))
             .when(self.open, |button| button.bg(ui.control_active))
             .when(!self.open, |button| {
                 button.tooltip(move |window, cx| {
