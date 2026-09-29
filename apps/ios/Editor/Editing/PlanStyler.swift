@@ -35,15 +35,15 @@ final class PlanStyler {
     /// that overlaps `edited`, and tints the sentences on those lines.
     func apply(_ plan: NotePlan, tints: [SentenceTint], to storage: NSTextStorage, edited: NSRange?) {
         let text = storage.string as NSString
-        let overrides = MathBlockFallback(plan: plan)
+        let fallbacks = BlockFallbacks(plan: plan, text: text)
         var restyled = Set<Int>()
         for (index, line) in plan.lines.enumerated() where needsStyling(index, line, edited) {
             let paragraph = paragraphRange(plan, index, length: storage.length)
             let styler = LineStyler(tokens: tokens, storage: storage, text: text, line: line)
-            styler.style(paragraph: paragraph, presentation: overrides.presentation(of: index))
+            styler.style(paragraph: paragraph, presentation: fallbacks.presentation(of: index))
             restyled.insert(index)
         }
-        decorateBlocks(plan, restyled: restyled, storage: storage)
+        decorateBlocks(plan, fallbacks: fallbacks, restyled: restyled, storage: storage)
         TableLayout(tokens: tokens, storage: storage, columnWidth: columnWidth).layOut(plan, restyled: restyled)
         let restyledRanges = restyled.map { plan.lines[$0].range.nsRange }
         SentenceTinter(tokens: tokens, storage: storage).tint(tints, within: restyledRanges)
@@ -67,12 +67,14 @@ final class PlanStyler {
 
     /// Code blocks and callouts draw rounded ends, so a line's decoration
     /// depends on its neighbours; lines next to a restyled one are redone.
-    private func decorateBlocks(_ plan: NotePlan, restyled: Set<Int>, storage: NSTextStorage) {
+    private func decorateBlocks(
+        _ plan: NotePlan, fallbacks: BlockFallbacks, restyled: Set<Int>, storage: NSTextStorage
+    ) {
         let touched = Set(restyled.flatMap { [$0 - 1, $0, $0 + 1] })
         for index in touched.sorted() where plan.lines.indices.contains(index) {
             let paragraph = paragraphRange(plan, index, length: storage.length)
             guard paragraph.length > 0 else { continue }
-            let neighbours = BlockNeighbours(plan: plan, index: index)
+            let neighbours = BlockNeighbours(plan: plan, fallbacks: fallbacks, index: index)
             if let decoration = neighbours.decoration(tokens: tokens) {
                 storage.addAttribute(.blockDecoration, value: decoration, range: paragraph)
             } else {

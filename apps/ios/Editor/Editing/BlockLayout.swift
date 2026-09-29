@@ -1,15 +1,19 @@
 import UIKit
 
-/// Math blocks drawn as their TeX until the phone renders math: the fence
-/// lines take no room and the lines between them show centred.
-struct MathBlockFallback {
+/// Blocks the phone draws from their source until it has their widgets:
+/// a math block shows its TeX centred, and a link card shows its title,
+/// description and address. Their fence lines take no room.
+struct BlockFallbacks {
     private var presentations: [Int: LinePresentation] = [:]
 
-    init(plan: NotePlan) {
+    init(plan: NotePlan, text: NSString) {
         for (index, line) in plan.lines.enumerated() {
             for widget in line.widgets {
-                guard case .mathBlock = widget.kind else { continue }
-                markLines(of: widget.range, from: index, in: plan)
+                switch widget.kind {
+                case .mathBlock: mark(widget.range, from: index, in: plan) { _ in .mathSource }
+                case .linkCard: mark(widget.range, from: index, in: plan) { Self.cardField(of: $0, in: text) }
+                default: continue
+                }
             }
         }
     }
@@ -18,13 +22,42 @@ struct MathBlockFallback {
         presentations[index] ?? .asPlanned
     }
 
-    private mutating func markLines(of range: TextRange, from first: Int, in plan: NotePlan) {
+    /// Whether the line takes room, whatever the plan said.
+    func isShown(_ index: Int, in plan: NotePlan) -> Bool {
+        switch presentation(of: index) {
+        case .asPlanned: !plan.lines[index].collapsed
+        case .collapsed: false
+        default: true
+        }
+    }
+
+    func isCardLine(_ index: Int) -> Bool {
+        if case .cardField = presentation(of: index) { return true }
+        return false
+    }
+
+    private mutating func mark(
+        _ range: TextRange, from first: Int, in plan: NotePlan, inside: (LinePlan) -> LinePresentation
+    ) {
         let covered = plan.lines[first...].prefix { $0.range.start < range.end }
         guard covered.count > 1 else { return }
         for index in covered.indices {
             let isFence = index == covered.startIndex || index == covered.endIndex - 1
-            presentations[index] = isFence ? .collapsed : .mathSource
+            presentations[index] = isFence ? .collapsed : inside(plan.lines[index])
         }
+    }
+
+    private static let cardFields: [String: CardField] = [
+        "title": .title, "description": .detail, "url": .address
+    ]
+
+    /// `title: "…"` shows its value as the card's title, and so on; the
+    /// image and icon lines take no room.
+    private static func cardField(of line: LinePlan, in text: NSString) -> LinePresentation {
+        let source = text.substring(with: line.range.nsRange)
+        let key = source.split(separator: ":", maxSplits: 1).first.map { $0.trimmingCharacters(in: .whitespaces) }
+        guard let key, let field = cardFields[key] else { return .collapsed }
+        return .cardField(field)
     }
 }
 
@@ -32,6 +65,7 @@ struct MathBlockFallback {
 /// the lines around it belong to the same block.
 struct BlockNeighbours {
     let plan: NotePlan
+    let fallbacks: BlockFallbacks
     let index: Int
 
     func decoration(tokens: Tokens) -> BlockDecoration? {
@@ -39,6 +73,10 @@ struct BlockNeighbours {
         let shape = LineShape(line.decorations)
         if line.widgets.contains(where: { $0.kind == .horizontalRule }) {
             return BlockDecoration(.rule, color: tokens.color(\.divider))
+        }
+        if fallbacks.isCardLine(index) {
+            let kind = BlockDecoration.Kind.code(first: !isCardNeighbour(step: -1), last: !isCardNeighbour(step: 1))
+            return BlockDecoration(kind, color: tokens.color(\.card))
         }
         if shape.isCode {
             let kind = BlockDecoration.Kind.code(first: !isCode(index - 1), last: !isCode(index + 1))
@@ -60,16 +98,26 @@ struct BlockNeighbours {
         return nil
     }
 
-    private func visibleLine(_ index: Int) -> LinePlan? {
-        guard plan.lines.indices.contains(index), !plan.lines[index].collapsed else { return nil }
+    /// Whether the nearest line that takes room, `step` away, is part of
+    /// a card too.
+    private func isCardNeighbour(step: Int) -> Bool {
+        var neighbour = index + step
+        while plan.lines.indices.contains(neighbour), !fallbacks.isShown(neighbour, in: plan) {
+            neighbour += step
+        }
+        return plan.lines.indices.contains(neighbour) && fallbacks.isCardLine(neighbour)
+    }
+
+    private func shownLine(_ index: Int) -> LinePlan? {
+        guard plan.lines.indices.contains(index), fallbacks.isShown(index, in: plan) else { return nil }
         return plan.lines[index]
     }
 
     private func isCode(_ index: Int) -> Bool {
-        visibleLine(index).map { LineShape($0.decorations).isCode } ?? false
+        shownLine(index).map { LineShape($0.decorations).isCode } ?? false
     }
 
     private func calloutKindAt(_ index: Int) -> String? {
-        visibleLine(index).flatMap { LineShape($0.decorations).calloutKind }
+        shownLine(index).flatMap { LineShape($0.decorations).calloutKind }
     }
 }

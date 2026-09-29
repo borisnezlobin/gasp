@@ -34,6 +34,8 @@ struct TabBarView: View {
         .background(
             Capsule()
                 .fill(tokens.swiftUIColor(\.popover))
+                .padding(1)
+                .background(Capsule().fill(tokens.swiftUIColor(\.ring)))
                 .shadow(color: tokens.swiftUIColor(\.shadow), radius: 12, y: 4)
         )
         .padding(.horizontal, tokens.spacing.xl)
