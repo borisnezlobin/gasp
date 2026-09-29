@@ -269,3 +269,28 @@ fn the_welcome_screen_offers_a_new_vault_and_walks_by_keyboard(cx: &mut TestAppC
     cx.simulate_keystrokes("shift-tab");
     assert_eq!(selected(cx), 2);
 }
+
+#[gpui::test]
+fn a_note_moves_to_a_folder_picked_by_name(cx: &mut TestAppContext) {
+    let vault = vault_with(&[
+        ("Essays/Plan.md", "the plan"),
+        ("Index.md", "see [[Plan]]"),
+        ("Physics/Waves.md", "waves"),
+    ]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "Essays/Plan.md");
+    run(&workspace, cx, "note.move");
+    cx.simulate_input("phys");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    let root = cx.read(|cx| workspace.read(cx).vault().to_path_buf());
+    assert!(root.join("Physics/Plan.md").is_file());
+    assert!(!root.join("Essays/Plan.md").exists());
+    let active = cx.read(|cx| workspace.read(cx).active_path(cx));
+    assert_eq!(
+        active,
+        Some(root.join("Physics/Plan.md")),
+        "the tab follows"
+    );
+    assert_eq!(active_text(&workspace, cx).as_deref(), Some("the plan"));
+}
