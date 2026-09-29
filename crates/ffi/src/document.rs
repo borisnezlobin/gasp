@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use editor_core::link_card::meta::card_from_html;
 use editor_core::link_card::{card_replacement, url_on_line};
+use editor_core::render::folds::Folds;
 use editor_core::render::{RenderInput, reveal_settings};
 use editor_core::syntax::{self, Edit, NodeKind, SyntaxTree, WikiInfo};
 use editor_core::table::Table;
@@ -22,12 +23,14 @@ pub struct NoteDocument {
     display: SharedDisplay,
 }
 
-struct ParsedText {
-    text: String,
-    tree: SyntaxTree,
-    offsets: Utf16Offsets,
+pub(crate) struct ParsedText {
+    pub(crate) text: String,
+    pub(crate) tree: SyntaxTree,
+    pub(crate) offsets: Utf16Offsets,
     /// The table shown as its Markdown source until the cursor leaves it.
     source_table: Option<Range<usize>>,
+    /// Headings and callouts folded in this view.
+    pub(crate) folds: Folds,
 }
 
 impl ParsedText {
@@ -37,6 +40,7 @@ impl ParsedText {
             offsets: Utf16Offsets::new(&text),
             text,
             source_table: None,
+            folds: Folds::default(),
         }
     }
 
@@ -45,6 +49,7 @@ impl ParsedText {
             return;
         };
         self.tree.edit(&text, &edit);
+        self.folds.map(&edit);
         self.offsets = Utf16Offsets::new(&text);
         self.text = text;
         self.source_table = None;
@@ -110,12 +115,16 @@ impl NoteDocument {
         }
         let mut settings = reveal_settings(&self.display.lock().symbols);
         settings.source_table = parsed.source_table.as_ref().map(|table| table.start);
-        let plan = editor_core::render::plan(&RenderInput {
+        let selections = [selected];
+        let mut plan = editor_core::render::plan(&RenderInput {
             text: &parsed.text,
             tree: &parsed.tree,
-            selections: &[selected],
+            selections: &selections,
             settings: &settings,
         });
+        parsed
+            .folds
+            .apply(&mut plan.lines, &parsed.tree, &selections);
         note_plan(&plan, &parsed.offsets)
     }
 
@@ -225,7 +234,7 @@ impl NoteDocument {
         })
     }
 
-    fn lock(&self) -> MutexGuard<'_, ParsedText> {
+    pub(crate) fn lock(&self) -> MutexGuard<'_, ParsedText> {
         self.parsed.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }

@@ -4,6 +4,7 @@
 
 mod assemble;
 mod effects;
+pub mod folds;
 mod grid;
 mod html;
 mod output;

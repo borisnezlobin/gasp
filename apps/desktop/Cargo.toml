@@ -44,6 +44,7 @@ serde_json = "1"
 toml_edit = "0.22"
 jiff = "0.2"
 editor-math = { path = "../../crates/math" }
+editor-highlight = { path = "../../crates/highlight" }
 resvg = { version = "0.45", default-features = false }
 # Code block colours. Typst already builds both with these features, so
 # they add no new crates.

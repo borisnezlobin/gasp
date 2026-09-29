@@ -27,7 +27,8 @@ pub struct DeviceSettings {
 }
 
 /// Where the reader was in a note: the cursor, and the start of the line
-/// at the top of the view, both as byte offsets.
+/// at the top of the view, both as byte offsets, and which headings were
+/// folded.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
 pub struct NotePosition {
@@ -35,6 +36,32 @@ pub struct NotePosition {
     pub path: String,
     pub cursor: usize,
     pub top: usize,
+    /// The folded headings' lines, zero-based.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub folds: Vec<usize>,
+}
+
+/// How many notes' positions are kept; the least recent go first.
+pub const KEPT_POSITIONS: usize = 300;
+
+/// Records `position`, most recent last, dropping the oldest past the cap.
+pub fn remember_position(positions: &mut Vec<NotePosition>, position: NotePosition) {
+    positions.retain(|kept| kept.path != position.path);
+    positions.push(position);
+    let over = positions.len().saturating_sub(KEPT_POSITIONS);
+    positions.drain(..over);
+}
+
+/// Follows a note, or every note in a folder, that moved from `from` to
+/// `to` (vault-relative).
+pub fn move_positions(positions: &mut [NotePosition], from: &str, to: &str) {
+    for position in positions {
+        if position.path == from {
+            position.path = to.to_string();
+        } else if let Some(rest) = position.path.strip_prefix(&format!("{from}/")) {
+            position.path = format!("{to}/{rest}");
+        }
+    }
 }
 
 /// Whether the right sidebar is open, what it shows and how wide it is.

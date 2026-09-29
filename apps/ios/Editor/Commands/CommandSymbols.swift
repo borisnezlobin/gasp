@@ -48,7 +48,10 @@ enum CommandSymbols {
         "template.insert": "doc.badge.plus",
         "edit.look-up": "character.book.closed",
         "view.zoom-in": "plus.magnifyingglass",
-        "view.zoom-out": "minus.magnifyingglass"
+        "view.zoom-out": "minus.magnifyingglass",
+        "fold.toggle": "chevron.down.circle",
+        "fold.all": "arrow.down.right.and.arrow.up.left",
+        "fold.unfold-all": "arrow.up.left.and.arrow.down.right"
     ]
 
     /// The symbol for `command`, or a generic one.

@@ -9,6 +9,8 @@ final class CommandRunner: EditingHost {
     let tabs: TabStore
     let workspace: Workspace
     let sync: SyncCenter
+    /// The text read from the vault's images and PDFs, for search.
+    let imageText: ImageTextReader?
 
     typealias Handler = (CommandRunner) -> Void
 
@@ -22,11 +24,17 @@ final class CommandRunner: EditingHost {
         self.tabs = tabs
         self.workspace = workspace
         self.sync = sync
+        imageText = library.vault.map(ImageTextReader.init)
+        imageText?.start()
         tabs.makeSession = { [weak self] path, text in self?.makeSession(path: path, text: text) }
     }
 
     var toolbar: [CommandInfo] {
         library.toolbar
+    }
+
+    var keyBindings: [KeyBinding] {
+        library.keyBindings
     }
 
     var session: EditingController? {

@@ -187,6 +187,16 @@ pub(crate) fn theme(config: &Config) -> ThemeTokens {
     }
 }
 
+/// One colour token in light or dark mode, such as `color.flag-spelling`.
+pub(crate) fn token_color(config: &Config, name: &str, dark: bool) -> ThemeColor {
+    let defaults = Config::defaults();
+    TokenReader {
+        tokens: config.theme.for_mode(dark),
+        defaults: defaults.theme.for_mode(dark),
+    }
+    .color(name)
+}
+
 fn palette(read: &TokenReader<'_>) -> Palette {
     Palette {
         background: read.color("color.background"),

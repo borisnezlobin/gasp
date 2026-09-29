@@ -57,6 +57,13 @@ extension CommandRunner {
             runner.refreshSessions()
         },
         "markdown.cycle-symbols": { $0.cycleSymbols() },
+        "fold.toggle": { runner in
+            runner.withSession { session in
+                if !session.toggleFoldAtCursor() { runner.workspace.tell("There's no heading here to fold.") }
+            }
+        },
+        "fold.all": { $0.withSession { $0.foldAllHeadings() } },
+        "fold.unfold-all": { $0.withSession { $0.unfoldAllHeadings() } },
         "prose.toggle-sentence-highlighting": { $0.toggleSentenceHighlighting() }
     ]
 

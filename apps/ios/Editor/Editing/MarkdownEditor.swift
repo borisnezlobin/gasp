@@ -33,13 +33,53 @@ struct MarkdownEditor: UIViewRepresentable {
 }
 
 /// A text view that says when its width changes, since tables and the
-/// readable line length lay out against it.
+/// readable line length lay out against it, and when it has laid out, for
+/// the table grids that sit over its text.
 final class EditorTextView: UITextView {
     var widthDidChange: (() -> Void)?
+    /// Runs after every layout pass, as the text scrolls or changes.
+    var didLayout: (() -> Void)?
+    /// The keymap's keys, answered here first while the note is edited.
+    var boundKeys: [UIKeyCommand] = []
+    var runBoundCommand: ((String) -> Void)?
     private var laidOutWidth: CGFloat = 0
+
+    override var keyCommands: [UIKeyCommand]? {
+        (super.keyCommands ?? []) + boundKeys
+    }
+
+    /// Command-B, I and U reach UIKit's own formatting actions before any
+    /// key command, so those run whatever the keymap binds to the key.
+    override func toggleBoldface(_ sender: Any?) {
+        runKey("b", default: "format.bold")
+    }
+
+    override func toggleItalics(_ sender: Any?) {
+        runKey("i", default: "format.italic")
+    }
+
+    override func toggleUnderline(_ sender: Any?) {
+        runKey("u", default: "format.underline")
+    }
+
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        let formatting = [#selector(toggleBoldface(_:)), #selector(toggleItalics(_:)), #selector(toggleUnderline(_:))]
+        return formatting.contains(action) || super.canPerformAction(action, withSender: sender)
+    }
+
+    private func runKey(_ input: String, default command: String) {
+        let bound = boundKeys.first { $0.input == input && $0.modifierFlags == .command }
+        runBoundCommand?(bound?.propertyList as? String ?? command)
+    }
+
+    @objc func runBoundKey(_ command: UIKeyCommand) {
+        guard let id = command.propertyList as? String else { return }
+        runBoundCommand?(id)
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        didLayout?()
         guard bounds.width != laidOutWidth else { return }
         laidOutWidth = bounds.width
         widthDidChange?()

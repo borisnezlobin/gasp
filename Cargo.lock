@@ -3096,6 +3096,7 @@ dependencies = [
  "editor-config",
  "editor-core",
  "editor-export",
+ "editor-highlight",
  "editor-math",
  "editor-mcp",
  "editor-migrate",
@@ -3156,16 +3157,27 @@ dependencies = [
  "editor-config",
  "editor-core",
  "editor-export",
+ "editor-highlight",
+ "editor-math",
  "editor-prose",
  "editor-search",
  "editor-sync",
  "editor-vault",
  "git2",
+ "resvg 0.45.1",
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
  "toml 0.8.23",
  "uniffi",
+]
+
+[[package]]
+name = "editor-highlight"
+version = "0.1.0"
+dependencies = [
+ "syntect",
+ "two-face",
 ]
 
 [[package]]
@@ -3223,6 +3235,7 @@ version = "0.1.0"
 name = "editor-prose"
 version = "0.1.0"
 dependencies = [
+ "editor-config",
  "editor-core",
  "harper-core",
  "unicode-segmentation",
