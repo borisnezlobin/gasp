@@ -2,18 +2,12 @@ import SwiftUI
 
 /// The desktop keymap with a hardware keyboard: one hidden button per key
 /// binding, which SwiftUI turns into a key command that works wherever
-/// the cursor is and lists in the overlay shown while Command is held.
+/// the cursor is and lists in the overlay shown while Command is held. The
+/// core leaves out the keys the text view moves and deletes with.
 struct KeyCommands: View {
     let bindings: [KeyBinding]
     let commands: [CommandInfo]
     let run: (String) -> Void
-
-    /// Keys the text view already moves and deletes with, as the desktop's
-    /// cursor and selection commands do.
-    private static let leftToTheTextView = ["cursor.", "select.left", "select.right", "select.up",
-                                            "select.down", "select.word", "select.line", "select.doc",
-                                            "select.page", "edit.delete-backward", "edit.delete-forward",
-                                            "edit.delete-word", "edit.newline"]
 
     /// A binding the text view doesn't handle itself, ready for SwiftUI.
     private struct Shortcut {
@@ -34,10 +28,12 @@ struct KeyCommands: View {
         .accessibilityHidden(true)
     }
 
+    /// Keys with Command, Control or Option. Tab and Escape alone stay with
+    /// whatever has focus, so a search field keeps its own Tab.
     private var shortcuts: [Shortcut] {
         bindings.compactMap { binding in
-            guard !Self.leftToTheTextView.contains(where: { binding.command.hasPrefix($0) }),
-                  let key = Self.key(binding.input) else { return nil }
+            let modified = binding.commandKey || binding.control || binding.option
+            guard modified, let key = Self.key(binding.input) else { return nil }
             return Shortcut(command: binding.command, key: key, modifiers: Self.modifiers(binding))
         }
     }

@@ -75,7 +75,7 @@ pub(crate) fn toolbar(config: &Config) -> Vec<CommandInfo> {
         .collect()
 }
 
-/// The keys to hand to UIKit. Plain typing and moving keys are left to
+/// The keys to hand to UIKit. Moving, selecting and deleting are left to
 /// the text view, which already handles them; what's left has a modifier,
 /// or is Tab or Escape.
 pub(crate) fn key_bindings(config: &Config) -> Vec<KeyBinding> {
@@ -90,8 +90,29 @@ pub(crate) fn key_bindings(config: &Config) -> Vec<KeyBinding> {
         .collect()
 }
 
+/// Commands a text view already runs from its own keys, the Emacs ones
+/// Apple's rules bind (Ctrl+B, Ctrl+F…) included.
+const TEXT_VIEW_KEYS: &[&str] = &[
+    "cursor.",
+    "select.left",
+    "select.right",
+    "select.up",
+    "select.down",
+    "select.word-",
+    "select.line-",
+    "select.doc-",
+    "select.page-",
+    "edit.delete-backward",
+    "edit.delete-forward",
+    "edit.delete-word-",
+    "edit.newline",
+];
+
 fn applies_anywhere(rule: &Rule) -> bool {
-    rule.at.is_none() && rule.when.is_none() && rule.conditions.is_empty()
+    let text_view_key = TEXT_VIEW_KEYS
+        .iter()
+        .any(|prefix| rule.command.starts_with(prefix));
+    !text_view_key && rule.at.is_none() && rule.when.is_none() && rule.conditions.is_empty()
 }
 
 fn binding(command: &str, chord: KeyChord) -> Option<KeyBinding> {
