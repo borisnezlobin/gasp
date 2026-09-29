@@ -5,6 +5,7 @@ use gasp_desktop::app::{has_display, launch, launch_bench};
 use gasp_desktop::bench::BenchConfig;
 use gasp_desktop::cli::{self, Command, USAGE};
 use gasp_desktop::note::{self, LONG_NOTE_LINES};
+use gasp_desktop::prose::worker_process::{WORKER_ARG, use_worker_process};
 use gasp_desktop::trace;
 use gasp_desktop::workspace::state::{AppState, migrate_app_folders};
 use gasp_desktop::workspace::window::LaunchTarget;
@@ -24,12 +25,22 @@ fn main() -> ExitCode {
     // never migrate them for one.
     let only_looks = matches!(
         command,
-        Command::Snapshot(_) | Command::WindowSnapshot(_) | Command::Help
+        Command::Snapshot(_)
+            | Command::WindowSnapshot(_)
+            | Command::BenchOpen { .. }
+            | Command::GrammarWorker
+            | Command::Help
     );
     if !only_looks {
         migrate_app_folders();
     }
+    if draws_editors(&command)
+        && let Ok(exe) = std::env::current_exe()
+    {
+        use_worker_process(exe);
+    }
     match command {
+        Command::GrammarWorker => grammar_worker(),
         Command::Help => {
             println!("{USAGE}");
             ExitCode::SUCCESS
@@ -50,6 +61,32 @@ fn main() -> ExitCode {
         }
         Command::WindowSnapshot(request) => {
             exit_status("--snapshot", gasp_desktop::snapshot::run_window(request))
+        }
+    }
+}
+
+/// Whether the command opens editors, whose grammar checks then run in a
+/// child process.
+fn draws_editors(command: &Command) -> bool {
+    matches!(
+        command,
+        Command::Open(_)
+            | Command::Bench { .. }
+            | Command::BenchOpen { .. }
+            | Command::Snapshot(_)
+            | Command::WindowSnapshot(_)
+    )
+}
+
+/// `gasp grammar-worker`: checks what the app sends until it hangs up.
+fn grammar_worker() -> ExitCode {
+    let input = std::io::stdin().lock();
+    let output = std::io::stdout().lock();
+    match gasp_desktop::prose::worker_process::serve(input, output) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{COMMAND_NAME} {WORKER_ARG}: {error}");
+            ExitCode::from(1)
         }
     }
 }

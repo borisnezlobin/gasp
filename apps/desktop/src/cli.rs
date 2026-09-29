@@ -6,6 +6,7 @@ use gasp_config::command_name;
 
 use crate::bench::BenchConfig;
 use crate::open_bench::OpenBenchConfig;
+use crate::prose::worker_process::WORKER_ARG;
 use crate::snapshot::{SnapshotRequest, WindowSnapshotRequest};
 
 pub const USAGE: &str = concat!(
@@ -90,25 +91,36 @@ pub enum Command {
     WindowSnapshot(WindowSnapshotRequest),
     /// `gasp mcp`: the MCP server on stdio for a vault, or the last one.
     Mcp(Option<PathBuf>),
+    /// `gasp grammar-worker`: the app's grammar checker, which the app
+    /// starts itself.
+    GrammarWorker,
     Help,
 }
 
 /// Parses arguments after the program name.
 pub fn parse(args: &[String]) -> Result<Command, String> {
-    match args.first().map(String::as_str) {
-        None => Ok(Command::Open(None)),
-        Some("-h" | "--help") => Ok(Command::Help),
-        Some("--bench-layout") => parse_bench(&args[1..]),
-        Some("--bench-index") => match &args[1..] {
-            [vault] => Ok(Command::BenchIndex(PathBuf::from(vault))),
-            _ => Err("--bench-index needs one vault".to_owned()),
-        },
-        Some("--bench-open") => parse_bench_open(&args[1..]),
-        Some("--snapshot") => parse_snapshot(&args[1..]),
-        Some("mcp") => parse_mcp(&args[1..]),
-        Some(flag) if flag.starts_with("--") => Err(format!("unknown option {flag}")),
-        Some(path) if args.len() == 1 => Ok(Command::Open(Some(PathBuf::from(path)))),
-        Some(_) => Err("expected one path".to_owned()),
+    let Some(first) = args.first().map(String::as_str) else {
+        return Ok(Command::Open(None));
+    };
+    let rest = &args[1..];
+    match first {
+        "-h" | "--help" => Ok(Command::Help),
+        "--bench-layout" | "--bench-index" | "--bench-open" => parse_bench_mode(first, rest),
+        "--snapshot" => parse_snapshot(rest),
+        "mcp" => parse_mcp(rest),
+        WORKER_ARG if rest.is_empty() => Ok(Command::GrammarWorker),
+        flag if flag.starts_with("--") => Err(format!("unknown option {flag}")),
+        path if rest.is_empty() => Ok(Command::Open(Some(PathBuf::from(path)))),
+        _ => Err("expected one path".to_owned()),
+    }
+}
+
+fn parse_bench_mode(mode: &str, args: &[String]) -> Result<Command, String> {
+    match (mode, args) {
+        ("--bench-layout", _) => parse_bench(args),
+        ("--bench-open", _) => parse_bench_open(args),
+        (_, [vault]) => Ok(Command::BenchIndex(PathBuf::from(vault))),
+        _ => Err("--bench-index needs one vault".to_owned()),
     }
 }
 
@@ -366,6 +378,12 @@ mod tests {
         assert!(parse(&args(&["--bench-open"])).is_err());
         assert!(parse(&args(&["--bench-open", "v", "--notes", "0"])).is_err());
         assert!(parse(&args(&["--bench-open", "v", "--wat"])).is_err());
+    }
+
+    #[test]
+    fn the_grammar_worker_takes_nothing_else() {
+        assert_eq!(parse(&args(&[WORKER_ARG])), Ok(Command::GrammarWorker));
+        assert!(parse(&args(&[WORKER_ARG, "x"])).is_err());
     }
 
     #[test]
