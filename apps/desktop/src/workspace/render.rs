@@ -509,6 +509,11 @@ impl Render for Workspace {
             .children(status.strip)
             .children(status.edge)
             .children(status.overlay)
+            .children(crate::notices::render(
+                window,
+                ui.status_height + ui.space_md,
+                cx,
+            ))
             .children(self.menu.render_overlay(window, cx))
             .children(self.modal.render(&ui, cx))
             .children(self.render_shortcut_sheet(window, cx))

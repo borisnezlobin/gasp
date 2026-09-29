@@ -27,13 +27,14 @@ use crate::switcher::{QuickSwitcher, SwitcherEvent};
 use crate::sync::{ConflictResolver, SyncIndicator, SyncIndicatorEvent, SyncPhase, SyncService};
 use crate::text_input::{self, TEXT_INPUT_CONTEXT};
 use crate::vault_search::{VaultSearch, VaultSearchEvent};
+use crate::workspace::deleted::DeletedNote;
 use crate::workspace::{OpenIn, Workspace};
 
 /// How many palette commands count as recent.
 const RECENT_COMMANDS: usize = 8;
 
 /// Commands this module gives a handler, for the menus.
-pub const WIRED_COMMANDS: [&str; 26] = [
+pub const WIRED_COMMANDS: [&str; 30] = [
     "palette.open",
     "switcher.open",
     "outline.jump-to-heading",
@@ -60,6 +61,10 @@ pub const WIRED_COMMANDS: [&str; 26] = [
     "sidebar.tags",
     "daily.open",
     "template.insert",
+    "vault.import-obsidian",
+    "export.copy-rich-text",
+    "view.toggle-dark-mode",
+    "note.move",
 ];
 
 /// Binds the keys the standalone views use inside themselves. Their text
@@ -119,6 +124,11 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     crate::knowledge::install(workspace, window, cx);
     crate::prose::commands::install(workspace, cx);
     crate::recovery::install(workspace, cx);
+    crate::obsidian_import::install(workspace, window, cx);
+    crate::appearance_toggle::install(workspace);
+    workspace.on_command("note.move", crate::move_picker::open);
+    #[cfg(target_os = "macos")]
+    crate::rich_copy::install(workspace);
     workspace.on_command("palette.open", open_palette);
     workspace.on_command("switcher.open", open_switcher);
     workspace.on_command("outline.jump-to-heading", open_outline);
@@ -185,7 +195,16 @@ fn on_tree_event(
             workspace.entry_moved(from, to, cx);
         }
         FileTreeEvent::Dismissed => workspace.leave_left_panel(window, cx),
-        FileTreeEvent::Failed { message } => eprintln!("{message}"),
+        FileTreeEvent::Trashed { path, text } => {
+            let text = workspace.text_before_delete(path, cx).or(text.clone());
+            if let Some(text) = text {
+                let path = path.clone();
+                workspace.remember_deleted(DeletedNote::new(path, text), cx);
+            }
+        }
+        FileTreeEvent::Failed { message } => {
+            crate::notices::problem(message.clone(), cx);
+        }
         _ => {}
     }
 }
@@ -209,7 +228,7 @@ fn open_note(
     cx: &mut gpui::Context<Workspace>,
 ) {
     if let Err(error) = workspace.open_path(path, open_in, window, cx) {
-        eprintln!("could not open {}: {error}", path.display());
+        crate::notices::open_failed(path, error, cx);
         return;
     }
     // A picker that opened the note closes after this and hands focus back
@@ -344,7 +363,7 @@ fn on_palette_event(
         }
         PaletteEvent::Bind { command, chord } => {
             if let Err(error) = bind_user_key(workspace.vault(), command, chord, cx) {
-                eprintln!("could not save the shortcut: {error}");
+                crate::notices::problem(format!("Couldn’t save the shortcut: {error}"), cx);
             }
         }
     }
@@ -498,7 +517,7 @@ fn create_note(
             .map_or(Ok(()), std::fs::create_dir_all)
             .and_then(|()| std::fs::write(&path, ""));
         if let Err(error) = created {
-            eprintln!("could not create {}: {error}", path.display());
+            crate::notices::problem(format!("Couldn’t make “{name}”: {error}"), cx);
             return;
         }
     }
@@ -678,6 +697,10 @@ fn open_settings(
 /// Applies a settings change everywhere it shows: every open note gets the
 /// new config, new shortcuts are bound, and the file tree follows the files
 /// settings.
+pub(crate) fn config_files_changed(workspace: &mut Workspace, cx: &mut gpui::Context<Workspace>) {
+    on_setting_changed(workspace, "rules", cx);
+}
+
 fn on_setting_changed(workspace: &mut Workspace, key: &str, cx: &mut gpui::Context<Workspace>) {
     workspace.reload_config(cx);
     if let Some(settings) = workspace.active_modal::<SettingsView>() {

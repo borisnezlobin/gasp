@@ -26,9 +26,10 @@ impl Focusable for PromptView {
 }
 
 /// Uses [`PromptView`] for `window.prompt` where the OS has no dialog of
-/// its own. macOS and Windows keep their native dialogs.
+/// its own, and in a snapshot run, whose window is never on screen for a
+/// native dialog to hang from. Otherwise macOS and Windows keep theirs.
 pub fn use_in_window_prompts(cx: &mut App) {
-    if cfg!(any(target_os = "linux", target_os = "freebsd")) {
+    if cfg!(any(target_os = "linux", target_os = "freebsd")) || crate::sandbox::is_active() {
         cx.set_prompt_builder(build_prompt);
     }
 }

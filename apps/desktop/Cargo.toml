@@ -30,6 +30,7 @@ gasp-sync = { path = "../../crates/sync", features = ["keychain"] }
 gasp-search = { path = "../../crates/search" }
 gasp-vault = { path = "../../crates/vault" }
 gasp-mcp = { path = "../../crates/mcp" }
+gasp-migrate = { path = "../../tools/migrate" }
 gpui = "=0.2.2"
 image = "0.25"
 unicode-normalization = "0.1.25"
@@ -77,7 +78,6 @@ rustix = { version = "1", default-features = false, features = ["std", "system",
 [dev-dependencies]
 gpui = { version = "=0.2.2", features = ["test-support"] }
 tempfile = "3"
-gasp-migrate = { path = "../../tools/migrate" }
 git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }
 
 [lints]

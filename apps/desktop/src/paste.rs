@@ -27,6 +27,7 @@ use gpui::{
 pub use gasp_vault::attachments::{attachments_dir, embed, next_attachment_name, save_attachment};
 
 use crate::editor::EditorView;
+use crate::notices::Notice;
 
 /// Clipboard metadata that marks a whole line copied with nothing selected.
 const WHOLE_LINE: &str = "whole-line";
@@ -318,14 +319,17 @@ impl EditorView {
     fn paste_image(&mut self, image: &Image, cx: &mut Context<Self>) {
         let context = self.paste_context(cx);
         let Some(dir) = context.attachments_dir() else {
-            // Notices have no surface yet.
-            eprintln!("save the note before pasting an image");
+            let notice = Notice::problem("Save the note before pasting an image into it.");
+            crate::notices::show(notice, cx);
             return;
         };
         let extension = image_extension(image.format);
         match save_attachment(&dir, &context.note_stem(), extension, &image.bytes) {
             Ok(name) => self.paste_text_at(self.selected_range(), &embed(&name), cx),
-            Err(error) => eprintln!("could not save the pasted image: {error}"),
+            Err(error) => {
+                let message = format!("Couldn’t save the pasted image: {error}");
+                crate::notices::show(Notice::problem(message), cx);
+            }
         }
     }
 
@@ -368,7 +372,10 @@ impl EditorView {
         match files_markup(paths, &context) {
             Ok(markup) if !markup.is_empty() => self.paste_text_at(offset..offset, &markup, cx),
             Ok(_) => {}
-            Err(error) => eprintln!("could not add the files: {error}"),
+            Err(error) => {
+                let message = format!("Couldn’t add the files: {error}");
+                crate::notices::show(Notice::problem(message), cx);
+            }
         }
     }
 

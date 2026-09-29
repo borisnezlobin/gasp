@@ -725,6 +725,15 @@ fn images_and_embeds_become_widgets() {
 }
 
 #[test]
+fn an_embedded_note_reads_as_a_link_not_a_picture() {
+    check(
+        "![[Plan]] ![[Paper.pdf]]\n\n‸",
+        &element(),
+        &["{link:Plan} {link:Paper.pdf}", "", ""],
+    );
+}
+
+#[test]
 fn image_source_shows_with_preview_below() {
     check(
         "![al‸t](img.png)",

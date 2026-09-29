@@ -20,6 +20,7 @@ type Command = (&'static str, &'static str, IconName);
 const MORE_GROUPS: [&[Command]; 5] = [
     &[
         ("note.rename", "Rename", IconName::PencilSimple),
+        ("note.move", "Move to a folder", IconName::Folder),
         ("note.delete", "Move to trash", IconName::Trash),
         (
             "file-tree.reveal-active",
@@ -45,7 +46,7 @@ const MORE_GROUPS: [&[Command]; 5] = [
         ),
     ],
     &[
-        ("app.export", "Export to PDF", IconName::FilePdf),
+        ("app.export", "Export as PDF or HTML", IconName::Export),
         ("app.print", "Print", IconName::Printer),
     ],
     &[

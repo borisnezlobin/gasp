@@ -571,3 +571,28 @@ fn a_line_pasted_into_a_cell_stays_in_the_cell(cx: &mut TestAppContext) {
         text(&view, cx)
     );
 }
+
+#[gpui::test]
+fn escape_leaves_a_blank_line_so_what_is_typed_next_is_not_a_row(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, NOTE);
+    let fig = text(&view, cx).find("fig").unwrap();
+    place_cursor(&view, cx, fig + 1);
+    cx.simulate_keystrokes("escape");
+    cx.simulate_input("After");
+    cx.run_until_parked();
+    assert_eq!(
+        text(&view, cx),
+        "intro\n\n| name | n |\n| --- | --- |\n| pear | 10 |\n| fig | 2 |\n\nAfter\n\nend"
+    );
+}
+
+#[gpui::test]
+fn leaving_a_table_at_the_end_of_the_note_makes_the_gap(cx: &mut TestAppContext) {
+    let (view, cx) = open(cx, "| a | b |\n| --- | --- |\n| 1 | 2 |");
+    let one = text(&view, cx).find('1').unwrap();
+    place_cursor(&view, cx, one);
+    cx.simulate_keystrokes("escape");
+    cx.simulate_input("x");
+    cx.run_until_parked();
+    assert_eq!(text(&view, cx), "| a | b |\n| --- | --- |\n| 1 | 2 |\n\nx");
+}
