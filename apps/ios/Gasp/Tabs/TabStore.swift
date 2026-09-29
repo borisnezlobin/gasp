@@ -13,7 +13,7 @@ struct BrowserTab: Identifiable, Equatable {
 /// The open tabs, like Safari's: which is showing, the ones closed
 /// recently, and one editing session per open note so switching back
 /// keeps its cursor, scroll and undo. The open notes are saved to the
-/// vault's `.editor/device.toml`, which never syncs.
+/// vault's `.gasp/device.toml`, which never syncs.
 @Observable
 final class TabStore {
     private(set) var tabs: [BrowserTab] = []

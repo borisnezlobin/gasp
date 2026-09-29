@@ -1,5 +1,5 @@
 //! The theme tokens the iPhone app draws with, resolved from the built-in
-//! theme and the vault's own `.editor/theme.toml`.
+//! theme and the vault's own `.gasp/theme.toml`.
 
 use std::collections::HashMap;
 

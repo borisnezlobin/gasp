@@ -10,7 +10,7 @@ import UIKit
 /// an edit, and now and then in the background.
 @Observable
 final class SyncCenter {
-    static let refreshTaskIdentifier = "com.borisnezlobin.editor.sync"
+    static let refreshTaskIdentifier = "com.borisnezlobin.gasp.sync"
 
     /// Nil when the open vault isn't the synced one.
     private(set) var overview: SyncOverview?
@@ -23,7 +23,7 @@ final class SyncCenter {
     @ObservationIgnored var beforeSync: (() -> Void)?
 
     @ObservationIgnored private var engine: VaultSync?
-    @ObservationIgnored private let queue = DispatchQueue(label: "com.borisnezlobin.editor.sync", qos: .utility)
+    @ObservationIgnored private let queue = DispatchQueue(label: "com.borisnezlobin.gasp.sync", qos: .utility)
     @ObservationIgnored private var dueTimer: Timer?
     @ObservationIgnored private var progressTimer: Timer?
     @ObservationIgnored private var attachedFolder: URL?

@@ -65,7 +65,7 @@ final class AppModel {
 
     private func notesChangedOnDisk(_ paths: [String]) {
         library.refresh()
-        if paths.contains(where: { $0.hasPrefix(".editor/") }) {
+        if paths.contains(where: { $0.hasPrefix(configFolder() + "/") }) {
             library.readConfigFromDisk()
         }
         tabs.reload(paths)

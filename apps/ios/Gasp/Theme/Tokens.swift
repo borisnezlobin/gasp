@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 /// Every font, colour and spacing value the app draws with. They come from
-/// the core's theme tokens, so a vault's `.editor/theme.toml` restyles the
+/// the core's theme tokens, so a vault's `.gasp/theme.toml` restyles the
 /// phone as it does the desktop.
 struct Tokens {
     private(set) var typography: Typography
