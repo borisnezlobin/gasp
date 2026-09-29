@@ -10,7 +10,7 @@ use gpui::{
 };
 
 use super::{Drag, Workspace};
-use crate::ui::ui_theme;
+use crate::ui::{Selectable, ui_theme};
 
 /// The right panel's state.
 pub struct RightPanel {
@@ -129,8 +129,13 @@ impl Workspace {
         let view = self.right_panel.view.clone()?;
         let ui = ui_theme(cx);
         let grab = self.theme.workspace.divider_grab_width;
+        let group: gpui::SharedString = "right-panel-edge".into();
+        let dragging = self.drag == Some(Drag::RightSidebar);
         let edge = div()
             .id("right-panel-edge")
+            .selector(|| "right-panel-edge".to_owned())
+            .group(group.clone())
+            .child(super::render::resize_line(group, dragging, grab, &ui))
             .absolute()
             .top_0()
             .bottom_0()
