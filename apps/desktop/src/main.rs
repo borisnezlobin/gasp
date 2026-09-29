@@ -5,9 +5,15 @@ use gasp_desktop::app::{has_display, launch, launch_bench};
 use gasp_desktop::bench::BenchConfig;
 use gasp_desktop::cli::{self, Command, USAGE};
 use gasp_desktop::note::{self, LONG_NOTE_LINES};
+use gasp_desktop::prose::worker_process::{WORKER_ARG, use_worker_process};
 use gasp_desktop::trace;
 use gasp_desktop::workspace::state::{AppState, migrate_app_folders};
 use gasp_desktop::workspace::window::LaunchTarget;
+
+#[cfg(target_os = "macos")]
+#[global_allocator]
+static ALLOCATOR: gasp_desktop::allocator::ReturningAllocator =
+    gasp_desktop::allocator::ReturningAllocator;
 
 fn main() -> ExitCode {
     trace::init();
@@ -24,12 +30,22 @@ fn main() -> ExitCode {
     // never migrate them for one.
     let only_looks = matches!(
         command,
-        Command::Snapshot(_) | Command::WindowSnapshot(_) | Command::Help
+        Command::Snapshot(_)
+            | Command::WindowSnapshot(_)
+            | Command::BenchOpen { .. }
+            | Command::GrammarWorker
+            | Command::Help
     );
     if !only_looks {
         migrate_app_folders();
     }
+    if draws_editors(&command)
+        && let Ok(exe) = std::env::current_exe()
+    {
+        use_worker_process(exe);
+    }
     match command {
+        Command::GrammarWorker => grammar_worker(),
         Command::Help => {
             println!("{USAGE}");
             ExitCode::SUCCESS
@@ -40,9 +56,43 @@ fn main() -> ExitCode {
             println!("{}", gasp_desktop::knowledge::bench::run(&vault));
             ExitCode::SUCCESS
         }
+        Command::BenchOpen { vault, config } => exit_status(
+            "--bench-open",
+            gasp_desktop::open_bench::run(&vault, config),
+        ),
         Command::Mcp(vault) => mcp(vault),
-        Command::Snapshot(request) => snapshot(gasp_desktop::snapshot::run(request)),
-        Command::WindowSnapshot(request) => snapshot(gasp_desktop::snapshot::run_window(request)),
+        Command::Snapshot(request) => {
+            exit_status("--snapshot", gasp_desktop::snapshot::run(request))
+        }
+        Command::WindowSnapshot(request) => {
+            exit_status("--snapshot", gasp_desktop::snapshot::run_window(request))
+        }
+    }
+}
+
+/// Whether the command opens editors, whose grammar checks then run in a
+/// child process.
+fn draws_editors(command: &Command) -> bool {
+    matches!(
+        command,
+        Command::Open(_)
+            | Command::Bench { .. }
+            | Command::BenchOpen { .. }
+            | Command::Snapshot(_)
+            | Command::WindowSnapshot(_)
+    )
+}
+
+/// `gasp grammar-worker`: checks what the app sends until it hangs up.
+fn grammar_worker() -> ExitCode {
+    let input = std::io::stdin().lock();
+    let output = std::io::stdout().lock();
+    match gasp_desktop::prose::worker_process::serve(input, output) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{COMMAND_NAME} {WORKER_ARG}: {error}");
+            ExitCode::from(1)
+        }
     }
 }
 
@@ -66,13 +116,13 @@ fn mcp(vault: Option<std::path::PathBuf>) -> ExitCode {
     }
 }
 
-/// `gasp --snapshot`: exits from inside the app once the PNGs are written,
-/// so it only returns when something went wrong first.
-fn snapshot(outcome: Result<(), String>) -> ExitCode {
+/// `gasp --snapshot` and `--bench-open` exit from inside the app once
+/// they're done, so they only return when something went wrong first.
+fn exit_status(mode: &str, outcome: Result<(), String>) -> ExitCode {
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("{COMMAND_NAME} --snapshot: {error}");
+            eprintln!("{COMMAND_NAME} {mode}: {error}");
             ExitCode::from(1)
         }
     }
@@ -81,7 +131,8 @@ fn snapshot(outcome: Result<(), String>) -> ExitCode {
 fn open(path: Option<&std::path::Path>) -> ExitCode {
     let resolved = {
         let _span = trace::span("resolve-target");
-        LaunchTarget::resolve(path, AppState::last_vault())
+        let last_vault = path.is_none().then(AppState::last_vault).flatten();
+        LaunchTarget::resolve(path, last_vault)
     };
     let target = match resolved {
         Ok(target) => target,

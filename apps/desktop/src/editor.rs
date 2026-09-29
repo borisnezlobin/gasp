@@ -181,6 +181,9 @@ pub struct EditorView {
     /// The toolbars that float by the selection or the cursor's line.
     pub(crate) floating: crate::toolbar::floating::FloatingToolbars,
     clock: Instant,
+    /// Lets go of the note's decoded images and equations once its tab
+    /// has been hidden a while.
+    pub(crate) release_when_hidden: Option<gpui::Task<()>>,
     /// Waits for the installed fonts, while they're still being listed.
     _fonts: Option<gpui::Subscription>,
 }
@@ -291,6 +294,7 @@ impl EditorView {
             table_edit: Default::default(),
             floating: crate::toolbar::floating::FloatingToolbars::new(&config.toolbars),
             clock: Instant::now(),
+            release_when_hidden: None,
             _fonts: None,
         };
         view._fonts = crate::ui::installed_fonts(cx)

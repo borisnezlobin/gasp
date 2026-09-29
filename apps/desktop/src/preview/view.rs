@@ -20,6 +20,9 @@ pub const ZOOM_STEP: f32 = 1.1;
 pub const MIN_ZOOM: f32 = 0.5;
 pub const MAX_ZOOM: f32 = 3.;
 
+/// How long a note's tab stays hidden before it lets go of its pictures.
+pub const RELEASE_HIDDEN_AFTER: std::time::Duration = std::time::Duration::from_secs(60);
+
 impl EditorView {
     /// Scales every size in the editor and re-measures the lines.
     pub fn set_zoom(&mut self, zoom: f32, cx: &mut Context<Self>) {
@@ -173,6 +176,66 @@ impl EditorView {
                 let (url, image) = download.await;
                 this.update(cx, |view, cx| {
                     view.images.finish_remote(url, image);
+                    cx.notify();
+                })
+                .ok();
+                drop(pending);
+            })
+            .detach();
+        }
+    }
+
+    /// Follows whether the view's tab is the one its pane shows. A note
+    /// hidden for [`RELEASE_HIDDEN_AFTER`] lets go of its decoded images
+    /// and equations, which it draws again once it's shown.
+    pub fn set_hidden(&mut self, hidden: bool, cx: &mut Context<Self>) {
+        if !hidden {
+            self.release_when_hidden = None;
+            return;
+        }
+        if self.release_when_hidden.is_some() {
+            return;
+        }
+        self.release_when_hidden = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(RELEASE_HIDDEN_AFTER).await;
+            this.update(cx, |view, _| view.release_pictures()).ok();
+        }));
+    }
+
+    /// Lets go of the decoded images and rendered equations, here and in
+    /// the last frame's lines.
+    pub fn release_pictures(&mut self) {
+        self.images.release_pixels();
+        self.math.release_renders();
+        let stand_in = self.images.blank();
+        if let Some(frame) = self.frame.as_mut() {
+            frame.forget_pictures(&stand_in);
+        }
+    }
+
+    /// Starts everything the last layout left for the background:
+    /// equations, code colours, images, and looking for missing images.
+    pub(crate) fn start_loads(&mut self, cx: &mut Context<Self>) {
+        self.start_math_renders(cx);
+        self.start_code_loads(cx);
+        self.start_remote_images(cx);
+        self.start_image_decodes(cx);
+        self.find_vault_images(cx);
+    }
+
+    /// Decodes the note's images the last layout drew, each on a
+    /// background thread at the size it's drawn, redrawing as each is done.
+    pub(crate) fn start_image_decodes(&mut self, cx: &mut Context<Self>) {
+        for decode in self.images.take_decodes() {
+            let pending = PendingRender::start();
+            cx.spawn(async move |this, cx| {
+                let decoding = decode.clone();
+                let image = cx
+                    .background_executor()
+                    .spawn(async move { crate::images::decode_file(&decoding) })
+                    .await;
+                this.update(cx, |view, cx| {
+                    view.images.finish_decode(&decode, image);
                     cx.notify();
                 })
                 .ok();

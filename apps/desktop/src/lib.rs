@@ -2,8 +2,11 @@
 //! modes for tests and agents.
 
 pub mod actions;
+#[cfg(target_os = "macos")]
+pub mod allocator;
 pub mod app;
 pub mod appearance_toggle;
+pub mod atlas;
 pub mod bench;
 pub mod cli;
 pub mod code_copy;
@@ -31,6 +34,7 @@ pub mod line_layout;
 pub mod link_cards;
 pub use gasp_vault::link_update;
 pub mod look_up;
+pub mod memory;
 pub mod metrics;
 pub mod move_picker;
 pub mod navigation;
@@ -38,6 +42,7 @@ pub mod note;
 pub mod note_texts;
 pub mod notices;
 pub mod obsidian_import;
+pub mod open_bench;
 pub mod outline;
 pub mod palette;
 pub mod paste;

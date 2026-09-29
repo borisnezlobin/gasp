@@ -92,7 +92,7 @@ fn list_fonts(cx: &mut App) {
     let text_system = cx.text_system().clone();
     let listing = cx.background_executor().spawn(async move {
         let _span = crate::trace::span("font-names");
-        text_system.all_font_names()
+        family_names(text_system.all_font_names())
     });
     cx.spawn(async move |cx| {
         let names = listing.await;
@@ -107,13 +107,23 @@ fn list_fonts(cx: &mut App) {
 /// Tests call it to have the fonts arrive late.
 pub fn set_installed_fonts(names: Vec<String>, cx: &mut App) {
     let _span = crate::trace::span("font-names-apply");
-    cx.set_global(FontNames(names.into()));
+    cx.set_global(FontNames(family_names(names).into()));
     if let Some(theme) = cx.try_global::<ThemeGlobal>() {
         let (tokens, dark) = (theme.tokens.clone(), theme.dark);
         let theme = ThemeGlobal::build(&tokens, dark, cx);
         cx.set_global(theme);
     }
     cx.refresh_windows();
+}
+
+/// Each family once, sorted. The platform names a family once per face,
+/// so a Mac's list of tens of thousands of names holds a few hundred
+/// families.
+fn family_names(mut names: Vec<String>) -> Vec<String> {
+    names.sort_unstable();
+    names.dedup();
+    names.shrink_to_fit();
+    names
 }
 
 /// Calls `f` when the installed fonts arrive.
