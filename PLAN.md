@@ -575,6 +575,7 @@ Every feature ships as a package with three parts: a plain-language spec, the co
   | Full parse of a 200 KB note | 3.5 ms, 22.7k allocations, 1.7 MB tree |
   | Reparse per keystroke, 200 KB note | 26 µs mid-note, 48 µs near the top |
   | Plan a 60-line viewport | 15 µs |
+  | Plan a 60-line viewport with every heading folded, 200 KB note | 59 µs |
   | Input pipeline per key, the owner's 226 snippets and 82 replacements | 3 to 6 µs |
   | Phone keystroke (update, plan, sentence tints, folds, lowering), median note / longest corpus note / 200 KB note | 27 µs / 87 µs / 1.0 ms |
   | Phone cursor move, same notes | 10 µs / 54 µs / 0.66 ms |
