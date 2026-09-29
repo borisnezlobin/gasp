@@ -14,9 +14,9 @@ unsafe_code = "deny"
 [workspace.lints.clippy]
 cognitive_complexity = "deny"
 
-# Builds that go to other people: slower to compile, smaller and faster to run.
+# Builds that go to other people: smaller and faster to run. Thin LTO keeps
+# most of fat LTO's savings at a fraction of the build time.
 [profile.dist]
 inherits = "release"
-lto = "fat"
-codegen-units = 1
+lto = "thin"
 strip = true
