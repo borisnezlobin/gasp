@@ -19,6 +19,8 @@ final class NoteMedia {
     private(set) var wantedMath: Set<MathKey> = []
     private(set) var wantedImages: [URL: Int] = [:]
     private(set) var wantedCardImages: Set<URL> = []
+    /// Runs when a picture drew without its pixels, so they're fetched.
+    var onMissing: (() -> Void)?
     private var files: [String: URL] = [:]
     private var missingFiles: Set<String> = []
 
@@ -52,6 +54,14 @@ final class NoteMedia {
     func wantImage(_ file: URL, pixels: Int) {
         guard VaultImages.shared.image(file, pixels: pixels) == nil else { return }
         wantedImages[file] = pixels
+    }
+
+    /// A picture on screen drew without its pixels, which the cache let go
+    /// of after it was styled: they're fetched again.
+    func drawnWithout(_ file: URL, pixels: Int) {
+        let first = wantedImages.isEmpty
+        wantImage(file, pixels: pixels)
+        if first, !wantedImages.isEmpty { onMissing?() }
     }
 
     /// Notes that a link card's preview image should be downloaded.

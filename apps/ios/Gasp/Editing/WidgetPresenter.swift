@@ -111,7 +111,7 @@ extension LineStyler {
         let size = ImageDrawing.displaySize(pixels: pixels, requested: requested, columnWidth: width)
         let attachment = ImageAttachment(
             file: file, size: size, placeholderColor: tokens.color(\.fill),
-            cornerRadius: CGFloat(tokens.spacing.radiusMd)
+            cornerRadius: CGFloat(tokens.spacing.radiusMd), media: media
         )
         media.wantImage(file, pixels: attachment.pixels)
         return attachment
