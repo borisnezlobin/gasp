@@ -261,14 +261,14 @@ fn report_build(report: &mut Report, label: &str, vault: &Vault, budgets: (Durat
 fn report_loading(report: &mut Report, vault: &Vault) {
     let root = vault.root();
     let cold = Samples::collect(BUILD_RUNS, || load_vault(root));
-    report.time("load every note from disk (1x)", cold.min(), ms(30));
+    report.time("load every note from disk (1x)", cold.min(), ms(12.));
     let mut cache = NoteCache::default();
     cache.refresh(root);
     let unchanged = Samples::collect(BUILD_RUNS, || {
         cache.refresh(root);
         cache.notes()
     });
-    report.time("refresh with nothing changed (1x)", unchanged.min(), ms(5));
+    report.time("refresh with nothing changed (1x)", unchanged.min(), ms(4.));
     let edited = PathBuf::from(EDITED_NOTE);
     let original = std::fs::read_to_string(root.join(&edited)).expect("the note reads");
     let mut after_edit = Samples::new();
@@ -281,7 +281,7 @@ fn report_loading(report: &mut Report, vault: &Vault) {
         });
     }
     std::fs::write(root.join(&edited), original).expect("the note writes back");
-    report.time("reload one edited note (1x)", after_edit.min(), ms(2));
+    report.time("reload one edited note (1x)", after_edit.min(), ms(0.1));
 }
 
 /// The iPhone's keystroke: bring the note cache up to date, then search.
@@ -303,12 +303,12 @@ fn report_phone_keystroke(report: &mut Report, vault: &Vault) {
     report.time(
         "keystroke refreshing a kept note cache (1x)",
         kept.min(),
-        ms(10),
+        ms(5.),
     );
 }
 
-fn ms(millis: u64) -> Duration {
-    Duration::from_millis(millis)
+fn ms(millis: f64) -> Duration {
+    Duration::from_secs_f64(millis / 1000.)
 }
 
 fn main() {
@@ -319,15 +319,15 @@ fn main() {
         small.notes.len(),
         large.notes.len()
     ));
-    report_build(&mut report, "1x", &small, (ms(20), 8e6));
-    report_build(&mut report, "5x", &large, (ms(100), 40e6));
+    report_build(&mut report, "1x", &small, (ms(2.), 1.6e6));
+    report_build(&mut report, "5x", &large, (ms(11.), 8e6));
     report_loading(&mut report, &small);
     let typing = type_queries(&small.notes, &small.links);
-    report_typing(&mut report, "1x", &typing, [ms(8), ms(16)]);
-    report_allocations(&mut report, "1x", &typing, 50_000.);
+    report_typing(&mut report, "1x", &typing, [ms(0.45), ms(5.)]);
+    report_allocations(&mut report, "1x", &typing, 4_000.);
     let large_typing = type_queries(&large.notes, &large.links);
-    report_typing(&mut report, "5x", &large_typing, [ms(40), ms(80)]);
-    report_allocations(&mut report, "5x", &large_typing, 250_000.);
+    report_typing(&mut report, "5x", &large_typing, [ms(2.5), ms(25.)]);
+    report_allocations(&mut report, "5x", &large_typing, 20_000.);
     report_phone_keystroke(&mut report, &small);
     println!(
         "results digest: {:016x} (1x), {:016x} ({COPIES}x)",
