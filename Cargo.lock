@@ -3812,6 +3812,9 @@ dependencies = [
 [[package]]
 name = "gasp-bench"
 version = "0.1.0"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "gasp-config"
@@ -3831,7 +3834,9 @@ dependencies = [
 name = "gasp-core"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
  "gasp-config",
+ "gasp-migrate",
  "gasp-snippets",
  "proptest",
  "pulldown-cmark",

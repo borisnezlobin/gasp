@@ -7,10 +7,12 @@
 //! over its budget makes the run exit with an error.
 
 pub mod alloc;
+pub mod clock;
 pub mod corpus;
 pub mod report;
 pub mod samples;
 
 pub use alloc::{AllocStats, CountingAllocator};
+pub use clock::Stopwatch;
 pub use report::Report;
 pub use samples::Samples;
