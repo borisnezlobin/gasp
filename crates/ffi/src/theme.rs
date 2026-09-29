@@ -61,6 +61,12 @@ pub struct Palette {
     pub backdrop: ThemeColor,
     pub popover: ThemeColor,
     pub shadow: ThemeColor,
+    /// The sync indicator while a sync runs or waits, and when a note needs a person.
+    pub syncing: ThemeColor,
+    pub conflict: ThemeColor,
+    /// The two versions of a note in a sync conflict.
+    pub this_device: ThemeColor,
+    pub other_device: ThemeColor,
     /// Each callout kind's colour by its name, such as `warning`.
     pub callouts: HashMap<String, ThemeColor>,
     /// How strongly a callout's colour tints its surface.
@@ -212,6 +218,10 @@ fn palette(read: &TokenReader<'_>) -> Palette {
         backdrop: read.color("color.backdrop"),
         popover: read.color("color.popover"),
         shadow: read.color("color.popover-shadow"),
+        syncing: read.color("color.syncing"),
+        conflict: read.color("color.conflict"),
+        this_device: read.color("color.this-device"),
+        other_device: read.color("color.other-device"),
         callouts: read.callout_colors(),
         callout_opacity: read.number("opacity.callout"),
     }
