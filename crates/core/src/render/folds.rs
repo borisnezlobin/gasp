@@ -210,7 +210,7 @@ fn touches(selections: &[Range<usize>], range: &Range<usize>) -> bool {
 pub fn heading_sections(tree: &SyntaxTree) -> Vec<HeadingSection> {
     let lines = tree.lines();
     let headings: Vec<(usize, u8)> = tree
-        .preorder()
+        .block_preorder()
         .into_iter()
         .filter_map(|id| {
             let node = tree.node(id);
@@ -253,6 +253,31 @@ mod tests {
     use crate::syntax::parse;
 
     const NOTE: &str = "> [!note]- Title\n> hidden body\n\nafter";
+
+    #[test]
+    fn headings_are_found_in_every_kind_of_block() {
+        let text = "# One\n\npara *em*\n\n- item\n  ## In a list\n\n> ### In a quote\n\n\
+                    > [!note] Callout\n> #### In a callout\n\n[^1]: note\n\n    ##### In a \
+                    footnote\n\n<<<<<<< this device\n## Mine\n=======\n## Theirs\n>>>>>>> other\n\n\
+                    Setext\n======\n\n| # not | a heading |\n| - | - |\n| x | y |\n";
+        let tree = parse(text);
+        let every_heading: Vec<(usize, u8)> = tree
+            .preorder()
+            .into_iter()
+            .filter_map(|id| match tree.node(id).kind {
+                NodeKind::Heading { level, .. } => {
+                    Some((tree.lines().line_of(tree.node(id).range.start), level))
+                }
+                _ => None,
+            })
+            .collect();
+        let found: Vec<(usize, u8)> = heading_sections(&tree)
+            .iter()
+            .map(|section| (section.line, section.level))
+            .collect();
+        assert_eq!(found, every_heading);
+        assert!(found.len() >= 7, "{found:?}");
+    }
 
     fn planned(text: &str, folds: &Folds, cursor: usize) -> Vec<LinePlan> {
         let tree = parse(text);

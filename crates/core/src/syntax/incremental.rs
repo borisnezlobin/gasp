@@ -177,11 +177,21 @@ impl SyntaxTree {
     /// document order: blocks, descending only into blocks that hold
     /// other blocks, so the inlines of a long note are never visited.
     fn definition_candidates(&self) -> Vec<&Node> {
+        self.block_preorder()
+            .into_iter()
+            .map(|id| self.node(id))
+            .collect()
+    }
+
+    /// Every block below the root in document order, descending only into
+    /// blocks that hold other blocks, so the inlines of a long note are
+    /// never visited.
+    pub fn block_preorder(&self) -> Vec<NodeId> {
         let mut found = Vec::new();
         let mut stack: Vec<NodeId> = self.blocks().iter().rev().copied().collect();
         while let Some(id) = stack.pop() {
             let node = self.node(id);
-            found.push(node);
+            found.push(id);
             if holds_blocks(&node.kind) {
                 let blocks = node.children.iter().rev().copied();
                 stack.extend(blocks.filter(|&child| self.node(child).kind.is_block()));

@@ -11,6 +11,7 @@ use std::hash::{Hash, Hasher};
 
 use gasp_bench::corpus::{corpus_notes, long_note};
 use gasp_config::settings::{SymbolMode, SymbolSettings};
+use gasp_core::render::folds::heading_sections;
 use gasp_core::render::{RenderInput, plan, plan_lines, reveal_settings};
 use gasp_core::syntax::{self, Edit, SyntaxTree};
 
@@ -54,6 +55,7 @@ fn digest_note(text: &str, hasher: &mut DefaultHasher) {
             format!("{:?}", plan_lines(&input, viewport)).hash(hasher);
         }
     }
+    format!("{:?}", heading_sections(&tree)).hash(hasher);
     typed_trees(text, hasher);
 }
 
