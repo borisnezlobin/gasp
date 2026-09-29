@@ -219,7 +219,7 @@ impl SettingsView {
             }
             ControlRow::Font(slot) => self.font_key(index, slot.token(), key, window, cx),
             ControlRow::Accent => self.accent_key(key, window, cx),
-            ControlRow::Vault => self.button_key(key, cx),
+            ControlRow::Vault | ControlRow::ObsidianImport => self.button_key(key, row, cx),
             ControlRow::IconCredit => open_url_key(key, ICON_SOURCE_URL, cx),
             ControlRow::Shortcut(shortcut) => self.shortcut_key(row, &shortcut.id, key, window, cx),
             ControlRow::MapAdd(_) => self.menu_button_key(index, row, key, window, cx),
@@ -363,9 +363,14 @@ impl SettingsView {
         true
     }
 
-    fn button_key(&mut self, key: &str, cx: &mut Context<Self>) -> bool {
+    /// Enter or Space on a General page button runs its command.
+    fn button_key(&mut self, key: &str, row: &ControlRow, cx: &mut Context<Self>) -> bool {
+        let command = match row {
+            ControlRow::ObsidianImport => "vault.import-obsidian",
+            _ => "vault.open",
+        };
         if matches!(key, "space" | "enter") {
-            self.request_command("vault.open", cx);
+            self.request_command(command, cx);
             return true;
         }
         false

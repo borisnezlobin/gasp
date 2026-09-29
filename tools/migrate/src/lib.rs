@@ -5,6 +5,7 @@
 
 pub mod app_settings;
 pub mod hotkeys;
+pub mod import;
 pub mod js;
 pub mod latex_suite;
 pub mod regex_convert;

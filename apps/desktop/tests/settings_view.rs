@@ -405,8 +405,8 @@ fn tab_walks_search_sections_and_controls(cx: &mut TestAppContext) {
     let (view, cx, _) = open(cx, dir.path());
     let focus = |cx: &mut VisualTestContext| view.read_with(cx, |view, _| view.focus_state());
     assert_eq!(focus(cx), SettingsFocus::Sections);
-    // General's controls are the vault button, the agents switch and the
-    // icon credit's link. Version is skipped.
+    // General's controls are the vault button, the Obsidian import, the
+    // agents switch and the icon credit's link. Version is skipped.
     cx.simulate_keystrokes("tab");
     assert_eq!(focus(cx), SettingsFocus::Control(0));
     cx.simulate_keystrokes("tab");
@@ -414,8 +414,12 @@ fn tab_walks_search_sections_and_controls(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("tab");
     assert_eq!(focus(cx), SettingsFocus::Control(3));
     cx.simulate_keystrokes("tab");
+    assert_eq!(focus(cx), SettingsFocus::Control(4));
+    cx.simulate_keystrokes("tab");
     assert_eq!(focus(cx), SettingsFocus::Search);
     cx.simulate_keystrokes("shift-tab");
+    assert_eq!(focus(cx), SettingsFocus::Control(4));
+    cx.simulate_keystrokes("up");
     assert_eq!(focus(cx), SettingsFocus::Control(3));
     cx.simulate_keystrokes("up");
     assert_eq!(focus(cx), SettingsFocus::Control(2));

@@ -120,6 +120,7 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     crate::knowledge::install(workspace, window, cx);
     crate::prose::commands::install(workspace, cx);
     crate::recovery::install(workspace, cx);
+    crate::obsidian_import::install(workspace, window, cx);
     workspace.on_command("palette.open", open_palette);
     workspace.on_command("switcher.open", open_switcher);
     workspace.on_command("outline.jump-to-heading", open_outline);
@@ -688,6 +689,10 @@ fn open_settings(
 /// Applies a settings change everywhere it shows: every open note gets the
 /// new config, new shortcuts are bound, and the file tree follows the files
 /// settings.
+pub(crate) fn config_files_changed(workspace: &mut Workspace, cx: &mut gpui::Context<Workspace>) {
+    on_setting_changed(workspace, "rules", cx);
+}
+
 fn on_setting_changed(workspace: &mut Workspace, key: &str, cx: &mut gpui::Context<Workspace>) {
     workspace.reload_config(cx);
     if let Some(settings) = workspace.active_modal::<SettingsView>() {
