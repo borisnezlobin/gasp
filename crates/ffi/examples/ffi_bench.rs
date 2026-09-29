@@ -90,9 +90,21 @@ fn phone_benches(
         open.median(),
         budgets.open,
     );
-    let document = vault.document(text.to_owned());
     let middle = text[..text.len() / 2].rfind('\n').unwrap_or(0);
     let cursor = utf16_len(&text[..middle]);
+    let at_cursor = TextRange {
+        start: cursor,
+        end: cursor,
+    };
+    let (document, kept) = CountingAllocator::measure(|| {
+        let document = vault.document(text.to_owned());
+        drop(document.plan(at_cursor));
+        document
+    });
+    report.note_bytes(
+        format!("{label}: memory an open, drawn note keeps"),
+        kept.retained_bytes as f64,
+    );
     let mut typing = Typing::new(text, middle, cursor);
     let mut keystrokes = Samples::new();
     let mut phases = PhaseTimes::default();
