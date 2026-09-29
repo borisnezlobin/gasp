@@ -40,6 +40,7 @@ extension CommandRunner {
         "daily.open": { $0.openDailyNote() },
         "note.rename": { runner in runner.onNotePath { runner.workspace.prompt = .rename(path: $0) } },
         "note.delete": { runner in runner.onNotePath { runner.workspace.prompt = .delete(path: $0) } },
+        "note.move": { runner in runner.onNotePath { runner.workspace.sheet = .moveNote(path: $0) } },
         "note.recover": { runner in runner.onNotePath { runner.workspace.sheet = .recovery(path: $0) } },
         "app.export": { runner in runner.onNotePath { runner.workspace.prompt = .export(path: $0) } },
         "app.print": { $0.printNote() },

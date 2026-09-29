@@ -83,13 +83,19 @@ pub(crate) fn set_up_with(
         ));
     }
     clone_into(&url, &branch, token.clone(), &folder)?;
-    if let Some(token) = &token {
-        store.save(&url, token).map_err(|error| {
+    let kept = token.map_or(Ok(()), |token| {
+        store.save(&url, &token).map_err(|error| {
             refused(&format!(
                 "The token couldn't be kept in the Keychain: {error}"
             ))
-        })?;
+        })
+    });
+    if kept.is_err() {
+        // Without its token the clone can't sync, and trying again would
+        // clone beside it, so it goes.
+        let _ = std::fs::remove_dir_all(&folder);
     }
+    kept?;
     use_branch_in_settings(&folder, &branch)
 }
 

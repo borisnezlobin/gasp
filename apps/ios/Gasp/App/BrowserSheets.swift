@@ -48,6 +48,7 @@ struct BrowserSheets: ViewModifier {
         case .toolbars: ToolbarSettingsSheet()
         case .templates: TemplatePicker()
         case .recovery(let path): RecoverySheet(path: path)
+        case .moveNote(let path): MoveNoteSheet(path: path)
         case .share(let url): ShareSheet(items: [url])
         case .lookUp(let term): LookUpView(term: term)
         case .photos: EmptyView()

@@ -97,7 +97,7 @@ private struct BrowserBarItem: View {
             }
         } label: {
             Image(systemName: "ellipsis.circle")
-                .font(.system(size: 18, weight: .regular))
+                .font(tokens.symbolFont(1.125))
                 .foregroundStyle(tokens.swiftUIColor(\.icon))
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())
@@ -116,7 +116,7 @@ struct BarButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 18, weight: .regular))
+                .font(tokens.symbolFont(1.125))
                 .foregroundStyle(tokens.swiftUIColor(\.icon))
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())

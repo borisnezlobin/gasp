@@ -45,6 +45,19 @@ extension CommandRunner {
         }
     }
 
+    /// Moves the note into `folder`, following it in the tabs showing it.
+    func move(_ path: String, to folder: String) {
+        guard let vault = library.vault else { return }
+        tabs.saveAllNotes()
+        do {
+            let moved = try vault.moveNote(path: path, folder: folder)
+            tabs.renamed(from: path, to: moved)
+            library.edited()
+        } catch {
+            workspace.tell(error.shownMessage)
+        }
+    }
+
     func delete(_ path: String) {
         guard let vault = library.vault else { return }
         tabs.saveAllNotes()

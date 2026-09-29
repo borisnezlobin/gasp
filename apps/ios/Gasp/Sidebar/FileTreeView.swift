@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The vault's folders and notes as a tree, folders first. The note
 /// showing is picked out; press and hold a note to open it in a new tab,
-/// rename it or move it to the trash.
+/// rename it, move it to another folder or move it to the trash.
 struct FileTreeView: View {
     @Environment(AppModel.self) private var model
     let tokens: Tokens
@@ -91,6 +91,9 @@ private struct TreeNoteRow: View {
             Button("Rename", systemImage: "character.cursor.ibeam") {
                 model.workspace.prompt = .rename(path: note.path)
             }
+            Button("Move to folder", systemImage: "folder") {
+                model.workspace.sheet = .moveNote(path: note.path)
+            }
             Button("Move to trash", systemImage: "trash", role: .destructive) {
                 model.workspace.prompt = .delete(path: note.path)
             }
@@ -111,7 +114,7 @@ private struct TreeLabel: View {
     var body: some View {
         HStack(spacing: tokens.spacing.md) {
             Image(systemName: symbol)
-                .font(.system(size: 14))
+                .font(tokens.symbolFont(0.875))
                 .foregroundStyle(tokens.swiftUIColor(\.icon))
                 .frame(width: 20)
             Text(title)

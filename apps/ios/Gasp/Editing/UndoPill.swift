@@ -78,7 +78,7 @@ struct UndoPill: View {
     private func button(_ symbol: String, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 16, weight: .medium))
+                .font(tokens.symbolFont(weight: .medium))
                 .foregroundStyle(tokens.swiftUIColor(enabled ? \.icon : \.iconDisabled))
                 .frame(width: Self.buttonSide, height: Self.buttonSide)
                 .contentShape(Circle())

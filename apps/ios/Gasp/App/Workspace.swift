@@ -27,6 +27,7 @@ enum WorkspaceSheet: Identifiable {
     case toolbars
     case templates
     case recovery(path: String)
+    case moveNote(path: String)
     case share(URL)
     case lookUp(String)
     case photos
@@ -44,6 +45,7 @@ enum WorkspaceSheet: Identifiable {
         case .toolbars: "toolbars"
         case .templates: "templates"
         case .recovery(let path): "recovery \(path)"
+        case .moveNote(let path): "move \(path)"
         case .share(let url): "share \(url.path)"
         case .lookUp(let term): "look up \(term)"
         case .photos: "photos"

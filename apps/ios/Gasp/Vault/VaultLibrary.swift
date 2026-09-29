@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 extension Notification.Name {
     /// This phone changed a note or the vault's config, which sync sends on.
@@ -41,9 +42,12 @@ final class VaultLibrary {
     private(set) var configGeneration = 0
 
     init() {
-        tokens = Tokens(theme: builtInTheme())
+        tokens = Tokens.forReader(theme: builtInTheme())
         useDataFolder(path: VaultLocation.supportFolder.path)
         open(VaultLocation.current())
+        NotificationCenter.default.addObserver(
+            forName: UIContentSizeCategory.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.readConfig() }
     }
 
     var name: String {
@@ -108,7 +112,7 @@ final class VaultLibrary {
 
     private func readConfig() {
         guard let vault else { return }
-        tokens = Tokens(theme: vault.theme())
+        tokens = Tokens.forReader(theme: vault.theme())
         commands = vault.commands()
         keyboardToolbar = vault.keyboardToolbar()
         browserBar = vault.browserBar()
