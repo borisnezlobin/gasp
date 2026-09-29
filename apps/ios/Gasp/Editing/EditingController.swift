@@ -61,6 +61,10 @@ final class EditingController: NSObject, UITextViewDelegate {
     weak var host: EditingHost?
     private var styledLength = 0
     private var isRestyling = false
+    /// The text view's edits the core hasn't heard about yet.
+    var pendingEdit: PendingEdit?
+    /// The edit count the sentence tints were fetched for.
+    private var tintedEdits = -1
     private var scrollsToCursorAfterLayout = false
     private var readableWidth = true
     /// The text as it was before the edits since the last save, kept as a
@@ -88,6 +92,7 @@ final class EditingController: NSObject, UITextViewDelegate {
         super.init()
         configure()
         textView.text = text
+        pendingEdit = nil
         restorePosition()
         restyle(edited: nil)
         prefetchMath()
@@ -112,6 +117,10 @@ final class EditingController: NSObject, UITextViewDelegate {
         if grammar.isEnabled() { textView.spellCheckingType = .no }
         textView.isFindInteractionEnabled = true
         textView.textContainer.lineFragmentPadding = 0
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(storageEdited(_:)), name: NSTextStorage.didProcessEditingNotification,
+            object: textView.textStorage
+        )
         textView.boundKeys = KeyCommands.uiKeyCommands(
             host?.keyBindings ?? [], action: #selector(EditorTextView.runBoundKey(_:))
         )
@@ -241,12 +250,16 @@ final class EditingController: NSObject, UITextViewDelegate {
 
     func textViewDidChange(_ textView: UITextView) {
         guard textView.markedTextRange == nil else { return }
-        let text = textView.text ?? ""
+        guard let edit = pendingEdit else {
+            restyle(edited: textView.selectedRange)
+            return
+        }
+        pendingEdit = nil
         if textBeforeEdits == nil { textBeforeEdits = document.text() }
-        document.update(text: text)
+        sendToCore(edit)
         editCount += 1
-        restyle(edited: textView.selectedRange)
-        saver.schedule(text) { [weak self] in
+        restyle(edited: edit.newRange)
+        saver.schedule { [weak textView] in textView?.textStorage.string ?? "" } afterSave: { [weak self] text in
             self?.savedText = text
             self?.keepSnapshot()
         }
@@ -274,22 +287,6 @@ final class EditingController: NSObject, UITextViewDelegate {
         restyle(edited: nil)
     }
 
-    /// Moves the grammar flags along with an edit, dropping the ones it
-    /// touches, until the paragraph is checked again.
-    func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
-        let delta = (text as NSString).length - range.length
-        prose.flags = prose.flags.compactMap { flag in
-            let flagged = flag.range.nsRange
-            if NSMaxRange(flagged) < range.location { return flag }
-            guard flagged.location > NSMaxRange(range) else { return nil }
-            var moved = flag
-            let start = UInt32(Int(flag.range.start) + delta)
-            moved.range = TextRange(start: start, end: UInt32(Int(flag.range.end) + delta))
-            return moved
-        }
-        return true
-    }
-
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         scheduleGrammarCheck()
     }
@@ -308,15 +305,17 @@ final class EditingController: NSObject, UITextViewDelegate {
 
     func restyle(edited: NSRange?) {
         let storage = textView.textStorage
-        let plan = document.plan(selection: TextRange(textView.selectedRange))
-        prose.tints = document.sentenceTints()
-        styler.headingFolds = Dictionary(
-            document.headingFolds().map { ($0.line, $0.folded) }, uniquingKeysWith: { first, _ in first }
-        )
+        if tintedEdits != editCount || styler.needsWholePlan {
+            prose.tints = document.sentenceTints()
+            tintedEdits = editCount
+        }
         isRestyling = true
         let selection = textView.selectedRange
         textView.changeAttributes {
-            styler.apply(plan, prose: prose, code: code, to: storage, edited: edited)
+            if !applyPlan(to: storage, edited: edited, whole: styler.needsWholePlan) {
+                styler.forgetApplied()
+                _ = applyPlan(to: storage, edited: edited, whole: true)
+            }
         }
         if textView.selectedRange != selection { textView.selectedRange = selection }
         textView.typingAttributes = styler.typingAttributes
@@ -325,17 +324,9 @@ final class EditingController: NSObject, UITextViewDelegate {
         fetchMissingMedia()
         updateTableGrids()
     }
-}
 
-extension UITextView {
-    /// Changes attributes of the text as one edit, so TextKit invalidates
-    /// its layout once for all of them rather than once for each.
-    func changeAttributes(_ change: () -> Void) {
-        let storage = textStorage
-        textLayoutManager?.textContentManager?.performEditingTransaction {
-            storage.beginEditing()
-            change()
-            storage.endEditing()
-        }
+    private func applyPlan(to storage: NSTextStorage, edited: NSRange?, whole: Bool) -> Bool {
+        let update = document.planUpdate(selection: TextRange(textView.selectedRange), whole: whole)
+        return styler.apply(update, prose: prose, code: code, to: storage, edited: edited)
     }
 }

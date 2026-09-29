@@ -11,7 +11,9 @@ import UIKit
 /// - `-probe open -probeNote <path>`: from asking for a note to its first
 ///   laid-out frame, and until every equation it asked for has rendered.
 /// - `-probe typing -probeNote <path>`: keystrokes and cursor moves in the
-///   middle of the note, each from the key to the text laid out again.
+///   middle of the note, each from the key to the text laid out again,
+///   then whether the text styled as it changed matches it styled afresh.
+///   `-probeTyped <keys>` types other keys.
 /// - `-probe scroll -probeNote <path>`: the note scrolled top to bottom at
 ///   a steady speed, with the time between frames and the work in each.
 ///
@@ -80,14 +82,18 @@ final class PerformanceProbe {
             let text = textView.textStorage.string as NSString
             let middle = text.range(of: "\n", range: NSRange(location: text.length / 2, length: text.length / 2))
             textView.selectedRange = NSRange(location: middle.location == NSNotFound ? 0 : middle.location, length: 0)
-            self.after(seconds: 1) { self.typeKeys(into: textView) }
+            self.after(seconds: 1) { self.typeKeys(into: session) }
         }
     }
 
-    private static let typed = Array("the quick brown fox and a lazy dog ")
+    /// What's typed, or `-probeTyped` to try other keys.
+    private static let typed = Array(
+        UserDefaults.standard.string(forKey: "probeTyped") ?? "the quick brown fox and a lazy dog "
+    )
     private static let keystrokes = 200
 
-    private func typeKeys(into textView: UITextView) {
+    private func typeKeys(into session: EditingController) {
+        let textView = session.textView
         var samples: [Double] = []
         var index = 0
         tick(until: {
@@ -100,12 +106,13 @@ final class PerformanceProbe {
             return index >= Self.keystrokes
         }, then: {
             Self.reportSpread("keystroke-ms", samples)
-            self.moveCursor(in: textView)
+            self.moveCursor(in: session)
         })
     }
 
     /// Moves the cursor down a line at a time, then back up.
-    private func moveCursor(in textView: UITextView) {
+    private func moveCursor(in session: EditingController) {
+        let textView = session.textView
         var samples: [Double] = []
         var moves = 0
         tick(until: {
@@ -122,8 +129,50 @@ final class PerformanceProbe {
             return moves >= 100
         }, then: {
             Self.reportSpread("cursor-move-ms", samples)
+            Self.checkStyling(session)
             Self.reportMemory()
         })
+    }
+
+    /// Whether the text styled a line at a time as it changed looks the
+    /// same as the text styled afresh from a whole plan.
+    private static func checkStyling(_ session: EditingController) {
+        let kept = fingerprint(session.textView.textStorage)
+        session.use(session.tokens)
+        let fresh = fingerprint(session.textView.textStorage)
+        let differing = zip(kept, fresh).filter { $0 != $1 }.count + abs(kept.count - fresh.count)
+        report("styling-matches-fresh", differing == 0 ? "yes" : "no, \(differing) runs differ")
+        guard let first = zip(kept, fresh).first(where: { $0 != $1 }) else { return }
+        report("first-difference", "\(first.0) | \(first.1)")
+        let text = session.textView.textStorage.string as NSString
+        let location = Int(first.0.prefix { $0 != "+" }) ?? 0
+        let line = text.lineRange(for: NSRange(location: min(location, text.length), length: 0))
+        report("first-difference-line", text.substring(with: line).debugDescription)
+    }
+
+    private static func rgba(_ color: UIColor) -> String {
+        var (red, green, blue, alpha) = (CGFloat(0), CGFloat(0), CGFloat(0), CGFloat(0))
+        color.resolvedColor(with: .current).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return String(format: "%.3f %.3f %.3f %.3f", red, green, blue, alpha)
+    }
+
+    /// Each run of attributes, as text: where it is and what it holds.
+    private static func fingerprint(_ storage: NSTextStorage) -> [String] {
+        var runs: [String] = []
+        storage.enumerateAttributes(in: NSRange(location: 0, length: storage.length)) { attributes, range, _ in
+            let described = attributes.keys.map(\.rawValue).sorted().map { key -> String in
+                let value = attributes[NSAttributedString.Key(key)]
+                switch value {
+                case let font as UIFont: return "\(key)=\(font.fontName) \(font.pointSize)"
+                case let color as UIColor: return "\(key)=\(rgba(color))"
+                case let style as NSParagraphStyle:
+                    return "\(key)=\(style.description.split(separator: "\n").joined(separator: " "))"
+                default: return "\(key)=\(type(of: value))"
+                }
+            }
+            runs.append("\(range.location)+\(range.length) \(described.joined(separator: ","))")
+        }
+        return runs
     }
 
     // MARK: Scrolling
