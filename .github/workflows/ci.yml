@@ -102,10 +102,11 @@ jobs:
         run: >-
           cargo build --release --locked
           -p gasp-core -p gasp-config -p gasp-ffi -p gasp-search -p gasp-vault
-          -p gasp-math -p gasp-prose -p gasp-export
+          -p gasp-math -p gasp-prose -p gasp-export -p gasp-sync
           --example core_bench --example config_bench --example ffi_bench
           --example search_bench --example vault_bench
           --example math_bench --example prose_bench --example export_bench
+          --example sync_bench
       - name: Parser, planner and typing
         timeout-minutes: 5
         run: cargo run --release --locked -p gasp-core --example core_bench
@@ -130,6 +131,11 @@ jobs:
       - name: Export
         timeout-minutes: 5
         run: cargo run --release --locked -p gasp-export --example export_bench
+      # A 261 MB vault shaped like the owner's, about 1.3 GB of temporary
+      # disk while it runs.
+      - name: Sync
+        timeout-minutes: 8
+        run: cargo run --release --locked -p gasp-sync --example sync_bench
 
   lint:
     name: Format and complexity
