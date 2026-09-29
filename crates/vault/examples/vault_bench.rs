@@ -279,18 +279,18 @@ fn main() {
         small.index.note_count(),
         large.index.note_count()
     ));
-    report_loading(&mut report, &small, [10., 30., 8e6]);
-    report_loading(&mut report, &large, [50., 150., 40e6]);
-    report_watcher(&mut report, &mut small, [2., 2., 2.]);
-    report_watcher(&mut report, &mut large, [4., 4., 4.]);
-    report_queries(&mut report, &small, [10., 10., 2.]);
-    report_queries(&mut report, &large, [50., 50., 10.]);
-    report_mentions(&mut report, &small, 10.);
-    report_mentions(&mut report, &large, 50.);
-    report_desktop_rename(&mut report, &mut small, 10.);
-    report_desktop_rename(&mut report, &mut large, 50.);
-    report_disk_rename(&mut report, &small, [100., 100.]);
-    report_disk_rename(&mut report, &large, [400., 400.]);
+    report_loading(&mut report, &small, [2., 10., 1.5e6]);
+    report_loading(&mut report, &large, [10., 55., 6e6]);
+    report_watcher(&mut report, &mut small, [0.1, 0.015, 0.01]);
+    report_watcher(&mut report, &mut large, [0.1, 0.015, 0.025]);
+    report_queries(&mut report, &small, [0.15, 0.025, 0.005]);
+    report_queries(&mut report, &large, [0.55, 0.03, 0.02]);
+    report_mentions(&mut report, &small, 3.);
+    report_mentions(&mut report, &large, 4.);
+    report_desktop_rename(&mut report, &mut small, 0.7);
+    report_desktop_rename(&mut report, &mut large, 3.5);
+    report_disk_rename(&mut report, &small, [25., 20.]);
+    report_disk_rename(&mut report, &large, [135., 90.]);
     // The scratch vaults go before a budget failure exits the process.
     drop((small, large));
     report.finish();
