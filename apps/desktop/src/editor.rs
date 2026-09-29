@@ -170,6 +170,8 @@ pub struct EditorView {
     /// The table editor: the cell being edited, the table edited as
     /// Markdown, handles, and row and column drags.
     pub(crate) table_edit: crate::table_edit::TableEditing,
+    /// The toolbars that float by the selection or the cursor's line.
+    pub(crate) floating: crate::toolbar::floating::FloatingToolbars,
     clock: Instant,
     /// Waits for the installed fonts, while they're still being listed.
     _fonts: Option<gpui::Subscription>,
@@ -278,6 +280,7 @@ impl EditorView {
             line_cache: LineCache::default(),
             tables: TableStore::default(),
             table_edit: Default::default(),
+            floating: crate::toolbar::floating::FloatingToolbars::new(&config.toolbars),
             clock: Instant::now(),
             _fonts: None,
         };
@@ -315,6 +318,7 @@ impl EditorView {
         self.clear_preview_cache();
         self.code_line_numbers = config.settings.editor.code_line_numbers;
         self.apply_prose_settings(&config.settings.prose, cx);
+        self.floating.configure(&config.toolbars);
         self.set_zoom(self.zoom, cx);
     }
 
@@ -564,6 +568,7 @@ impl EditorView {
         let change = self.source.replace(range, text);
         self.source_changed(change);
         self.typed_in_table();
+        self.note_typing(cx);
         self.marked = None;
         self.goal_x = None;
         self.autoscroll = true;

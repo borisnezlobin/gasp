@@ -9,6 +9,7 @@ use gpui::{AssetSource, SharedString, Svg, svg};
 /// regular set into `assets/icons` and adding a row to [`ICONS`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum IconName {
+    AppWindow,
     ArrowClockwise,
     ArrowCounterClockwise,
     ArrowDown,
@@ -17,15 +18,19 @@ pub enum IconName {
     ArrowRight,
     ArrowSquareIn,
     ArrowSquareOut,
+    ArrowUUpLeft,
     ArrowUp,
     ArrowsClockwise,
+    ArrowsInLineHorizontal,
     ArrowsInLineVertical,
+    ArrowsOutLineVertical,
     Article,
     Asterisk,
     Backspace,
     BookOpen,
     Bug,
     CalendarBlank,
+    Cards,
     CaretDown,
     CaretLeft,
     CaretRight,
@@ -49,8 +54,10 @@ pub enum IconName {
     ColumnsPlusLeft,
     ColumnsPlusRight,
     Command,
+    Compass,
     Control,
     Copy,
+    CursorText,
     DotsSix,
     DotsSixVertical,
     DotsThree,
@@ -79,10 +86,13 @@ pub enum IconName {
     Keyboard,
     Lightning,
     Link,
+    LinkSimple,
     List,
     ListBullets,
     ListDashes,
+    ListNumbers,
     MagnifyingGlass,
+    MagnifyingGlassMinus,
     MagnifyingGlassPlus,
     Minus,
     NoteBlank,
@@ -113,24 +123,33 @@ pub enum IconName {
     Stamp,
     Swap,
     Table,
+    Tabs,
     TextAa,
     TextAlignCenter,
     TextAlignLeft,
     TextAlignRight,
     TextB,
+    TextIndent,
     TextItalic,
+    TextOutdent,
     TextStrikethrough,
     TextSuperscript,
     TextT,
     TextUnderline,
     Trash,
+    Vault,
     Warning,
     WarningCircle,
     X,
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 119] = [
+const ICONS: [(IconName, &str, &[u8]); 133] = [
+    (
+        IconName::AppWindow,
+        "app-window",
+        include_bytes!("../assets/icons/app-window.svg"),
+    ),
     (
         IconName::ArrowClockwise,
         "arrow-clockwise",
@@ -172,6 +191,11 @@ const ICONS: [(IconName, &str, &[u8]); 119] = [
         include_bytes!("../assets/icons/arrow-square-out.svg"),
     ),
     (
+        IconName::ArrowUUpLeft,
+        "arrow-u-up-left",
+        include_bytes!("../assets/icons/arrow-u-up-left.svg"),
+    ),
+    (
         IconName::ArrowUp,
         "arrow-up",
         include_bytes!("../assets/icons/arrow-up.svg"),
@@ -182,9 +206,19 @@ const ICONS: [(IconName, &str, &[u8]); 119] = [
         include_bytes!("../assets/icons/arrows-clockwise.svg"),
     ),
     (
+        IconName::ArrowsInLineHorizontal,
+        "arrows-in-line-horizontal",
+        include_bytes!("../assets/icons/arrows-in-line-horizontal.svg"),
+    ),
+    (
         IconName::ArrowsInLineVertical,
         "arrows-in-line-vertical",
         include_bytes!("../assets/icons/arrows-in-line-vertical.svg"),
+    ),
+    (
+        IconName::ArrowsOutLineVertical,
+        "arrows-out-line-vertical",
+        include_bytes!("../assets/icons/arrows-out-line-vertical.svg"),
     ),
     (
         IconName::Article,
@@ -215,6 +249,11 @@ const ICONS: [(IconName, &str, &[u8]); 119] = [
         IconName::CalendarBlank,
         "calendar-blank",
         include_bytes!("../assets/icons/calendar-blank.svg"),
+    ),
+    (
+        IconName::Cards,
+        "cards",
+        include_bytes!("../assets/icons/cards.svg"),
     ),
     (
         IconName::CaretDown,
@@ -332,6 +371,11 @@ const ICONS: [(IconName, &str, &[u8]); 119] = [
         include_bytes!("../assets/icons/command.svg"),
     ),
     (
+        IconName::Compass,
+        "compass",
+        include_bytes!("../assets/icons/compass.svg"),
+    ),
+    (
         IconName::Control,
         "control",
         include_bytes!("../assets/icons/control.svg"),
@@ -340,6 +384,11 @@ const ICONS: [(IconName, &str, &[u8]); 119] = [
         IconName::Copy,
         "copy",
         include_bytes!("../assets/icons/copy.svg"),
+    ),
+    (
+        IconName::CursorText,
+        "cursor-text",
+        include_bytes!("../assets/icons/cursor-text.svg"),
     ),
     (
         IconName::DotsSix,
@@ -482,6 +531,11 @@ const ICONS: [(IconName, &str, &[u8]); 119] = [
         include_bytes!("../assets/icons/link.svg"),
     ),
     (
+        IconName::LinkSimple,
+        "link-simple",
+        include_bytes!("../assets/icons/link-simple.svg"),
+    ),
+    (
         IconName::List,
         "list",
         include_bytes!("../assets/icons/list.svg"),
@@ -497,9 +551,19 @@ const ICONS: [(IconName, &str, &[u8]); 119] = [
         include_bytes!("../assets/icons/list-dashes.svg"),
     ),
     (
+        IconName::ListNumbers,
+        "list-numbers",
+        include_bytes!("../assets/icons/list-numbers.svg"),
+    ),
+    (
         IconName::MagnifyingGlass,
         "magnifying-glass",
         include_bytes!("../assets/icons/magnifying-glass.svg"),
+    ),
+    (
+        IconName::MagnifyingGlassMinus,
+        "magnifying-glass-minus",
+        include_bytes!("../assets/icons/magnifying-glass-minus.svg"),
     ),
     (
         IconName::MagnifyingGlassPlus,
@@ -652,6 +716,11 @@ const ICONS: [(IconName, &str, &[u8]); 119] = [
         include_bytes!("../assets/icons/table.svg"),
     ),
     (
+        IconName::Tabs,
+        "tabs",
+        include_bytes!("../assets/icons/tabs.svg"),
+    ),
+    (
         IconName::TextAa,
         "text-aa",
         include_bytes!("../assets/icons/text-aa.svg"),
@@ -677,9 +746,19 @@ const ICONS: [(IconName, &str, &[u8]); 119] = [
         include_bytes!("../assets/icons/text-b.svg"),
     ),
     (
+        IconName::TextIndent,
+        "text-indent",
+        include_bytes!("../assets/icons/text-indent.svg"),
+    ),
+    (
         IconName::TextItalic,
         "text-italic",
         include_bytes!("../assets/icons/text-italic.svg"),
+    ),
+    (
+        IconName::TextOutdent,
+        "text-outdent",
+        include_bytes!("../assets/icons/text-outdent.svg"),
     ),
     (
         IconName::TextStrikethrough,
@@ -707,6 +786,11 @@ const ICONS: [(IconName, &str, &[u8]); 119] = [
         include_bytes!("../assets/icons/trash.svg"),
     ),
     (
+        IconName::Vault,
+        "vault",
+        include_bytes!("../assets/icons/vault.svg"),
+    ),
+    (
         IconName::Warning,
         "warning",
         include_bytes!("../assets/icons/warning.svg"),
@@ -727,6 +811,20 @@ const ICONS: [(IconName, &str, &[u8]); 119] = [
 const ICON_PREFIX: &str = "icons/";
 
 impl IconName {
+    /// The icon with Phosphor's name for it, such as `text-b`.
+    pub fn from_name(name: &str) -> Option<IconName> {
+        ICONS
+            .iter()
+            .find(|(_, known, _)| *known == name)
+            .map(|(icon, ..)| *icon)
+    }
+
+    /// A command's icon from the registry, or the default one for a
+    /// command the app has no icon for.
+    pub fn for_command(id: &str) -> IconName {
+        IconName::from_name(gasp_config::commands::command_icon(id)).unwrap_or(IconName::Lightning)
+    }
+
     /// The asset path GPUI loads the icon from.
     pub fn path(self) -> SharedString {
         let name = ICONS
@@ -776,6 +874,30 @@ mod tests {
                 .expect("icon is embedded");
             assert!(bytes.starts_with(b"<svg"), "{icon:?}");
         }
+    }
+
+    #[test]
+    fn every_command_widget_and_menu_icon_ships() {
+        use gasp_config::commands::{BUILTIN_COMMANDS, PLATFORM_COMMANDS, command_icon};
+        use gasp_config::toolbars::Widget;
+        let mut names: Vec<String> = BUILTIN_COMMANDS
+            .iter()
+            .map(|spec| spec.id)
+            .chain(PLATFORM_COMMANDS.iter().copied())
+            .map(|id| command_icon(id).to_owned())
+            .collect();
+        names.extend(Widget::ALL.iter().map(|widget| widget.icon().to_owned()));
+        names.extend(
+            gasp_config::Toolbars::defaults()
+                .menus
+                .into_iter()
+                .map(|menu| menu.icon),
+        );
+        let missing: Vec<String> = names
+            .into_iter()
+            .filter(|name| IconName::from_name(name).is_none())
+            .collect();
+        assert!(missing.is_empty(), "{missing:?}");
     }
 
     #[test]

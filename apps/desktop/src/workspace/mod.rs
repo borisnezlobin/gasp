@@ -1,5 +1,5 @@
 //! The window's root view: a vault's panes of tabbed notes, the left panel
-//! slot, the status bar and the modal slot.
+//! slot, the toolbars (the status bar is one) and the modal slot.
 //!
 //! The workspace sets the `"Workspace"` key context and runs every command
 //! that isn't the editor's (tabs, panes, notes, history, the sidebar).
@@ -46,6 +46,7 @@ pub mod tab_bar;
 pub mod tab_drag;
 mod tab_moves;
 mod tabs;
+mod toolbars;
 pub mod watcher;
 pub mod welcome;
 pub mod window;
@@ -157,6 +158,11 @@ pub struct Workspace {
     edit_time_save_pending: bool,
     /// Answers `gasp mcp` about this window.
     mcp: mcp::McpBridge,
+    /// Which toolbar the keyboard is in, and where.
+    toolbar_focus: Option<crate::toolbar::ToolbarFocus>,
+    toolbar_hover: toolbars::ToolbarHover,
+    /// The toolbar an add button asked the settings page to add to.
+    toolbar_to_add_to: Option<String>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -246,6 +252,9 @@ impl Workspace {
             edit_time: crate::edit_time::EditTime::new("", ""),
             edit_time_save_pending: false,
             mcp: Default::default(),
+            toolbar_focus: None,
+            toolbar_hover: Default::default(),
+            toolbar_to_add_to: None,
             _subscriptions: Vec::new(),
         };
         workspace.scan_vault_index(cx);

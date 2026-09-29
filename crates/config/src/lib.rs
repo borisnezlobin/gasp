@@ -1,7 +1,7 @@
 //! Config loading, settings schema, theme tokens, rules engine and command registry.
 //!
-//! A vault's `.gasp/` folder holds `settings.toml`, `theme.toml`, `layout.toml` and
-//! `rules.toml`, which layer over the built-in files in `defaults/`, a
+//! A vault's `.gasp/` folder holds `settings.toml`, `theme.toml`, `layout.toml`,
+//! `rules.toml` and `toolbars.toml`, which layer over the built-in files in `defaults/`, a
 //! device-local `device.toml` that never syncs, and `snippets.txt` and
 //! `replacements.toml`, which replace the built-in snippets and replacements.
 
@@ -22,6 +22,8 @@ pub mod schema;
 pub mod settings;
 pub mod store;
 pub mod theme;
+pub mod toolbar_files;
+pub mod toolbars;
 pub mod typing;
 pub mod watcher;
 
@@ -36,5 +38,6 @@ pub use rules::{
 };
 pub use settings::Settings;
 pub use theme::Theme;
+pub use toolbars::{Toolbar, ToolbarItem, Toolbars};
 pub use typing::{ReplacementTable, SnippetTable, TypingTables};
 pub use watcher::{ConfigUpdate, ConfigWatcher};

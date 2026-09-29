@@ -1,0 +1,59 @@
+# Built-in toolbars. A vault's .gasp/toolbars.toml layers on top of this
+# file: a [toolbar.<id>] there changes only the fields it names, a new id
+# adds a toolbar, and `enabled = false` turns one off.
+#
+# place     = "status-bar" | "editor-top" | "editor-bottom" | "window-left" |
+#             "window-right" | "selection" | "cursor-line" | "keyboard"
+# behaviour = "always" | "on-hover" | "hide-while-typing" | "with-selection" |
+#             "in-context" (with contexts = ["text", "math", "code", "table"])
+# style     = "icons" | "icons-and-labels" | "labels"
+# density   = "compact" | "comfortable"
+# items     = command ids, such as "format.bold", the status widgets
+#             ("word-count", "character-count", "reading-time", "edit-time",
+#             "cursor-position", "sync"), "separator", "spacer", or
+#             "menu:<id>" for a [menu.<id>] dropdown.
+
+[timing]
+hover-delay  = "150ms"   # how long the pointer rests on an edge before its bar shows
+hide-delay   = "400ms"   # how long a bar stays after the pointer leaves it
+typing-pause = "1s"      # how long typing stops before a bar hidden while typing returns
+
+[toolbar.status]
+title     = "Status bar"
+place     = "status-bar"
+behaviour = "always"
+style     = "icons"
+density   = "compact"
+items     = ["spacer", "word-count", "character-count", "reading-time", "edit-time", "cursor-position", "sync"]
+
+[toolbar.selection]
+title     = "Selection"
+place     = "selection"
+behaviour = "with-selection"
+style     = "icons"
+density   = "compact"
+items     = ["format.bold", "format.italic", "format.highlight", "format.link", "format.code"]
+
+# The bar above the iPhone's keyboard: the owner's Obsidian mobile toolbar
+# after "hide the keyboard", then the rest of the editing commands, then
+# the palette for everything else. It scrolls sideways when they don't fit.
+[toolbar.keyboard]
+title     = "Keyboard bar"
+place     = "keyboard"
+behaviour = "always"
+style     = "icons"
+density   = "comfortable"
+items     = [
+  "keyboard.hide", "note.import-image", "edit.indent", "edit.outdent",
+  "format.callout", "format.math-inline", "footnote.insert-or-jump",
+  "prose.toggle-sentence-highlighting", "table.insert", "find.open",
+  "edit.undo", "edit.redo", "format.bold", "format.italic",
+  "format.highlight", "format.link", "format.code", "edit.toggle-task",
+  "palette.open",
+]
+
+# A dropdown any toolbar can hold as "menu:insert".
+[menu.insert]
+title = "Insert"
+icon  = "plus"
+items = ["table.insert", "format.callout", "footnote.insert-or-jump", "note.import-image", "template.insert"]

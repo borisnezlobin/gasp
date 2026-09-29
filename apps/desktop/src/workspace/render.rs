@@ -2,6 +2,7 @@
 //! the status bar and the modal slot.
 
 use gasp_config::EventKind;
+use gasp_config::toolbars::Place;
 use gpui::{
     AnyElement, Context, CursorStyle, DispatchPhase, Entity, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, SharedString, Window, canvas, div, prelude::*, relative,
@@ -10,7 +11,6 @@ use gpui::{
 use super::pane::Pane;
 use super::pane_tree::{Axis, Node, Split};
 use super::sidebar::{LEFT_EDGE_TARGET, PANEL_TARGET, PanelPart};
-use super::status::render_status_bar;
 use super::{Drag, Workspace};
 use crate::keymap::WORKSPACE_CONTEXT;
 use crate::ui::ui_theme;
@@ -319,12 +319,50 @@ impl Workspace {
     }
 }
 
+impl Workspace {
+    /// The notes with the bars docked above and below them.
+    fn render_center(
+        &mut self,
+        panes: AnyElement,
+        (left_gap, right_gap): (gpui::Pixels, gpui::Pixels),
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let top = self.docked_bars(Place::EditorTop, window, cx);
+        let bottom = self.docked_bars(Place::EditorBottom, window, cx);
+        let notes = div()
+            .relative()
+            .flex()
+            .flex_1()
+            .min_w_0()
+            .min_h_0()
+            .child(panes)
+            .children(top.edge)
+            .children(bottom.edge)
+            .children(top.overlay)
+            .children(bottom.overlay);
+        div()
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_w_0()
+            .min_h_0()
+            .pl(left_gap)
+            .pr(right_gap)
+            .children(top.strip)
+            .child(notes)
+            .children(bottom.strip)
+            .into_any_element()
+    }
+}
+
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _span = crate::trace::span("workspace-render");
         self.update_window_title(window, cx);
         self.sync_sidebar_toggle(window, cx);
         self.sync_right_sidebar_toggle(cx);
+        self.drop_stale_toolbar_focus(window, cx);
         let ui = ui_theme(cx);
         let panes = self.render_node(self.panes.root(), cx);
         let overlays = self.left_panel.overlays();
@@ -345,11 +383,18 @@ impl Render for Workspace {
         } else {
             ui.surface_gap
         };
+        let center = self.render_center(panes, (left_gap, right_gap), window, cx);
+        let left_bars = self.docked_bars(Place::WindowLeft, window, cx);
+        let right_bars = self.docked_bars(Place::WindowRight, window, cx);
+        let status = self.docked_bars(Place::StatusBar, window, cx);
         div()
             .id("workspace")
             .key_context(WORKSPACE_CONTEXT)
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::on_run_command))
+            .on_action(cx.listener(Self::on_press_toolbar_item))
+            .on_action(cx.listener(Self::on_add_to_toolbar))
+            .on_key_down(cx.listener(Self::on_toolbar_key))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .on_modifiers_changed(cx.listener(Self::on_modifiers_changed))
             .capture_any_mouse_down(cx.listener(|workspace, event: &MouseDownEvent, _, cx| {
@@ -377,28 +422,23 @@ impl Render for Workspace {
                     .flex_row()
                     .flex_1()
                     .min_h_0()
+                    .children(left_bars.strip)
                     .children(pushed)
-                    .child(
-                        div()
-                            .flex()
-                            .flex_1()
-                            .min_w_0()
-                            .min_h_0()
-                            .pl(left_gap)
-                            .pr(right_gap)
-                            .child(panes),
-                    )
+                    .child(center)
                     .children(right)
+                    .children(right_bars.strip)
                     .children(overlaid)
-                    .children(self.render_left_edge(cx)),
+                    .children(self.render_left_edge(cx))
+                    .children(left_bars.edge)
+                    .children(right_bars.edge)
+                    .children(left_bars.overlay)
+                    .children(right_bars.overlay),
             )
             .child(crate::ui::focus_visible::pointer_watch())
             .children(self.render_drag_tracker(cx))
-            .child(render_status_bar(
-                self.status.as_ref(),
-                self.sync_indicator.clone(),
-                &ui,
-            ))
+            .children(status.strip)
+            .children(status.edge)
+            .children(status.overlay)
             .children(self.menu.render_overlay(window, cx))
             .children(self.modal.render(&ui, cx))
             .children(self.render_shortcut_sheet(window, cx))

@@ -234,6 +234,7 @@ fn page_id(page: Page) -> &'static str {
         Page::Appearance => "appearance",
         Page::Sidebar => "sidebar",
         Page::Shortcuts => "keyboard-shortcuts",
+        Page::Toolbars => "toolbars",
         Page::Editor => "editor",
         Page::Files => "files",
         Page::DailyNotes => "daily-notes",
@@ -282,6 +283,7 @@ fn every_section_is_listed_in_order(cx: &mut TestAppContext) {
             "Appearance",
             "Sidebar",
             "Keyboard shortcuts",
+            "Toolbars",
             "Editor",
             "Files and links",
             "Daily notes and templates",
@@ -374,7 +376,8 @@ fn search_finds_theme_rows_and_shortcuts(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("secondary-a");
     cx.simulate_input("command palette");
     let (sections, rows) = view.read_with(cx, |view, _| (view.visible_sections(), view.rows()));
-    assert_eq!(sections, [Page::Shortcuts]);
+    // The keyboard bar holds the palette button, so its toolbar matches too.
+    assert_eq!(sections, [Page::Shortcuts, Page::Toolbars]);
     assert!(
         rows.iter()
             .any(|row| matches!(row, ControlRow::Shortcut(s) if s.id == "palette.open"))

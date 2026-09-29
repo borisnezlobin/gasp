@@ -13,7 +13,7 @@ pub const TOGGLE_TASK: &str = "edit.toggle-task";
 
 /// The lines the selection touches, as one block. A selection ending at
 /// the very start of a line leaves that line out, as it looks unselected.
-fn selected_block(doc: &Document, selection: &Selection) -> RangeInclusive<usize> {
+pub(super) fn selected_block(doc: &Document, selection: &Selection) -> RangeInclusive<usize> {
     let from = selection
         .ranges()
         .iter()
