@@ -156,7 +156,9 @@ mod tests {
         let kinds: Vec<&str> = shape_of(text, 20).iter().map(kind).collect();
         assert_eq!(
             kinds,
-            ["heading", "text", "item", "done", "task", "quote", "picture", "code", "task"]
+            [
+                "heading", "text", "item", "done", "task", "quote", "picture", "code", "task"
+            ]
         );
     }
 
