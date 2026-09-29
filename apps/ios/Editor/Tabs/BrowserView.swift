@@ -1,0 +1,127 @@
+import SwiftUI
+
+/// The app works like a browser: the active tab's note fills the screen,
+/// a bar at the bottom names it (swipe it to move between tabs, tap it for
+/// every tab), and the sidebar slides in over the note from the left edge.
+struct BrowserView: View {
+    @Environment(AppModel.self) private var model
+
+    private var tokens: Tokens { model.library.tokens }
+    private var workspace: Workspace { model.workspace }
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            tokens.swiftUIColor(\.background).ignoresSafeArea()
+            TabPage(tab: model.tabs.active)
+                .id(pageIdentity)
+            if !workspace.keyboardShown {
+                TabBarView()
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            NoticeView(message: workspace.notice, tokens: tokens)
+        }
+        .animation(.snappy(duration: 0.25), value: workspace.keyboardShown)
+        .overlay { SidebarOverlay() }
+        .overlay { if workspace.overviewOpen { TabOverview().transition(.opacity) } }
+        .animation(.snappy(duration: 0.25), value: workspace.overviewOpen)
+        .background {
+            KeyCommands(
+                bindings: model.library.keyBindings,
+                commands: model.library.commands
+            ) { model.runner.run($0) }
+        }
+        .modifier(BrowserSheets())
+        .modifier(BrowserPrompts())
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            workspace.keyboardShown = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            workspace.keyboardShown = false
+        }
+        .onChange(of: model.library.configGeneration) { model.runner.refreshSessions() }
+        .onOpenURL(perform: open)
+        .task { await openLaunchLink() }
+    }
+
+    /// A new identity whenever the tab or its note changes, so the page is
+    /// rebuilt for it.
+    private var pageIdentity: String {
+        "\(model.tabs.active.id) \(model.tabs.active.path ?? "")"
+    }
+
+    /// `editor://open?path=Folder/Note.md&line=12` opens a note, with the
+    /// cursor on a line counted from 1.
+    private func open(_ url: URL) {
+        guard url.scheme == "editor", url.host() == "open",
+              let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              let path = query.first(where: { $0.name == "path" })?.value,
+              model.library.notes.contains(where: { $0.path == path }) else { return }
+        model.tabs.openInNewTab(path)
+        let line = query.first { $0.name == "line" }?.value.flatMap(Int.init)
+        if let line, let session = model.tabs.activeSession {
+            session.placeCursor(at: Self.offset(ofLine: line - 1, in: session.document.text()))
+        }
+    }
+
+    /// `-open editor://open?path=…` on the command line opens a note at
+    /// launch, and `-run <command>` runs a command (or `overview` shows
+    /// the tabs), as `xcrun simctl launch` passes them.
+    private func openLaunchLink() async {
+        let arguments = UserDefaults.standard
+        if let link = arguments.string(forKey: "open"), let url = URL(string: link) { open(url) }
+        guard let command = arguments.string(forKey: "run") else { return }
+        // The note's text view joins the window a moment after launch.
+        try? await Task.sleep(for: .milliseconds(600))
+        if command == "overview" {
+            workspace.overviewOpen = true
+        } else {
+            model.runner.run(command)
+        }
+    }
+
+    private static func offset(ofLine line: Int, in text: String) -> Int {
+        let lines = text.components(separatedBy: "\n").prefix(max(line, 0))
+        return lines.reduce(0) { $0 + ($1 as NSString).length + 1 }
+    }
+}
+
+/// One tab's page: its note, or the start page a new tab opens on.
+private struct TabPage: View {
+    @Environment(AppModel.self) private var model
+    let tab: BrowserTab
+
+    var body: some View {
+        if let session = model.tabs.session(for: tab) {
+            MarkdownEditor(session: session)
+                .ignoresSafeArea(.container, edges: .bottom)
+        } else if tab.path != nil {
+            ContentUnavailableView(
+                "Can't open this note",
+                systemImage: "doc.questionmark",
+                description: Text("It may have been moved or deleted.")
+            )
+        } else {
+            StartPage()
+        }
+    }
+}
+
+/// A short message that fades after a moment.
+private struct NoticeView: View {
+    let message: String?
+    let tokens: Tokens
+
+    var body: some View {
+        if let message {
+            Text(message)
+                .font(Font(tokens.uiFont(size: tokens.smallSize)))
+                .foregroundStyle(tokens.swiftUIColor(\.background))
+                .padding(.horizontal, tokens.spacing.lg)
+                .padding(.vertical, tokens.spacing.md)
+                .background(Capsule().fill(tokens.swiftUIColor(\.textStrong)))
+                .padding(.bottom, TabBarView.clearance)
+                .transition(.opacity)
+                .accessibilityAddTraits(.updatesFrequently)
+        }
+    }
+}

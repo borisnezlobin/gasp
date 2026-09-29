@@ -17,6 +17,11 @@ final class PlanStyler {
     /// restyles every line.
     func setColumnWidth(_ width: CGFloat) {
         columnWidth = width
+        forgetApplied()
+    }
+
+    /// Makes the next plan restyle every line.
+    func forgetApplied() {
         appliedLines = []
     }
 
@@ -27,8 +32,8 @@ final class PlanStyler {
     }
 
     /// Restyles every line whose plan differs from the last one applied, or
-    /// that overlaps `edited`.
-    func apply(_ plan: NotePlan, to storage: NSTextStorage, edited: NSRange?) {
+    /// that overlaps `edited`, and tints the sentences on those lines.
+    func apply(_ plan: NotePlan, tints: [SentenceTint], to storage: NSTextStorage, edited: NSRange?) {
         let text = storage.string as NSString
         let overrides = MathBlockFallback(plan: plan)
         var restyled = Set<Int>()
@@ -40,6 +45,8 @@ final class PlanStyler {
         }
         decorateBlocks(plan, restyled: restyled, storage: storage)
         TableLayout(tokens: tokens, storage: storage, columnWidth: columnWidth).layOut(plan, restyled: restyled)
+        let restyledRanges = restyled.map { plan.lines[$0].range.nsRange }
+        SentenceTinter(tokens: tokens, storage: storage).tint(tints, within: restyledRanges)
         appliedLines = plan.lines
     }
 

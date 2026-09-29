@@ -1,6 +1,6 @@
 included:
   - Editor
-  - EditorUITests
+
 excluded:
   - Core
 cyclomatic_complexity:

@@ -5,9 +5,10 @@ import Foundation
 /// thread.
 final class NoteSaver {
     private let vault: VaultFolder
-    private let path: String
+    var path: String
     private let disk = DispatchQueue(label: "com.borisnezlobin.editor.save")
     private var unsavedText: String?
+    private var afterSave: (() -> Void)?
     private var timer: DispatchWorkItem?
     private static let quietPeriod: TimeInterval = 0.8
 
@@ -16,8 +17,11 @@ final class NoteSaver {
         self.path = path
     }
 
-    func schedule(_ text: String) {
+    /// Saves `text` once typing stops, then runs `afterSave` on the main
+    /// thread.
+    func schedule(_ text: String, afterSave: @escaping () -> Void) {
         unsavedText = text
+        self.afterSave = afterSave
         timer?.cancel()
         let timer = DispatchWorkItem { [weak self] in self?.flush() }
         self.timer = timer
@@ -29,11 +33,11 @@ final class NoteSaver {
         timer?.cancel()
         guard let text = unsavedText else { return }
         unsavedText = nil
-        let vault = vault
-        let path = path
+        let (vault, path, afterSave) = (vault, path, afterSave)
         disk.async {
             do {
                 try vault.saveNote(path: path, text: text)
+                DispatchQueue.main.async { afterSave?() }
             } catch {
                 NSLog("Couldn't save \(path): \(error.localizedDescription)")
             }

@@ -5,7 +5,7 @@ import UIKit
 /// the core's theme tokens, so a vault's `.editor/theme.toml` restyles the
 /// phone as it does the desktop.
 struct Tokens {
-    let typography: Typography
+    private(set) var typography: Typography
     let spacing: Spacing
     private let light: Palette
     private let dark: Palette
@@ -15,6 +15,14 @@ struct Tokens {
         spacing = theme.spacing
         light = theme.light
         dark = theme.dark
+    }
+
+    /// The same tokens with every text size multiplied by `factor`, for
+    /// this device's zoom.
+    func scaled(by factor: Double) -> Tokens {
+        var copy = self
+        copy.typography.bodySize = typography.bodySize * factor
+        return copy
     }
 
     /// A colour that follows light and dark mode.
