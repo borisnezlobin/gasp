@@ -49,7 +49,7 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
   bench:
-    name: Editor layout bench
+    name: Performance budgets
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -67,13 +67,16 @@ jobs:
         run: cargo build --release --locked -p gasp-desktop
       # GPUI's X11 client can miss its first map event without a window
       # manager, so the window never draws. openbox provides one.
-      - name: Run the bench
-        timeout-minutes: 8
+      # Launch, typing, scrolling, opening notes and memory, each against
+      # its budget.
+      - name: Check the budgets
+        timeout-minutes: 15
         run: |
           xvfb-run -a -s "-screen 0 1280x1024x24" sh -c \
-            'openbox & sleep 1; target/release/gasp --bench-layout fixtures/corpus'
-      # An idle window draws nothing and stays under the CPU limit.
-      - name: Check idle CPU
+            'openbox & sleep 1; scripts/perf-budgets.sh target/release/gasp fixtures/corpus'
+      # An idle window draws nothing and stays under the CPU and memory
+      # limits.
+      - name: Check idle CPU and memory
         timeout-minutes: 2
         run: |
           xvfb-run -a -s "-screen 0 1280x1024x24" sh -c \
