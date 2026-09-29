@@ -2,6 +2,8 @@
 //! modes for tests and agents.
 
 pub mod actions;
+#[cfg(target_os = "macos")]
+pub mod allocator;
 pub mod app;
 pub mod atlas;
 pub mod bench;
