@@ -8,261 +8,12 @@ use std::sync::OnceLock;
 use gasp_config::commands::BUILTIN_COMMANDS;
 use gasp_config::keys::KeyChord;
 use gasp_config::schema::{SettingKind, setting_descriptors};
+use gasp_config::setting_texts::setting_text;
 use gasp_config::{Platform, RuleSet};
 use serde_json::Value;
 
 use crate::icons::IconName;
 use crate::picker::shortcut::{KeyQuery, Shortcut};
-
-/// Title and description for each setting. A setting missing here gets a
-/// title made from its key and the schema's description, so a new one
-/// always shows.
-const TEXTS: &[(&str, &str, &str)] = &[
-    (
-        "sidebar.files.reveal",
-        "Show the file sidebar",
-        "Keep it open, open it from its shortcut, or show it when the pointer reaches the left edge.",
-    ),
-    (
-        "sidebar.files.mode",
-        "Sidebar placement",
-        "Slide over the note, or push the note aside to make room.",
-    ),
-    (
-        "markdown.symbols.mode",
-        "Markdown symbols",
-        "When to show the symbols that mark up text, such as ** and #.",
-    ),
-    (
-        "markdown.symbols.scope",
-        "Reveal near the cursor",
-        "How much markup to show around the cursor when symbols appear near it.",
-    ),
-    (
-        "markdown.symbols.overrides",
-        "Symbols for one kind of syntax",
-        "Give one kind of syntax its own rule, such as always hiding link addresses.",
-    ),
-    (
-        "prose.sentence-length.enabled",
-        "Colour sentences by length",
-        "Tint short, medium and long sentences so the rhythm of a paragraph shows.",
-    ),
-    (
-        "prose.sentence-length.short-below",
-        "Short sentences",
-        "Sentences with fewer words than this count as short.",
-    ),
-    (
-        "prose.sentence-length.long-above",
-        "Long sentences",
-        "Sentences with more words than this count as long.",
-    ),
-    (
-        "prose.grammar.enabled",
-        "Check writing",
-        "Underline doubled words, stray spaces and a or an mix-ups as you write. Code, math, links, HTML and quotes are left alone.",
-    ),
-    (
-        "prose.grammar.spelling",
-        "Check spelling",
-        "Underline misspelled words too. A word you’ve used in three or more notes is never flagged.",
-    ),
-    (
-        "prose.grammar.english",
-        "Spelling",
-        "Which English the dictionary follows, such as colour or color.",
-    ),
-    (
-        "recovery.interval-minutes",
-        "Minutes between snapshots",
-        "While you edit a note, a copy is saved this often, outside the vault, so an earlier version can be recovered.",
-    ),
-    (
-        "recovery.keep-days",
-        "Keep snapshots for",
-        "Days a snapshot is kept before it’s deleted.",
-    ),
-    (
-        "files.attachments-folder",
-        "Attachments folder",
-        "Where pasted and dropped images are saved, relative to the note.",
-    ),
-    (
-        "files.update-links-on-rename",
-        "Update links when renaming",
-        "Rewrite links to a note when you rename or move it.",
-    ),
-    (
-        "files.trash",
-        "Deleted files",
-        "Where a note goes when you delete it.",
-    ),
-    (
-        "daily-notes.folder",
-        "Daily notes folder",
-        "Where new daily notes go. Leave it empty for the top of the vault.",
-    ),
-    (
-        "daily-notes.format",
-        "Daily note name",
-        "A date format: YYYY-MM-DD names today’s note 2026-09-27, and a slash makes folders, as in YYYY/MM/DD.",
-    ),
-    (
-        "daily-notes.template",
-        "Daily note template",
-        "The note each new daily note starts as a copy of, such as Templates/Daily. Leave it empty to start blank.",
-    ),
-    (
-        "templates.folder",
-        "Templates folder",
-        "Insert template offers the notes in this folder.",
-    ),
-    (
-        "templates.date-format",
-        "Date format",
-        "How {{date}} is written, such as dddd, D MMMM YYYY for Sunday, 27 September 2026.",
-    ),
-    (
-        "templates.time-format",
-        "Time format",
-        "How {{time}} is written, such as HH:mm for 14:05.",
-    ),
-    (
-        "mcp.enabled",
-        "Let agents use the app",
-        concat!(
-            "Agents connected through ",
-            gasp_config::command_name!(),
-            " mcp can see your tabs and cursor, run commands and edit open notes. They can read and change the vault's files either way."
-        ),
-    ),
-    (
-        "editor.show-inline-title",
-        "Show the note’s title",
-        "Show the file name as an editable title above the text.",
-    ),
-    (
-        "editor.smart-quotes",
-        "Smart quotes",
-        "Turn straight quotes into curly ones as you type, except in code, math and links. Undo right after gives the straight quote back.",
-    ),
-    (
-        "editor.auto-pair",
-        "Close brackets as you type",
-        "Typing ( [ { or a backtick adds its closing half, and typing * or _ over a selection wraps it.",
-    ),
-    (
-        "editor.renumber-footnotes",
-        "Keep footnotes in order",
-        "Once you pause typing, numbered footnotes renumber to follow the text and footnote typos are fixed. The Renumber footnotes command does it whenever you ask.",
-    ),
-    (
-        "editor.code-line-numbers",
-        "Number lines in code blocks",
-        "Show line numbers beside code. A block can still ask for them or turn them off with ln:true or ln:false after its language.",
-    ),
-    (
-        "editor.curl-pasted-quotes",
-        "Curl quotes in pasted text",
-        "Give pasted text curly quotes too. Paste as plain text always keeps quotes as they are.",
-    ),
-    (
-        "editor.snippets",
-        "Expand snippets",
-        "Typing a snippet’s trigger, such as mk in text or // in math, puts its expansion in its place.",
-    ),
-    (
-        "editor.replacements",
-        "Replace as you type",
-        "Turn -- into an em dash, -> into an arrow and the rest of the replacements below, outside code and math.",
-    ),
-    (
-        "math.auto-fraction",
-        "Make fractions with a slash",
-        "In math, typing / after a term puts it over a fraction bar, with the cursor in the denominator.",
-    ),
-    (
-        "math.matrix-shortcuts",
-        "Fill in matrices with Tab and Enter",
-        "Inside pmatrix, cases, align and the like, Tab adds a column and Enter starts a new row.",
-    ),
-    (
-        "math.tab-out",
-        "Tab out of brackets",
-        "In math, Tab jumps past the next closing bracket, and at the end of the math, out of it.",
-    ),
-    (
-        "math.enlarge-brackets",
-        "Grow brackets around big operators",
-        "After a snippet expands, brackets around a sum, integral or fraction become \\left( and \\right).",
-    ),
-    (
-        "math.bracket-colours",
-        "Colour matching brackets",
-        "While math shows its source, both halves of a bracket pair share a colour.",
-    ),
-    (
-        "appearance.theme",
-        "Theme",
-        "Light or dark. Match system follows your computer as it switches.",
-    ),
-    (
-        "appearance.base-font-size",
-        "Font size",
-        "The size of body text in points. Headings scale with it.",
-    ),
-    (
-        "sync.auto",
-        "Sync automatically",
-        "Sync a minute after you stop typing, when you come back to the window, and every few minutes. When it’s off, sync runs only when you ask.",
-    ),
-    (
-        "sync.interval-minutes",
-        "Minutes between checks",
-        "How often sync looks for changes made on other devices while nothing else is happening.",
-    ),
-    (
-        "sync.branch",
-        "Branch",
-        "The branch this device commits to and sends.",
-    ),
-    (
-        "sync.legacy-branch",
-        "Also bring in",
-        "A branch older sync tools still use. Its changes come into the branch above, one way. Leave it empty once they’re retired.",
-    ),
-    (
-        "sync.device-only",
-        "Files that stay on each device",
-        "Patterns for files that never sync, such as window layouts. Add one and press Enter.",
-    ),
-];
-
-/// How each option of a choice reads. Values are unique across settings.
-const CHOICE_LABELS: &[(&str, &str)] = &[
-    ("always", "Always open"),
-    ("toggle", "From its shortcut"),
-    ("hover", "On hover"),
-    ("overlay", "Over the note"),
-    ("push", "Beside the note"),
-    ("always-shown", "Always"),
-    ("around-cursor", "Near the cursor"),
-    ("always-hidden", "Never"),
-    ("element", "Just the element"),
-    ("line", "The whole line"),
-    ("block", "The whole block"),
-    ("system", "System trash"),
-    ("vault", "The vault’s .trash folder"),
-    ("delete", "Delete for good"),
-    ("light", "Light"),
-    ("dark", "Dark"),
-    ("match-system", "Match system"),
-    ("american", "American"),
-    ("british", "British"),
-    ("canadian", "Canadian"),
-    ("australian", "Australian"),
-];
 
 /// Settings the desktop app doesn't read yet, by key prefix. Showing them
 /// would be controls that do nothing, so they stay hidden until their
@@ -755,8 +506,8 @@ pub struct SettingItem {
 
 impl SettingItem {
     fn from_parts(key: String, kind: SettingKind, default: Value, schema_text: String) -> Self {
-        let (title, description) = match TEXTS.iter().find(|(known, ..)| *known == key) {
-            Some((_, title, description)) => (title.to_string(), description.to_string()),
+        let (title, description) = match setting_text(&key) {
+            Some((title, description)) => (title.to_string(), description.to_string()),
             None => (title_for(&key), schema_text),
         };
         SettingItem {
@@ -890,10 +641,8 @@ pub fn humanize(text: &str) -> String {
 
 /// How one option of a choice reads.
 pub fn choice_label(value: &str) -> String {
-    CHOICE_LABELS
-        .iter()
-        .find(|(known, _)| *known == value)
-        .map_or_else(|| humanize(value), |(_, label)| label.to_string())
+    gasp_config::setting_texts::choice_label(value)
+        .map_or_else(|| humanize(value), str::to_owned)
 }
 
 // ---- Fonts ----
@@ -1226,7 +975,7 @@ mod tests {
             };
             for option in options {
                 assert!(
-                    CHOICE_LABELS.iter().any(|(known, _)| *known == option),
+                    gasp_config::setting_texts::choice_label(&option).is_some(),
                     "{} has no label for {option}",
                     descriptor.key
                 );
@@ -1244,14 +993,6 @@ mod tests {
         assert_eq!(humanize("always-shown"), "Always shown");
         assert_eq!(choice_label("hover"), "On hover");
         assert_eq!(choice_label("sideways"), "Sideways");
-    }
-
-    #[test]
-    fn titles_in_the_table_are_real_keys() {
-        let keys: Vec<String> = setting_descriptors().into_iter().map(|d| d.key).collect();
-        for (key, ..) in TEXTS {
-            assert!(keys.iter().any(|k| k == key), "{key} isn't a setting");
-        }
     }
 
     #[test]
