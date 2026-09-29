@@ -235,6 +235,7 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
             index = self.place_item(items, 0, builder);
             self.to_value_column(builder);
         }
+        let shown_marker = self.shown_marker();
         let mut in_marker = true;
         while index < items.len() {
             let is_marker = matches!(
@@ -244,12 +245,54 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
                     ..
                 }
             );
+            let start = items[index].start();
             if in_marker && !is_marker && index > 0 {
                 builder.hang_here();
+            }
+            if let Some(marker) = &shown_marker {
+                self.place_around_shown_marker(marker, start, builder);
             }
             in_marker &= is_marker;
             index = self.place_item(items, index, builder);
         }
+    }
+
+    /// A list or task marker shown as source, relative to the line.
+    fn shown_marker(&self) -> Option<Range<usize>> {
+        let marker = self.plan.shown_marker.as_ref()?;
+        let line = &self.plan.range;
+        Some(marker.start - line.start..marker.end - line.start)
+    }
+
+    /// Sets a shown marker in the room its bullet takes, flush against
+    /// the text, so the text starts where it does beside a bullet and its
+    /// wrapped rows hang there too. A marker wider than the room pushes
+    /// the text along.
+    fn place_around_shown_marker(
+        &self,
+        marker: &Range<usize>,
+        at: usize,
+        builder: &mut RowBuilder,
+    ) {
+        if at == marker.start {
+            let width = self.shown_marker_width(marker);
+            builder.advance((self.marker_slot() - width).max(px(0.)));
+        }
+        if at == marker.end {
+            builder.hang_here();
+        }
+    }
+
+    fn shown_marker_width(&self, marker: &Range<usize>) -> Pixels {
+        let text = self.text[marker.clone()].replace('\t', " ");
+        let run = text_run(
+            text.len(),
+            &[StyleKey::MarkupDimmed],
+            &self.tone,
+            false,
+            self.theme(),
+        );
+        self.shaper().shape(&text, self.font_size(), &[run]).width
     }
 
     /// Moves to where a property's value starts, leaving at least a gap
@@ -348,7 +391,8 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
         while let Some(Item::Text { range, styles }) = items.get(next) {
             let same_size = run_font_size(styles, &self.tone, self.theme()) == font_size
                 && run_baseline_shift(styles, &self.tone, self.theme()) == baseline_shift;
-            if range.start > end.max(start) || !same_size && next > first {
+            let after_marker = next > first && self.ends_shown_marker(range.start);
+            if range.start > end.max(start) || !same_size && next > first || after_marker {
                 break;
             }
             let part = range.start.max(start)..range.end;
@@ -370,6 +414,11 @@ impl<'a, 'b> LineLayouter<'a, 'b> {
             backgrounds,
         };
         (chunk, next)
+    }
+
+    /// Whether a shown list marker ends at `at`, where its text starts.
+    fn ends_shown_marker(&self, at: usize) -> bool {
+        self.shown_marker().is_some_and(|marker| marker.end == at)
     }
 
     /// Space after a list property's item, so the next one's fill stands

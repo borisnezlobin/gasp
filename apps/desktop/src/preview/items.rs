@@ -93,6 +93,9 @@ pub fn line_items(plan: &LinePlan) -> LineItems {
         }
     }
     split_text_at_slots(&mut result.items);
+    if let Some(marker) = &plan.shown_marker {
+        split_text_at(&mut result.items, relative(marker).end);
+    }
     // Something with no source of its own, such as an empty tab stop's
     // room, goes before the text that starts where it sits.
     result
@@ -110,23 +113,29 @@ fn split_text_at_slots(items: &mut Vec<Item>) {
         .map(Item::start)
         .collect();
     for at in slots {
-        let Some(index) = items.iter().position(
-            |item| matches!(item, Item::Text { range, .. } if range.start < at && at < range.end),
-        ) else {
-            continue;
-        };
-        let Item::Text { range, styles } = items[index].clone() else {
-            continue;
-        };
-        items[index] = Item::Text {
-            range: range.start..at,
-            styles: styles.clone(),
-        };
-        items.push(Item::Text {
-            range: at..range.end,
-            styles,
-        });
+        split_text_at(items, at);
     }
+}
+
+/// Splits the text item that runs across `at` in two, the second half
+/// going at the end.
+fn split_text_at(items: &mut Vec<Item>, at: usize) {
+    let Some(index) = items.iter().position(
+        |item| matches!(item, Item::Text { range, .. } if range.start < at && at < range.end),
+    ) else {
+        return;
+    };
+    let Item::Text { range, styles } = items[index].clone() else {
+        return;
+    };
+    items[index] = Item::Text {
+        range: range.start..at,
+        styles: styles.clone(),
+    };
+    items.push(Item::Text {
+        range: at..range.end,
+        styles,
+    });
 }
 
 fn replacement_item(range: Range<usize>, kind: WidgetKind) -> Item {

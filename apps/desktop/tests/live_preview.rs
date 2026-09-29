@@ -384,6 +384,30 @@ fn list_numbers_end_where_bullets_end(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_list_item_keeps_its_text_and_wraps_as_its_marker_shows(cx: &mut TestAppContext) {
+    let item = format!("- {}", long_paragraph());
+    let note = format!("{item}\n\nend");
+    let (view, cx) = open(cx, &note);
+    place_cursor(&view, cx, note.len());
+    let text_start = 2;
+    let layout = |line: &VisualLine| {
+        let hangs: Vec<Pixels> = line.rows[1..]
+            .iter()
+            .map(|row| row.x_for(row.range.start))
+            .collect();
+        let breaks: Vec<usize> = line.rows.iter().map(|row| row.range.start).collect();
+        (line.rows[0].x_for(text_start), hangs, breaks)
+    };
+    let with_bullet = layout(&visual(&view, cx, 0));
+    place_cursor(&view, cx, text_start + 4);
+    let shown = visual(&view, cx, 0);
+    assert!(shows_text_at(&shown, 0), "the marker shows at the cursor");
+    let with_marker = layout(&shown);
+    assert_eq!(with_marker, with_bullet);
+    assert!(with_marker.1.iter().all(|hang| *hang == with_marker.0));
+}
+
+#[gpui::test]
 fn headings_have_room_above_them(cx: &mut TestAppContext) {
     let note = "text\n## Heading\ntext\n\nend";
     let (view, cx) = open(cx, note);

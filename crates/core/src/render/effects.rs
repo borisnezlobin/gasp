@@ -21,6 +21,8 @@ pub(crate) struct Effects {
     pub collapsed: Vec<Range<usize>>,
     /// Lines drawn as rows of a table's grid.
     pub table_rows: Vec<(usize, TableRowPlan)>,
+    /// List and task markers shown as source.
+    pub shown_markers: Vec<Range<usize>>,
 }
 
 pub(crate) struct Planner<'a> {
@@ -458,6 +460,9 @@ impl<'a> Planner<'a> {
             self.effects
                 .spans
                 .push((token.range.clone(), StyleKey::MarkupDimmed));
+            if matches!(token.kind, MarkupKind::ListMarker | MarkupKind::TaskMarker) {
+                self.effects.shown_markers.push(token.range.clone());
+            }
             return;
         }
         self.effects.hidden.push(token.range.clone());

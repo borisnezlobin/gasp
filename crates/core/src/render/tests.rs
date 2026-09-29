@@ -383,6 +383,32 @@ fn task_marker_shows_on_cursor_line() {
 }
 
 #[test]
+fn a_shown_list_marker_is_named_so_the_text_after_it_can_stay_put() {
+    let text = "- [x] done\n\t1. one\n- plain";
+    let tree = syntax::parse(text);
+    let selections = [text.find("done").unwrap()..text.find("done").unwrap(); 1];
+    let settings = element();
+    let marker_of = |selections: &[Range<usize>]| {
+        plan(&RenderInput {
+            text,
+            tree: &tree,
+            selections,
+            settings: &settings,
+        })
+        .lines
+        .iter()
+        .map(|line| line.shown_marker.clone().map(|range| &text[range]))
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(marker_of(&selections), [Some("- [x] "), None, None]);
+    let on_number = text.find("one").unwrap();
+    assert_eq!(
+        marker_of(&[on_number..on_number]),
+        [None, Some("1. "), None]
+    );
+}
+
+#[test]
 fn quote_markers_hide_off_cursor_lines() {
     check(
         "> first **b**\n> sec‸ond\n>> deep",
