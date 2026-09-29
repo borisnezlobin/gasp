@@ -5,7 +5,6 @@ import UIKit
 final class MathAttachment: NSTextAttachment {
     private let math: RenderedMath
     private let color: UIColor
-    private var drawn: [UIUserInterfaceStyle: UIImage] = [:]
 
     init(_ math: RenderedMath, color: UIColor) {
         self.math = math
@@ -25,10 +24,8 @@ final class MathAttachment: NSTextAttachment {
         location: NSTextLocation, textContainer: NSTextContainer?
     ) -> UIImage? {
         let traits = UITraitCollection.current
-        if let image = drawn[traits.userInterfaceStyle] { return image }
-        let image = math.image(color: color, traits: traits)
-        drawn[traits.userInterfaceStyle] = image
-        return image
+        let key = DrawnPictures.key(math, color.resolvedColor(with: traits))
+        return DrawnPictures.shared.picture(key) { math.image(color: color, traits: traits) }
     }
 
     /// The same picture where TextKit 1 draws, as in a table's grid.
@@ -53,7 +50,6 @@ final class ImageAttachment: NSTextAttachment {
     private let size: CGSize
     private let placeholderColor: UIColor
     private let cornerRadius: CGFloat
-    private var finished: UIImage?
 
     init(file: URL, size: CGSize, placeholderColor: UIColor, cornerRadius: CGFloat) {
         self.file = file
@@ -78,16 +74,44 @@ final class ImageAttachment: NSTextAttachment {
         for bounds: CGRect, attributes: [NSAttributedString.Key: Any] = [:],
         location: NSTextLocation, textContainer: NSTextContainer?
     ) -> UIImage? {
-        if let finished { return finished }
         let decoded = VaultImages.shared.image(file, pixels: pixels)
-        let image = ImageDrawing.rounded(decoded, size: size, fill: placeholderColor, cornerRadius: cornerRadius)
-        if decoded != nil { finished = image }
-        return image
+        let fill = placeholderColor.resolvedColor(with: .current)
+        let key = decoded == nil
+            ? "placeholder \(size) \(cornerRadius) \(fill)" : "\(file.path) \(size) \(cornerRadius)"
+        return DrawnPictures.shared.picture(key as NSString) {
+            ImageDrawing.rounded(decoded, size: size, fill: fill, cornerRadius: cornerRadius)
+        }
     }
 
     override func image(forBounds imageBounds: CGRect, textContainer: NSTextContainer?, characterIndex charIndex: Int)
         -> UIImage? {
         image(for: imageBounds, location: PlainLocation(), textContainer: textContainer)
+    }
+}
+
+/// Pictures as they're drawn in the text, tinted or with rounded corners,
+/// kept for every attachment that draws the same one and dropped first
+/// when memory runs short, so restyling a line or scrolling back to it
+/// doesn't draw its pictures again.
+final class DrawnPictures {
+    static let shared = DrawnPictures()
+
+    private let pictures = NSCache<NSString, UIImage>()
+
+    private init() {
+        pictures.totalCostLimit = 32 * 1024 * 1024
+    }
+
+    static func key(_ math: RenderedMath, _ color: UIColor) -> NSString {
+        "math \(math.key.display) \(math.key.size) \(color) \(math.key.tex)" as NSString
+    }
+
+    func picture(_ key: NSString, draw: () -> UIImage) -> UIImage {
+        if let picture = pictures.object(forKey: key) { return picture }
+        let picture = draw()
+        let cost = picture.cgImage.map { $0.bytesPerRow * $0.height } ?? 1
+        pictures.setObject(picture, forKey: key, cost: cost)
+        return picture
     }
 }
 

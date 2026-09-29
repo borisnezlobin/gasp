@@ -25,13 +25,13 @@ extension EditingController: MathImagesObserver {
         MathImages.shared.request(wanted.math)
         for url in wanted.cards {
             CardImages.shared.load(url) { [weak self] in
-                self?.imagesArrived = true
+                self?.cardImagesArrived = true
                 self?.scheduleMediaRedraw()
             }
         }
         for (file, pixels) in wanted.images {
             VaultImages.shared.load(file, pixels: pixels) { [weak self] in
-                self?.imagesArrived = true
+                self?.arrivedImages.insert(file)
                 self?.scheduleMediaRedraw()
             }
         }
@@ -49,13 +49,12 @@ extension EditingController: MathImagesObserver {
         redrawQueued = true
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.redrawDelay) { [weak self] in
             guard let self else { return }
-            let (math, images) = (arrivedMath, imagesArrived)
+            let arrived = ArrivedMedia(math: arrivedMath, images: arrivedImages, cards: cardImagesArrived)
             arrivedMath = []
-            imagesArrived = false
+            arrivedImages = []
+            cardImagesArrived = false
             redrawQueued = false
-            styler.forgetLines { line in
-                line.widgets.contains { images && $0.showsPicture || $0.mathSource.map(math.contains) == true }
-            }
+            styler.forgetLines { [media] line in line.widgets.contains { arrived.isShown(by: $0, media: media) } }
             restyle(edited: nil)
         }
     }
@@ -71,16 +70,23 @@ extension EditingController: MathImagesObserver {
     }
 }
 
-extension Widget {
-    /// Whether the widget draws a picture that loads later: an image or
-    /// a link card's preview.
-    var showsPicture: Bool {
-        switch kind {
-        case .image, .linkCard: true
-        default: false
+/// What arrived since the lines showing media were last restyled.
+struct ArrivedMedia {
+    let math: Set<String>
+    let images: Set<URL>
+    let cards: Bool
+
+    /// Whether `widget` draws something that arrived.
+    func isShown(by widget: Widget, media: NoteMedia) -> Bool {
+        switch widget.kind {
+        case .image(let target, _, _, _, _): media.imageFile(target).map(images.contains) ?? false
+        case .linkCard: cards
+        default: widget.mathSource.map(math.contains) ?? false
         }
     }
+}
 
+extension Widget {
     /// The TeX of the equation the widget draws, if it draws one.
     var mathSource: String? {
         switch kind {

@@ -27,8 +27,11 @@ final class RenderedMath {
     /// From the top edge down to the baseline.
     let baseline: CGFloat
     let scale: CGFloat
+    /// The equation and size it was rendered for.
+    let key: MathKey
 
-    init(mask: CGImage, size: CGSize, baseline: CGFloat, scale: CGFloat) {
+    init(key: MathKey, mask: CGImage, size: CGSize, baseline: CGFloat, scale: CGFloat) {
+        self.key = key
         self.mask = mask
         self.size = size
         self.baseline = baseline
@@ -122,7 +125,7 @@ final class MathImages {
         pending.remove(key)
         switch result {
         case .drawn(let image):
-            if let rendered = Self.rendered(image, scale: scale) {
+            if let rendered = Self.rendered(image, key: key, scale: scale) {
                 cache.setObject(rendered, forKey: MathCacheKey(key), cost: rendered.cost)
             }
         case .failed(let message):
@@ -133,7 +136,7 @@ final class MathImages {
         }
     }
 
-    private static func rendered(_ image: MathImage, scale: CGFloat) -> RenderedMath? {
+    private static func rendered(_ image: MathImage, key: MathKey, scale: CGFloat) -> RenderedMath? {
         let width = Int(image.pixelWidth)
         let height = Int(image.pixelHeight)
         guard let provider = CGDataProvider(data: image.coverage as CFData),
@@ -145,7 +148,7 @@ final class MathImages {
               )
         else { return nil }
         let size = CGSize(width: image.width, height: image.height)
-        return RenderedMath(mask: mask, size: size, baseline: CGFloat(image.baseline), scale: scale)
+        return RenderedMath(key: key, mask: mask, size: size, baseline: CGFloat(image.baseline), scale: scale)
     }
 }
 
