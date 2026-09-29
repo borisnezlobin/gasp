@@ -144,3 +144,40 @@ fn opening_a_search_result_closes_search_over_the_match(cx: &mut TestAppContext)
         Some("lenses bend light through a prism")
     );
 }
+
+const TRASH_IN_VAULT: (&str, &str) = (
+    concat!(gasp_config::config_dir!(), "/settings.toml"),
+    "[files]\ntrash = \"vault\"\n",
+);
+
+#[gpui::test]
+fn a_deleted_note_comes_back_with_its_unsaved_edits(cx: &mut TestAppContext) {
+    let vault = vault_with(&[("Plan.md", "first draft"), TRASH_IN_VAULT]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "Plan.md");
+    let editor = cx.read(|cx| workspace.read(cx).active_editor(cx).unwrap());
+    editor.update(cx, |editor, cx| {
+        editor.select(11, 11, cx);
+        editor.insert(", and more", cx);
+    });
+    let note = cx.read(|cx| workspace.read(cx).vault().join("Plan.md"));
+    cx.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            workspace.trash_note(&note, window, cx).unwrap()
+        })
+    });
+    cx.run_until_parked();
+    assert!(!note.exists());
+    let shown = cx.update(|window, cx| notices::shown_in(window.window_handle(), cx));
+    let action = shown[0].1.action.clone().expect("the notice offers Undo");
+    assert_eq!(action.label.as_ref(), "Undo");
+    run(&workspace, cx, &action.command);
+    assert_eq!(
+        std::fs::read_to_string(&note).unwrap(),
+        "first draft, and more"
+    );
+    assert_eq!(
+        active_text(&workspace, cx).as_deref(),
+        Some("first draft, and more")
+    );
+}

@@ -139,6 +139,24 @@ const FOLD_ALL: CommandSpec =
 const UNFOLD_ALL: CommandSpec =
     spec("fold.unfold-all", "Unfold every heading", "View").icon("arrows-out-line-vertical");
 
+/// Brings back the note most recently moved to the trash, which the
+/// desktop keeps the text of for the session.
+const RESTORE_DELETED: CommandSpec = spec(
+    "note.restore-deleted",
+    "Restore the last deleted note",
+    "Notes and navigation",
+)
+.icon("arrow-counter-clockwise");
+
+/// Reads the vault's `.obsidian` folder into its `.gasp` config, which
+/// the desktop does.
+const IMPORT_OBSIDIAN: CommandSpec = spec(
+    "vault.import-obsidian",
+    "Import settings from Obsidian",
+    "App",
+)
+.icon("arrow-square-in");
+
 /// Commands only some platforms have. The registry leaves them out
 /// elsewhere, but rules may still name them, as a vault's config goes
 /// from machine to machine.
@@ -148,6 +166,8 @@ pub const PLATFORM_COMMANDS: &[&str] = &[
     FOLD_TOGGLE.id,
     FOLD_ALL.id,
     UNFOLD_ALL.id,
+    RESTORE_DELETED.id,
+    IMPORT_OBSIDIAN.id,
 ];
 
 /// Every built-in command on this platform.
@@ -382,6 +402,10 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
         "Notes and navigation",
     )
     .icon("clock-counter-clockwise"),
+    #[cfg(not(target_os = "ios"))]
+    RESTORE_DELETED,
+    #[cfg(not(target_os = "ios"))]
+    IMPORT_OBSIDIAN,
     spec("note.import-image", "Insert image from file", "Editing").icon("image"),
     spec("edit.paste-plain", "Paste as plain text", "Editing").icon("clipboard-text"),
     #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -542,8 +566,15 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
 
 /// The commands in [`PLATFORM_COMMANDS`], described on every platform so
 /// a toolbar synced from another machine can still name them.
-const PLATFORM_SPECS: [CommandSpec; 5] =
-    [LOOK_UP, HIDE_KEYBOARD, FOLD_TOGGLE, FOLD_ALL, UNFOLD_ALL];
+const PLATFORM_SPECS: [CommandSpec; 7] = [
+    LOOK_UP,
+    HIDE_KEYBOARD,
+    FOLD_TOGGLE,
+    FOLD_ALL,
+    UNFOLD_ALL,
+    RESTORE_DELETED,
+    IMPORT_OBSIDIAN,
+];
 
 /// A built-in command's description by id, on any platform.
 pub fn command_spec(id: &str) -> Option<&'static CommandSpec> {

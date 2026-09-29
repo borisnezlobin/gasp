@@ -14,6 +14,7 @@
 //! and the note's right-click menu, all built from `crate::ui`.
 
 mod commands;
+pub mod deleted;
 mod edit_tracking;
 pub mod files;
 pub mod help;
@@ -173,6 +174,8 @@ pub struct Workspace {
     toolbar_hover: toolbars::ToolbarHover,
     /// The toolbar an add button asked the settings page to add to.
     toolbar_to_add_to: Option<String>,
+    /// Notes moved to the trash this session, for `note.restore-deleted`.
+    deleted: Vec<deleted::DeletedNote>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -266,6 +269,7 @@ impl Workspace {
             toolbar_focus: None,
             toolbar_hover: Default::default(),
             toolbar_to_add_to: None,
+            deleted: Vec::new(),
             _subscriptions: Vec::new(),
         };
         workspace.scan_vault_index(cx);

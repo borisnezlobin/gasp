@@ -301,6 +301,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> io::Result<()> {
+        let text = self.text_before_delete(path, cx);
         match crate::sandbox::trash_mode(self.config.settings.files.trash) {
             TrashMode::System => trash::delete(path).map_err(io::Error::other)?,
             TrashMode::Vault => move_to_vault_trash(&self.vault, path)?,
@@ -310,6 +311,10 @@ impl Workspace {
             self.close_doc_tabs(&doc, window, cx);
         }
         self.forget_path(path, cx);
+        if let Some(text) = text {
+            let path = path.to_path_buf();
+            self.remember_deleted(super::deleted::DeletedNote { path, text }, cx);
+        }
         Ok(())
     }
 
