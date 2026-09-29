@@ -279,6 +279,19 @@ impl Workspace {
         }
     }
 
+    /// Escape while dragging cancels the drag, before anything focused
+    /// hears the key.
+    fn escape_cancels_drags(
+        &mut self,
+        event: &gpui::KeyDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if event.keystroke.key == "escape" && self.cancel_drags(window, cx) {
+            cx.stop_propagation();
+        }
+    }
+
     fn follow_drag(&mut self, event: &MouseMoveEvent, window: &mut Window, cx: &mut Context<Self>) {
         if event.pressed_button == Some(MouseButton::Left) {
             self.drag_to(event.position, cx);
@@ -422,6 +435,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::on_press_toolbar_item))
             .on_action(cx.listener(Self::on_add_to_toolbar))
             .on_key_down(cx.listener(Self::on_toolbar_key))
+            .capture_key_down(cx.listener(Self::escape_cancels_drags))
             .on_modifiers_changed(cx.listener(Self::on_modifiers_changed))
             .capture_any_mouse_down(cx.listener(|workspace, event: &MouseDownEvent, _, cx| {
                 workspace.spend_shortcut_sheet(event.modifiers.modified(), cx)

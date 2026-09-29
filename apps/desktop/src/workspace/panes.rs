@@ -4,7 +4,7 @@ use gpui::{AppContext, Context, Entity, Pixels, Point, Window};
 
 use super::pane::{Pane, PaneEvent};
 use super::pane_tree::{Axis, Direction, SplitId};
-use super::{Drag, Workspace};
+use super::{Drag, DragStart, Workspace};
 
 impl Workspace {
     pub(crate) fn subscribe_to_pane(
@@ -189,10 +189,39 @@ impl Workspace {
 
     pub(crate) fn start_drag(&mut self, drag: Drag, cx: &mut Context<Self>) {
         self.drag = Some(drag);
+        self.drag_start = self.size_before(drag);
         cx.notify();
     }
 
+    /// The size a resize changes, as it is before the resize starts.
+    fn size_before(&self, drag: Drag) -> Option<DragStart> {
+        Some(match drag {
+            Drag::Divider(id) => DragStart::Ratio(id, self.panes.split_by_id(id)?.ratio),
+            Drag::Sidebar => DragStart::LeftWidth(self.left_panel.width),
+            Drag::RightSidebar => DragStart::RightWidth(self.right_panel.width),
+        })
+    }
+
+    /// Escape during a drag: a resize goes back to where it started, and a
+    /// tab or note being dragged is put down where it came from.
+    pub(crate) fn cancel_drags(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let dragged = cx.stop_active_drag(window);
+        if dragged {
+            self.clear_tab_drops(cx);
+        }
+        let resizing = self.drag.is_some();
+        match self.drag_start.take() {
+            Some(DragStart::Ratio(id, ratio)) => self.panes.set_ratio(id, ratio),
+            Some(DragStart::LeftWidth(width)) => self.left_panel.width = width,
+            Some(DragStart::RightWidth(width)) => self.right_panel.width = width,
+            None => {}
+        }
+        self.end_drag(window, cx);
+        dragged || resizing
+    }
+
     pub(crate) fn end_drag(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.drag_start = None;
         if self.drag.take().is_none() {
             return;
         }

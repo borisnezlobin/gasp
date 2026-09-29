@@ -300,6 +300,55 @@ fn the_tab_menu_offers_closing_splitting_and_moving(cx: &mut TestAppContext) {
     assert_eq!(layout(&workspace, cx), vec![vec!["a"]]);
 }
 
+/// Presses, moves partway with the button held, and leaves it held.
+fn drag_without_letting_go(cx: &mut VisualTestContext, from: Point<Pixels>, to: Point<Pixels>) {
+    let none = Modifiers::none();
+    cx.simulate_mouse_down(from, MouseButton::Left, none);
+    cx.simulate_mouse_move(from + point(px(6.), px(0.)), MouseButton::Left, none);
+    cx.simulate_mouse_move(to, MouseButton::Left, none);
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn escape_puts_a_dragged_tab_back(cx: &mut TestAppContext) {
+    let vault = vault_with(&["a.md", "b.md", "c.md"]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open_tabs(&workspace, cx, &["a.md", "b.md", "c.md"]);
+    let surface = bounds(cx, "pane-surface");
+    let c = bounds(cx, "tab-c");
+    let right_edge = point(surface.right() - px(20.), surface.center().y);
+    drag_without_letting_go(cx, c.center(), right_edge);
+    cx.simulate_keystrokes("escape");
+    let none = Modifiers::none();
+    cx.simulate_mouse_move(right_edge - point(px(4.), px(0.)), MouseButton::Left, none);
+    cx.simulate_mouse_up(right_edge, MouseButton::Left, none);
+    cx.run_until_parked();
+    assert_eq!(layout(&workspace, cx), vec![vec!["a", "b", "c"]]);
+    assert!(cx.read(|cx| !cx.has_active_drag()));
+}
+
+#[gpui::test]
+fn escape_puts_a_dragged_divider_back(cx: &mut TestAppContext) {
+    let vault = vault_with(&["a.md", "b.md"]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open_tabs(&workspace, cx, &["a.md", "b.md"]);
+    run(&workspace, cx, "pane.move-tab-right");
+    let before = saved_layout(&workspace, cx).ratio;
+    let divider = bounds(cx, "divider-0");
+    drag_without_letting_go(cx, divider.center(), point(px(300.), divider.center().y));
+    assert_ne!(
+        saved_layout(&workspace, cx).ratio,
+        before,
+        "the drag moves it"
+    );
+    cx.simulate_keystrokes("escape");
+    let none = Modifiers::none();
+    cx.simulate_mouse_move(point(px(250.), divider.center().y), MouseButton::Left, none);
+    cx.simulate_mouse_up(point(px(250.), divider.center().y), MouseButton::Left, none);
+    cx.run_until_parked();
+    assert_eq!(saved_layout(&workspace, cx).ratio, before);
+}
+
 #[gpui::test]
 fn a_double_click_on_a_divider_evens_it_out(cx: &mut TestAppContext) {
     let vault = vault_with(&["a.md", "b.md"]);
