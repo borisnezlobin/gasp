@@ -1,10 +1,11 @@
+use std::cell::Cell;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use git2::build::{CheckoutBuilder, RepoBuilder};
 use git2::{
-    AnnotatedCommit, Commit, DiffOptions, FetchOptions, IndexAddOption, IndexConflict,
-    MergeOptions, Oid, PushOptions, Repository, RepositoryInitOptions, Signature,
+    AnnotatedCommit, Commit, ConfigLevel, DiffOptions, FetchOptions, IndexConflict, MergeOptions,
+    Oid, PushOptions, Repository, RepositoryInitOptions, Signature,
 };
 
 use crate::conflict::ConflictedFile;
@@ -13,9 +14,11 @@ use crate::device_files::DeviceOnlyFiles;
 use crate::error::{SyncError, SyncResult};
 use crate::line_merge::{LineMerge, merge_lines};
 use crate::message::commit_message;
-use crate::parked::BranchKeeps;
+use crate::parked::{BranchKeeps, ParkedConflicts};
 use crate::policy::{FileKind, classify};
 
+mod known_merges;
+mod packs;
 mod parking;
 
 use parking::Parking;
@@ -114,6 +117,12 @@ pub struct Vault {
     repo: Repository,
     config: VaultConfig,
     token: Option<Token>,
+    /// Where the remote's branch was when the last fetch looked, until a
+    /// push uses it: a push of that very commit has nothing to send.
+    fetched_remote_tip: Cell<Option<Oid>>,
+    /// Set when tidying objects failed, so it isn't tried again while
+    /// this clone is open.
+    tidying_failed: Cell<bool>,
 }
 
 /// What the merge policy does with one conflicting path.
@@ -200,13 +209,33 @@ fn combine_outcomes(own: MergeOutcome, legacy: MergeOutcome) -> MergeOutcome {
     own
 }
 
-/// Notes must sync byte for byte on every device. Without this, a machine
-/// whose global git config sets `core.autocrlf` (the default on Windows)
-/// would rewrite line endings on checkout and merge.
-fn keep_bytes_as_committed(repo: &Repository) -> SyncResult<()> {
-    let mut config = repo.config()?;
-    config.set_bool("core.autocrlf", false)?;
-    config.set_str("core.eol", "lf")?;
+/// The largest object a push tries to store as a delta against another.
+/// Photos and plugin binaries above it are sent whole: a delta between two
+/// different photos never pays off, and looking for one took most of the
+/// time a push of new photos spent.
+///
+/// libgit2 reads its big-file threshold from `pack.deltaCacheSize` (the
+/// key is misspelt in its source), which also caps the delta cache; deltas
+/// between note versions are small and stay cached under this cap.
+const LARGEST_DELTA_CANDIDATE: i64 = 512 * 1024;
+
+/// Pins the clone's own settings sync depends on, writing each only when
+/// it differs, so opening a vault normally leaves its config alone.
+///
+/// Notes must sync byte for byte on every device. Without the line-ending
+/// settings, a machine whose global git config sets `core.autocrlf` (the
+/// default on Windows) would rewrite line endings on checkout and merge.
+fn pin_settings(repo: &Repository) -> SyncResult<()> {
+    let mut local = repo.config()?.open_level(ConfigLevel::Local)?;
+    if local.get_bool("core.autocrlf").ok() != Some(false) {
+        local.set_bool("core.autocrlf", false)?;
+    }
+    if local.get_string("core.eol").ok().as_deref() != Some("lf") {
+        local.set_str("core.eol", "lf")?;
+    }
+    if local.get_i64("pack.deltaCacheSize").ok() != Some(LARGEST_DELTA_CANDIDATE) {
+        local.set_i64("pack.deltaCacheSize", LARGEST_DELTA_CANDIDATE)?;
+    }
     Ok(())
 }
 
@@ -245,7 +274,7 @@ impl Vault {
                 repo
             }
         };
-        keep_bytes_as_committed(&repo)?;
+        pin_settings(&repo)?;
         repo.checkout_head(Some(CheckoutBuilder::new().force()))?;
         Self::from_repo(repo, config, token)
     }
@@ -256,12 +285,14 @@ impl Vault {
                 "a vault needs a work tree",
             )));
         }
-        keep_bytes_as_committed(&repo)?;
+        pin_settings(&repo)?;
         config.device_only.write_exclude(repo.path())?;
         let vault = Self {
             repo,
             config,
             token,
+            fetched_remote_tip: Cell::new(None),
+            tidying_failed: Cell::new(false),
         };
         vault.check_branch()?;
         Ok(vault)
@@ -297,6 +328,7 @@ impl Vault {
 
     /// Points the remote somewhere else (for a moved repo, or a test that goes offline).
     pub fn set_remote_url(&self, url: &str) -> SyncResult<()> {
+        self.fetched_remote_tip.set(None);
         Ok(self.repo.remote_set_url(&self.config.remote, url)?)
     }
 
@@ -338,16 +370,12 @@ impl Vault {
         message: impl FnOnce(&[PathBuf]) -> String,
     ) -> SyncResult<Option<Oid>> {
         self.finish_interrupted_merge(author)?;
-        let parked = self.release_settled_conflicts()?;
-        let mut index = self.current_index()?;
-        let device_only = &self.config.device_only;
-        let mut skip =
-            |path: &Path, _: &[u8]| i32::from(device_only.matches(path) || parked.contains(path));
-        index.add_all(["*"], IndexAddOption::DEFAULT, Some(&mut skip))?;
-        index.update_all(["*"], Some(&mut skip))?;
-        index.write()?;
-        let tree = self.repo.find_tree(index.write_tree()?)?;
+        let tree_id = self.staged_tree()?;
         let parent = self.local_head()?;
+        if parent.as_ref().map(Commit::tree_id) == Some(tree_id) {
+            return Ok(None);
+        }
+        let tree = self.repo.find_tree(tree_id)?;
         let parent_tree = parent.as_ref().map(Commit::tree).transpose()?;
         let changed = self.paths_between(parent_tree.as_ref(), Some(&tree))?;
         if changed.is_empty() {
@@ -364,6 +392,60 @@ impl Vault {
             &parents,
         )?;
         Ok(Some(oid))
+    }
+
+    /// Stages what changed and returns the tree the next commit would have.
+    /// The index is only saved when something was staged.
+    fn staged_tree(&self) -> SyncResult<Oid> {
+        let parked = self.release_settled_conflicts()?;
+        let mut index = self.current_index()?;
+        let staged = self.stage_work_tree(&mut index, &parked)?;
+        let tree_id = index.write_tree()?;
+        if staged {
+            index.write()?;
+        }
+        Ok(tree_id)
+    }
+
+    /// Stages every file that changed on disk since the index last saw it,
+    /// except device-only files and files waiting on a conflict, in one
+    /// scan of the work tree. Returns whether anything was staged.
+    ///
+    /// The scan also refreshes the index's record of files that were
+    /// touched without changing, so later scans needn't hash them again;
+    /// libgit2 saves the index itself when it does.
+    fn stage_work_tree(
+        &self,
+        index: &mut git2::Index,
+        parked: &ParkedConflicts,
+    ) -> SyncResult<bool> {
+        let mut options = DiffOptions::new();
+        options
+            .include_untracked(true)
+            .recurse_untracked_dirs(true)
+            .include_typechange(true)
+            .update_index(true);
+        let diff = self
+            .repo
+            .diff_index_to_workdir(Some(&*index), Some(&mut options))?;
+        let device_only = &self.config.device_only;
+        let changes: Vec<(PathBuf, bool)> = diff
+            .deltas()
+            .filter_map(|delta| {
+                let path = delta.old_file().path()?;
+                let skipped = device_only.matches(path) || parked.contains(path);
+                (!skipped).then(|| (path.to_owned(), delta.new_file().exists()))
+            })
+            .collect();
+        drop(diff);
+        for (path, on_disk) in &changes {
+            if *on_disk {
+                index.add_path(path)?;
+            } else {
+                index.remove_path(path)?;
+            }
+        }
+        Ok(!changes.is_empty())
     }
 
     /// The index as it is on disk, in case another git program changed it
@@ -385,7 +467,9 @@ impl Vault {
     pub fn fetch(&self) -> SyncResult<()> {
         let mut remote = self.repo.find_remote(&self.config.remote)?;
         let mut options = FetchOptions::new();
-        options.remote_callbacks(remote_callbacks(self.token.as_ref()));
+        options
+            .remote_callbacks(remote_callbacks(self.token.as_ref()))
+            .update_fetchhead(false);
         let branches =
             std::iter::once(self.config.branch.as_str()).chain(self.config.active_legacy());
         let refspecs: Vec<String> = branches
@@ -396,16 +480,40 @@ impl Vault {
                 )
             })
             .collect();
+        self.fetched_remote_tip.set(None);
         remote
             .fetch(&refspecs, Some(&mut options), None)
-            .map_err(SyncError::from_transport)
+            .map_err(SyncError::from_transport)?;
+        let local_ref = self.config.local_ref();
+        let advertised = remote.list()?.iter().find(|head| head.name() == local_ref);
+        self.fetched_remote_tip
+            .set(advertised.map(|head| head.oid()));
+        if remote.stats().received_objects() > 0 {
+            self.tidy_objects();
+        }
+        Ok(())
     }
 
     /// Pushes the local branch. A rejected push leaves everything local.
+    ///
+    /// Right after a fetch that found the remote's branch already at this
+    /// commit, there's nothing to send, so the remote isn't asked again.
     pub fn push(&self) -> SyncResult<()> {
         let Some(head) = self.head_commit()? else {
             return Ok(());
         };
+        if self.fetched_remote_tip.take() != Some(head) {
+            self.send()?;
+            self.tidy_objects();
+        }
+        if self.tracking_commit() != Some(head) {
+            self.repo
+                .reference(&self.config.tracking_ref(), head, true, "push")?;
+        }
+        Ok(())
+    }
+
+    fn send(&self) -> SyncResult<()> {
         let mut remote = self.repo.find_remote(&self.config.remote)?;
         let refspec = format!("{0}:{0}", self.config.local_ref());
         let mut rejection = None;
@@ -423,12 +531,10 @@ impl Vault {
                 .push(&[&refspec], Some(&mut options))
                 .map_err(SyncError::from_transport)?;
         }
-        if let Some(message) = rejection {
-            return Err(SyncError::PushRejected(message));
+        match rejection {
+            Some(message) => Err(SyncError::PushRejected(message)),
+            None => Ok(()),
         }
-        self.repo
-            .reference(&self.config.tracking_ref(), head, true, "push")?;
-        Ok(())
     }
 
     /// Merges the fetched remote branch into the local one using the vault
@@ -460,8 +566,12 @@ impl Vault {
             return Ok(MergeOutcome::NothingToMerge);
         };
         let theirs = self.repo.reference_to_annotated_commit(&tracking)?;
+        if self.known_merged(branch, theirs.id())? {
+            return Ok(MergeOutcome::UpToDate);
+        }
         let (analysis, _) = self.repo.merge_analysis(&[&theirs])?;
         if analysis.is_up_to_date() {
+            self.remember_merged(branch, theirs.id())?;
             return Ok(MergeOutcome::UpToDate);
         }
         let lifted = self.lift_parked(theirs.id())?;
@@ -473,13 +583,41 @@ impl Vault {
         };
         // Parked files go back on disk whether or not the merge worked.
         self.refold(lifted)?;
+        if merged.is_ok() {
+            self.remember_merged(branch, theirs.id())?;
+        }
         merged
+    }
+
+    /// Restricts `checkout` to the paths whose entries differ between the
+    /// local head and `target`, matched literally, so it visits only those
+    /// instead of the whole work tree. A merge can only change a file the
+    /// two sides disagree on. Returns false when no path differs, which
+    /// leaves `checkout` unrestricted.
+    fn checkout_only_differences(
+        &self,
+        checkout: &mut CheckoutBuilder<'_>,
+        target: &Commit<'_>,
+    ) -> SyncResult<bool> {
+        let Some(head) = self.local_head()? else {
+            return Ok(true);
+        };
+        let paths = self.differing_paths(&head.tree()?, &target.tree()?)?;
+        checkout.disable_pathspec_match(true);
+        for path in &paths {
+            checkout.path(path);
+        }
+        Ok(!paths.is_empty())
     }
 
     fn fast_forward(&self, target: Oid) -> SyncResult<()> {
         let commit = self.repo.find_commit(target)?;
-        self.repo
-            .checkout_tree(commit.as_object(), Some(CheckoutBuilder::new().safe()))?;
+        let mut checkout = CheckoutBuilder::new();
+        checkout.safe();
+        if self.checkout_only_differences(&mut checkout, &commit)? {
+            self.repo
+                .checkout_tree(commit.as_object(), Some(&mut checkout))?;
+        }
         let local_ref = self.config.local_ref();
         self.repo
             .reference(&local_ref, target, true, "sync: fast-forward")?;
@@ -496,6 +634,7 @@ impl Vault {
     ) -> SyncResult<MergeOutcome> {
         let mut checkout = CheckoutBuilder::new();
         checkout.safe().allow_conflicts(true);
+        self.checkout_only_differences(&mut checkout, &self.repo.find_commit(theirs.id())?)?;
         self.repo.merge(
             &[theirs],
             Some(&mut MergeOptions::new()),
@@ -819,6 +958,28 @@ impl Vault {
             .filter(|path| !device_only.matches(path))
             .map(Path::to_owned)
             .collect();
+        Ok(paths)
+    }
+
+    /// Every path whose entry differs between two trees, on either side.
+    fn differing_paths(
+        &self,
+        old: &git2::Tree<'_>,
+        new: &git2::Tree<'_>,
+    ) -> SyncResult<Vec<PathBuf>> {
+        let mut options = DiffOptions::new();
+        options.include_typechange(true);
+        let diff = self
+            .repo
+            .diff_tree_to_tree(Some(old), Some(new), Some(&mut options))?;
+        let mut paths = Vec::new();
+        for delta in diff.deltas() {
+            let (old_path, new_path) = (delta.old_file().path(), delta.new_file().path());
+            paths.extend(old_path.map(Path::to_owned));
+            if new_path != old_path {
+                paths.extend(new_path.map(Path::to_owned));
+            }
+        }
         Ok(paths)
     }
 }
