@@ -57,6 +57,12 @@ cargo run -p gasp-desktop -- --snapshot <note> <out.png> [--width N --height N -
                                                   # the note's editor drawn to a PNG, no window shown
 make snapshot SCRIPT=steps.txt VAULT=<vault> [OUT=dir] [OPEN=note]
                                                   # the whole window, driven by a script, to PNGs
+cargo run --release -p gasp-desktop -- --bench-layout <note or folder> [--in-math|--in-table|--in-code] [--hidden]
+                                                  # typing and scrolling frame times, and memory
+cargo run --release -p gasp-desktop -- --bench-open <vault> [--notes N] [--linger SECONDS] [--hidden]
+                                                  # opening notes and switching tabs, and memory
+scripts/perf-budgets.sh target/release/gasp fixtures/corpus
+                                                  # every desktop performance budget
 cargo test --workspace                            # every crate's tests
 python3 scripts/check-complexity.py               # the complexity limit
 ```
@@ -458,6 +464,8 @@ Harper misses real errors and flags things that are fine, and you still run ever
 
 Checking skips code, math, links, raw HTML and block quotes. Dismissing a flag is remembered for that phrase, and a rule you keep dismissing mutes itself and tells you so.
 
+On the desktop, Harper runs in a process of its own (`gasp grammar-worker`, which the app starts and talks to in JSON lines), because its dictionaries take about 100 MB that it keeps for as long as the process that built them runs. The worker exits after a minute without paragraphs to check and starts again, in about a second, when there are more.
+
 The model is chosen by testing rather than by guessing. Phase 4 starts with an evaluation set built from your own writing: your published essays with realistic errors inserted, plus the real mistakes Claude catches from now on. Each candidate is scored on false flags first and missed errors second, including Harper alone as the baseline to beat.
 
 ### Edit-time tracking
@@ -531,17 +539,33 @@ Every feature ships as a package with three parts: a plain-language spec, the co
 - **CI on every push** runs on GitHub's macOS, Windows and Ubuntu machines. It builds and tests the desktop app on all three, takes screenshots of a fixed set of notes on each and compares them with the expected images, and builds and tests the iPhone app in the simulator.
 - **Performance budgets** are checked in CI, and a regression fails the build:
 
-  | Measure | Target |
-  |---|---|
-  | Launch to editable note | under 300 ms |
-  | Keystroke to pixels | under one frame at 120 Hz (8 ms) |
-  | Search results per keystroke, on your vault | under 16 ms |
-  | CPU while idle | 0% |
-  | Memory with your vault open | under 100 MB |
+  | Measure | Target | Desktop now (M2 Pro) | CI fails over |
+  |---|---|---|---|
+  | Launch to editable note | under 300 ms | 150 ms from spawning to the first frame, 126 ms from `main` | 300 ms from `main`, median of 5 |
+  | Keystroke to pixels | under one frame at 120 Hz (8 ms) | 0.3 ms median, 0.5 ms p95 (5,000-line note); 2.2 ms median at 48,000 lines | 8 ms median, 16 ms p95 |
+  | A page scrolled | under one frame | 0.7 ms p95 layout, 0.9 ms p95 paint | 16 ms p95 |
+  | Opening a note, switching tabs | a frame | 7 ms and 8 ms to the frame (the corpus's 30 longest notes) | 50 ms p95 |
+  | Search results per keystroke, on your vault | under 16 ms | see the crates' benches below | |
+  | CPU while idle | 0% | 0.00% with the window hidden; see below | 1.5% (Linux) |
+  | Memory with your vault open | under 100 MB | 56 to 69 MB, plus the grammar checker's process while it works | 100 MB (Linux, anonymous memory) |
 
-  These are targets we set, not measurements yet. The spikes and the first builds will show whether they're realistic.
+  `scripts/perf-budgets.sh BINARY VAULT` checks all but idle: five launches (`EDITOR_TRACE_STARTUP=quit`), the layout bench in each of its modes, and the open bench, whose memory after opening 30 notes into 9 tabs must stay under 300 MB. `scripts/idle-cpu.sh` checks idle CPU and memory. CI's Performance budgets job runs both under Xvfb; on a Mac the script draws hidden windows (`--hidden`), so it runs with the screen locked. The CI limits haven't run on Linux yet; tighten them once they have.
 
-  Idle CPU is measured by `scripts/idle-cpu.sh`, which CI runs after the layout bench: an untouched window must draw no frames and stay under 1.5% CPU. It measures 0.6% on Linux; the owner measured 0.9% on macOS (Obsidian: 1.7%). What's left isn't the app's work: GPUI 0.2.2 keeps a loop running at the display's refresh rate while a window is visible (a `CVDisplayLink` on macOS, a timer on X11), and each tick asks whether the window needs drawing. Reaching 0% means patching GPUI so the loop stops after a few frames with nothing to draw and restarts when anything invalidates the window. That's a fork of GPUI's platform code; the macOS half can only be proven on a Mac, and a mistake there leaves a window that doesn't redraw, so it waits for a run on the owner's machine.
+  How the desktop numbers are measured, and what moved them (before is `master` before the desktop performance pass, on the same machine with runs interleaved; `master` has no open bench and no hidden layout bench, so for those two rows before is the pass's own first commit, which added them):
+
+  | Measure | Method | Before | Now |
+  |---|---|---|---|
+  | Launch, 1 / 32 / 204-note vault | spawn to the first frame, median of 15 | 163 / 155 / 158 ms | 149 / 150 / 150 ms |
+  | Launch, 204 notes | spawn to the window on screen (`CGWindowListCopyWindowInfo`), median of 10 | 165 to 170 ms | 126 to 149 ms |
+  | Memory 15 s after launch, 1 / 204 notes / a note with five 2880x1800 screenshots | `footprint` | 180 / 187 / 259 MB | 56 / 63 / 69 MB, plus 125 MB for the grammar checker until it's idle a minute |
+  | Opening 20 notes of five screenshots each | `--bench-open --notes 20` | 22 ms to the first frame, 1725 MB after | 7 ms, 236 MB after, 116 MB a minute later |
+  | Scrolling 1,000 pages of a 48,000-line note | `--bench-layout --scroll-pages 1000`, memory at the end | 884 MB | 427 MB |
+
+  Launch is now mostly GPUI and AppKit: making the platform (40 ms, 19 ms of it the keyboard layout), creating the window and its Metal pipelines (40 ms) and the first draw (10 ms); the app's own work before the first frame is under 3 ms, and the menu bar is built after it. Memory went down because Harper's dictionaries (about 100 MB, kept for the life of the process that builds them) live in a child process, `gasp grammar-worker`, that exits after a minute without work; note images are decoded off the main thread and shrunk to the size they're drawn; painted images are dropped from GPUI's texture atlas once no cache holds them (GPUI never drops them itself); equations are kept up to 32 MB per note; a tab hidden for a minute lets go of its pictures; and blocks of a mebibyte or more are mapped straight from the kernel, because the macOS allocator keeps freed large blocks counted against the app.
+
+  Idle CPU is measured by `scripts/idle-cpu.sh`: an untouched window must draw no frames and stay under 1.5% CPU. It measures 0.6% on Linux; the owner measured 0.9% on macOS (Obsidian: 1.7%). With the window hidden (a locked screen), the app now uses 0.00% and wakes for nothing: no timers repeat. What's left while visible isn't the app's work: GPUI 0.2.2 keeps a loop running at the display's refresh rate while a window is visible (a `CVDisplayLink` on macOS, a timer on X11), and each tick asks whether the window needs drawing. Reaching 0% means patching GPUI so the loop stops after a few frames with nothing to draw and restarts when anything invalidates the window. That's a fork of GPUI's platform code; the macOS half can only be proven with the screen on, and a mistake there leaves a window that doesn't redraw, so it waits for a run on the owner's machine.
+
+  Left to do: code highlighting keeps every regex syntect has compiled, about 12 MB for each language highlighted (97 MB for a note with eight); GPUI's atlas frees a texture only once every image on it is dropped, so equations that scrolled past can keep a texture alive; and typing into a 48,000-line note spends most of its 2 ms shifting the syntax tree's offsets (`gasp-core`).
 - **Benches of the shared crates.** Each crate's hot paths have an example bench built on `crates/bench` (`gasp-bench`: timing, a counting allocator, budgets and corpus fixtures), run with `cargo run --release -p <crate> --example <name>_bench`. CI's Core benches job runs `core_bench`, `config_bench`, `ffi_bench`, `search_bench`, `vault_bench`, `math_bench`, `prose_bench`, `export_bench` and `sync_bench` with `GASP_BENCH_ENFORCE=1`, and a measurement over its budget (about three to eight times what it measures on a Mac) fails the build. `plan_digest` prints a digest of every parse and plan of the corpus, to show a change to the parser or planner changes no output. On a busy machine, `GASP_BENCH_CLOCK=cpu` times the thread's CPU instead of the wall clock. Measured on an M-series Mac, CPU clock:
 
   | Hot path | Now |
