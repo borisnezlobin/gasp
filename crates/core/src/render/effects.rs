@@ -40,7 +40,8 @@ fn replaceable_syntax(node: &Node, text: &str) -> Option<SyntaxKind> {
     let kind = match &node.kind {
         NodeKind::CodeBlock(_) if widgets::link_card(text, node).is_some() => SyntaxKind::CodeBlock,
         NodeKind::Math { .. } | NodeKind::MathBlock => SyntaxKind::Math,
-        NodeKind::Image(_) | NodeKind::Embed(_) => SyntaxKind::Image,
+        NodeKind::Image(_) => SyntaxKind::Image,
+        NodeKind::Embed(info) if widgets::embeds_image(&info.target) => SyntaxKind::Image,
         NodeKind::ThematicBreak => SyntaxKind::ThematicBreak,
         NodeKind::FootnoteReference { .. } => SyntaxKind::Footnote,
         NodeKind::Comment | NodeKind::CommentBlock => SyntaxKind::Comment,

@@ -192,7 +192,7 @@ impl Workspace {
     ) {
         let pane = self.active_pane.clone();
         if let Err(error) = self.open_in_pane(&pane, &event.0, true, window, cx) {
-            eprintln!("could not open {}: {error}", event.0.display());
+            crate::notices::open_failed(&event.0, error, cx);
             return;
         }
         let leftover = pane.read(cx).tabs().iter().position(
@@ -339,7 +339,7 @@ impl Workspace {
         match choice {
             0 => {
                 if let Err(error) = doc.update(cx, |doc, cx| doc.keep_mine(cx)) {
-                    eprintln!("could not save: {error}");
+                    crate::notices::problem(format!("Couldn’t save: {error}"), cx);
                     return;
                 }
             }
@@ -407,7 +407,7 @@ impl Workspace {
                     .active_tab()
                     .is_some_and(|tab| tab.note().is_none());
                 if let Err(error) = self.open_in_pane(&pane, &path, replace, window, cx) {
-                    eprintln!("could not reopen {}: {error}", path.display());
+                    crate::notices::open_failed(&path, error, cx);
                 }
                 return;
             }

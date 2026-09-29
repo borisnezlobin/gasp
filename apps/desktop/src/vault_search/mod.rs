@@ -363,6 +363,7 @@ impl VaultSearch {
             path: self.root.join(&note.path),
             offset,
         });
+        cx.emit(gpui::DismissEvent);
     }
 
     /// Asks to confirm replacing every match across the current results.

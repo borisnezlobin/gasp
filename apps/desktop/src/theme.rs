@@ -2022,6 +2022,10 @@ pub struct UiTheme {
     pub hover_preview_zoom: f32,
     /// A hovered footnote's text, and short notices.
     pub hover_footnote_width: Pixels,
+    /// The notices at the window's bottom right: how wide they are, and
+    /// how long one that reports something done stays.
+    pub notice_width: Pixels,
+    pub notice_duration: std::time::Duration,
     /// The card a grammar flag shows: the widest its message runs, and the
     /// narrowest the card gets so its buttons fit.
     pub flag_card_width: Pixels,
@@ -2321,6 +2325,8 @@ impl UiTheme {
             hover_preview_padding: px(16.),
             hover_preview_zoom: 0.875,
             hover_footnote_width: px(360.),
+            notice_width: px(380.),
+            notice_duration: std::time::Duration::from_secs(6),
             flag_card_width: px(320.),
             flag_card_min_width: px(220.),
             flag_card_max_width: px(440.),

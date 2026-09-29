@@ -56,8 +56,9 @@ const DROPPED_PLUGINS: &[(&str, &str)] = &[(
 /// Bindings that move in the new default keymap: (command, old keys, new keys).
 const MOVED: &[(&str, &str, &str)] = &[("app.export", "Mod+Shift+P", "Mod+Shift+S")];
 
-/// Bindings the new default keymap adds on keys the old setup used differently.
-const ADDED: &[(&str, &str)] = &[("Mod+Shift+P", "palette.open"), ("Mod+P", "app.print")];
+/// Keys the new default keymap gives to its own commands. The defaults
+/// already bind them, so an imported rule on one would only take it away.
+const RESERVED: &[(&str, &str)] = &[("Mod+P", "palette.open"), ("Mod+Shift+P", "app.print")];
 
 const MODIFIER_ORDER: [(&str, &str); 6] = [
     ("Mod", "Mod"),
@@ -102,7 +103,7 @@ pub fn migrate(hotkeys_json: &str) -> Result<HotkeyMigration, String> {
     for (id, bindings) in entries {
         migration.add_command(id, bindings);
     }
-    migration.add_new_defaults();
+    migration.leave_default_keys();
     Ok(migration)
 }
 
@@ -163,19 +164,18 @@ impl HotkeyMigration {
         }
     }
 
-    fn add_new_defaults(&mut self) {
-        for (keys, command) in ADDED {
-            if let Some(index) = self.rules.iter().position(|rule| rule.keys == *keys) {
-                let replaced = self.rules.remove(index);
+    fn leave_default_keys(&mut self) {
+        for (keys, command) in RESERVED {
+            let Some(index) = self.rules.iter().position(|rule| rule.keys == *keys) else {
+                continue;
+            };
+            let dropped = self.rules.remove(index);
+            if dropped.command != *command {
                 self.notes.push(format!(
-                    "{keys} now runs `{command}` instead of `{}` (PLAN.md, Default keymap).",
-                    replaced.command
+                    "{keys} runs `{command}` now, so `{}` wasn’t kept on it (PLAN.md, Default keymap).",
+                    dropped.command
                 ));
             }
-            self.rules.push(KeyRule {
-                keys: keys.to_string(),
-                command: command.to_string(),
-            });
         }
     }
 
@@ -244,14 +244,7 @@ mod tests {
             .iter()
             .map(|r| (r.keys.as_str(), r.command.as_str()))
             .collect();
-        assert_eq!(
-            rules,
-            vec![
-                ("Mod+Shift+S", "app.export"),
-                ("Mod+Shift+P", "palette.open"),
-                ("Mod+P", "app.print")
-            ]
-        );
+        assert_eq!(rules, vec![("Mod+Shift+S", "app.export")]);
     }
 
     #[test]
@@ -282,6 +275,6 @@ mod tests {
             )
         );
         let parsed: toml::Table = toml::from_str(&text).unwrap();
-        assert_eq!(parsed["rule"].as_array().unwrap().len(), 3);
+        assert_eq!(parsed["rule"].as_array().unwrap().len(), 1);
     }
 }
