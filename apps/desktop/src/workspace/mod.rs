@@ -176,6 +176,8 @@ pub struct Workspace {
     toolbar_to_add_to: Option<String>,
     /// Notes moved to the trash this session, for `note.restore-deleted`.
     deleted: Vec<deleted::DeletedNote>,
+    /// The notice saying the last typed title couldn't be the note's name.
+    rename_notice: Option<u64>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -270,6 +272,7 @@ impl Workspace {
             toolbar_hover: Default::default(),
             toolbar_to_add_to: None,
             deleted: Vec::new(),
+            rename_notice: None,
             _subscriptions: Vec::new(),
         };
         workspace.scan_vault_index(cx);

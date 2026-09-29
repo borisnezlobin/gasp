@@ -5,7 +5,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use gasp_config::settings::TrashMode;
-use gpui::{Context, Entity, Focusable, PromptButton, PromptLevel, Window};
+use gpui::{Context, Entity, Focusable, PromptLevel, Window};
 
 use super::files::{atomic_write, clean_title, note_title, renamed_path, unique_untitled};
 use super::history::{BIG_JUMP_LINES, Location};
@@ -102,24 +102,43 @@ impl Workspace {
         };
         match event {
             TextInputEvent::Submitted => {
-                self.commit_title(&note, window, cx);
-                window.focus(&note.editor.read(cx).focus_handle);
+                if self.commit_title(&note, cx) {
+                    window.focus(&note.editor.read(cx).focus_handle);
+                } else {
+                    title.update(cx, |title, cx| title.select_all(cx));
+                }
             }
             TextInputEvent::Cancelled => {
                 let current = note_title(note.doc.read(cx).path());
                 title.update(cx, |title, cx| title.set_text(&current, cx));
                 window.focus(&note.editor.read(cx).focus_handle);
             }
-            TextInputEvent::Blurred => self.commit_title(&note, window, cx),
+            TextInputEvent::Blurred => {
+                if !self.commit_title(&note, cx) {
+                    let current = note_title(note.doc.read(cx).path());
+                    self.set_titles(&note.doc, &current, cx);
+                }
+            }
             TextInputEvent::Changed => {}
         }
     }
 
-    /// Renames the note to what its title says, if that changed.
-    fn commit_title(&mut self, note: &NoteTab, window: &mut Window, cx: &mut Context<Self>) {
+    /// Renames the note to what its title says, if that changed. Returns
+    /// false, with a notice saying why, when it can't be that name.
+    fn commit_title(&mut self, note: &NoteTab, cx: &mut Context<Self>) -> bool {
         let typed = note.title.read(cx).text().to_owned();
-        if typed != note_title(note.doc.read(cx).path()) {
-            self.rename_note(&note.doc, &typed, window, cx);
+        if let Some(id) = self.rename_notice.take() {
+            crate::notices::dismiss(id, cx);
+        }
+        if typed == note_title(note.doc.read(cx).path()) {
+            return true;
+        }
+        match self.rename_note(&note.doc, &typed, cx) {
+            Ok(()) => true,
+            Err(message) => {
+                self.rename_notice = Some(crate::notices::problem(message, cx));
+                false
+            }
         }
     }
 
@@ -171,30 +190,18 @@ impl Workspace {
         window.focus(&note.title.focus_handle(cx));
     }
 
-    /// Renames the note's file to `title`. A title that can't be a file
-    /// name, or that another note has, puts the old title back.
+    /// Renames the note's file to `title`, or says why it can't: a title
+    /// that can't be a file name, or one another note has.
     pub fn rename_note(
         &mut self,
         doc: &Entity<NoteDoc>,
         title: &str,
-        window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> Result<(), String> {
         let old = doc.read(cx).path().to_path_buf();
-        let result = clean_title(title)
+        clean_title(title)
             .map_err(|_| "A note’s title can’t be empty or contain / \\ : * ? \" < > |".to_owned())
-            .and_then(|title| self.move_note_file(doc, &old, title, cx));
-        if let Err(message) = result {
-            self.set_titles(doc, &note_title(&old), cx);
-            // Only an acknowledgement; there is nothing to do with the answer.
-            drop(window.prompt(
-                PromptLevel::Info,
-                &message,
-                None,
-                &[PromptButton::ok("OK")],
-                cx,
-            ));
-        }
+            .and_then(|title| self.move_note_file(doc, &old, title, cx))
     }
 
     fn move_note_file(
