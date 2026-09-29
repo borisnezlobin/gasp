@@ -464,7 +464,7 @@ Harper misses real errors and flags things that are fine, and you still run ever
 
 Checking skips code, math, links, raw HTML and block quotes. Dismissing a flag is remembered for that phrase, and a rule you keep dismissing mutes itself and tells you so.
 
-On the desktop, Harper runs in a process of its own (`gasp grammar-worker`, which the app starts and talks to in JSON lines), because its dictionaries take about 100 MB that it keeps for as long as the process that built them runs. The worker exits after a minute without paragraphs to check and starts again, in about a second, when there are more.
+On the desktop, Harper runs in a process of its own (`gasp grammar-worker`, which the app starts and talks to in JSON lines), because its dictionaries take about 100 MB that it keeps for as long as the process that built them runs. The worker exits after a minute without paragraphs to check and starts again when there are more; starting it and checking a first paragraph takes 280 ms on an M2 Pro.
 
 The model is chosen by testing rather than by guessing. Phase 4 starts with an evaluation set built from your own writing: your published essays with realistic errors inserted, plus the real mistakes Claude catches from now on. Each candidate is scored on false flags first and missed errors second, including Harper alone as the baseline to beat.
 
