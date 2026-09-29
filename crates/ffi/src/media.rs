@@ -4,6 +4,7 @@
 
 use std::path::Path;
 
+use editor_config::loader::CONFIG_DIR;
 use editor_core::footnotes::{find_def, parse_footnotes};
 use editor_vault::link_update::parent_dir;
 
@@ -57,6 +58,13 @@ impl VaultFolder {
             dark: token_color(&config, &name, true),
         }
     }
+}
+
+/// The name of the folder in a vault that holds its config, such as
+/// `.gasp`, so the phone never spells it out itself.
+#[uniffi::export]
+pub fn config_folder() -> String {
+    CONFIG_DIR.to_owned()
 }
 
 #[uniffi::export]

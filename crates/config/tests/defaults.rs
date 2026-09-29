@@ -33,6 +33,7 @@ const KEYMAP: &[(&str, &str)] = &[
     ("Mod+P", "palette.open"),
     ("Mod+N", "note.new"),
     ("Mod+Shift+O", "outline.jump-to-heading"),
+    ("Mod+Alt+[", "fold.toggle"),
     ("Mod+Shift+Y", "daily.open"),
     ("Mod+Shift+I", "template.insert"),
     ("Mod+Shift+J", "sidebar.right.toggle"),
