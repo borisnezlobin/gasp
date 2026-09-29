@@ -3,23 +3,18 @@ import UIKit
 
 @main
 struct EditorApp: App {
-    @State private var library: VaultLibrary
-
-    init() {
-        let library = VaultLibrary()
-        _library = State(initialValue: library)
-        Self.styleNavigationBars(library.tokens)
-    }
+    @State private var model = AppModel()
 
     var body: some Scene {
         WindowGroup {
-            NoteListView()
-                .environment(library)
-                .tint(library.tokens.swiftUIColor(\.accent))
+            BrowserView()
+                .environment(model)
+                .tint(model.library.tokens.swiftUIColor(\.accent))
+                .onAppear { Self.styleNavigationBars(model.library.tokens) }
         }
     }
 
-    /// Navigation titles in the theme's interface font.
+    /// Navigation titles in the theme's interface font, for the sheets.
     private static func styleNavigationBars(_ tokens: Tokens) {
         let appearance = UINavigationBar.appearance()
         appearance.titleTextAttributes = [

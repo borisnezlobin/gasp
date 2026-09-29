@@ -50,23 +50,3 @@ targets:
       - name: Bundle the sample vault
         script: '"$SRCROOT/scripts/bundle-sample-vault.sh"'
         basedOnDependencyAnalysis: false
-  EditorUITests:
-    type: bundle.ui-testing
-    platform: iOS
-    sources:
-      - path: EditorUITests
-    dependencies:
-      - target: Editor
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.borisnezlobin.editor.uitests
-        GENERATE_INFOPLIST_FILE: YES
-        TARGETED_DEVICE_FAMILY: "1"
-schemes:
-  Editor:
-    build:
-      targets:
-        Editor: all
-    test:
-      targets:
-        - EditorUITests
