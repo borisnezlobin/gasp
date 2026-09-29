@@ -19,7 +19,7 @@ The workspace, CI and the synthetic corpus exist, the Linux-runnable Phase 0 spi
 | 4 Search and prose | vault search with an in-memory index (not Tantivy yet), sentence-length highlighting, grammar layers 1 and 2 (Harper's mechanical checks and vault-learned spelling); the local grammar model and OCR aren't started |
 | 5 Export | PDF (Typst) and HTML for the website built; the website still needs `crates/export/assets/article.css` and its drop-cap script updated |
 | 6 MCP and headless modes | MCP server built (`editor mcp`): note, attachment, link, config and render tools, plus a bridge to the running app for its state, commands and unsaved notes. The other headless modes and app screenshots aren't started |
-| 7 iPhone | built as a browser on the core (UniFFI, SwiftUI, TextKit 2): tabs with an overview, an edge-swipe sidebar (search, files, outline, links, tags), live preview from the core's planner with math rendered by Typst, vault images, link cards with their image and coloured code, wide tables as a sideways-scrolling grid with cell editing, heading and callout folding, the grammar checker's underlines and cards, footnote cards, OCR of images and PDFs in search, reading positions kept per note, the keyboard bar from `mobile.toolbar`, find and replace, and every registry command but panes and sync through the palette, the bar or hardware keys (`UIKeyCommand`). Sync is being added on its own branch. Runs in the simulator; not yet run on the owner's iPhone |
+| 7 iPhone | built as a browser on the core (UniFFI, SwiftUI, TextKit 2), named Gasp: tabs with an overview, an edge-swipe sidebar (search, files, outline, links, tags), live preview from the core's planner with math rendered by Typst, vault images, link cards with their image and coloured code, wide tables as a sideways-scrolling grid with cell editing, heading and callout folding, the grammar checker's underlines and cards, footnote cards, OCR of images and PDFs in search, reading positions kept per note, the keyboard bar from `mobile.toolbar`, find and replace, and every registry command but panes and sync through the palette, the bar or hardware keys (`UIKeyCommand`). Sync is being added on its own branch. Runs in the simulator; not yet run on the owner's iPhone |
 | 8 Plugins and agents | not started |
 
 Update this table, and the phase's section, when work lands.
@@ -65,14 +65,14 @@ The iPhone app needs a Mac with Xcode and XcodeGen (`brew install xcodegen`):
 
 ```
 apps/ios/scripts/build-core.sh          # the Rust core for iPhone and simulator, with Swift bindings
-cd apps/ios && xcodegen generate        # Editor.xcodeproj from project.yml
+cd apps/ios && xcodegen generate        # Gasp.xcodeproj from project.yml
 apps/ios/scripts/run-simulator.sh       # build, install and launch on a simulator, headless
 open -a Simulator                       # to watch it
 ```
 
-`build-core.sh` runs again after any change to the Rust code (`--debug` builds faster and runs slower). The core, the bindings and the Xcode project are generated, so git ignores them. `xcrun simctl launch <device> com.borisnezlobin.editor -open 'editor://open?path=Summary.md&line=3' -run palette.open` opens a note with the cursor on a line and runs a command, which is how the screenshots are taken: `xcrun simctl io <device> screenshot shot.png`.
+`build-core.sh` runs again after any change to the Rust code (`--debug` builds faster and runs slower). The core, the bindings and the Xcode project are generated, so git ignores them. `xcrun simctl launch <device> com.borisnezlobin.gasp -open 'gasp://open?path=Summary.md&line=3' -run palette.open` opens a note with the cursor on a line and runs a command, which is how the screenshots are taken: `xcrun simctl io <device> screenshot shot.png`.
 
-To run it on your iPhone: plug it in, turn on Developer Mode (Settings › Privacy & Security), open `apps/ios/Editor.xcodeproj`, pick the phone as the destination and press Run. The project already uses team `K2MB68Z582` with automatic signing and the bundle ID `com.borisnezlobin.editor`; the first time, Xcode registers the phone with the team, and the phone asks you to trust the developer in Settings › General › VPN & Device Management.
+To run it on your iPhone: plug it in, turn on Developer Mode (Settings › Privacy & Security), open `apps/ios/Gasp.xcodeproj`, pick the phone as the destination and press Run. The project already uses team `K2MB68Z582` with automatic signing and the bundle ID `com.borisnezlobin.gasp`; the first time, Xcode registers the phone with the team, and the phone asks you to trust the developer in Settings › General › VPN & Device Management.
 
 ### First tasks
 
@@ -593,7 +593,7 @@ Still to do in this phase: screenshots of the running app, plugin tools (Phase 8
 
 This is the SwiftUI and TextKit 2 app on the same core, with your mobile toolbar (attach file, indent, unindent, callout, inline math, footnote, sentence highlighting, table), sync on open and close, search and export. It's done when it replaces Obsidian and GitSync on your phone. Build and run instructions are in [Building and running](#building-and-running).
 
-**How it's put together.** `apps/ios` is an XcodeGen project (`project.yml`) for the app Editor, bundle ID `com.borisnezlobin.editor`, team `K2MB68Z582`, iOS 17 and up. `crates/ffi` is the whole bridge: a UniFFI surface with offsets in UTF-16, as UIKit counts them. `apps/ios/scripts/build-core.sh` builds it with `cargo rustc --crate-type staticlib` for `aarch64-apple-ios` and `aarch64-apple-ios-sim`, generates the Swift bindings with `tools/uniffi-bindgen` (UniFFI 0.32, library mode), and packs `apps/ios/Core/EditorCore.xcframework`. The phone decides nothing about Markdown itself:
+**How it's put together.** `apps/ios` is an XcodeGen project (`project.yml`) for the app Gasp (target and scheme `Gasp`, sources in `apps/ios/Gasp`), bundle ID `com.borisnezlobin.gasp`, team `K2MB68Z582`, iOS 17 and up. `crates/ffi` is the whole bridge: a UniFFI surface with offsets in UTF-16, as UIKit counts them. `apps/ios/scripts/build-core.sh` builds it with `cargo rustc --crate-type staticlib` for `aarch64-apple-ios` and `aarch64-apple-ios-sim`, generates the Swift bindings with `tools/uniffi-bindgen` (UniFFI 0.32, library mode), and packs `apps/ios/Core/GaspCore.xcframework`. The phone decides nothing about Markdown itself:
 
 | FFI object | What the phone gets from the core |
 |---|---|

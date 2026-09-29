@@ -24,10 +24,10 @@ fi
 
 cd "$ios_dir"
 xcodegen generate --quiet
-xcodebuild -project Editor.xcodeproj -scheme Editor -configuration Debug \
+xcodebuild -project Gasp.xcodeproj -scheme Gasp -configuration Debug \
   -destination "platform=iOS Simulator,id=$device" -derivedDataPath "$derived" \
   -quiet build
 
 xcrun simctl boot "$device" 2>/dev/null || true
-xcrun simctl install "$device" "$derived/Build/Products/Debug-iphonesimulator/Editor.app"
-xcrun simctl launch "$device" com.borisnezlobin.editor
+xcrun simctl install "$device" "$derived/Build/Products/Debug-iphonesimulator/Gasp.app"
+xcrun simctl launch "$device" com.borisnezlobin.gasp

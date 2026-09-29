@@ -1,5 +1,5 @@
 # Built by scripts/build-core.sh
 /Core/
 # Generated from project.yml by XcodeGen
-/Editor.xcodeproj/
-/Editor/Info.plist
+/Gasp.xcodeproj/
+/Gasp/Info.plist

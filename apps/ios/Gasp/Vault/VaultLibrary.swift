@@ -38,7 +38,7 @@ final class VaultLibrary {
         commands.first { $0.id == id }
     }
 
-    /// Reads `.editor/` again after a setting changed.
+    /// Reads `.gasp/` again after a setting changed.
     func reloadConfig() {
         vault?.reloadConfig()
         readConfig()

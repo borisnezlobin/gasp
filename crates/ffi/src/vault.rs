@@ -51,7 +51,7 @@ pub struct NoteSummary {
     pub modified: i64,
 }
 
-/// The notes open as tabs on this device, from `.editor/device.toml`,
+/// The notes open as tabs on this device, from `.gasp/device.toml`,
 /// which never syncs.
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct OpenTabs {
@@ -137,14 +137,14 @@ impl VaultFolder {
         NoteDocument::with_display(text, self.display.clone())
     }
 
-    /// Reads `.editor/` again, after its files changed.
+    /// Reads `.gasp/` again, after its files changed.
     pub fn reload_config(&self) {
         let config = load_config(&self.root);
         *self.display.lock() = DisplayState::from_settings(&config.settings);
         *self.config() = config;
     }
 
-    /// The built-in theme with the vault's `.editor/theme.toml` and
+    /// The built-in theme with the vault's `.gasp/theme.toml` and
     /// `appearance.base-font-size` on top.
     pub fn theme(&self) -> ThemeTokens {
         theme(&self.config())
@@ -186,7 +186,7 @@ impl VaultFolder {
         }
     }
 
-    /// Saves the open tabs to `.editor/device.toml`.
+    /// Saves the open tabs to `.gasp/device.toml`.
     pub fn save_open_tabs(&self, tabs: OpenTabs) -> Result<(), VaultError> {
         let mut config = self.config();
         config.device.open_tabs = tabs.paths;

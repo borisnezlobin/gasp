@@ -49,10 +49,10 @@ struct BrowserView: View {
         "\(model.tabs.active.id) \(model.tabs.active.path ?? "")"
     }
 
-    /// `editor://open?path=Folder/Note.md&line=12` opens a note, with the
+    /// `gasp://open?path=Folder/Note.md&line=12` opens a note, with the
     /// cursor on a line counted from 1.
     private func open(_ url: URL) {
-        guard url.scheme == "editor", url.host() == "open",
+        guard url.scheme == "gasp", url.host() == "open",
               let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
               let path = query.first(where: { $0.name == "path" })?.value,
               model.library.notes.contains(where: { $0.path == path }) else { return }
@@ -63,7 +63,7 @@ struct BrowserView: View {
         }
     }
 
-    /// `-open editor://open?path=…` on the command line opens a note at
+    /// `-open gasp://open?path=…` on the command line opens a note at
     /// launch, and `-run <command>` runs a command (or `overview` shows
     /// the tabs), as `xcrun simctl launch` passes them.
     private func openLaunchLink() async {
