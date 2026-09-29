@@ -59,7 +59,7 @@ extension EditingController {
         let text = storage.string as NSString
         let whole = NSRange(location: 0, length: text.length)
         let paragraphs = changed.map { text.paragraphRange(for: NSIntersectionRange($0, whole)) }
-        textView.textLayoutManager?.textContentManager?.performEditingTransaction {
+        textView.changeAttributes {
             for paragraph in paragraphs where NSMaxRange(paragraph) <= storage.length {
                 storage.removeAttribute(.grammarFlag, range: paragraph)
             }

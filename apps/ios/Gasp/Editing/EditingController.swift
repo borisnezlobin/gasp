@@ -315,7 +315,7 @@ final class EditingController: NSObject, UITextViewDelegate {
         )
         isRestyling = true
         let selection = textView.selectedRange
-        textView.textLayoutManager?.textContentManager?.performEditingTransaction {
+        textView.changeAttributes {
             styler.apply(plan, prose: prose, code: code, to: storage, edited: edited)
         }
         if textView.selectedRange != selection { textView.selectedRange = selection }
@@ -324,5 +324,18 @@ final class EditingController: NSObject, UITextViewDelegate {
         isRestyling = false
         fetchMissingMedia()
         updateTableGrids()
+    }
+}
+
+extension UITextView {
+    /// Changes attributes of the text as one edit, so TextKit invalidates
+    /// its layout once for all of them rather than once for each.
+    func changeAttributes(_ change: () -> Void) {
+        let storage = textStorage
+        textLayoutManager?.textContentManager?.performEditingTransaction {
+            storage.beginEditing()
+            change()
+            storage.endEditing()
+        }
     }
 }
