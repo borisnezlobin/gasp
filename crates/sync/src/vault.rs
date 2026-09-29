@@ -120,9 +120,9 @@ pub struct Vault {
     /// Where the remote's branch was when the last fetch looked, until a
     /// push uses it: a push of that very commit has nothing to send.
     fetched_remote_tip: Cell<Option<Oid>>,
-    /// Set when an old pack couldn't be removed, as on a system that keeps
-    /// open files, so packs aren't combined again while this clone is open.
-    pack_combining_failed: Cell<bool>,
+    /// Set when tidying objects failed, so it isn't tried again while
+    /// this clone is open.
+    tidying_failed: Cell<bool>,
 }
 
 /// What the merge policy does with one conflicting path.
@@ -292,7 +292,7 @@ impl Vault {
             config,
             token,
             fetched_remote_tip: Cell::new(None),
-            pack_combining_failed: Cell::new(false),
+            tidying_failed: Cell::new(false),
         };
         vault.check_branch()?;
         Ok(vault)
@@ -489,9 +489,7 @@ impl Vault {
         self.fetched_remote_tip
             .set(advertised.map(|head| head.oid()));
         if remote.stats().received_objects() > 0 {
-            // Tidying never fails a fetch that worked: a pack left over
-            // only costs time.
-            let _ = self.combine_small_packs();
+            self.tidy_objects();
         }
         Ok(())
     }
@@ -506,6 +504,7 @@ impl Vault {
         };
         if self.fetched_remote_tip.take() != Some(head) {
             self.send()?;
+            self.tidy_objects();
         }
         if self.tracking_commit() != Some(head) {
             self.repo

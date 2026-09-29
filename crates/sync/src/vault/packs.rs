@@ -1,9 +1,12 @@
-//! Keeps object lookups quick as fetches pile up packs.
+//! Keeps object lookups quick as commits and fetches pile up objects.
 //!
-//! Every fetch that brings something in writes one more pack, git never
-//! runs here to repack them, and libgit2 looks for an object in each pack
-//! in turn. A few hundred packs made a merge twenty times slower, so once
-//! there are many, the smallest are written again as one.
+//! git never runs here to repack. Every fetch that brings something in
+//! writes one more pack, and libgit2 looks for an object in each pack in
+//! turn. Every commit writes its objects as loose files, each read with its
+//! own open and inflate, and libgit2's push walks the whole history, so a
+//! push read every commit made on this device from its own file. Loose
+//! objects are packed once there are a few hundred, and the smallest packs
+//! are written again as one once there are many.
 
 use std::fs;
 use std::io::ErrorKind;
@@ -16,6 +19,12 @@ use crate::error::{SyncError, SyncResult};
 
 /// How many packs a clone keeps before the smallest are combined.
 const PACKS_BEFORE_COMBINING: usize = 24;
+
+/// Loose objects spread evenly over 256 folders by their first byte, so
+/// one folder with this many stands for about 512 in all, as git's own
+/// `gc.auto` estimate works.
+const SAMPLE_FOLDER: &str = "17";
+const LOOSE_IN_SAMPLE_BEFORE_PACKING: usize = 2;
 
 /// The most pack bytes one combining writes again. Notes come in packs of
 /// a few kilobytes, so this usually takes every pack but the clone's own,
@@ -38,13 +47,40 @@ struct Pack {
 }
 
 impl Vault {
-    /// Combines the smallest packs into one once the clone has many. An
-    /// old pack is only removed after every object in it was found in the
-    /// new one, so a failure part way leaves duplicates, never a gap.
-    pub(super) fn combine_small_packs(&self) -> SyncResult<()> {
-        if self.pack_combining_failed.get() {
+    /// Packs loose objects and combines small packs when there are many.
+    /// An object's old copy is only removed after the new pack's index was
+    /// found to list it, so a failure part way leaves duplicates, never a
+    /// gap. After a failure, as when Windows won't remove an open pack,
+    /// tidying stops until the vault is opened again, so a repeated
+    /// failure can't pile up packs.
+    pub(super) fn tidy_objects(&self) {
+        if self.tidying_failed.get() {
+            return;
+        }
+        let tidied = self
+            .pack_loose_objects()
+            .and_then(|()| self.combine_small_packs());
+        self.tidying_failed.set(tidied.is_err());
+    }
+
+    fn pack_loose_objects(&self) -> SyncResult<()> {
+        let objects = self.repo.path().join("objects");
+        let sample = loose_in(&objects.join(SAMPLE_FOLDER))?;
+        if sample.len() < LOOSE_IN_SAMPLE_BEFORE_PACKING {
             return Ok(());
         }
+        let mut loose = Vec::new();
+        for byte in 0..=u8::MAX {
+            loose.extend(loose_in(&objects.join(format!("{byte:02x}")))?);
+        }
+        let ids: Vec<Oid> = loose.iter().map(|(id, _)| *id).collect();
+        self.write_pack_of(&objects.join("pack"), &ids)?;
+        loose
+            .iter()
+            .try_for_each(|(_, path)| remove_if_present(path))
+    }
+
+    fn combine_small_packs(&self) -> SyncResult<()> {
         let folder = self.repo.path().join("objects").join("pack");
         let packs = packs_in(&folder)?;
         if packs.len() < PACKS_BEFORE_COMBINING {
@@ -54,25 +90,22 @@ impl Vault {
         if chosen.len() < 2 {
             return Ok(());
         }
-        let combined = self.write_combined(&folder, &chosen)?;
-        let removed = chosen
-            .iter()
-            .filter(|pack| pack.index != combined)
-            .try_for_each(|pack| remove_pack(&pack.index));
-        // Where open packs can't be removed, each try would add a pack.
-        self.pack_combining_failed.set(removed.is_err());
-        removed
-    }
-
-    /// Writes every object of `packs` into one new pack and returns its
-    /// index, after checking the index lists every one of them.
-    fn write_combined(&self, folder: &Path, packs: &[Pack]) -> SyncResult<PathBuf> {
         let mut ids = Vec::new();
-        for pack in packs {
+        for pack in &chosen {
             ids.extend(object_ids(&pack.index)?);
         }
+        let combined = self.write_pack_of(&folder, &ids)?;
+        chosen
+            .iter()
+            .filter(|pack| pack.index != combined)
+            .try_for_each(|pack| remove_pack(&pack.index))
+    }
+
+    /// Writes `ids` into one new pack and returns its index, after
+    /// checking the index lists every one of them.
+    fn write_pack_of(&self, folder: &Path, ids: &[Oid]) -> SyncResult<PathBuf> {
         let mut builder = self.repo.packbuilder()?;
-        for id in &ids {
+        for id in ids {
             builder.insert_object(*id, None)?;
         }
         builder.write(folder, 0)?;
@@ -115,6 +148,28 @@ fn packs_in(folder: &Path) -> SyncResult<Vec<Pack>> {
         }
     }
     Ok(packs)
+}
+
+/// The loose objects in one of the 256 object folders, with their files.
+fn loose_in(folder: &Path) -> SyncResult<Vec<(Oid, PathBuf)>> {
+    let entries = match fs::read_dir(folder) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error.into()),
+    };
+    let prefix = folder.file_name().and_then(|name| name.to_str());
+    let prefix = prefix.unwrap_or_default();
+    let mut loose = Vec::new();
+    for entry in entries {
+        let path = entry?.path();
+        let name = path.file_name().and_then(|name| name.to_str());
+        let hex = format!("{prefix}{}", name.unwrap_or_default());
+        let is_object = hex.len() == 2 * OID_BYTES && hex.bytes().all(|b| b.is_ascii_hexdigit());
+        if is_object && let Ok(id) = Oid::from_str(&hex) {
+            loose.push((id, path));
+        }
+    }
+    Ok(loose)
 }
 
 /// The smallest packs whose sizes add up to at most the limit.

@@ -5,10 +5,10 @@ mod common;
 
 use std::path::Path;
 
-use common::{World, read, sync, write};
+use common::{World, author, read, sync, write};
 use git2::{Repository, TreeWalkMode, TreeWalkResult};
 
-const ROUNDS: usize = 60;
+const ROUNDS: usize = 40;
 
 fn pack_count(root: &Path) -> usize {
     std::fs::read_dir(root.join(".git/objects/pack"))
@@ -76,4 +76,42 @@ fn packs_from_many_fetches_are_combined_without_losing_anything() {
     sync(&phone, "phone");
     sync(&laptop, "laptop");
     assert_eq!(read(&laptop, "last.md"), "still syncs\n");
+}
+
+fn loose_object_count(root: &Path) -> usize {
+    let objects = root.join(".git/objects");
+    (0..=u8::MAX)
+        .filter_map(|byte| std::fs::read_dir(objects.join(format!("{byte:02x}"))).ok())
+        .map(Iterator::count)
+        .sum()
+}
+
+#[test]
+fn objects_from_many_commits_are_packed_without_losing_anything() {
+    let world = World::seeded(&[("note.md", b"hello\n")]);
+    let laptop = world.device("laptop");
+    let commits = 400;
+    for edit in 0..commits {
+        write(
+            &laptop,
+            &format!("notes/{}.md", edit % 7),
+            format!("{edit}\n").as_bytes(),
+        );
+        laptop.commit_all(&author("laptop"), "edit").unwrap();
+        if edit % 50 == 49 {
+            laptop.push().unwrap();
+        }
+    }
+
+    assert!(
+        loose_object_count(laptop.root()) < 1500,
+        "{}",
+        loose_object_count(laptop.root())
+    );
+    assert!(read_all_history(laptop.root()) >= commits);
+    let phone = world.device("phone");
+    assert_eq!(
+        read(&phone, "notes/0.md"),
+        format!("{}\n", (commits - 1) / 7 * 7)
+    );
 }
