@@ -367,6 +367,11 @@ pub const ACCENT_DESCRIPTION: &str = "Used for the cursor, links and switches th
 /// The App icon row's credit. The whale's source model is CC BY 4.0, which asks for a credit people can find.
 pub const ICON_CREDIT: &str = "The humpback is drawn from a 3D model by Gutarra Díaz, Stubbs, Moon, Palmer and Benton, shared under CC BY 4.0.";
 
+/// The Obsidian import row: what it brings in, and that nothing set here
+/// is overwritten.
+pub const OBSIDIAN_IMPORT_TITLE: &str = "Settings from Obsidian";
+pub const OBSIDIAN_IMPORT_DESCRIPTION: &str = "Brings in Latex Suite snippets, typing replacements, hotkeys and app settings from the vault’s .obsidian folder. Anything already set here stays as it is.";
+
 /// The archive the whale's source model is published in.
 pub const ICON_SOURCE_URL: &str = "https://doi.org/10.5281/zenodo.5979631";
 
@@ -382,6 +387,8 @@ pub enum RowSpec {
     Version,
     /// Credit for the whale in the app icon, which its licence requires.
     IconCredit,
+    /// Importing the settings of an Obsidian vault.
+    ObsidianImport,
     /// The address of the repository the vault syncs with.
     SyncRemote,
     /// Signing in to it with a token.
@@ -415,6 +422,7 @@ pub const PAGES: &[PageSpec] = &[
         group: "App",
         cards: &[
             &[RowSpec::Vault, RowSpec::Version],
+            &[RowSpec::ObsidianImport],
             &[setting("mcp.enabled")],
             &[RowSpec::IconCredit],
         ],

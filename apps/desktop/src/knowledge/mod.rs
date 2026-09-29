@@ -131,7 +131,7 @@ fn on_sidebar_event(
             let range = range.clone();
             let change = |text: &str| mentions::link_mention(text, range, expected, link);
             if let Err(error) = edit::edit_note(workspace, source, change, cx) {
-                eprintln!("could not link the mention: {error}");
+                crate::notices::problem(format!("Couldn’t link the mention: {error}"), cx);
             }
         }
         SidebarEvent::Show(view) => show_sidebar(workspace, Some(*view), sidebar, cx),
@@ -149,7 +149,7 @@ fn open_at(
     cx: &mut Context<Workspace>,
 ) {
     if let Err(error) = workspace.open_path(path, OpenIn::ActiveTab, window, cx) {
-        eprintln!("could not open {}: {error}", path.display());
+        crate::notices::open_failed(path, error, cx);
         return;
     }
     if let (Some(offset), Some(editor)) = (offset, workspace.active_editor(cx)) {
@@ -187,7 +187,7 @@ fn open_daily_note(workspace: &mut Workspace, window: &mut Window, cx: &mut Cont
     let path = match made {
         Ok((path, _)) => path,
         Err(error) => {
-            eprintln!("could not make today's note: {error}");
+            crate::notices::problem(format!("Couldn’t make today’s note: {error}"), cx);
             return;
         }
     };
@@ -228,7 +228,7 @@ fn open_template_picker(
             let text = match std::fs::read_to_string(&chosen.0) {
                 Ok(template) => templates::fill(&template, &context),
                 Err(error) => {
-                    eprintln!("could not read {}: {error}", chosen.0.display());
+                    crate::notices::open_failed(&chosen.0, error, cx);
                     return;
                 }
             };

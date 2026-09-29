@@ -405,10 +405,24 @@ fn a_taken_title_is_refused(cx: &mut TestAppContext) {
     run(&workspace, cx, "note.rename");
     cx.simulate_input("b");
     cx.simulate_keystrokes("enter");
-    assert!(cx.has_pending_prompt());
-    cx.simulate_prompt_answer("OK");
+    // No dialog to dismiss: a notice says why, and the typed name stays
+    // in the title, selected, to be fixed.
+    assert!(!cx.has_pending_prompt());
+    let notices =
+        cx.update(|window, cx| gasp_desktop::notices::shown_in(window.window_handle(), cx));
+    assert!(notices[0].1.message.contains("already a note called “b”"));
     assert_eq!(titles(&workspace, cx), vec!["a"]);
-    assert!(vault.path().join("a.md").is_file());
+    assert_eq!(title_text(&workspace, cx), "b");
+    cx.simulate_input("c");
+    cx.simulate_keystrokes("enter");
+    assert_eq!(titles(&workspace, cx), vec!["c"]);
+    assert!(vault.path().join("c.md").is_file());
+    let notices =
+        cx.update(|window, cx| gasp_desktop::notices::shown_in(window.window_handle(), cx));
+    assert!(
+        notices.is_empty(),
+        "the refusal's notice goes once it's fixed"
+    );
 }
 
 fn title_text(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> String {

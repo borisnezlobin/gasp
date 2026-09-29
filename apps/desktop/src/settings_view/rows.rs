@@ -171,7 +171,9 @@ impl SettingsView {
                 let typing = self.hex_field.focus_handle(cx).is_focused(window);
                 self.accent_control(focused && !typing, typing, cx)
             }
-            ControlRow::Vault | ControlRow::IconCredit => self.general_control(row, focused, cx),
+            ControlRow::Vault | ControlRow::IconCredit | ControlRow::ObsidianImport => {
+                self.general_control(row, focused, cx)
+            }
             ControlRow::Shortcut(shortcut) => self.shortcut_control(shortcut, focused, cx),
             ControlRow::SyncRemote => return self.remote_control(row, focused),
             ControlRow::SyncAccount => self.account_control(focused, cx),
@@ -209,8 +211,24 @@ impl SettingsView {
     ) -> AnyElement {
         match row {
             ControlRow::Vault => self.vault_control(focused, cx),
+            ControlRow::ObsidianImport => self.obsidian_import_control(focused, cx),
             _ => self.icon_credit_control(focused),
         }
+    }
+
+    fn obsidian_import_control(&self, focused: bool, cx: &mut Context<Self>) -> AnyElement {
+        button(
+            "import-obsidian",
+            "Import from Obsidian",
+            false,
+            focused,
+            &self.style,
+        )
+        .selector(|| "import-obsidian".to_string())
+        .on_click(cx.listener(|view, _: &ClickEvent, _, cx| {
+            view.request_command("vault.import-obsidian", cx)
+        }))
+        .into_any_element()
     }
 
     fn setting_control(

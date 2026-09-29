@@ -35,7 +35,8 @@ pub enum FileTreeEvent {
     /// A note or folder was created.
     Created { path: PathBuf },
     /// A file or folder went to the trash.
-    Trashed { path: PathBuf },
+    /// `text` is what a note read as it went; a folder has none.
+    Trashed { path: PathBuf, text: Option<String> },
     /// Folders were expanded or collapsed. Read them with
     /// [`FileTree::expanded_folders`] to save them.
     ExpansionChanged,

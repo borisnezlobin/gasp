@@ -225,11 +225,15 @@ impl NoteDoc {
         }));
     }
 
-    /// Saves now if there are edits and no conflict, logging a failure.
-    /// A failed save leaves the note marked unsaved.
+    /// Saves now if there are edits and no conflict, with a notice when
+    /// it fails. A failed save leaves the note marked unsaved.
     pub fn save_or_log(&mut self, cx: &mut Context<Self>) {
         if let Err(error) = self.save(cx) {
-            eprintln!("could not save {}: {error}", self.path.display());
+            let message = format!(
+                "Couldn’t save “{}”: {error}. Your edits are still open here.",
+                super::files::note_title(&self.path)
+            );
+            crate::notices::show(crate::notices::Notice::problem(message), cx);
         }
     }
 

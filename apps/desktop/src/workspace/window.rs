@@ -185,7 +185,7 @@ pub(crate) fn build_started_workspace(
     if let Some(note) = note
         && let Err(error) = open_or_create(&mut workspace, note, window, cx)
     {
-        eprintln!("could not open {}: {error}", note.display());
+        crate::notices::open_failed(note, error, cx);
     }
     if crate::sandbox::writes_allowed() {
         workspace.watch_vault(window, cx);
@@ -287,6 +287,21 @@ impl Workspace {
     }
 
     /// The window and open tabs as they are now.
+    /// Notes that this device has offered the vault its Obsidian
+    /// settings, so it doesn't again, and saves that now.
+    pub fn mark_obsidian_import_offered(&mut self, cx: &App) {
+        self.config.device.obsidian_import_offered = true;
+        self.save_device_now(cx);
+    }
+
+    /// Writes this device's state for the vault now, rather than when the
+    /// window next moves or closes.
+    pub(crate) fn save_device_now(&self, cx: &App) {
+        if let Err(error) = save_device(&self.vault, &self.device_state(cx)) {
+            eprintln!("could not save the window state: {error}");
+        }
+    }
+
     pub fn device_state(&self, cx: &App) -> DeviceSettings {
         let mut device = self.config.device.clone();
         device.device_id = self.edit_time_device_id();
@@ -430,7 +445,7 @@ impl Workspace {
             };
             cx.update(|_, cx| {
                 if let Err(error) = open_vault_window(&vault, None, cx) {
-                    eprintln!("could not open {}: {error}", vault.display());
+                    crate::notices::open_failed(&vault, error, cx);
                 }
             })
             .ok();

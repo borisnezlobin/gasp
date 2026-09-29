@@ -14,6 +14,7 @@
 //! and the note's right-click menu, all built from `crate::ui`.
 
 mod commands;
+pub mod deleted;
 mod edit_tracking;
 pub mod files;
 pub mod help;
@@ -173,6 +174,10 @@ pub struct Workspace {
     toolbar_hover: toolbars::ToolbarHover,
     /// The toolbar an add button asked the settings page to add to.
     toolbar_to_add_to: Option<String>,
+    /// Notes moved to the trash this session, for `note.restore-deleted`.
+    deleted: Vec<deleted::DeletedNote>,
+    /// The notice saying the last typed title couldn't be the note's name.
+    rename_notice: Option<u64>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -266,6 +271,8 @@ impl Workspace {
             toolbar_focus: None,
             toolbar_hover: Default::default(),
             toolbar_to_add_to: None,
+            deleted: Vec::new(),
+            rename_notice: None,
             _subscriptions: Vec::new(),
         };
         workspace.scan_vault_index(cx);
@@ -275,6 +282,7 @@ impl Workspace {
         workspace.watch_keystrokes_for_sheet(window, cx);
         workspace.start_edit_time(cx);
         workspace.add_launcher_tab(&pane, window, cx);
+        workspace._subscriptions.push(crate::notices::observe(cx));
         workspace
     }
 
@@ -484,9 +492,9 @@ impl Workspace {
     }
 
     /// Gives every open note the current config and theme.
-    fn restyle_editors(&mut self, cx: &mut Context<Self>) {
-        let editors: Vec<Entity<EditorView>> = self
-            .panes()
+    /// The editor of every note open in a tab.
+    pub(crate) fn open_editors(&self, cx: &App) -> Vec<Entity<EditorView>> {
+        self.panes()
             .iter()
             .flat_map(|pane| {
                 pane.read(cx)
@@ -495,7 +503,11 @@ impl Workspace {
                     .filter_map(|tab| tab.note().map(|note| note.editor.clone()))
                     .collect::<Vec<_>>()
             })
-            .collect();
+            .collect()
+    }
+
+    fn restyle_editors(&mut self, cx: &mut Context<Self>) {
+        let editors = self.open_editors(cx);
         let config = self.config.clone();
         for editor in editors {
             editor.update(cx, |editor, cx| editor.apply_config(&config, cx));

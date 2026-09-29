@@ -9,6 +9,25 @@ use super::output::WidgetKind;
 use super::reveal::Revealer;
 use crate::link_card::LinkCard;
 
+/// File extensions an embed draws as a picture. Any other embed, such as
+/// a note or a PDF, reads as a link to it rather than a picture of
+/// nothing.
+const IMAGE_EXTENSIONS: [&str; 11] = [
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif", "tif", "tiff", "heic",
+];
+
+/// Whether an embed's target names a picture.
+pub fn embeds_image(target: &str) -> bool {
+    std::path::Path::new(target)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            IMAGE_EXTENSIONS
+                .iter()
+                .any(|image| image.eq_ignore_ascii_case(extension))
+        })
+}
+
 /// Standalone HTML tags that become widgets.
 pub(crate) fn html_replaceable(kind: HtmlKind) -> bool {
     matches!(
@@ -34,6 +53,7 @@ pub(crate) fn replacement(revealer: &Revealer<'_>, id: NodeId) -> Option<WidgetK
             &info.destination,
             &joined(text, &node.content_without_destination()),
         ),
+        NodeKind::Embed(info) if !embeds_image(&info.target) => return None,
         NodeKind::Embed(info) => WidgetKind::Image {
             target: info.target.clone(),
             alt: info.alias.clone().unwrap_or_default(),

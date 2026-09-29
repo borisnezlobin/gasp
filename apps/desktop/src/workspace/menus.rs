@@ -34,9 +34,12 @@ const FILE: &[Entry] = &[
     Command("tab.new"),
     Separator,
     Command("vault.open"),
+    Command("vault.import-obsidian"),
     Separator,
     Command("note.rename"),
+    Command("note.move"),
     Command("note.delete"),
+    Command("note.restore-deleted"),
     Separator,
     Command("app.print"),
     Command("app.export"),
@@ -55,6 +58,7 @@ const EDIT: &[Entry] = &[
     Separator,
     Command("edit.cut"),
     Command("edit.copy"),
+    Command("export.copy-rich-text"),
     Command("edit.paste"),
     Command("edit.paste-plain"),
     Command("select.all"),
@@ -90,6 +94,7 @@ const VIEW: &[Entry] = &[
     Command("view.zoom-out"),
     Command("view.zoom-reset"),
     Command("view.toggle-readable-width"),
+    Command("view.toggle-dark-mode"),
 ];
 
 const GO: &[Entry] = &[

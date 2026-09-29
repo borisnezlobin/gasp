@@ -21,8 +21,9 @@ use super::config_files;
 use super::menu::OpenMenu;
 use super::model::{
     ACCENT_DESCRIPTION, ACCENT_TITLE, ACCENT_TOKEN, DARK_ACCENT_TOKEN, FontSlot, ICON_CREDIT,
-    PAGES, Page, PageSpec, RowSpec, SettingItem, ShortcutQuery, ShortcutRow, map_name_label,
-    map_names, page_cards, setting_items, shortcut_rows, theme_number_items, words_match,
+    OBSIDIAN_IMPORT_DESCRIPTION, OBSIDIAN_IMPORT_TITLE, PAGES, Page, PageSpec, RowSpec,
+    SettingItem, ShortcutQuery, ShortcutRow, map_name_label, map_names, page_cards, setting_items,
+    shortcut_rows, theme_number_items, words_match,
 };
 use super::snippet_editor::SnippetEditor;
 use super::snippets_page::{ReplacementRow, SnippetRow, TypingLists};
@@ -79,6 +80,8 @@ pub enum ControlRow {
     Version,
     /// Credit for the whale in the app icon, with a link to its source.
     IconCredit,
+    /// Importing an Obsidian vault's settings, with a button that does it.
+    ObsidianImport,
     Shortcut(ShortcutRow),
     /// The address of the repository the vault syncs with.
     SyncRemote,
@@ -183,6 +186,7 @@ impl ControlRow {
             ControlRow::Accent => ACCENT_TITLE.to_string(),
             ControlRow::Vault => "Vault".to_string(),
             ControlRow::IconCredit => "App icon".to_string(),
+            ControlRow::ObsidianImport => OBSIDIAN_IMPORT_TITLE.to_string(),
             ControlRow::Version => format!("Version {}", env!("CARGO_PKG_VERSION")),
             ControlRow::Shortcut(shortcut) => shortcut.title.clone(),
             ControlRow::SyncRemote => "Notes repository".to_string(),
@@ -822,6 +826,7 @@ impl SettingsView {
             RowSpec::Vault => ControlRow::Vault,
             RowSpec::Version => ControlRow::Version,
             RowSpec::IconCredit => ControlRow::IconCredit,
+            RowSpec::ObsidianImport => ControlRow::ObsidianImport,
             RowSpec::SyncRemote => ControlRow::SyncRemote,
             RowSpec::SyncAccount if !self.remote_takes_token() => return Vec::new(),
             RowSpec::SyncAccount => ControlRow::SyncAccount,
@@ -873,8 +878,9 @@ impl SettingsView {
             ControlRow::SyncAccount => self.account_description(),
             ControlRow::Font(slot) => slot.description().to_string(),
             ControlRow::Accent => ACCENT_DESCRIPTION.to_string(),
-            ControlRow::Vault => self.vault_root.display().to_string(),
+            ControlRow::Vault => crate::workspace::files::display_path(&self.vault_root),
             ControlRow::IconCredit => ICON_CREDIT.to_string(),
+            ControlRow::ObsidianImport => OBSIDIAN_IMPORT_DESCRIPTION.to_string(),
             ControlRow::Shortcut(_) => String::new(),
             ControlRow::SnippetsFile => self.snippets_file_description(),
             ControlRow::Snippet(_) | ControlRow::SnippetEditor | ControlRow::Replacement(_) => {

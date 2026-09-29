@@ -120,7 +120,7 @@ impl Workspace {
         match path {
             Some(path) => {
                 if let Err(error) = self.show_path_in_pane(&pane, &path, false, window, cx) {
-                    eprintln!("could not open {}: {error}", path.display());
+                    crate::notices::open_failed(&path, error, cx);
                 }
             }
             None if duplicate => self.add_launcher_tab(&pane, window, cx),
