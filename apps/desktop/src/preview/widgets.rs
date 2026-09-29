@@ -488,6 +488,10 @@ impl LineLayouter<'_, '_> {
             }
             WidgetKind::CodeBlock { title, .. } => self.code_header(range, title.as_deref(), left),
             WidgetKind::LinkCard(card) => self.link_card(range, card, left, width),
+            WidgetKind::EmbeddedNote { target, subpath } => {
+                let key = crate::embeds::EmbedKey::new(target, subpath.as_deref());
+                self.embed_card(range, &key, left, width)
+            }
             WidgetKind::Image {
                 target,
                 width: w,

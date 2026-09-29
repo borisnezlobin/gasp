@@ -374,6 +374,39 @@ pub struct Theme {
     /// Heading folds: the chevron in the margin and the count of lines a
     /// folded heading hides.
     pub fold: FoldTheme,
+    /// Notes embedded with `![[…]]`, drawn as cards.
+    pub embed: EmbedTheme,
+}
+
+/// How an embedded note's card looks. Its padding and corners are the
+/// spacing and radius scales; the most of a note it shows is
+/// `embed.max-lines` lines of body text.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct EmbedTheme {
+    pub card_fill: Hsla,
+    /// The note's name in the card's header, and the Open control's fill
+    /// under the pointer.
+    pub title: Hsla,
+    pub open_fill: Hsla,
+    /// What a card says instead of a note, such as a note that isn't
+    /// there.
+    pub message: Hsla,
+    /// The Create note button's fill.
+    pub button_fill: Hsla,
+    pub max_lines: f32,
+}
+
+impl EmbedTheme {
+    fn from_palette(p: &Palette) -> Self {
+        Self {
+            card_fill: p.fill_faint,
+            title: p.text_muted,
+            open_fill: p.fill_strong,
+            message: p.text_muted,
+            button_fill: p.fill,
+            max_lines: 24.,
+        }
+    }
 }
 
 /// The colours of heading folds. Their sizes are the icon size and the
@@ -706,6 +739,7 @@ impl Theme {
         };
         let line_height = theme.body_line_height();
         theme.table = TableTheme::from_tokens(&read, &palette, line_height);
+        theme.embed.max_lines = read.number("embed.max-lines", 24.);
         theme
     }
 
@@ -938,6 +972,7 @@ fn read_colors(palette: &Palette) -> Theme {
         workspace: WorkspaceTheme::from_palette(p),
         table: TableTheme::from_palette(p),
         fold: FoldTheme::from_palette(p),
+        embed: EmbedTheme::from_palette(p),
         ..zero_sizes()
     }
 }
@@ -950,6 +985,7 @@ fn zero_sizes() -> Theme {
         workspace: WorkspaceTheme::default(),
         table: TableTheme::default(),
         fold: FoldTheme::default(),
+        embed: EmbedTheme::default(),
         body_font_family: SharedString::default(),
         ui_font_family: SharedString::default(),
         code_font_family: SharedString::default(),

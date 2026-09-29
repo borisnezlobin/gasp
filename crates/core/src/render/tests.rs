@@ -97,6 +97,10 @@ fn widget_label(text: &str, widget: &Widget) -> String {
             format!("{kind}:{target}{width}")
         }
         WidgetKind::CalloutHeader { .. } => callout_label(text, &widget.kind),
+        WidgetKind::EmbeddedNote { target, subpath } => match subpath {
+            Some(subpath) => format!("note:{target}#{subpath}"),
+            None => format!("note:{target}"),
+        },
         other => simple_widget_label(other),
     }
 }
@@ -730,6 +734,22 @@ fn an_embedded_note_reads_as_a_link_not_a_picture() {
         "![[Plan]] ![[Paper.pdf]]\n\n‸",
         &element(),
         &["{link:Plan} {link:Paper.pdf}", "", ""],
+    );
+}
+
+#[test]
+fn an_embedded_note_becomes_a_card_where_the_app_draws_them() {
+    let mut settings = element();
+    settings.embed_notes = true;
+    check(
+        "![[Plan#Goals]] ![[Paper.pdf]]\n\n‸",
+        &settings,
+        &["⟦note:Plan#Goals⟧ {link:Paper.pdf}", "", ""],
+    );
+    check(
+        "![[Pl‸an]]",
+        &settings,
+        &["{link,markup-dimmed:![[}{link:Plan}{link,markup-dimmed:]]} v⟦note:Plan⟧"],
     );
 }
 

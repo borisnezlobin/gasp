@@ -104,6 +104,10 @@ impl EditorView {
             && let Some(target) = self.link_at(offset)
         {
             cx.emit(EditorEvent::OpenLink(target));
+            // The card around an embedded note would open the note too.
+            if self.embedded {
+                cx.stop_propagation();
+            }
             return;
         }
         if self.read_only {
@@ -246,7 +250,7 @@ impl EditorView {
             Hit::Checkbox { marker } => self.toggle_task(marker, cx),
             Hit::Fold { header, folded } => self.toggle_fold(header, folded, cx),
             Hit::Unfold => self.toggle_heading_fold(line_start, cx),
-            Hit::Link { url } => cx.emit(EditorEvent::OpenLink(url)),
+            Hit::Link { url } | Hit::Open { target: url } => cx.emit(EditorEvent::OpenLink(url)),
             Hit::Card { url } if secondary => cx.emit(EditorEvent::OpenLink(url)),
             _ => return false,
         }
@@ -295,7 +299,7 @@ impl EditorView {
         };
         let card = match &under {
             Some((line, Hit::Card { .. })) => Some((*line, false)),
-            Some((line, Hit::Link { .. })) => Some((*line, true)),
+            Some((line, Hit::Link { .. } | Hit::Open { .. })) => Some((*line, true)),
             _ => None,
         };
         let on_link = || {
@@ -361,6 +365,15 @@ fn pointer_style(hit: Option<&Hit>, secondary: bool, on_link: impl Fn() -> bool)
 
 impl Render for EditorView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.embedded {
+            // The card around it scrolls with the note and takes clicks
+            // that aren't on a link.
+            return div()
+                .id("embedded-note")
+                .size_full()
+                .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+                .child(EditorElement::new(cx.entity()));
+        }
         if self.read_only {
             return div()
                 .id("preview")

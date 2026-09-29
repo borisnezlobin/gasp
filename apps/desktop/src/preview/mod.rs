@@ -4,6 +4,7 @@
 pub mod card;
 pub mod code_highlight;
 pub mod decor;
+pub mod embed_card;
 pub mod folds;
 pub mod items;
 pub mod layout;

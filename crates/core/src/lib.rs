@@ -2,6 +2,7 @@
 
 pub mod commands;
 pub mod document;
+pub mod embed;
 pub mod find;
 pub mod footnotes;
 pub mod history;

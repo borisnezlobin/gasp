@@ -114,6 +114,18 @@ impl<'a> Planner<'a> {
         tree.node(id)
     }
 
+    /// An embedded note is replaced by its card, like an image, when the
+    /// app draws cards.
+    fn note_embed_syntax(&self, node: &Node) -> Option<SyntaxKind> {
+        let NodeKind::Embed(info) = &node.kind else {
+            return None;
+        };
+        let card = self.revealer.settings.embed_notes
+            && !widgets::embeds_image(&info.target)
+            && crate::embed::embeds_note(&info.target);
+        card.then_some(SyntaxKind::Image)
+    }
+
     fn lines_of(&self, range: &Range<usize>) -> Range<usize> {
         let lines = self.revealer.tree.lines();
         lines.line_of(range.start)..lines.line_of(range.end) + 1
@@ -127,7 +139,8 @@ impl<'a> Planner<'a> {
         if matches!(node.kind, NodeKind::Table { .. }) {
             return self.visit_table(id);
         }
-        let replaceable = replaceable_syntax(node, self.revealer.text);
+        let replaceable =
+            replaceable_syntax(node, self.revealer.text).or_else(|| self.note_embed_syntax(node));
         let replaced = replaceable.is_some_and(|syntax| !self.revealer.revealed(id, syntax, None));
         // A link card draws its own surface, not a code block's.
         if !(replaced && matches!(node.kind, NodeKind::CodeBlock(_))) {
