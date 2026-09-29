@@ -70,8 +70,9 @@ struct SyncGlyph: View {
     }
 }
 
-/// The sync indicator in the tab bar. It shows only for the synced vault;
-/// a tap opens the details and Sync now.
+/// The sync indicator, at the sidebar's foot and wherever the bottom bar
+/// has the `sync` widget. It shows only for the synced vault; a tap opens
+/// the details and Sync now.
 struct SyncIndicator: View {
     @Environment(AppModel.self) private var model
 

@@ -30,10 +30,11 @@ mod sync_setup;
 mod sync_tests;
 mod tables;
 mod theme;
+mod toolbars;
 mod vault;
 
 pub use code::{CodeColor, CodeSpan, code_color_token};
-pub use commands::{CommandInfo, KeyBinding, KeyboardToolbar, ToolbarEntry, ToolbarLabels};
+pub use commands::{CommandInfo, KeyBinding};
 pub use display::SymbolVisibility;
 pub use document::{NoteDocument, OutlineHeading, SentenceLength, SentenceTint};
 pub use edits::{CommandOutcome, TextReplacement};
@@ -57,6 +58,9 @@ pub use sync::{SyncOutcome, SyncOverview, SyncPhaseKind, SyncRunSummary, VaultSy
 pub use sync_conflicts::{ConflictNote, ConflictPlace, PlaceChoice, merge_note_edits};
 pub use sync_setup::{SyncSetup, repository_url, set_up_sync};
 pub use theme::{Palette, Spacing, ThemeColor, ThemeTokens, Typography, built_in_theme};
+pub use toolbars::{
+    PhoneToolbar, ToolbarEntry, ToolbarItemChoice, ToolbarItemKind, ToolbarLabels, ToolbarSetup,
+};
 pub use vault::{NoteSummary, OpenTabs, VaultError, VaultFolder};
 
 uniffi::setup_scaffolding!();

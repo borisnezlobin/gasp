@@ -30,6 +30,7 @@ struct SettingsScreen: View {
                 }
                 SyncSettingsSection(write: write)
                 VaultChoiceSection()
+                ToolbarSettingsSection()
                 ForEach(sections, id: \.title) { section in
                     Section(section.title) {
                         ForEach(section.items, id: \.key) { item in

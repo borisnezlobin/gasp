@@ -29,7 +29,7 @@ final class CommandRunner: EditingHost {
         tabs.makeSession = { [weak self] path, text in self?.makeSession(path: path, text: text) }
     }
 
-    var keyboardToolbar: KeyboardToolbar {
+    var keyboardToolbar: PhoneToolbar {
         library.keyboardToolbar
     }
 

@@ -1,35 +1,35 @@
 import SwiftUI
 
-/// The bar at the bottom: the sidebar on the left, the note showing in the
-/// middle (swipe it sideways for the neighbouring tab, tap it for every
-/// tab), then sync when the vault syncs, and how many tabs are open on the
-/// right.
+/// The bar at the bottom: the `browser-bar` toolbar in toolbars.toml, its
+/// buttons either side of the note showing, which sits where the toolbar
+/// has its spacer. Swipe the title sideways for the neighbouring tab, tap
+/// it for every tab. By default it's the sidebar on the left and the tab
+/// overview on the right.
 struct TabBarView: View {
     @Environment(AppModel.self) private var model
-    @State private var drag: CGFloat = 0
 
     /// Room the bar takes at the bottom of the screen.
     static let clearance: CGFloat = 84
-    private static let switchDistance: CGFloat = 60
 
     private var tokens: Tokens { model.library.tokens }
 
+    /// The bar's items before the note's title, and after it.
+    private var sides: (leading: [ToolbarEntry], trailing: [ToolbarEntry]) {
+        let entries = model.library.browserBar.entries
+        guard let title = entries.firstIndex(of: .spacer) else { return (entries, []) }
+        let trailing = entries[(title + 1)...].filter { $0 != .spacer }
+        return (Array(entries[..<title]), trailing)
+    }
+
     var body: some View {
-        HStack(spacing: tokens.spacing.md) {
-            BarButton(symbol: "sidebar.leading", label: "Show the sidebar", tokens: tokens) {
-                model.workspace.sidebarOpen = true
+        let sides = sides
+        HStack(spacing: tokens.spacing.sm) {
+            ForEach(Array(sides.leading.enumerated()), id: \.offset) { _, entry in
+                BrowserBarItem(entry: entry, tokens: tokens)
             }
-            titlePill
-            SyncIndicator()
-            BarButton(symbol: "square.on.square", label: "Show all tabs", tokens: tokens) {
-                model.workspace.overviewOpen = true
-            }
-            .overlay(alignment: .center) {
-                Text("\(model.tabs.tabs.count)")
-                    .font(Font(tokens.uiFont(size: tokens.smallSize * 0.85, bold: true)))
-                    .foregroundStyle(tokens.swiftUIColor(\.icon))
-                    .offset(x: 2, y: 2)
-                    .allowsHitTesting(false)
+            TabTitleSwiper()
+            ForEach(Array(sides.trailing.enumerated()), id: \.offset) { _, entry in
+                BrowserBarItem(entry: entry, tokens: tokens)
             }
         }
         .padding(tokens.spacing.sm)
@@ -43,46 +43,66 @@ struct TabBarView: View {
         .padding(.horizontal, tokens.spacing.xl)
         .padding(.bottom, tokens.spacing.sm)
     }
+}
 
-    private var titlePill: some View {
-        let tab = model.tabs.active
-        return VStack(spacing: 0) {
-            Text(model.tabs.title(of: tab))
-                .font(Font(tokens.textFont(size: tokens.bodySize, bold: true)))
-                .foregroundStyle(tokens.swiftUIColor(\.textStrong))
-            if let folder = folder(of: tab) {
-                Text(folder)
-                    .font(Font(tokens.uiFont(size: tokens.smallSize * 0.85)))
-                    .foregroundStyle(tokens.swiftUIColor(\.textDetail))
+/// One of the bottom bar's items: a command's button, the tab overview
+/// with how many tabs are open, a menu, a line, or sync's indicator.
+private struct BrowserBarItem: View {
+    @Environment(AppModel.self) private var model
+    let entry: ToolbarEntry
+    let tokens: Tokens
+
+    private static let overview = "tab.overview"
+
+    var body: some View {
+        switch entry {
+        case .command(let command) where command.id == Self.overview:
+            overviewButton(command)
+        case .command(let command):
+            BarButton(symbol: CommandSymbols.name(for: command.id), label: command.title, tokens: tokens) {
+                model.runner.run(command.id)
             }
+        case .menu(let title, let commands):
+            menu(title: title, commands: commands)
+        case .separator:
+            Capsule()
+                .fill(tokens.swiftUIColor(\.divider))
+                .frame(width: 1, height: 22)
+        case .widget(let name, _) where name == "sync":
+            SyncIndicator()
+        case .widget, .spacer:
+            EmptyView()
         }
-        .lineLimit(1)
-        .frame(maxWidth: .infinity, minHeight: 44)
-        .contentShape(Rectangle())
-        .offset(x: drag)
-        .opacity(1 - min(abs(drag) / 200, 0.5))
-        .onTapGesture { model.workspace.overviewOpen = true }
-        .gesture(switchGesture)
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Swipe to move between tabs. Tap to see them all.")
-        .accessibilityAddTraits(.isButton)
     }
 
-    private var switchGesture: some Gesture {
-        DragGesture(minimumDistance: 12)
-            .onChanged { drag = $0.translation.width }
-            .onEnded { value in
-                let distance = value.translation.width
-                if distance < -Self.switchDistance { model.tabs.selectNext() }
-                if distance > Self.switchDistance { model.tabs.selectPrevious() }
-                withAnimation(.snappy) { drag = 0 }
+    private func overviewButton(_ command: CommandInfo) -> some View {
+        BarButton(symbol: CommandSymbols.name(for: command.id), label: command.title, tokens: tokens) {
+            model.runner.run(command.id)
+        }
+        .overlay(alignment: .center) {
+            Text("\(model.tabs.tabs.count)")
+                .font(Font(tokens.uiFont(size: tokens.smallSize * 0.85, bold: true)))
+                .foregroundStyle(tokens.swiftUIColor(\.icon))
+                .offset(x: 2, y: 2)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private func menu(title: String, commands: [CommandInfo]) -> some View {
+        Menu {
+            ForEach(commands, id: \.id) { command in
+                Button { model.runner.run(command.id) } label: {
+                    Label(command.title, systemImage: CommandSymbols.name(for: command.id))
+                }
             }
-    }
-
-    private func folder(of tab: BrowserTab) -> String? {
-        guard let path = tab.path else { return nil }
-        let folder = (path as NSString).deletingLastPathComponent
-        return folder.isEmpty ? nil : folder
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 18, weight: .regular))
+                .foregroundStyle(tokens.swiftUIColor(\.icon))
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .accessibilityLabel(title)
     }
 }
 
