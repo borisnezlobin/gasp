@@ -1,6 +1,6 @@
-# Editor plan
+# Gasp plan
 
-A native, very fast Markdown editor for your Obsidian vault. It runs on macOS, Windows, Linux and iPhone, syncs through GitHub, and can be customized at every level, including behaviour. "Editor" is a working name until we pick a real one (see [Open questions](#open-questions)). Until then, the crates, the binary and the config folder (`.editor/`) use `editor`.
+Gasp is a native, very fast Markdown editor for your Obsidian vault. It runs on macOS, Windows, Linux and iPhone, syncs through GitHub, and can be customized at every level, including behaviour. The binary is `gasp` and each vault's config folder is `.gasp/`. The crates are still named `editor-*` from before the app had a name.
 
 ## Start here
 
@@ -18,7 +18,7 @@ The workspace, CI and the synthetic corpus exist, the Linux-runnable Phase 0 spi
 | 3 Sync and travel check | sync built in the app (status bar, popover, settings page, conflict resolver) and syncing the owner's vault on `master`, with `main` merged in one way; a conflict waits in the resolver while every other note keeps syncing; travel check not started |
 | 4 Search and prose | vault search with an in-memory index (not Tantivy yet), sentence-length highlighting, grammar layers 1 and 2 (Harper's mechanical checks and vault-learned spelling); the local grammar model and OCR aren't started |
 | 5 Export | PDF (Typst) and HTML for the website built; the website still needs `crates/export/assets/article.css` and its drop-cap script updated |
-| 6 MCP and headless modes | MCP server built (`editor mcp`): note, attachment, link, config and render tools, plus a bridge to the running app for its state, commands and unsaved notes. The other headless modes and app screenshots aren't started |
+| 6 MCP and headless modes | MCP server built (`gasp mcp`): note, attachment, link, config and render tools, plus a bridge to the running app for its state, commands and unsaved notes. The other headless modes and app screenshots aren't started |
 | 7 iPhone | built as a browser on the core (UniFFI, SwiftUI, TextKit 2): tabs with an overview, an edge-swipe sidebar (search, files, outline, links, tags), live preview from the core's planner, the keyboard bar from `mobile.toolbar`, find and replace, and every registry command but panes through the palette, the bar or hardware keys. Syncs with GitHub like the desktop (setup, the tab bar indicator, the resolver, sync settings; on open, foreground, background, a background refresh and after edits), verified against local repositories. Math shows as TeX, images as placeholders; OCR and a scrolling table grid aren't on the phone yet. Runs in the simulator; not yet run on the owner's iPhone |
 | 8 Plugins and agents | not started |
 
@@ -30,7 +30,7 @@ A cloud session is probably a Linux container with this repo cloned. It can't se
 
 You can reach these:
 
-- **This repo** (`borisnezlobin/editor`), where all the code goes.
+- **This repo** (`borisnezlobin/gasp`), where all the code goes.
 - **[Flo State](https://github.com/Altimor/flo-state)** is the native Swift editor that inspired this project. Read its `oracle/`, `fixtures/` and `Sources/FloCore/Render/RenderPlanner.swift` for the parity-testing and render-planner ideas. It's GPLv3, so read it for ideas and don't copy its code.
 - **[PDF Export Plus](https://github.com/borisnezlobin/obsidian-pdf-export-plus)** is the owner's PDF plugin, which Phase 5 ports to Typst.
 - **[The owner's website](https://github.com/borisnezlobin/website)**. `scripts/publish-article.mjs` and `app/styles/` describe the current HTML export flow that Phase 5 replaces.
@@ -65,14 +65,14 @@ The iPhone app needs a Mac with Xcode and XcodeGen (`brew install xcodegen`):
 
 ```
 apps/ios/scripts/build-core.sh          # the Rust core for iPhone and simulator, with Swift bindings
-cd apps/ios && xcodegen generate        # Editor.xcodeproj from project.yml
+cd apps/ios && xcodegen generate        # Gasp.xcodeproj from project.yml
 apps/ios/scripts/run-simulator.sh       # build, install and launch on a simulator, headless
 open -a Simulator                       # to watch it
 ```
 
-`build-core.sh` runs again after any change to the Rust code (`--debug` builds faster and runs slower). The core, the bindings and the Xcode project are generated, so git ignores them. `xcrun simctl launch <device> com.borisnezlobin.editor -open 'editor://open?path=Summary.md&line=3' -run palette.open` opens a note with the cursor on a line and runs a command, which is how the screenshots are taken: `xcrun simctl io <device> screenshot shot.png`.
+`build-core.sh` runs again after any change to the Rust code (`--debug` builds faster and runs slower). The core, the bindings and the Xcode project are generated, so git ignores them. `xcrun simctl launch <device> com.borisnezlobin.gasp -open 'editor://open?path=Summary.md&line=3' -run palette.open` opens a note with the cursor on a line and runs a command, which is how the screenshots are taken: `xcrun simctl io <device> screenshot shot.png`.
 
-To run it on your iPhone: plug it in, turn on Developer Mode (Settings › Privacy & Security), open `apps/ios/Editor.xcodeproj`, pick the phone as the destination and press Run. The project already uses team `K2MB68Z582` with automatic signing and the bundle ID `com.borisnezlobin.editor`; the first time, Xcode registers the phone with the team, and the phone asks you to trust the developer in Settings › General › VPN & Device Management.
+To run it on your iPhone: plug it in, turn on Developer Mode (Settings › Privacy & Security), open `apps/ios/Gasp.xcodeproj`, pick the phone as the destination and press Run. The project already uses team `K2MB68Z582` with automatic signing and the bundle ID `com.borisnezlobin.gasp`; the first time, Xcode registers the phone with the team, and the phone asks you to trust the developer in Settings › General › VPN & Device Management.
 
 To sync your notes on the phone: make a fine-grained token at github.com/settings/personal-access-tokens/new limited to `borisnezlobin/notes`, with read and write access to Contents. On the phone, tap Set up sync on the start page, enter `borisnezlobin/notes`, keep the branch `master`, paste the token and tap Clone notes. The legacy branch is `main` by default, so what the laptop pushes there keeps merging in. Once a sync each way has worked, delete GitSync's Shortcuts automations so only one thing syncs the phone.
 
@@ -188,7 +188,9 @@ tools/
 
 ## Customization model
 
-Everything the app does is described by files in a config folder inside the vault (working name `.editor/`). They sync with your notes, reload the moment they change, and are what the settings screen reads and writes. Settings that belong to one device, such as window size and open tabs, live in a separate file that doesn't sync.
+Everything the app does is described by files in the vault's config folder, `.gasp/`. They sync with your notes, reload the moment they change, and are what the settings screen reads and writes. Settings that belong to one device, such as window size and open tabs, live in a separate file that doesn't sync.
+
+Before the app was called Gasp, the folder was `.editor/`. The desktop app, `gasp mcp` and the phone rename a vault's `.editor/` to `.gasp/` when they open it, so sync commits it as a rename; if both exist, `.gasp/` is used and `.editor/` is left alone. The desktop app also moves its own `editor` folder in the platform's config and data folders to `Gasp` (`gasp` on Linux), and a sync token stored under the old `editor-sync` Keychain name moves to `gasp-sync` the first time it's read. `.editor/device.toml` stays in the default device-only list for one release, for devices that haven't moved yet.
 
 There are four levels, and each covers what the one above can't.
 
@@ -413,7 +415,7 @@ The model is chosen by testing rather than by guessing. Phase 4 starts with an e
 
 ### Edit-time tracking
 
-This replaces Chronotyper without touching frontmatter. Each device writes its own stats file under `.editor/stats/`, so two devices never conflict, and the app sums them. The `edited_seconds` values in your 49 existing notes are imported. After that, the migrator removes the `updated` and `edited_seconds` keys from those notes, and deletes a frontmatter block when nothing else is left in it. That happens in a single commit, so it's easy to revert.
+This replaces Chronotyper without touching frontmatter. Each device writes its own stats file under `.gasp/stats/`, so two devices never conflict, and the app sums them. The `edited_seconds` values in your 49 existing notes are imported. After that, the migrator removes the `updated` and `edited_seconds` keys from those notes, and deletes a frontmatter block when nothing else is left in it. That happens in a single commit, so it's easy to revert.
 
 ### Link cards
 
@@ -539,7 +541,7 @@ This builds git sync, the conflict resolver and the setup flow, and replaces `va
 
 The git engine is in `crates/sync`. It has clone, commit, fetch, merge and push on one branch, the one-way merge of the legacy `main` branch, the line-by-line merge policy with both sides' insertions at one place kept, local copies kept for binaries, device-only files, commit messages naming the device and files, and the clock-driven scheduler. Conflicts are parked rather than paused (see [Sync](#sync)): `vault/parking.rs` parks, carries and settles them, `parked.rs` keeps the record, and the resolver reads the note back from disk, so edits made while it waits are kept and a resolution for a note that changed since is refused. The app side in `apps/desktop/src/sync/` has token sign-in over HTTPS, keychain storage, the status bar indicator and popover, the settings page and the resolver. It's tested with two and three simulated devices against local bare repos, in `crates/sync/tests/` and `apps/desktop/tests/sync.rs`.
 
-**Packaging for macOS.** `make dmg` (see `make help` for the rest) runs `scripts/package-macos.sh` with the owner's Developer ID and the `editor-notary` notarytool profile. `scripts/package-macos.sh` builds `Editor.app` for Apple Silicon and Intel in one file with the `dist` profile (whole-program optimization, symbols stripped), signs it and packages `target/package/Editor-<version>.dmg`. OpenSSL is built into the app (`git2`'s `vendored-openssl`), so the app needs nothing from Homebrew. Without `DEVELOPER_ID` it signs ad hoc, which only runs on the Mac that built it. To give it to other people, set `DEVELOPER_ID` to the owner's "Developer ID Application" certificate and `NOTARY_PROFILE` to a profile saved with `xcrun notarytool store-credentials`, and the script signs with the hardened runtime and notarizes and staples the `.dmg`. The icon is built by `apps/desktop/assets/icon/build_icon.sh`; its whale is CC BY 4.0, credited on the General settings page and in the bundle's `THIRD_PARTY_NOTICES.txt`. The app still needs an updater.
+**Packaging for macOS.** `make dmg` (see `make help` for the rest) runs `scripts/package-macos.sh` with the owner's Developer ID and the `editor-notary` notarytool profile. `scripts/package-macos.sh` builds `Gasp.app` for Apple Silicon and Intel in one file with the `dist` profile (whole-program optimization, symbols stripped), signs it and packages `target/package/Gasp-<version>.dmg`. OpenSSL is built into the app (`git2`'s `vendored-openssl`), so the app needs nothing from Homebrew. Without `DEVELOPER_ID` it signs ad hoc, which only runs on the Mac that built it. To give it to other people, set `DEVELOPER_ID` to the owner's "Developer ID Application" certificate and `NOTARY_PROFILE` to a profile saved with `xcrun notarytool store-credentials`, and the script signs with the hardened runtime and notarizes and staples the `.dmg`. The icon is built by `apps/desktop/assets/icon/build_icon.sh`; its whale is CC BY 4.0, credited on the General settings page and in the bundle's `THIRD_PARTY_NOTICES.txt`. The app still needs an updater.
 
 ### Phase 4: search and prose
 
@@ -555,7 +557,7 @@ PDF export already exists in `crates/export` from the Typst spike. HTML export, 
 
 This covers the MCP server with full read and write access, the CLI modes and screenshots.
 
-**The MCP server is built.** `editor mcp [VAULT]` serves one vault (the last one opened when `VAULT` is left out) over MCP on stdin and stdout. It lives in `crates/mcp`, uses the `rmcp` SDK for JSON-RPC and the handshake, and never loads GPUI, so it answers `tools/list` within a few milliseconds of starting: 8.7 ms median from spawning the process to the reply (7.3 to 12.5 ms over 30 runs) on the synthetic corpus in a release build on Linux. A first search of the corpus takes 14 ms and later ones 4 ms, since notes stay in memory and only changed files are reread.
+**The MCP server is built.** `gasp mcp [VAULT]` serves one vault (the last one opened when `VAULT` is left out) over MCP on stdin and stdout. It lives in `crates/mcp`, uses the `rmcp` SDK for JSON-RPC and the handshake, and never loads GPUI, so it answers `tools/list` within a few milliseconds of starting: 8.7 ms median from spawning the process to the reply (7.3 to 12.5 ms over 30 runs) on the synthetic corpus in a release build on Linux. A first search of the corpus takes 14 ms and later ones 4 ms, since notes stay in memory and only changed files are reread.
 
 | Tools | What they do |
 |---|---|
@@ -568,14 +570,14 @@ This covers the MCP server with full read and write access, the CLI modes and sc
 | `render_note` | A page of a note as the PDF export lays it out, as a PNG |
 | `editor_state`, `run_command`, `open_note` | The running app: panes, tabs, the active note, cursor and selection; any command by id; open a note at a line |
 
-Paths are vault-relative. Absolute paths, `..`, symbolic links that lead out of the vault and hidden folders (`.git`, `.editor`, `.trash`) are refused before anything touches the disk, and every write is atomic. A tool's failure comes back as a readable error result, not a protocol error.
+Paths are vault-relative. Absolute paths, `..`, symbolic links that lead out of the vault and hidden folders (`.git`, `.gasp`, `.trash`) are refused before anything touches the disk, and every write is atomic. A tool's failure comes back as a readable error result, not a protocol error.
 
-**The bridge to the app.** With `mcp.enabled` on (the default; it's on the settings screen's General page), the app listens once its first frame is on screen, on a Unix socket named after a hash of the vault's path in the user's runtime folder (`$XDG_RUNTIME_DIR/editor/mcp/`, else the local data folder; on Windows a localhost port written to a file there). The folder is readable only by the user, and beside the socket a file readable only by the user holds a random token the app picks each time it starts; a request without it gets no answer. A thread blocks in `accept`, so an idle app spends nothing on it, and requests are answered on the main thread between frames. When a note is open with unsaved edits, `read_note` reads the editor's text and `write_note` and `patch_note` go into the editor as one undoable edit and save; otherwise they write the file, which an open app reloads. Without the app, the app tools say it isn't running and the rest work as before.
+**The bridge to the app.** With `mcp.enabled` on (the default; it's on the settings screen's General page), the app listens once its first frame is on screen, on a Unix socket named after a hash of the vault's path in the user's runtime folder (`$XDG_RUNTIME_DIR/gasp/mcp/`, else the app's `Gasp` or `gasp` folder in the local data folder; on Windows a localhost port written to a file there). The folder is readable only by the user, and beside the socket a file readable only by the user holds a random token the app picks each time it starts; a request without it gets no answer. A thread blocks in `accept`, so an idle app spends nothing on it, and requests are answered on the main thread between frames. When a note is open with unsaved edits, `read_note` reads the editor's text and `write_note` and `patch_note` go into the editor as one undoable edit and save; otherwise they write the file, which an open app reloads. Without the app, the app tools say it isn't running and the rest work as before.
 
 **Connecting a client.** Build the app (`cargo build --release -p editor-desktop`), then for Claude Code:
 
 ```
-claude mcp add editor -- /path/to/editor mcp ~/Vault
+claude mcp add gasp -- /path/to/target/release/gasp mcp ~/Vault
 ```
 
 and for Claude Desktop, in `claude_desktop_config.json`:
@@ -583,7 +585,7 @@ and for Claude Desktop, in `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "editor": { "command": "/path/to/editor", "args": ["mcp", "/Users/you/Vault"] }
+    "gasp": { "command": "/path/to/target/release/gasp", "args": ["mcp", "/Users/you/Vault"] }
   }
 }
 ```
@@ -594,12 +596,12 @@ Still to do in this phase: screenshots of the running app, plugin tools (Phase 8
 
 This is the SwiftUI and TextKit 2 app on the same core, with your mobile toolbar (attach file, indent, unindent, callout, inline math, footnote, sentence highlighting, table), sync on open and close, search and export. It's done when it replaces Obsidian and GitSync on your phone. Build and run instructions are in [Building and running](#building-and-running).
 
-**How it's put together.** `apps/ios` is an XcodeGen project (`project.yml`) for the app Editor, bundle ID `com.borisnezlobin.editor`, team `K2MB68Z582`, iOS 17 and up. `crates/ffi` is the whole bridge: a UniFFI surface with offsets in UTF-16, as UIKit counts them. `apps/ios/scripts/build-core.sh` builds it with `cargo rustc --crate-type staticlib` for `aarch64-apple-ios` and `aarch64-apple-ios-sim`, generates the Swift bindings with `tools/uniffi-bindgen` (UniFFI 0.32, library mode), and packs `apps/ios/Core/EditorCore.xcframework`. The phone decides nothing about Markdown itself:
+**How it's put together.** `apps/ios` is an XcodeGen project (`project.yml`) for the app Gasp, bundle ID `com.borisnezlobin.gasp`, team `K2MB68Z582`, iOS 17 and up. `crates/ffi` is the whole bridge: a UniFFI surface with offsets in UTF-16, as UIKit counts them. `apps/ios/scripts/build-core.sh` builds it with `cargo rustc --crate-type staticlib` for `aarch64-apple-ios` and `aarch64-apple-ios-sim`, generates the Swift bindings with `tools/uniffi-bindgen` (UniFFI 0.32, library mode), and packs `apps/ios/Core/EditorCore.xcframework`. The phone decides nothing about Markdown itself:
 
 | FFI object | What the phone gets from the core |
 |---|---|
 | `NoteDocument` | The note's text and syntax tree, kept in step with the text view (each change reparses only the blocks it touched); the render plan for a selection, read with the vault's `markdown.symbols` settings; every editing command in the registry, returned as UTF-16 replacements the text view applies as one undo step; the outline; the link and card address under the cursor; sentence lengths |
-| `VaultFolder` | Notes and folders; reading and atomic saving; the theme tokens and `appearance.base-font-size`; the command registry as the phone sees it, the iOS key bindings and `mobile.toolbar`; making, renaming (with link updates) and trashing notes; daily notes, templates, attached images and link resolution; backlinks, outgoing links, tags and the desktop's search; settings from the schema and writing them back; open tabs in `.editor/device.toml`; recovery snapshots; HTML and PDF export |
+| `VaultFolder` | Notes and folders; reading and atomic saving; the theme tokens and `appearance.base-font-size`; the command registry as the phone sees it, the iOS key bindings and `mobile.toolbar`; making, renaming (with link updates) and trashing notes; daily notes, templates, attached images and link resolution; backlinks, outgoing links, tags and the desktop's search; settings from the schema and writing them back; open tabs in `.gasp/device.toml`; recovery snapshots; HTML and PDF export |
 | `VaultSync` | The desktop's sync for one clone: its scheduler (the same 60-second idle debounce, retry and `sync.interval-minutes`), the commit, fetch, merge and push steps, the one-way merge of `sync.legacy-branch`, and the overview the indicator reads, in the desktop's phases and words; the notes waiting for a person, each place with its context, settled with this device, the other device, both or edited text; signing in and out with the token in the Keychain; changing the repository; following the sync settings. `set_up_sync` reads GitHub shorthand, clones (starting `master` from `main` when `master` doesn't exist yet) and keeps the token; `merge_note_edits` folds unsaved edits into a note a sync just wrote |
 
 To give the phone the desktop's behaviour rather than a copy of it, code that lived in the desktop app moved into shared crates: daily notes, templates, Moment.js dates, recovery snapshots, attachment naming and note link resolution into `editor-vault`; the reveal settings for `markdown.symbols` and the link-card metadata parser into `editor-core`; the Keychain store (now covering iOS, behind `editor-sync`'s `keychain` feature) and the sync phases and their sentences (`editor_sync::phase`) into `editor-sync`. The desktop re-exports them. The registry gained `format.callout` (Obsidian's Insert callout, bound on the desktop too), `keyboard.hide` on iOS, and Look up on iOS as well as macOS.
@@ -608,9 +610,9 @@ To give the phone the desktop's behaviour rather than a copy of it, code that li
 
 **The browser.** The app works like Safari rather than a list you drill into:
 
-- *Tabs.* Several notes stay open, each with its own editing session (cursor, scroll, undo) and back and forward history. The bar at the bottom names the note showing; swiping it moves to the neighbouring tab and tapping it opens the overview, a grid of note cards to switch to, close or add. A new tab opens on a search and the recent notes. Open tabs are saved per device in `.editor/device.toml`, which never syncs. The bar hides while the keyboard is up.
+- *Tabs.* Several notes stay open, each with its own editing session (cursor, scroll, undo) and back and forward history. The bar at the bottom names the note showing; swiping it moves to the neighbouring tab and tapping it opens the overview, a grid of note cards to switch to, close or add. A new tab opens on a search and the recent notes. Open tabs are saved per device in `.gasp/device.toml`, which never syncs. The bar hides while the keyboard is up.
 - *Sidebar.* A swipe in from the left edge (or the bar's sidebar button) slides it over the note, above a dimmed backdrop that a tap or swipe closes. It holds the vault search (by name, text, or `tag:`), the file tree, the note's outline, its backlinks and outgoing links, and the vault's tags, with new note, today's note and settings at its foot. There's no navigation stack, so nothing else claims that edge.
-- *Keyboard bar.* An `inputAccessoryView` above the software keyboard, scrolling sideways, whose buttons are the commands in the `mobile.toolbar` setting. The default is Obsidian's mobile toolbar after "hide the keyboard" (insert image, indent, outdent, callout, inline math, footnote, sentence highlighting, table), then find, undo, redo, bold, italic, highlight, link, inline code, task, and the palette. Reorder or trim it in `.editor/settings.toml`; the desktop's settings screen leaves this setting out.
+- *Keyboard bar.* An `inputAccessoryView` above the software keyboard, scrolling sideways, whose buttons are the commands in the `mobile.toolbar` setting. The default is Obsidian's mobile toolbar after "hide the keyboard" (insert image, indent, outdent, callout, inline math, footnote, sentence highlighting, table), then find, undo, redo, bold, italic, highlight, link, inline code, task, and the palette. Reorder or trim it in `.gasp/settings.toml`; the desktop's settings screen leaves this setting out.
 - *Palette.* Every command the phone has, searchable, grouped by category, with its hardware key.
 - *Find.* UIKit's find navigator, with next, previous and replace.
 - *Hardware keyboard.* The desktop keymap's iOS bindings become key commands (hidden SwiftUI shortcut buttons), so they also list in the overlay shown while Command is held. Arrows, deleting and plain Tab and Escape stay with the text view.
@@ -673,10 +675,9 @@ These are my defaults. Tell me if any are wrong.
 
 ## Open questions
 
-1. **Name.** What should it be called? The name sets the config folder, the bundle ID and the repo name.
-2. **Apple Developer account (needed by Phase 7).** Without the paid account, an app you install on your own iPhone stops launching after 7 days and has to be reinstalled from the Mac. Do you have one, or want one?
-3. **Pane focus keys on Linux.** `Mod+Alt+Left` and `Mod+Alt+Right` become Ctrl+Alt+Left and Right on Linux, which GNOME has used to switch workspaces. Should Linux get different default keys for moving focus between panes?
-4. **Device-only files the repo already tracks.** Sync never commits changes to device-only files, but it leaves any that are already in the repo alone, because removing them would delete them on your other devices too. Should the first sync remove them from the repo?
+1. **Apple Developer account (needed by Phase 7).** Without the paid account, an app you install on your own iPhone stops launching after 7 days and has to be reinstalled from the Mac. Do you have one, or want one?
+2. **Pane focus keys on Linux.** `Mod+Alt+Left` and `Mod+Alt+Right` become Ctrl+Alt+Left and Right on Linux, which GNOME has used to switch workspaces. Should Linux get different default keys for moving focus between panes?
+3. **Device-only files the repo already tracks.** Sync never commits changes to device-only files, but it leaves any that are already in the repo alone, because removing them would delete them on your other devices too. Should the first sync remove them from the repo?
 
 ## Decisions
 
