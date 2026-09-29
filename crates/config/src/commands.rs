@@ -157,6 +157,11 @@ const IMPORT_OBSIDIAN: CommandSpec = spec(
 )
 .icon("arrow-square-in");
 
+/// The selection or note as formatted text on the clipboard, which the
+/// macOS pasteboard can hold beside its plain text.
+const COPY_RICH_TEXT: CommandSpec =
+    spec("edit.copy-rich-text", "Copy as rich text", "Editing").icon("clipboard");
+
 /// Commands only some platforms have. The registry leaves them out
 /// elsewhere, but rules may still name them, as a vault's config goes
 /// from machine to machine.
@@ -168,6 +173,7 @@ pub const PLATFORM_COMMANDS: &[&str] = &[
     UNFOLD_ALL.id,
     RESTORE_DELETED.id,
     IMPORT_OBSIDIAN.id,
+    COPY_RICH_TEXT.id,
 ];
 
 /// Every built-in command on this platform.
@@ -406,6 +412,8 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     RESTORE_DELETED,
     #[cfg(not(target_os = "ios"))]
     IMPORT_OBSIDIAN,
+    #[cfg(target_os = "macos")]
+    COPY_RICH_TEXT,
     spec("note.import-image", "Insert image from file", "Editing").icon("image"),
     spec("edit.paste-plain", "Paste as plain text", "Editing").icon("clipboard-text"),
     #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -566,7 +574,7 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
 
 /// The commands in [`PLATFORM_COMMANDS`], described on every platform so
 /// a toolbar synced from another machine can still name them.
-const PLATFORM_SPECS: [CommandSpec; 7] = [
+const PLATFORM_SPECS: [CommandSpec; 8] = [
     LOOK_UP,
     HIDE_KEYBOARD,
     FOLD_TOGGLE,
@@ -574,6 +582,7 @@ const PLATFORM_SPECS: [CommandSpec; 7] = [
     UNFOLD_ALL,
     RESTORE_DELETED,
     IMPORT_OBSIDIAN,
+    COPY_RICH_TEXT,
 ];
 
 /// A built-in command's description by id, on any platform.
