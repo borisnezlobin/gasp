@@ -11,28 +11,7 @@ use gpui::{Context, Entity};
 use super::Workspace;
 use crate::editor::EditorView;
 
-/// How many notes' positions are kept; the least recent go first.
-pub const KEPT_POSITIONS: usize = 300;
-
-/// Records `position`, most recent last, dropping the oldest past the cap.
-pub fn remember(positions: &mut Vec<NotePosition>, position: NotePosition) {
-    positions.retain(|kept| kept.path != position.path);
-    positions.push(position);
-    let over = positions.len().saturating_sub(KEPT_POSITIONS);
-    positions.drain(..over);
-}
-
-/// Follows a note, or every note in a folder, that moved from `from` to
-/// `to` (vault-relative).
-pub fn moved(positions: &mut [NotePosition], from: &str, to: &str) {
-    for position in positions {
-        if position.path == from {
-            position.path = to.to_string();
-        } else if let Some(rest) = position.path.strip_prefix(&format!("{from}/")) {
-            position.path = format!("{to}/{rest}");
-        }
-    }
-}
+pub use editor_config::device::{move_positions as moved, remember_position as remember};
 
 impl Workspace {
     /// Where the reader is in `editor`'s note at `path`.
@@ -47,6 +26,7 @@ impl Workspace {
             path: self.relative_name(path),
             cursor,
             top,
+            folds: Vec::new(),
         }
     }
 
@@ -102,6 +82,8 @@ impl Workspace {
 
 #[cfg(test)]
 mod tests {
+    use editor_config::device::KEPT_POSITIONS;
+
     use super::*;
 
     fn at(path: &str, cursor: usize) -> NotePosition {
@@ -109,6 +91,7 @@ mod tests {
             path: path.into(),
             cursor,
             top: 0,
+            folds: Vec::new(),
         }
     }
 

@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// Notes matching a search, best first, each with the lines that match.
-/// It runs the desktop's search off the main thread as the query changes;
-/// `tag:name` or `#name` finds tagged notes.
+/// It runs the desktop's search off the main thread as the query changes,
+/// finding notes by the text in the images they embed too; `tag:name` or
+/// `#name` finds tagged notes.
 struct SearchResults: View {
     @Environment(AppModel.self) private var model
     let query: String
@@ -31,7 +32,10 @@ struct SearchResults: View {
         try? await Task.sleep(for: .milliseconds(120))
         guard !Task.isCancelled, let vault = model.library.vault else { return }
         let query = self.query
-        let found = await Task.detached(priority: .userInitiated) { vault.search(query: query) }.value
+        let images = model.runner.imageText?.texts
+        let found = await Task.detached(priority: .userInitiated) {
+            images.map { vault.searchEverything(query: query, images: $0) } ?? vault.search(query: query)
+        }.value
         guard !Task.isCancelled else { return }
         results = Array(found.prefix(50))
         searched = query

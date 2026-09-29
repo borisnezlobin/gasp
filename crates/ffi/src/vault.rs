@@ -307,10 +307,11 @@ pub(crate) mod tests {
 
     #[test]
     fn notes_list_titles_and_folders_and_skip_hidden_files() {
+        let hidden = format!("{CONFIG_DIR}/theme.md");
         let (_dir, vault) = vault_with(&[
             ("Top.md", "a"),
             ("Physics/Waves.md", "b"),
-            (".editor/theme.md", "c"),
+            (&hidden, "c"),
             ("image.png", "d"),
         ]);
         let mut notes = vault.notes();
@@ -356,10 +357,8 @@ pub(crate) mod tests {
 
     #[test]
     fn the_theme_reads_the_vault_s_base_size() {
-        let (_dir, vault) = vault_with(&[(
-            ".editor/settings.toml",
-            "[appearance]\nbase-font-size = 15\n",
-        )]);
+        let settings = format!("{CONFIG_DIR}/settings.toml");
+        let (_dir, vault) = vault_with(&[(&settings, "[appearance]\nbase-font-size = 15\n")]);
         assert!((vault.theme().typography.body_size - 20.).abs() < 1e-9);
     }
 

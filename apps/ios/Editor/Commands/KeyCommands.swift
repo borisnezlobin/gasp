@@ -1,9 +1,13 @@
 import SwiftUI
+import UIKit
 
 /// The desktop keymap with a hardware keyboard: one hidden button per key
 /// binding, which SwiftUI turns into a key command that works wherever
-/// the cursor is and lists in the overlay shown while Command is held. The
-/// core leaves out the keys the text view moves and deletes with.
+/// the cursor is and lists in the overlay shown while Command is held.
+/// While a note is being edited, its text view answers the same keys
+/// first (see `uiKeyCommands`), so the text view's own handling of keys
+/// such as Command-B never gets in the way. The core leaves out the keys
+/// the text view moves and deletes with.
 struct KeyCommands: View {
     let bindings: [KeyBinding]
     let commands: [CommandInfo]
@@ -48,6 +52,50 @@ struct KeyCommands: View {
         "backspace": .delete, "delete": .deleteForward, "home": .home, "end": .end,
         "pageup": .pageUp, "pagedown": .pageDown
     ]
+
+    /// The bindings as UIKit key commands that run `action` with the
+    /// command's id as their property list. They have no title, so the
+    /// overlay lists each key once, from the SwiftUI buttons.
+    static func uiKeyCommands(_ bindings: [KeyBinding], action: Selector) -> [UIKeyCommand] {
+        bindings.compactMap { binding in
+            guard let input = uiInput(binding.input) else { return nil }
+            let command = UIKeyCommand(
+                action: action, input: input, modifierFlags: flags(binding), propertyList: binding.command
+            )
+            command.wantsPriorityOverSystemBehavior = true
+            return command
+        }
+    }
+
+    private static let namedInputs: [String: String] = [
+        "up": UIKeyCommand.inputUpArrow, "down": UIKeyCommand.inputDownArrow,
+        "left": UIKeyCommand.inputLeftArrow, "right": UIKeyCommand.inputRightArrow,
+        "escape": UIKeyCommand.inputEscape, "tab": "\t", "enter": "\r", "space": " ",
+        "backspace": "\u{8}", "delete": UIKeyCommand.inputDelete, "home": UIKeyCommand.inputHome,
+        "end": UIKeyCommand.inputEnd, "pageup": UIKeyCommand.inputPageUp, "pagedown": UIKeyCommand.inputPageDown
+    ]
+
+    private static func uiInput(_ input: String) -> String? {
+        if let named = namedInputs[input] { return named }
+        if input.hasPrefix("f"), let number = Int(input.dropFirst()), (1...12).contains(number) {
+            return functionKeys[number - 1]
+        }
+        return input.count == 1 ? input : nil
+    }
+
+    private static let functionKeys = [
+        UIKeyCommand.f1, UIKeyCommand.f2, UIKeyCommand.f3, UIKeyCommand.f4, UIKeyCommand.f5, UIKeyCommand.f6,
+        UIKeyCommand.f7, UIKeyCommand.f8, UIKeyCommand.f9, UIKeyCommand.f10, UIKeyCommand.f11, UIKeyCommand.f12
+    ]
+
+    private static func flags(_ binding: KeyBinding) -> UIKeyModifierFlags {
+        var flags: UIKeyModifierFlags = []
+        if binding.commandKey { flags.insert(.command) }
+        if binding.shift { flags.insert(.shift) }
+        if binding.option { flags.insert(.alternate) }
+        if binding.control { flags.insert(.control) }
+        return flags
+    }
 
     private static func key(_ input: String) -> KeyEquivalent? {
         if let named = namedKeys[input] { return named }

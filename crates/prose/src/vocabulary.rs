@@ -22,6 +22,31 @@ pub fn learn<'a>(notes: impl IntoIterator<Item = &'a str>, min_notes: usize) -> 
         .collect()
 }
 
+/// Where a vault keeps the phrases its writer dismissed, from its root.
+/// It syncs like the rest of the config, so a dismissal holds everywhere.
+pub const IGNORED_FILE: &str = concat!(editor_config::config_dir!(), "/prose/ignored.txt");
+
+/// The dismissed phrases in the ignore file's text, lower-cased.
+pub fn parse_ignored(text: &str) -> HashSet<String> {
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(str::to_lowercase)
+        .collect()
+}
+
+/// The ignore file's text for `ignored`, sorted, one phrase a line.
+pub fn ignored_file_text(ignored: &HashSet<String>) -> String {
+    let mut phrases: Vec<&str> = ignored.iter().map(String::as_str).collect();
+    phrases.sort_unstable();
+    let mut text = String::from("# Phrases the grammar checker leaves alone, one per line.\n");
+    for phrase in phrases {
+        text.push_str(phrase);
+        text.push('\n');
+    }
+    text
+}
+
 /// Each distinct lower-cased word of a note once.
 fn note_words(text: &str) -> HashSet<String> {
     text.split(|c: char| !(c.is_alphanumeric() || c == '\'' || c == '’'))
@@ -53,5 +78,13 @@ mod tests {
         // A typo repeated in one note isn't learned.
         assert!(!known.contains("tpyo"));
         assert!(!learn(notes, 4).contains("typst"));
+    }
+
+    #[test]
+    fn ignored_phrases_round_trip_through_the_file() {
+        let phrases = HashSet::from(["teh".to_owned(), "the the".to_owned()]);
+        let text = ignored_file_text(&phrases);
+        assert!(text.ends_with("teh\nthe the\n"), "{text}");
+        assert_eq!(parse_ignored(&text), phrases);
     }
 }
