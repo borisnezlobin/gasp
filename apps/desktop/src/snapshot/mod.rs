@@ -40,6 +40,50 @@ use gasp_config::{Config, ConfigLoader};
 
 use crate::workspace::files::vault_for_note;
 
+/// Windows the app never shows, drawn anyway: the layout bench's
+/// `--hidden` uses these to run while the screen is locked or asleep,
+/// when the display never asks a visible window for frames.
+#[cfg(target_os = "macos")]
+pub mod hidden {
+    use std::time::Duration;
+
+    use gpui::{App, Window};
+
+    use super::appkit;
+    use super::metal_capture::LayerCapture;
+
+    /// How often a hidden window is asked for a frame.
+    const FRAME_INTERVAL: Duration = Duration::from_millis(1);
+
+    /// Makes windows draw at twice their size in points whatever screen
+    /// is attached. Call before the application is made.
+    pub fn prepare() {
+        appkit::draw_at_double_scale();
+    }
+
+    /// Keeps the app out of the Dock and from becoming active. Call once
+    /// the application is made, before it runs.
+    pub fn keep_app_in_background() {
+        appkit::keep_app_in_background();
+    }
+
+    /// Asks `window`, opened with `show: false`, for a frame every
+    /// millisecond for as long as the app runs. It draws only when
+    /// something changed.
+    pub fn keep_drawing(window: &Window, cx: &mut App) -> Result<(), String> {
+        let view = crate::look_up::native_view(window).ok_or("the window has no native view")?;
+        let capture = LayerCapture::attach(view)?;
+        cx.spawn(async move |cx| {
+            loop {
+                capture.request_frame();
+                cx.background_executor().timer(FRAME_INTERVAL).await;
+            }
+        })
+        .detach();
+        Ok(())
+    }
+}
+
 /// The window size when `--width` and `--height` are left out.
 pub const DEFAULT_SIZE: (u32, u32) = (900, 700);
 /// The whole window's size when `--window` is left out.

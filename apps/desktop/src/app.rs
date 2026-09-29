@@ -75,7 +75,17 @@ pub fn launch(target: LaunchTarget) {
 pub fn launch_bench(note: LoadedNote, bench: BenchConfig) {
     start_watchdog();
     start_x11_wake();
-    Application::new().with_assets(Assets).run(move |cx| {
+    let hidden = bench.hidden && cfg!(target_os = "macos");
+    #[cfg(target_os = "macos")]
+    if hidden {
+        crate::snapshot::hidden::prepare();
+    }
+    let application = Application::new().with_assets(Assets);
+    #[cfg(target_os = "macos")]
+    if hidden {
+        crate::snapshot::hidden::keep_app_in_background();
+    }
+    application.run(move |cx| {
         bind_keys(cx);
         // The app lists the fonts just after its first frame and the
         // theme then settles on installed ones; the bench measures that
@@ -89,6 +99,8 @@ pub fn launch_bench(note: LoadedNote, bench: BenchConfig) {
         );
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
+            show: !hidden,
+            focus: !hidden,
             ..Default::default()
         };
         let opened = cx.open_window(options, |_, cx| {
@@ -112,7 +124,14 @@ pub fn launch_bench(note: LoadedNote, bench: BenchConfig) {
                 view.apply_prose_settings(&prose, cx);
             }
             view.start_bench(bench, window, cx);
-            cx.activate(true);
+            if !hidden {
+                cx.activate(true);
+            }
+            #[cfg(target_os = "macos")]
+            if hidden && let Err(error) = crate::snapshot::hidden::keep_drawing(window, cx) {
+                eprintln!("could not draw the hidden window: {error}");
+                std::process::exit(1);
+            }
         });
         if let Err(error) = started {
             eprintln!("could not start {}: {error}", gasp_config::APP_NAME);

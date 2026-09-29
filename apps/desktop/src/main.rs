@@ -40,9 +40,17 @@ fn main() -> ExitCode {
             println!("{}", gasp_desktop::knowledge::bench::run(&vault));
             ExitCode::SUCCESS
         }
+        Command::BenchOpen { vault, config } => exit_status(
+            "--bench-open",
+            gasp_desktop::open_bench::run(&vault, config),
+        ),
         Command::Mcp(vault) => mcp(vault),
-        Command::Snapshot(request) => snapshot(gasp_desktop::snapshot::run(request)),
-        Command::WindowSnapshot(request) => snapshot(gasp_desktop::snapshot::run_window(request)),
+        Command::Snapshot(request) => {
+            exit_status("--snapshot", gasp_desktop::snapshot::run(request))
+        }
+        Command::WindowSnapshot(request) => {
+            exit_status("--snapshot", gasp_desktop::snapshot::run_window(request))
+        }
     }
 }
 
@@ -66,13 +74,13 @@ fn mcp(vault: Option<std::path::PathBuf>) -> ExitCode {
     }
 }
 
-/// `gasp --snapshot`: exits from inside the app once the PNGs are written,
-/// so it only returns when something went wrong first.
-fn snapshot(outcome: Result<(), String>) -> ExitCode {
+/// `gasp --snapshot` and `--bench-open` exit from inside the app once
+/// they're done, so they only return when something went wrong first.
+fn exit_status(mode: &str, outcome: Result<(), String>) -> ExitCode {
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("{COMMAND_NAME} --snapshot: {error}");
+            eprintln!("{COMMAND_NAME} {mode}: {error}");
             ExitCode::from(1)
         }
     }
