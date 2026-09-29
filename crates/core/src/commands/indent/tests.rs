@@ -78,8 +78,9 @@ fn lists_indented_with_spaces_stay_with_spaces() {
 }
 
 #[test]
-fn every_line_of_a_paragraph_shifts() {
-    assert_eq!(run("one\ntw|o\n\nthree", indent), "\tone\n\ttw|o\n\nthree");
+fn a_plain_paragraph_never_becomes_code() {
+    assert_eq!(run("one\ntw|o\n\nthree", indent), "one\ntw|o\n\nthree");
+    assert_eq!(run("{one\ntwo}", indent), "{one\ntwo}");
     assert_eq!(run("\tone\n\ttw|o\n\nthree", outdent), "one\ntw|o\n\nthree");
     assert_eq!(run("pl|ain", outdent), "pl|ain");
 }
@@ -98,7 +99,7 @@ fn a_selection_moves_every_item_it_touches() {
 
 #[test]
 fn a_selection_across_blocks_moves_each() {
-    assert_eq!(run("{para\n\n- a\n- b}", indent), "\t{para\n\n- a\n\t- b}");
+    assert_eq!(run("{para\n\n- a\n- b}", indent), "{para\n\n- a\n\t- b}");
 }
 
 #[test]
@@ -127,8 +128,8 @@ fn a_list_in_a_quote_nests_inside_the_quote() {
 }
 
 #[test]
-fn headings_type_a_tab_at_the_caret_and_selections_leave_them() {
-    assert_eq!(run("# Ti|tle", indent), "# Ti\t|tle");
+fn headings_stay_put() {
+    assert_eq!(run("# Ti|tle", indent), "# Ti|tle");
     assert_eq!(run("# {Title}", indent), "# {Title}");
     assert_eq!(run("# Ti|tle", outdent), "# Ti|tle");
 }

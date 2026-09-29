@@ -1,11 +1,12 @@
 //! `edit.indent` and `edit.outdent`, which Tab, Shift+Tab and the
 //! iPhone's keyboard bar run. They move whole blocks wherever the caret is
 //! in them: a list item goes one level in or out with the items nested
-//! under it, every line of a paragraph shifts, and a block quote or
-//! callout nests in another quote or comes out of one. Fenced code and
-//! math blocks keep Tab's own tab at the caret, and shift the lines a
-//! selection touches. A selection moves every block it touches, and the caret and
-//! selection stay on the text they were on.
+//! under it, and a block quote or callout nests in another quote or comes
+//! out of one. A plain paragraph or heading never moves in, because an
+//! indented paragraph is code in Markdown; one already indented comes back
+//! out. Fenced code and math blocks keep Tab's own tab at the caret, and
+//! shift the lines a selection touches. A selection moves every block it
+//! touches, and the caret and selection stay on the text they were on.
 
 use std::ops::RangeInclusive;
 
@@ -139,11 +140,11 @@ impl Shifter<'_> {
     fn caret_unit(&self, range: &SelectionRange, line: usize) -> Option<Unit> {
         let tab = Unit::Tab(range.from(), range.to());
         match (self.block_at_line(line), self.direction) {
-            (Block::Verbatim(_) | Block::Fixed, Direction::In) => Some(tab),
+            (Block::Verbatim(_), Direction::In) => Some(tab),
             (Block::Verbatim(depth), Direction::Out) | (Block::MarkerLine(depth), _) => {
                 Some(Unit::Line { line, depth })
             }
-            (Block::Fixed, Direction::Out) => None,
+            (Block::Fixed, _) | (Block::Paragraph(_), Direction::In) => None,
             (block, _) => Some(Unit::Block(block)),
         }
     }
@@ -152,6 +153,7 @@ impl Shifter<'_> {
         match self.block_at_line(line) {
             Block::Verbatim(depth) | Block::MarkerLine(depth) => Some(Unit::Line { line, depth }),
             Block::Fixed => None,
+            Block::Paragraph(_) if self.direction == Direction::In => None,
             block => Some(Unit::Block(block)),
         }
     }
