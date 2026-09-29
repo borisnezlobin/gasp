@@ -1,5 +1,5 @@
 # The built-in snippets, which follow Latex Suite's defaults.
-# A vault's .editor/snippets.txt replaces this list; the settings screen
+# A vault's .gasp/snippets.txt replaces this list; the settings screen
 # starts it from a copy of these.
 
 # Math mode

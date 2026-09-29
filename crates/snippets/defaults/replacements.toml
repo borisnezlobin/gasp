@@ -1,6 +1,6 @@
 # The built-in replacements, which follow Smart Typography's defaults.
 # Curly quotes are the smart quotes setting's job, so they aren't here.
-# A vault's .editor/replacements.toml replaces this table.
+# A vault's .gasp/replacements.toml replaces this table.
 
 [[replacement]]
 from = "--"
