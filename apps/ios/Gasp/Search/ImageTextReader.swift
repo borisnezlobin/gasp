@@ -35,8 +35,14 @@ final class ImageTextReader {
         }
     }
 
+    /// The cache is named after the vault's place inside the app's
+    /// container when it's there, since iOS moves the container on every
+    /// update and the images would all be read again.
     private static func cacheFile(for vault: VaultFolder) -> URL {
-        let digest = SHA256.hash(data: Data(vault.location().utf8))
+        let location = vault.location()
+        let home = NSHomeDirectory()
+        let lasting = location.hasPrefix(home + "/") ? String(location.dropFirst(home.count)) : location
+        let digest = SHA256.hash(data: Data(lasting.utf8))
         let name = digest.prefix(8).map { String(format: "%02x", $0) }.joined()
         return URL.cachesDirectory.appending(path: "ocr/\(name).txt")
     }
