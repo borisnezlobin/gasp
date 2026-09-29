@@ -79,6 +79,47 @@ jobs:
           xvfb-run -a -s "-screen 0 1280x1024x24" sh -c \
             'openbox & sleep 1; scripts/idle-cpu.sh target/release/gasp fixtures/corpus'
 
+  # The shared crates' benches, each with budgets about three times what
+  # they measure on a Mac, so a regression fails the build. They time wall
+  # clock; GASP_BENCH_CLOCK=cpu times the thread's CPU instead, for
+  # comparing on a busy machine.
+  core-bench:
+    name: Core benches
+    runs-on: ubuntu-latest
+    env:
+      GASP_BENCH_ENFORCE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.94.1
+      - uses: Swatinem/rust-cache@v2
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config clang
+      - name: Build the benches
+        run: >-
+          cargo build --release --locked
+          -p gasp-core -p gasp-config -p gasp-ffi -p gasp-search -p gasp-vault
+          --example core_bench --example config_bench --example ffi_bench
+          --example search_bench --example vault_bench
+      - name: Parser, planner and typing
+        timeout-minutes: 5
+        run: cargo run --release --locked -p gasp-core --example core_bench
+      - name: Config
+        timeout-minutes: 2
+        run: cargo run --release --locked -p gasp-config --example config_bench
+      - name: What the phone asks per keystroke
+        timeout-minutes: 5
+        run: cargo run --release --locked -p gasp-ffi --example ffi_bench
+      - name: Search
+        timeout-minutes: 5
+        run: cargo run --release --locked -p gasp-search --example search_bench
+      - name: Vault
+        timeout-minutes: 5
+        run: cargo run --release --locked -p gasp-vault --example vault_bench
+
   lint:
     name: Format and complexity
     runs-on: ubuntu-latest

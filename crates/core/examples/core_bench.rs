@@ -68,9 +68,9 @@ fn main() {
 
 fn parse_benches(long: &str, report: &mut Report) {
     let full = Samples::collect(15, || syntax::parse(long));
-    report.time("full parse, median", full.median(), ms(30));
+    report.time("full parse, median", full.median(), ms(12));
     let notes = corpus_notes();
-    let corpus = Samples::collect(5, || {
+    let corpus = Samples::collect(15, || {
         for (_, text) in &notes {
             std::hint::black_box(syntax::parse(text));
         }
@@ -78,7 +78,7 @@ fn parse_benches(long: &str, report: &mut Report) {
     report.time(
         "parse all 204 corpus notes, median",
         corpus.median(),
-        ms(60),
+        ms(30),
     );
     let (tree, parsed) = CountingAllocator::measure(|| syntax::parse(long));
     report.note_count("tree nodes", tree.nodes().len() as f64);
@@ -101,16 +101,16 @@ fn plan_benches(long: &str, report: &mut Report) {
         settings: &settings,
     };
     let samples = Samples::collect(200, || plan_lines(&input, viewport.clone()));
-    report.time("plan a 60-line viewport, median", samples.median(), us(150));
-    let whole = Samples::collect(10, || plan(&input));
-    report.time("plan the whole note, median", whole.median(), ms(20));
+    report.time("plan a 60-line viewport, median", samples.median(), us(60));
+    let whole = Samples::collect(30, || plan(&input));
+    report.time("plan the whole note, median", whole.median(), ms(4));
     let folds = Folds::default();
     let mut plans = plan_lines(&input, viewport.clone()).lines;
     let applied = Samples::collect(200, || folds.apply(&mut plans, &tree, &selections));
     report.time(
         "apply folds to a viewport, median",
         applied.median(),
-        us(40),
+        us(10),
     );
     for (label, note) in heavy_notes() {
         let tree = syntax::parse(&note);
@@ -124,7 +124,7 @@ fn plan_benches(long: &str, report: &mut Report) {
         report.time(
             format!("plan the {label} note in full, median"),
             samples.median(),
-            us(1500),
+            us(400),
         );
     }
 }
@@ -315,10 +315,10 @@ fn viewport(first: usize) -> Range<usize> {
 impl KeyTimings {
     fn report(&self, label: &str, report: &mut Report) {
         let phases = [
-            ("pipeline", &self.pipeline, us(60)),
-            ("history", &self.history, us(60)),
-            ("reparse", &self.reparse, us(600)),
-            ("viewport plan", &self.plan, us(200)),
+            ("pipeline", &self.pipeline, us(40)),
+            ("history", &self.history, us(15)),
+            ("reparse", &self.reparse, us(250)),
+            ("viewport plan", &self.plan, us(150)),
         ];
         for (name, phase, budget) in phases {
             report.time(
@@ -330,7 +330,7 @@ impl KeyTimings {
         report.time(
             format!("{label}: whole keystroke, p95"),
             self.whole.samples.p95(),
-            ms(3),
+            us(1500),
         );
         report.note_time(format!("{label}: reparse, p95"), self.reparse.samples.p95());
         report.note_time(
@@ -341,7 +341,7 @@ impl KeyTimings {
         report.count(
             format!("{label}: allocations per key"),
             self.whole.allocations as f64 / keys,
-            4000.,
+            1500.,
         );
         let phases = [
             ("pipeline", &self.pipeline),
