@@ -378,6 +378,25 @@ impl Workspace {
         }
     }
 
+    /// Saves every note with unsaved edits and returns the paths of those
+    /// that saved.
+    pub fn save_all_and_list(&mut self, cx: &mut Context<Self>) -> Vec<PathBuf> {
+        let dirty: Vec<Entity<NoteDoc>> = self
+            .docs
+            .iter()
+            .filter(|doc| doc.read(cx).is_dirty())
+            .cloned()
+            .collect();
+        for doc in &dirty {
+            doc.update(cx, |doc, cx| doc.save_or_log(cx));
+        }
+        dirty
+            .iter()
+            .filter(|doc| !doc.read(cx).is_dirty())
+            .map(|doc| doc.read(cx).path().to_path_buf())
+            .collect()
+    }
+
     /// Saves everything before the window closes. Notes in conflict with
     /// the disk keep their edits in a conflicted copy beside them.
     pub fn save_for_close(&mut self, cx: &mut Context<Self>) {
