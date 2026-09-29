@@ -310,8 +310,9 @@ mod tests {
             new_len: 0,
         });
         assert!(folds.folded.is_empty());
+        assert!(folds.is_heading_folded(21));
         folds.map(&Edit {
-            old: 22..30,
+            old: 20..30,
             new_len: 0,
         });
         assert!(folds.is_empty());

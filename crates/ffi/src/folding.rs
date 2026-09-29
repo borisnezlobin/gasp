@@ -157,10 +157,11 @@ mod tests {
 
     const NOTE: &str = "# One\ntext\n## Two\nmore\n\n> [!note]- Tip\n> hidden\n";
 
+    /// The collapsed lines with the cursor at the note's start, on the
+    /// first heading's line, which leaves every fold closed.
     fn collapsed(document: &NoteDocument) -> Vec<u32> {
-        let end = document.text().len() as u32;
         document
-            .plan(TextRange { start: end, end })
+            .plan(TextRange { start: 0, end: 0 })
             .lines
             .into_iter()
             .filter(|line| line.collapsed)
