@@ -4027,6 +4027,7 @@ dependencies = [
 name = "gasp-sync"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
  "gasp-config",
  "git2",
  "globset",

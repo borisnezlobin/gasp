@@ -22,6 +22,7 @@ keyring = { version = "3", optional = true, features = ["apple-native", "windows
 keychain = ["dep:keyring"]
 
 [dev-dependencies]
+gasp-bench = { path = "../bench" }
 tempfile = "3"
 
 [lints]
