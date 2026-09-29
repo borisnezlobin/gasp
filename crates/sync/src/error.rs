@@ -60,6 +60,12 @@ impl SyncError {
         Self::Git(error)
     }
 
+    /// True when nothing was found where asked, such as a branch the
+    /// remote doesn't have.
+    pub fn is_not_found(&self) -> bool {
+        matches!(self, Self::Git(error) if error.code() == git2::ErrorCode::NotFound)
+    }
+
     /// True when the failure means "try again later when the network is back".
     pub fn is_offline(&self) -> bool {
         matches!(self, Self::Offline(_))

@@ -12,6 +12,14 @@ globset = "0.4"
 similar = "2"
 thiserror = "2"
 
+[target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "windows"))'.dependencies]
+keyring = { version = "3", optional = true, features = ["apple-native", "windows-native"] }
+
+[features]
+# The system's credential store: the Keychain on macOS and iOS, Credential
+# Manager on Windows.
+keychain = ["dep:keyring"]
+
 [dev-dependencies]
 tempfile = "3"
 

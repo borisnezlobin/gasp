@@ -9,10 +9,12 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+pub use editor_sync::KeychainStore;
 use editor_sync::{CredentialStore, SyncError, SyncResult, Token};
 
 /// The name tokens are filed under in the system's credential store.
-pub const SERVICE: &str = "editor-sync";
+pub const SERVICE: &str = editor_sync::KEYCHAIN_SERVICE;
 
 /// The store this platform uses.
 pub fn default_store() -> Arc<dyn CredentialStore> {
@@ -42,35 +44,6 @@ pub fn store_name() -> &'static str {
 
 fn io_error(error: impl std::fmt::Display) -> SyncError {
     SyncError::Io(io::Error::other(error.to_string()))
-}
-
-/// The system's credential store, through the `keyring` crate.
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-pub struct KeychainStore;
-
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-impl CredentialStore for KeychainStore {
-    fn load(&self, remote_url: &str) -> SyncResult<Option<Token>> {
-        let entry = keyring::Entry::new(SERVICE, remote_url).map_err(io_error)?;
-        match entry.get_password() {
-            Ok(secret) => Ok(Some(Token::new(secret))),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(error) => Err(io_error(error)),
-        }
-    }
-
-    fn save(&self, remote_url: &str, token: &Token) -> SyncResult<()> {
-        let entry = keyring::Entry::new(SERVICE, remote_url).map_err(io_error)?;
-        entry.set_password(token.secret()).map_err(io_error)
-    }
-
-    fn delete(&self, remote_url: &str) -> SyncResult<()> {
-        let entry = keyring::Entry::new(SERVICE, remote_url).map_err(io_error)?;
-        match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(error) => Err(io_error(error)),
-        }
-    }
 }
 
 /// Tokens in a TOML file (remote URL = token) readable only by its owner.
