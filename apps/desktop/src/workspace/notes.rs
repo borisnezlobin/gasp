@@ -284,7 +284,8 @@ impl Workspace {
             workspace
                 .update_in(cx, |workspace, window, cx| {
                     if let Err(error) = workspace.trash_note(&path, window, cx) {
-                        eprintln!("could not delete {}: {error}", path.display());
+                        let message = format!("Couldn’t move it to the trash: {error}");
+                        crate::notices::problem(message, cx);
                     }
                 })
                 .ok();
@@ -351,7 +352,10 @@ impl Workspace {
             let conflicted = doc.read(cx).conflict().is_some() && doc.read(cx).is_dirty();
             if conflicted && let Err(error) = doc.update(cx, |doc, cx| doc.save_conflicted_copy(cx))
             {
-                eprintln!("could not keep conflicting edits: {error}");
+                crate::notices::problem(
+                    format!("Couldn’t keep the conflicting edits: {error}"),
+                    cx,
+                );
             }
         }
     }
@@ -485,7 +489,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if let Err(error) = self.show_path_in_pane(pane, &target.path, true, window, cx) {
-            eprintln!("could not open {}: {error}", target.path.display());
+            crate::notices::open_failed(&target.path, error, cx);
             return;
         }
         let Some(editor) = pane.read(cx).active_editor() else {
