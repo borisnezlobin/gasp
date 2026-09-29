@@ -4,6 +4,7 @@
 //! images, the command registry and the theme. Offsets are in UTF-16 code units, as
 //! UIKit counts them.
 
+mod code;
 mod commands;
 mod display;
 mod document;
@@ -25,6 +26,7 @@ mod tables;
 mod theme;
 mod vault;
 
+pub use code::{CodeColor, CodeSpan, code_color_token};
 pub use commands::{CommandInfo, KeyBinding};
 pub use display::SymbolVisibility;
 pub use document::{NoteDocument, OutlineHeading, SentenceLength, SentenceTint};
@@ -35,7 +37,7 @@ pub use grammar::{GrammarChecker, GrammarFlag, GrammarFlagKind};
 pub use image_text::ImageTexts;
 pub use knowledge::{SearchHit, SearchResult, TagInfo};
 pub use math::{MathImage, MathRender, render_math, warm_up_math};
-pub use media::ThemedColor;
+pub use media::{ThemedColor, config_folder};
 pub use notes::LinkDestination;
 pub use offsets::TextRange;
 pub use plan::{
