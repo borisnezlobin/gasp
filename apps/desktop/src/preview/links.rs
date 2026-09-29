@@ -2,6 +2,7 @@
 
 use std::ops::Range;
 
+use gasp_core::render::embeds_image;
 use gasp_core::syntax::{LinkKind, NodeKind, SyntaxTree, WikiInfo};
 
 /// Something a hover preview can show.
@@ -28,6 +29,9 @@ pub fn hover_target_at(tree: &SyntaxTree, offset: usize) -> Option<(HoverTarget,
         let node = tree.node(id);
         let target = match &node.kind {
             NodeKind::WikiLink(info) => HoverTarget::Note {
+                link: wiki_target(info),
+            },
+            NodeKind::Embed(info) if !embeds_image(&info.target) => HoverTarget::Note {
                 link: wiki_target(info),
             },
             NodeKind::Link(info) if is_note_link(info.kind, &info.destination) => {
@@ -74,6 +78,7 @@ fn link_target(kind: &NodeKind) -> Option<String> {
     match kind {
         NodeKind::Link(info) => Some(info.destination.clone()),
         NodeKind::WikiLink(info) => Some(wiki_target(info)),
+        NodeKind::Embed(info) if !embeds_image(&info.target) => Some(wiki_target(info)),
         _ => None,
     }
 }
@@ -102,6 +107,14 @@ mod tests {
         assert_eq!(link_target_at(&tree, 40).as_deref(), Some("Note#Part"));
         assert_eq!(link_target_at(&tree, 65).as_deref(), Some("https://x.org"));
         assert_eq!(link_target_at(&tree, 1), None);
+    }
+
+    #[test]
+    fn an_embedded_note_links_to_it_and_an_image_does_not() {
+        let text = "![[Plan#Goals]] and ![[photo.png]]";
+        let tree = parse(text);
+        assert_eq!(link_target_at(&tree, 4).as_deref(), Some("Plan#Goals"));
+        assert_eq!(link_target_at(&tree, 24), None);
     }
 
     #[test]

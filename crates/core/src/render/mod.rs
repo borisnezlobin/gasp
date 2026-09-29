@@ -12,6 +12,7 @@ mod reveal;
 mod settings;
 mod symbols;
 mod widgets;
+pub use widgets::embeds_image;
 
 #[cfg(test)]
 mod tests;
