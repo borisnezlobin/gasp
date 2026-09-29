@@ -37,6 +37,7 @@ const FILE: &[Entry] = &[
     Command("vault.import-obsidian"),
     Separator,
     Command("note.rename"),
+    Command("note.move"),
     Command("note.delete"),
     Command("note.restore-deleted"),
     Separator,

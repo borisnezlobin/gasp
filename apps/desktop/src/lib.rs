@@ -32,6 +32,7 @@ pub mod link_cards;
 pub use gasp_vault::link_update;
 pub mod look_up;
 pub mod metrics;
+pub mod move_picker;
 pub mod navigation;
 pub mod note;
 pub mod note_texts;

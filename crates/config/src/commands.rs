@@ -171,6 +171,11 @@ const TOGGLE_DARK_MODE: CommandSpec = spec(
 )
 .icon("palette");
 
+/// Moves the open note into a folder picked by name, which the desktop
+/// does; the phone moves notes from its file list.
+const MOVE_NOTE: CommandSpec =
+    spec("note.move", "Move note to a folder", "Notes and navigation").icon("folder");
+
 /// Commands only some platforms have. The registry leaves them out
 /// elsewhere, but rules may still name them, as a vault's config goes
 /// from machine to machine.
@@ -184,6 +189,7 @@ pub const PLATFORM_COMMANDS: &[&str] = &[
     IMPORT_OBSIDIAN.id,
     COPY_RICH_TEXT.id,
     TOGGLE_DARK_MODE.id,
+    MOVE_NOTE.id,
 ];
 
 /// Every built-in command on this platform.
@@ -426,6 +432,8 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     COPY_RICH_TEXT,
     #[cfg(not(target_os = "ios"))]
     TOGGLE_DARK_MODE,
+    #[cfg(not(target_os = "ios"))]
+    MOVE_NOTE,
     spec("note.import-image", "Insert image from file", "Editing").icon("image"),
     spec("edit.paste-plain", "Paste as plain text", "Editing").icon("clipboard-text"),
     #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -586,7 +594,7 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
 
 /// The commands in [`PLATFORM_COMMANDS`], described on every platform so
 /// a toolbar synced from another machine can still name them.
-const PLATFORM_SPECS: [CommandSpec; 9] = [
+const PLATFORM_SPECS: [CommandSpec; 10] = [
     LOOK_UP,
     HIDE_KEYBOARD,
     FOLD_TOGGLE,
@@ -596,6 +604,7 @@ const PLATFORM_SPECS: [CommandSpec; 9] = [
     IMPORT_OBSIDIAN,
     COPY_RICH_TEXT,
     TOGGLE_DARK_MODE,
+    MOVE_NOTE,
 ];
 
 /// A built-in command's description by id, on any platform.

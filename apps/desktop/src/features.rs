@@ -34,7 +34,7 @@ use crate::workspace::{OpenIn, Workspace};
 const RECENT_COMMANDS: usize = 8;
 
 /// Commands this module gives a handler, for the menus.
-pub const WIRED_COMMANDS: [&str; 29] = [
+pub const WIRED_COMMANDS: [&str; 30] = [
     "palette.open",
     "switcher.open",
     "outline.jump-to-heading",
@@ -64,6 +64,7 @@ pub const WIRED_COMMANDS: [&str; 29] = [
     "vault.import-obsidian",
     "edit.copy-rich-text",
     "view.toggle-dark-mode",
+    "note.move",
 ];
 
 /// Binds the keys the standalone views use inside themselves. Their text
@@ -125,6 +126,7 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     crate::recovery::install(workspace, cx);
     crate::obsidian_import::install(workspace, window, cx);
     crate::appearance_toggle::install(workspace);
+    workspace.on_command("note.move", crate::move_picker::open);
     #[cfg(target_os = "macos")]
     crate::rich_copy::install(workspace);
     workspace.on_command("palette.open", open_palette);
