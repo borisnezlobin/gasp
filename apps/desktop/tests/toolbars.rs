@@ -200,6 +200,24 @@ fn a_bar_menu_opens_its_commands(cx: &mut TestAppContext) {
     assert_eq!(labels[0], "Insert table");
 }
 
+/// The status bar is right-aligned, so a cursor position growing from
+/// "1:1" to "1:21" used to push every widget before it to the left.
+#[gpui::test]
+fn the_status_widgets_stay_put_as_the_cursor_moves(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (workspace, cx) = open_workspace(cx, dir.path());
+    let before = cx.debug_bounds("status-word-count").expect("drawn");
+    let position = cx.debug_bounds("status-cursor-position").expect("drawn");
+    select(&workspace, cx, 20, 20);
+    let status = cx.read(|cx| workspace.read(cx).status().unwrap().position_label());
+    assert_eq!(status, "1:21");
+    cx.run_until_parked();
+    assert_eq!(cx.debug_bounds("status-word-count"), Some(before));
+    assert_eq!(cx.debug_bounds("status-cursor-position"), Some(position));
+    select(&workspace, cx, 0, 0);
+    assert_eq!(cx.debug_bounds("status-word-count"), Some(before));
+}
+
 const HOVER_BAR: &str = "\
 [toolbar.writing]
 title     = \"Writing\"

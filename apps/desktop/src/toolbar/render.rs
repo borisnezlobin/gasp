@@ -3,9 +3,13 @@
 //! theme's `toolbar.` tokens, colours from the UI theme's controls.
 
 use gasp_config::toolbars::{Density, Toolbar, ToolbarItem, ToolbarMenu, Widget};
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::rc::Rc;
+
 use gpui::{
-    AnyElement, AnyView, App, BoxShadow, Div, ElementId, MouseButton, Pixels, SharedString,
-    Stateful, div, prelude::*,
+    AnyElement, AnyView, App, BoxShadow, Div, ElementId, EntityId, MouseButton, Pixels,
+    SharedString, Stateful, canvas, div, prelude::*,
 };
 
 use super::{AddToToolbar, FocusStop, PressToolbarItem, add_key, button_label, item_key};
@@ -34,9 +38,52 @@ impl BarFrame {
     }
 }
 
+/// The widest each status widget has been while showing one note the
+/// same way, so a count or a cursor position that gets shorter keeps its
+/// room and the widgets beside it stay where they are. It starts over
+/// for another note, or when a selection starts or ends.
+#[derive(Clone, Default)]
+pub struct WidgetWidths {
+    showing: Rc<Cell<Option<(EntityId, bool)>>>,
+    widest: Rc<RefCell<HashMap<Widget, Pixels>>>,
+}
+
+impl WidgetWidths {
+    /// Says what the status widgets describe now: `note`, and whether
+    /// its selection. Anything else forgets the widths.
+    pub fn describe(&self, note: Option<EntityId>, for_selection: bool) {
+        let showing = note.map(|note| (note, for_selection));
+        if self.showing.get() != showing {
+            self.showing.set(showing);
+            self.widest.borrow_mut().clear();
+        }
+    }
+
+    pub fn widest(&self, widget: Widget) -> Option<Pixels> {
+        self.widest.borrow().get(&widget).copied()
+    }
+
+    /// An empty element over the widget that keeps its widest width.
+    fn probe(&self, widget: Widget) -> impl IntoElement {
+        let widest = self.widest.clone();
+        canvas(
+            move |bounds, _, _| {
+                let mut widest = widest.borrow_mut();
+                let width = widest.entry(widget).or_default();
+                *width = (*width).max(bounds.size.width);
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .size_full()
+    }
+}
+
 /// What a bar's items show now.
 pub struct BarState<'a> {
     pub status: Option<&'a StatusInfo>,
+    /// The status widgets' widest widths, where they keep them.
+    pub widths: Option<&'a WidgetWidths>,
     pub sync: Option<AnyView>,
     /// Toggle commands that are on where the cursor is.
     pub active: &'a [&'static str],
@@ -223,17 +270,44 @@ fn passive_item(
         ToolbarItem::Widget(Widget::Sync) => state.sync.clone().map(AnyView::into_any_element),
         ToolbarItem::Widget(widget) => {
             let text = state.status?.widget_text(*widget)?;
-            Some(
-                div()
-                    .flex_none()
-                    .child(SharedString::from(text))
-                    .into_any_element(),
-            )
+            Some(status_widget(*widget, text, state.widths, theme))
         }
         ToolbarItem::Separator => Some(separator(state.frame, m, theme)),
         ToolbarItem::Spacer => Some(div().flex_1().into_any_element()),
         ToolbarItem::Command(_) | ToolbarItem::Menu(_) => None,
     }
+}
+
+/// A status widget's text, in figures of one width, in a box that keeps
+/// the widest it's been so the widgets beside it stay put; the cursor
+/// position keeps room for "000:00" from the start. The text sits at the
+/// box's end, beside the next widget.
+fn status_widget(
+    widget: Widget,
+    text: String,
+    widths: Option<&WidgetWidths>,
+    theme: &UiTheme,
+) -> AnyElement {
+    let name = widget.name();
+    let reserved = match widget {
+        Widget::CursorPosition => theme.status_position_width,
+        _ => Pixels::ZERO,
+    };
+    let widest = widths
+        .and_then(|widths| widths.widest(widget))
+        .unwrap_or_default();
+    div()
+        .id(ElementId::Name(format!("status-{name}").into()))
+        .selector(move || format!("status-{name}"))
+        .relative()
+        .flex()
+        .flex_none()
+        .justify_end()
+        .min_w(reserved.max(widest))
+        .font(theme.tabular_font())
+        .child(SharedString::from(text))
+        .children(widths.map(|widths| widths.probe(widget)))
+        .into_any_element()
 }
 
 fn separator(frame: BarFrame, m: Metrics, theme: &UiTheme) -> AnyElement {

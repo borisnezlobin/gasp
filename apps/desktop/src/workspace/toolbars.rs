@@ -15,7 +15,9 @@ use gpui::{
 use super::Workspace;
 use crate::icons::IconName;
 use crate::keymap::RunCommand;
-use crate::toolbar::render::{BarFrame, BarState, add_button, bar, bar_items, floating_surface};
+use crate::toolbar::render::{
+    BarFrame, BarState, WidgetWidths, add_button, bar, bar_items, floating_surface,
+};
 use crate::toolbar::{
     AddToToolbar, FocusStop, PressToolbarItem, ToolbarFocus, focus_stops, item_key, step_stop,
 };
@@ -44,6 +46,8 @@ pub(crate) struct ToolbarHover {
     pointer: Option<gpui::Point<gpui::Pixels>>,
     /// Whether the pointer is on the status bar, which shows its add button.
     on_status_bar: bool,
+    /// The status widgets' widest widths, so they don't shuffle.
+    status_widths: WidgetWidths,
 }
 
 /// A place's docked bars: the strip they take in the layout, and the
@@ -229,11 +233,18 @@ impl Workspace {
             self.can_run(id) && (has_note || !needs_note)
         };
         let menus = self.config.toolbars.menus.clone();
+        let note = self.active_editor(cx).map(|editor| editor.entity_id());
+        let selecting = self
+            .status
+            .as_ref()
+            .is_some_and(|status| status.for_selection);
+        self.toolbar_hover.status_widths.describe(note, selecting);
         let menu = &self.menu;
         let gap = crate::ui::ui_theme(cx).space_xs;
         let mut attached = |key: &str| menu.render_attached(key, gap);
         let state = BarState {
             status: self.status.as_ref(),
+            widths: Some(&self.toolbar_hover.status_widths),
             sync: self.sync_indicator.clone(),
             active: &active,
             focus: self.focus_on(&toolbar.id),

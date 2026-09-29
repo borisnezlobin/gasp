@@ -2087,6 +2087,9 @@ pub struct UiTheme {
     pub indent_guide_width: Pixels,
     pub status_height: Pixels,
     pub status_gap: Pixels,
+    /// Room the cursor position keeps whatever it says, up to "000:00",
+    /// so moving the caret never moves the status bar's other widgets.
+    pub status_position_width: Pixels,
     pub help_row_height: Pixels,
     /// The shortcuts sheet that holding Mod shows: its width, row height
     /// and how wide one column of it is at least.
@@ -2365,6 +2368,7 @@ impl UiTheme {
             indent_guide_width: px(1.),
             status_height: px(24.),
             status_gap: px(16.),
+            status_position_width: px(40.),
             help_row_height: px(32.),
             sheet_width: px(920.),
             sheet_row_height: px(26.),
@@ -2426,6 +2430,15 @@ impl UiTheme {
 }
 
 impl UiTheme {
+    /// The UI font with figures that are all one width, for numbers that
+    /// change in place, such as the status bar's counts.
+    pub fn tabular_font(&self) -> Font {
+        Font {
+            features: gpui::FontFeatures(std::sync::Arc::new(vec![("tnum".into(), 1)])),
+            ..font(self.font_family.clone())
+        }
+    }
+
     /// The shadow and hairline ring under dialogs: larger and softer than
     /// a menu's, since a dialog sits higher.
     pub fn dialog_shadows(&self) -> Vec<BoxShadow> {
