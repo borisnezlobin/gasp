@@ -15,8 +15,9 @@ use gpui::{
 };
 
 use super::controls::{
-    button, choice_button, control_note, icon_button, icon_label_button, row_text, segment,
-    segmented, toggle_switch, two_column_row,
+    Fills, button_in, choice_button, control_note, icon_button, icon_button_in, icon_label_button,
+    inert_icon_button, row_text, segment, segmented, steady_label, toggle_switch, tooltip_keys,
+    two_column_row, widest_of,
 };
 use super::model::PageSpec;
 use super::toolbars_page::{
@@ -178,13 +179,17 @@ impl SettingsView {
         let Some(toolbar) = self.toolbar(id).cloned() else {
             return div().into_any_element();
         };
-        let reset = self.toolbar_changed(id).then(|| {
-            let id = id.to_owned();
-            self.reset_button(&toolbar_error_key(&toolbar.id), cx, move |view, cx| {
-                view.reset_toolbar(&id, cx)
+        // A built-in bar can be reset and one the vault added removed, so
+        // the slot before the switch holds one or the other.
+        let slot = if toolbar.built_in {
+            let target = id.to_owned();
+            let key = toolbar_error_key(&toolbar.id);
+            self.reset_slot(&key, self.toolbar_changed(id), cx, move |view, cx| {
+                view.reset_toolbar(&target, cx)
             })
-        });
-        let remove = (!toolbar.built_in).then(|| self.remove_toolbar_button(id, cx));
+        } else {
+            self.remove_toolbar_button(id, cx)
+        };
         let target = id.to_owned();
         let selector = format!("toolbar-switch-{id}");
         let switch = toggle_switch(
@@ -210,45 +215,49 @@ impl SettingsView {
             .flex()
             .items_center()
             .gap(self.style.gap_sm)
-            .children(reset)
-            .children(remove)
+            .child(slot)
             .child(switch)
             .into_any_element()
     }
 
     /// Removing a toolbar asks once more: the first press arms the button,
-    /// which then says what the next press does.
+    /// which turns the warning colour and hangs a note under itself
+    /// saying what the next press does. It keeps its size, so nothing
+    /// beside it moves.
     fn remove_toolbar_button(&self, id: &str, cx: &mut Context<Self>) -> AnyElement {
+        let style = &self.style;
         let armed = self.armed_row.as_ref() == Some(&ControlRow::ToolbarHeader(id.to_owned()));
         let selector = format!("remove-toolbar-{id}");
         let target = id.to_owned();
-        let click = cx.listener(move |view, _: &ClickEvent, _, cx| {
-            cx.stop_propagation();
-            view.press_remove_toolbar(&target, cx);
-        });
-        if armed {
-            return button(
-                SharedString::from(selector.clone()),
-                "Remove toolbar",
-                false,
-                false,
-                &self.style,
-            )
+        let color = if armed {
+            style.warning
+        } else {
+            style.text_muted
+        };
+        let tooltip = if armed {
+            "Press again to remove this toolbar"
+        } else {
+            "Remove this toolbar"
+        };
+        let id = SharedString::from(selector.clone());
+        let button = if armed {
+            icon_button_in(id, IconName::Trash, color, Fills::armed(style), style)
+        } else {
+            icon_button(id, IconName::Trash, color, style)
+        };
+        let button = button
             .selector(move || selector)
-            .text_color(self.style.warning)
-            .on_click(click)
-            .into_any_element();
-        }
-        icon_button(
-            SharedString::from(selector.clone()),
-            IconName::Trash,
-            self.style.text_muted,
-            &self.style,
-        )
-        .selector(move || selector)
-        .tooltip(Tooltip::new("Remove this toolbar", None).builder())
-        .on_click(click)
-        .into_any_element()
+            .tooltip(Tooltip::new(tooltip, None).builder())
+            .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
+                cx.stop_propagation();
+                view.press_remove_toolbar(&target, cx);
+            }));
+        let note = armed.then(|| control_note("Press again to remove this toolbar.", style));
+        div()
+            .relative()
+            .child(button)
+            .children(note)
+            .into_any_element()
     }
 
     pub(super) fn press_remove_toolbar(&mut self, id: &str, cx: &mut Context<Self>) {
@@ -275,9 +284,12 @@ impl SettingsView {
         };
         let current = field.value(toolbar);
         if field.is_dropdown() {
-            let label = div()
-                .child(toolbar_choice_label(&current))
-                .into_any_element();
+            let options = field
+                .options()
+                .into_iter()
+                .map(|option| toolbar_choice_label(&option).into());
+            let label =
+                widest_of(div().child(toolbar_choice_label(&current)), options).into_any_element();
             let dropdown_id = format!("toolbar-{}-{id}", field.key());
             return self.dropdown(index, dropdown_id, label, focused, cx);
         }
@@ -321,7 +333,7 @@ impl SettingsView {
                 let name = choice_name(context);
                 let selector = format!("toolbar-context-{id}-{name}");
                 let target = id.to_owned();
-                let ringed = focused && position == self.context_chip;
+                let ringed = focused && position == self.sub_control;
                 choice_button(
                     SharedString::from(selector.clone()),
                     toolbar_choice_label(&name),
@@ -364,25 +376,18 @@ impl SettingsView {
         let step = |name: IconName, delta: isize, label: &str, enabled: bool| {
             let selector = format!("toolbar-item-{id}-{index}-{label}");
             let target = id.to_owned();
-            let color = if enabled {
-                self.style.text_muted
-            } else {
-                self.style.text_faint
-            };
-            icon_button(
-                SharedString::from(selector.clone()),
-                name,
-                color,
-                &self.style,
-            )
-            .selector(move || selector)
-            .tooltip(Tooltip::new(label.to_owned(), None).builder())
-            .when(enabled, |button| {
-                button.on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
+            let element_id = SharedString::from(selector.clone());
+            if !enabled {
+                return inert_icon_button(element_id, name, &self.style).selector(move || selector);
+            }
+            let keys = tooltip_keys(if delta < 0 { "Alt+Up" } else { "Alt+Down" });
+            icon_button(element_id, name, self.style.text_muted, &self.style)
+                .selector(move || selector)
+                .tooltip(Tooltip::new(label.to_owned(), keys).builder())
+                .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
                     cx.stop_propagation();
                     view.move_toolbar_item(&target, index, delta, cx)
                 }))
-            })
         };
         let up = step(IconName::ArrowUp, -1, "Move up", index > 0);
         let down = step(IconName::ArrowDown, 1, "Move down", index + 1 < count);
@@ -395,7 +400,7 @@ impl SettingsView {
             &self.style,
         )
         .selector(move || selector)
-        .tooltip(Tooltip::new("Take off the toolbar", None).builder())
+        .tooltip(Tooltip::new("Take off the toolbar", tooltip_keys("Delete")).builder())
         .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
             cx.stop_propagation();
             view.remove_toolbar_item(&target, index, cx)
@@ -405,7 +410,13 @@ impl SettingsView {
             .items_center()
             .gap(self.style.gap_xs)
             .rounded(self.style.radius)
-            .when(focused, |group| group.shadow(vec![self.style.focus()]))
+            // Opaque under the ring, which would otherwise fill the group
+            // in behind its buttons.
+            .when(focused, |group| {
+                group
+                    .bg(self.style.card_background)
+                    .shadow(vec![self.style.focus()])
+            })
             .children(shortcut.map(|shortcut| keycap(shortcut, &keycaps).mr(self.style.gap_sm)))
             .child(up)
             .child(down)
@@ -429,7 +440,7 @@ impl SettingsView {
                     .size(self.style.small_icon_size)
                     .text_color(self.style.text_muted),
             )
-            .child("Choose")
+            .child("Pick a button")
             .into_any_element();
         self.dropdown(index, format!("toolbar-add-{id}"), label, focused, cx)
     }
@@ -450,16 +461,24 @@ impl SettingsView {
 
     fn reset_toolbars_control(&self, focused: bool, cx: &mut Context<Self>) -> AnyElement {
         let armed = self.armed_row.as_ref() == Some(&ControlRow::ResetToolbars);
-        let label = if armed {
-            "Press again to reset"
+        const ARMED: &str = "Press again to reset";
+        let label = if armed { ARMED } else { "Reset toolbars" };
+        let fills = if armed {
+            Fills::armed(&self.style)
         } else {
-            "Reset toolbars"
+            Fills::over(self.style.control_background, &self.style)
         };
-        button("reset-toolbars", label, false, focused, &self.style)
-            .selector(|| "reset-toolbars".to_owned())
-            .when(armed, |button| button.text_color(self.style.warning))
-            .on_click(cx.listener(|view, _: &ClickEvent, _, cx| view.press_reset_toolbars(cx)))
-            .into_any_element()
+        button_in(
+            "reset-toolbars",
+            steady_label(label, ARMED),
+            fills,
+            focused,
+            &self.style,
+        )
+        .selector(|| "reset-toolbars".to_owned())
+        .when(armed, |button| button.text_color(self.style.warning))
+        .on_click(cx.listener(|view, _: &ClickEvent, _, cx| view.press_reset_toolbars(cx)))
+        .into_any_element()
     }
 
     pub(super) fn press_reset_toolbars(&mut self, cx: &mut Context<Self>) {
@@ -501,7 +520,7 @@ impl SettingsView {
             index: item,
             label: self.toolbar_row_title(row).into(),
         };
-        let drop_fill = self.style.hover;
+        let drop_fill = self.style.drop_fill;
         let (into, at) = (toolbar.clone(), item);
         div()
             .id(SharedString::from(format!(
@@ -637,10 +656,10 @@ impl SettingsView {
     fn toolbar_contexts_key(&mut self, id: &str, key: &str, cx: &mut Context<Self>) -> bool {
         let last = ToolbarContext::ALL.len() - 1;
         match key {
-            "left" => self.context_chip = self.context_chip.saturating_sub(1),
-            "right" => self.context_chip = (self.context_chip + 1).min(last),
+            "left" => self.sub_control = self.sub_control.saturating_sub(1),
+            "right" => self.sub_control = (self.sub_control + 1).min(last),
             "space" | "enter" => {
-                let context = ToolbarContext::ALL[self.context_chip.min(last)];
+                let context = ToolbarContext::ALL[self.sub_control.min(last)];
                 self.toggle_toolbar_context(id, context, cx);
             }
             _ => return false,

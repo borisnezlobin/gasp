@@ -6,13 +6,13 @@
 //!
 //! These are general enough to share with other screens.
 
-use gpui::{AnyElement, Div, ElementId, Hsla, SharedString, Stateful, div, point, prelude::*, px};
+use gpui::{AnyElement, Div, ElementId, Hsla, SharedString, Stateful, div, prelude::*, px};
 
 use super::popover::Popover;
 
 use crate::icons::{IconName, icon};
 use crate::picker::shortcut::Shortcut;
-use crate::theme::{KeycapTheme, SettingsTheme};
+use crate::theme::{KeycapTheme, SettingsTheme, over};
 use crate::ui::Selectable;
 use crate::ui::{Tooltip, keycap};
 
@@ -87,6 +87,9 @@ fn with_focus(element: Stateful<Div>, focused: bool, style: &SettingsTheme) -> S
 }
 
 /// A pill switch; the knob sits right and the track fills while it's on.
+/// The track darkens under the pointer and more while pressed. It sits
+/// in a [`focus_frame`], so its focus ring is concentric and the frame is
+/// part of what's clicked.
 pub fn toggle_switch(
     id: impl Into<ElementId>,
     on: bool,
@@ -94,9 +97,18 @@ pub fn toggle_switch(
     style: &SettingsTheme,
 ) -> Stateful<Div> {
     let knob = style.toggle_height - style.toggle_knob_inset * 2.;
-    let track = if on { style.accent } else { style.toggle_off };
-    let switch = div()
-        .id(id)
+    let (track, hover, pressed) = if on {
+        (style.accent, style.accent_hover, style.accent_pressed)
+    } else {
+        (
+            style.toggle_off,
+            style.toggle_off_hover,
+            style.toggle_off_pressed,
+        )
+    };
+    let group = SharedString::from("settings-toggle");
+    let track = div()
+        .id("track")
         .flex_none()
         .w(style.toggle_width)
         .h(style.toggle_height)
@@ -104,37 +116,89 @@ pub fn toggle_switch(
         .flex()
         .items_center()
         .when(on, |track| track.justify_end())
-        .rounded(style.toggle_height)
+        .rounded_full()
         .bg(track)
-        .cursor_pointer()
+        .group_hover(group.clone(), move |track| track.bg(hover))
+        .group_active(group.clone(), move |track| track.bg(pressed))
         .child(
             div()
                 .size(knob)
-                .rounded(knob)
+                .rounded_full()
                 .bg(style.knob)
                 .shadow(vec![style.lift()]),
         );
-    with_focus(switch, focused, style)
-}
-
-/// The raised surface buttons, dropdowns and steppers share.
-fn raised(id: impl Into<ElementId>, style: &SettingsTheme) -> Stateful<Div> {
-    raised_button(id, false, style)
-}
-
-/// A raised button's surface, in the accent for the main action, with
-/// its fill under the pointer.
-fn raised_button(id: impl Into<ElementId>, primary: bool, style: &SettingsTheme) -> Stateful<Div> {
-    let (fill, hover) = if primary {
-        (style.accent, style.accent_hover)
-    } else {
-        (style.control_background, style.hover)
-    };
-    raised_surface(id, style)
-        .bg(fill)
-        .when(primary, |button| button.text_color(style.on_accent))
+    focus_frame(track, focused, style)
+        .id(id)
+        .group(group)
         .cursor_pointer()
-        .hover(move |button| button.bg(hover))
+}
+
+/// A control's fill at rest, under the pointer and while pressed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Fills {
+    pub rest: Hsla,
+    pub hover: Hsla,
+    pub pressed: Hsla,
+}
+
+impl Fills {
+    /// `rest` with the see-through hover and press fills laid over it, so
+    /// they read the same on any colour and stay opaque when it is.
+    pub fn over(rest: Hsla, style: &SettingsTheme) -> Fills {
+        Fills {
+            rest,
+            hover: over(style.hover_fill, rest),
+            pressed: over(style.pressed, rest),
+        }
+    }
+
+    /// `rest` that stays under the pointer, for a state the pointer
+    /// mustn't hide, such as a chosen chip or a dropdown whose menu is
+    /// open. A press still shows.
+    pub fn held(rest: Hsla, style: &SettingsTheme) -> Fills {
+        Fills {
+            hover: rest,
+            ..Fills::over(rest, style)
+        }
+    }
+
+    /// A control that asks once more before it removes or resets, in
+    /// the warning colour's fill.
+    pub fn armed(style: &SettingsTheme) -> Fills {
+        Fills::over(over(style.warning_fill, style.control_background), style)
+    }
+
+    fn plain(style: &SettingsTheme) -> Fills {
+        Fills::over(style.control_background, style)
+    }
+
+    fn primary(style: &SettingsTheme) -> Fills {
+        Fills {
+            rest: style.accent,
+            hover: style.accent_hover,
+            pressed: style.accent_pressed,
+        }
+    }
+}
+
+/// A raised button's surface, in the accent for the main action.
+fn raised_button(id: impl Into<ElementId>, primary: bool, style: &SettingsTheme) -> Stateful<Div> {
+    let fills = if primary {
+        Fills::primary(style)
+    } else {
+        Fills::plain(style)
+    };
+    raised_with(id, fills, style).when(primary, |button| button.text_color(style.on_accent))
+}
+
+/// A raised surface in `fills`. They're opaque, so the outline and focus
+/// ring stay rings.
+fn raised_with(id: impl Into<ElementId>, fills: Fills, style: &SettingsTheme) -> Stateful<Div> {
+    raised_surface(id, style)
+        .bg(fills.rest)
+        .cursor_pointer()
+        .hover(move |button| button.bg(fills.hover))
+        .active(move |button| button.bg(fills.pressed))
 }
 
 /// A raised control's surface without its own hover, for one that holds
@@ -158,14 +222,30 @@ pub fn dropdown_button(
     focused: bool,
     style: &SettingsTheme,
 ) -> Stateful<Div> {
-    let button = raised(id, style)
+    dropdown_button_in(id, label, focused, false, style)
+}
+
+/// A [`dropdown_button`] that stays pressed in while its menu is `open`.
+pub fn dropdown_button_in(
+    id: impl Into<ElementId>,
+    label: impl IntoElement,
+    focused: bool,
+    open: bool,
+    style: &SettingsTheme,
+) -> Stateful<Div> {
+    let fills = if open {
+        Fills::held(over(style.pressed, style.control_background), style)
+    } else {
+        Fills::plain(style)
+    };
+    let button = raised_with(id, fills, style)
         .flex_shrink()
         .min_w_0()
         .max_w(style.menu_width)
         .gap(style.gap_sm)
         .pl(style.control_padding_x)
         .pr(style.control_padding_x * 0.75)
-        .child(div().min_w_0().truncate().child(label))
+        .child(div().flex_1().min_w_0().truncate().child(label))
         .child(
             icon(IconName::CaretUpDown)
                 .flex_none()
@@ -178,7 +258,7 @@ pub fn dropdown_button(
 /// A small bordered button, or a filled one for the main action.
 pub fn button(
     id: impl Into<ElementId>,
-    label: impl Into<SharedString>,
+    label: impl IntoElement,
     primary: bool,
     focused: bool,
     style: &SettingsTheme,
@@ -186,7 +266,22 @@ pub fn button(
     let button = raised_button(id, primary, style)
         .px(style.control_padding_x)
         .whitespace_nowrap()
-        .child(label.into());
+        .child(label);
+    with_focus(button, focused, style)
+}
+
+/// A [`button`] in its own `fills`, such as [`Fills::armed`].
+pub fn button_in(
+    id: impl Into<ElementId>,
+    label: impl IntoElement,
+    fills: Fills,
+    focused: bool,
+    style: &SettingsTheme,
+) -> Stateful<Div> {
+    let button = raised_with(id, fills, style)
+        .px(style.control_padding_x)
+        .whitespace_nowrap()
+        .child(label);
     with_focus(button, focused, style)
 }
 
@@ -229,11 +324,15 @@ pub fn choice_button(
             .size(style.small_icon_size)
             .text_color(style.text)
     });
-    raised(id, style)
+    let fills = if chosen {
+        Fills::held(style.selected, style)
+    } else {
+        Fills::plain(style)
+    };
+    raised_with(id, fills, style)
         .gap(style.gap_sm)
         .px(style.control_padding_x)
         .whitespace_nowrap()
-        .when(chosen, |button| button.bg(style.selected))
         .children(check)
         .child(label.into())
 }
@@ -262,9 +361,13 @@ pub fn segment(
                 .bg(style.control_background)
                 .text_color(text)
                 .shadow(vec![style.outline(), style.lift()]),
-            false => segment
-                .text_color(style.text_muted)
-                .hover(move |segment| segment.text_color(text)),
+            false => {
+                let pressed = style.pressed;
+                segment
+                    .text_color(style.text_muted)
+                    .hover(move |segment| segment.text_color(text))
+                    .active(move |segment| segment.bg(pressed))
+            }
         })
         .child(label.into())
 }
@@ -313,14 +416,52 @@ pub fn inert_button(
         .child(label.into())
 }
 
-/// A borderless square button holding one icon.
+/// A borderless square button holding one icon, filled under the
+/// pointer and more while pressed.
 pub fn icon_button(
     id: impl Into<ElementId>,
     name: IconName,
     color: Hsla,
     style: &SettingsTheme,
 ) -> Stateful<Div> {
-    let hover = style.hover;
+    let (hover, pressed) = (style.hover_fill, style.pressed);
+    icon_square(id, name, color, style)
+        .cursor_pointer()
+        .hover(move |button| button.bg(hover))
+        .active(move |button| button.bg(pressed))
+}
+
+/// An [`icon_button`] on a fill of its own, such as [`Fills::armed`].
+pub fn icon_button_in(
+    id: impl Into<ElementId>,
+    name: IconName,
+    color: Hsla,
+    fills: Fills,
+    style: &SettingsTheme,
+) -> Stateful<Div> {
+    icon_square(id, name, color, style)
+        .bg(fills.rest)
+        .cursor_pointer()
+        .hover(move |button| button.bg(fills.hover))
+        .active(move |button| button.bg(fills.pressed))
+}
+
+/// An [`icon_button`] that can't be pressed right now, such as moving
+/// the first item up: its icon faded, with no fill under the pointer.
+pub fn inert_icon_button(
+    id: impl Into<ElementId>,
+    name: IconName,
+    style: &SettingsTheme,
+) -> Stateful<Div> {
+    icon_square(id, name, style.text_faint, style)
+}
+
+fn icon_square(
+    id: impl Into<ElementId>,
+    name: IconName,
+    color: Hsla,
+    style: &SettingsTheme,
+) -> Stateful<Div> {
     div()
         .id(id)
         .flex_none()
@@ -329,8 +470,6 @@ pub fn icon_button(
         .items_center()
         .justify_center()
         .rounded(style.radius)
-        .cursor_pointer()
-        .hover(move |button| button.bg(hover))
         .child(icon(name).size(style.icon_size).text_color(color))
 }
 
@@ -342,6 +481,41 @@ pub fn field_box(
     focused: bool,
     style: &SettingsTheme,
 ) -> Div {
+    let state = if focused {
+        FieldState::Focused
+    } else {
+        FieldState::Idle
+    };
+    field_box_in(input, leading, state, style)
+}
+
+/// What a field's ring says about it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FieldState {
+    Idle,
+    Focused,
+    /// Its last value was refused: a ring in the warning colour, which
+    /// stays while it's fixed.
+    Refused,
+}
+
+impl FieldState {
+    fn ring(self, style: &SettingsTheme) -> gpui::BoxShadow {
+        match self {
+            FieldState::Idle => style.outline(),
+            FieldState::Focused => style.focus(),
+            FieldState::Refused => crate::theme::focus_ring(style.warning),
+        }
+    }
+}
+
+/// A [`field_box`] in any [`FieldState`].
+pub fn field_box_in(
+    input: impl IntoElement,
+    leading: Option<IconName>,
+    state: FieldState,
+    style: &SettingsTheme,
+) -> Div {
     div()
         .flex_none()
         .h(style.control_height)
@@ -351,11 +525,7 @@ pub fn field_box(
         .gap(style.gap_sm)
         .rounded(style.radius)
         .bg(style.control_background)
-        .shadow(if focused {
-            vec![style.focus()]
-        } else {
-            vec![style.outline()]
-        })
+        .shadow(vec![state.ring(style)])
         .children(leading.map(|name| {
             icon(name)
                 .flex_none()
@@ -411,7 +581,7 @@ pub fn removable_keycap(
         .flex()
         .items_center()
         .justify_center()
-        .rounded(keycaps.radius - style.hairline)
+        .rounded(keycaps.radius - style.gap_xs)
         .cursor_pointer()
         .hover(move |button| button.bg(hover))
         .tooltip(Tooltip::new(remove_label, None).builder())
@@ -450,7 +620,7 @@ pub fn small_icon_button(
     name: IconName,
     style: &SettingsTheme,
 ) -> Stateful<Div> {
-    let hover = style.hover;
+    let (hover, pressed) = (style.hover_fill, style.pressed);
     let size = style.control_height - style.gap_sm * 2.;
     div()
         .id(id)
@@ -462,6 +632,7 @@ pub fn small_icon_button(
         .rounded(style.radius - style.gap_xs)
         .cursor_pointer()
         .hover(move |button| button.bg(hover))
+        .active(move |button| button.bg(pressed))
         .child(
             icon(name)
                 .size(style.small_icon_size)
@@ -469,50 +640,43 @@ pub fn small_icon_button(
         )
 }
 
-/// The box a chord is pressed into: ringed like a focused field, saying
-/// what it waits for, with a button that stops waiting.
-pub fn capture_field(
-    prompt: impl Into<SharedString>,
+/// What a shortcut's "+" waits for, hung under it like a menu: a
+/// keyboard and "Press a shortcut", or, once a chord was refused, why,
+/// with a warning mark. `cancel` stops waiting.
+pub fn capture_prompt(
+    rejection: Option<String>,
     cancel: Stateful<Div>,
     style: &SettingsTheme,
-) -> Div {
-    div()
-        .flex_none()
-        .h(style.control_height)
-        .min_w(style.capture_field_width)
-        .pl(style.control_gap)
-        .pr(style.gap_xs)
-        .flex()
+) -> Popover<Div> {
+    let (mark, color, text) = match rejection {
+        Some(reason) => (IconName::WarningCircle, style.warning, reason),
+        None => (
+            IconName::Keyboard,
+            style.text_muted,
+            "Press a shortcut".to_string(),
+        ),
+    };
+    let panel = note_panel(style)
+        .selector(|| "capture-prompt".to_string())
         .items_center()
-        .justify_between()
-        .gap(style.gap_sm)
-        .rounded(style.radius)
-        .bg(style.control_background)
-        .shadow(vec![style.focus()])
-        .text_size(style.small_text_size)
-        .text_color(style.text_muted)
-        .whitespace_nowrap()
-        .child(prompt.into())
-        .child(cancel)
+        .pr(style.gap_sm)
+        .child(
+            icon(mark)
+                .flex_none()
+                .size(style.small_icon_size)
+                .text_color(color),
+        )
+        .child(div().flex_1().min_w_0().child(text))
+        .child(cancel);
+    popover(panel, style)
 }
 
 /// A note hung under the control before it in a relative container, such
 /// as why a value or key was refused. It's drawn over the rows below, so
 /// showing it moves nothing.
 pub fn control_note(message: impl Into<SharedString>, style: &SettingsTheme) -> Popover<Div> {
-    let panel = div()
-        .occlude()
-        .max_w(style.menu_width)
-        .flex()
+    let panel = note_panel(style)
         .items_start()
-        .gap(style.gap_sm)
-        .px(style.control_gap)
-        .py(style.gap_sm * 1.5)
-        .rounded(style.radius)
-        .bg(style.background)
-        .shadow(vec![style.outline(), style.popover_shadow()])
-        .text_size(style.small_text_size)
-        .text_color(style.text)
         .child(
             icon(IconName::WarningCircle)
                 .flex_none()
@@ -524,36 +688,133 @@ pub fn control_note(message: impl Into<SharedString>, style: &SettingsTheme) -> 
     popover(panel, style)
 }
 
-/// A round colour swatch, ringed while it's the chosen one.
+/// The small raised panel a note or prompt hangs on under its control.
+fn note_panel(style: &SettingsTheme) -> Div {
+    div()
+        .occlude()
+        .min_w(style.capture_field_width)
+        .max_w(style.menu_width)
+        .flex()
+        .gap(style.gap_sm)
+        .px(style.control_gap)
+        .py(style.gap_sm * 1.5)
+        .rounded(style.radius)
+        .bg(style.background)
+        .shadow(vec![style.outline(), style.popover_shadow()])
+        .text_size(style.small_text_size)
+        .text_color(style.text)
+}
+
+/// A round colour swatch in a ring the size of a control, which is also
+/// what's clicked. The ring is three filled circles on one centre (ring,
+/// gap, colour), so it stays concentric: a shadow's spread would keep the
+/// swatch's radius and draw a rounded square. The chosen swatch has a
+/// ring in the text colour and a check; under the pointer the ring shows
+/// faintly; pressed, a little stronger.
 pub fn swatch(
     id: impl Into<ElementId>,
     color: Hsla,
     chosen: bool,
     style: &SettingsTheme,
 ) -> Stateful<Div> {
-    let ring = gpui::BoxShadow {
-        color: style.text,
-        offset: point(px(0.), px(0.)),
-        blur_radius: style.ring_blur,
-        spread_radius: style.ring_width * 2.,
-    };
-    let gap = gpui::BoxShadow {
-        spread_radius: style.ring_width * 2.,
-        color: style.card_background,
-        ..ring.clone()
-    };
-    let outer = gpui::BoxShadow {
-        spread_radius: style.ring_width * 4.,
-        ..ring
-    };
+    let outer = style.swatch_size + (style.swatch_gap + style.swatch_ring) * 2.;
+    let gap = style.swatch_size + style.swatch_gap * 2.;
+    let (hover, pressed) = (style.hover, style.pressed);
+    let check = chosen.then(|| {
+        icon(IconName::Check)
+            .size(style.small_icon_size)
+            .text_color(crate::styling::ink_on(color))
+    });
+    let inner = div()
+        .size(style.swatch_size)
+        .rounded_full()
+        .bg(color)
+        .flex()
+        .items_center()
+        .justify_center()
+        .children(check);
     div()
         .id(id)
         .flex_none()
-        .size(style.swatch_size)
-        .rounded(style.swatch_size)
-        .bg(color)
+        .size(outer)
+        .rounded_full()
+        .flex()
+        .items_center()
+        .justify_center()
         .cursor_pointer()
-        .when(chosen, |swatch| swatch.shadow(vec![outer, gap]))
+        .map(|ring| match chosen {
+            true => ring.bg(style.text),
+            false => ring
+                .hover(move |ring| ring.bg(hover))
+                .active(move |ring| ring.bg(pressed)),
+        })
+        .child(
+            div()
+                .size(gap)
+                .rounded_full()
+                .bg(style.card_background)
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(inner),
+        )
+}
+
+/// The focus ring around a pill, such as the accent swatches, drawn as a
+/// frame that's always there and filled only while focused. A shadow's
+/// ring keeps the pill's radius and flattens at the ends; a frame's
+/// fill stays concentric, and since it takes its room either way,
+/// showing it moves nothing.
+pub fn focus_frame(inner: impl IntoElement, focused: bool, style: &SettingsTheme) -> Div {
+    div()
+        .flex_none()
+        .p(px(crate::theme::FOCUS_RING_WIDTH))
+        .rounded_full()
+        .when(focused, |frame| frame.bg(style.focus_ring))
+        .child(inner)
+}
+
+/// The room a row's reset button takes. It's kept whether or not the
+/// value differs from its default, so the button appearing moves nothing.
+pub fn reset_slot(button: Option<Stateful<Div>>, style: &SettingsTheme) -> Div {
+    div()
+        .flex_none()
+        .size(style.control_height)
+        .flex()
+        .items_center()
+        .justify_center()
+        .children(button)
+}
+
+/// A label that keeps the width of the widest it can say, so a button
+/// whose words change (such as "Press again to reset") doesn't move what
+/// sits beside it.
+pub fn steady_label(shown: impl Into<SharedString>, widest: impl Into<SharedString>) -> Div {
+    widest_of(
+        div().flex().justify_center().child(shown.into()),
+        [widest.into()],
+    )
+}
+
+/// `shown`, as wide as the widest of `alternatives`: a dropdown labelled
+/// this way keeps its width whichever of its options is picked. The
+/// alternatives are laid out with no height and never drawn.
+pub fn widest_of(
+    shown: impl IntoElement,
+    alternatives: impl IntoIterator<Item = SharedString>,
+) -> Div {
+    let sizer = div()
+        .h_0()
+        .overflow_hidden()
+        .invisible()
+        .flex()
+        .flex_col()
+        .children(
+            alternatives
+                .into_iter()
+                .map(|label| div().whitespace_nowrap().child(label)),
+        );
+    div().flex().flex_col().child(sizer).child(shown)
 }
 
 /// A popover panel hung under the right edge of whatever comes before it
@@ -574,7 +835,7 @@ pub fn menu_panel(style: &SettingsTheme) -> Stateful<Div> {
         .flex_col()
         .gap(style.gap_xs)
         .p(style.gap_sm)
-        .rounded(style.radius)
+        .rounded(style.radius + style.gap_sm)
         .bg(style.background)
         .shadow(vec![style.outline(), style.popover_shadow()])
 }
@@ -587,7 +848,7 @@ pub fn menu_option(
     highlighted: bool,
     style: &SettingsTheme,
 ) -> Stateful<Div> {
-    let hover = style.hover;
+    let (hover, pressed) = (style.hover_fill, style.pressed);
     let check = div()
         .flex_none()
         .size(style.small_icon_size)
@@ -611,6 +872,27 @@ pub fn menu_option(
         .cursor_pointer()
         .when(highlighted, |option| option.bg(style.selected))
         .when(!highlighted, |option| option.hover(move |o| o.bg(hover)))
+        .active(move |option| option.bg(pressed))
         .child(check)
         .child(div().flex_1().min_w_0().truncate().child(label))
+}
+
+/// A control that can't be used right now, such as one whose switch is
+/// off: drawn as it is under a cover that takes the pointer, so it shows
+/// no hover and ignores clicks.
+pub fn inert(control: AnyElement) -> AnyElement {
+    div()
+        .relative()
+        .child(control)
+        .child(div().absolute().inset_0().occlude())
+        .into_any_element()
+}
+
+/// The keys a control's tooltip names, such as `Alt+Up` for moving an
+/// item up, as this platform writes them.
+pub fn tooltip_keys(chord: &str) -> Option<Shortcut> {
+    let platform = gasp_config::Platform::current();
+    gasp_config::keys::KeyChord::parse_for(chord, platform)
+        .ok()
+        .map(|chord| Shortcut::new(chord, platform))
 }

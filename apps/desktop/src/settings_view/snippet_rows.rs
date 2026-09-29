@@ -546,7 +546,6 @@ fn result_piece(piece: &ResultPiece, style: &crate::theme::SettingsTheme) -> Any
             .w(style.slot_width)
             .h(style.slot_height)
             .mx(style.gap_xs)
-            .rounded(style.slot_radius)
             .border(style.slot_border)
             .border_color(style.accent)
             .bg(style.slot_fill)

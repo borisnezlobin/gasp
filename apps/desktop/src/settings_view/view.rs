@@ -299,8 +299,9 @@ pub struct SettingsView {
     /// A row whose button asks once more before it removes or resets:
     /// the first press arms it.
     pub(super) armed_row: Option<ControlRow>,
-    /// Which kind of text the keyboard is on in a toolbar's contexts row.
-    pub(super) context_chip: usize,
+    /// Which of a row's buttons the keyboard is on, where a row has
+    /// several: a toolbar's kinds of text, or the Sync page's token buttons.
+    pub(super) sub_control: usize,
     pub(super) _subscriptions: Vec<Subscription>,
 }
 
@@ -400,7 +401,7 @@ impl SettingsView {
             preview: None,
             toolbars: gasp_config::Toolbars::defaults(),
             armed_row: None,
-            context_chip: 0,
+            sub_control: 0,
             _subscriptions: Vec::new(),
         };
         view.toolbars = gasp_config::toolbar_files::load_toolbars(&view.vault_root);
@@ -897,6 +898,8 @@ impl SettingsView {
         if focus != self.focus {
             self.error = None;
             self.armed_row = None;
+            self.capture = None;
+            self.sub_control = 0;
         }
         self.focus = focus;
         match focus {
@@ -1005,9 +1008,24 @@ impl SettingsView {
         }
     }
 
+    /// Whether keyboard focus can land on `row` now: not on one with
+    /// nothing to operate, such as the repository row of a vault that
+    /// doesn't sync, where a focus would have nothing to ring.
+    pub fn takes_focus(&self, row: &ControlRow) -> bool {
+        match row {
+            ControlRow::SyncRemote => self.sync_remote().is_some(),
+            _ => row.is_focusable(),
+        }
+    }
+
     /// Focuses the first row that takes focus, if there is one.
     pub(super) fn focus_first_control(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(index) = self.layout().rows.iter().position(ControlRow::is_focusable) {
+        if let Some(index) = self
+            .layout()
+            .rows
+            .iter()
+            .position(|row| self.takes_focus(row))
+        {
             self.set_focus(SettingsFocus::Control(index), window, cx);
         }
     }
