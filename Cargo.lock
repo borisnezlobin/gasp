@@ -3888,7 +3888,6 @@ dependencies = [
  "notify",
  "objc",
  "raw-window-handle",
- "resvg 0.45.1",
  "rustix 1.1.5",
  "serde",
  "serde_json",
@@ -3910,13 +3909,13 @@ name = "gasp-export"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "gasp-bench",
  "gasp-core",
  "gasp-math",
  "lopdf",
  "pulldown-cmark",
  "syntect",
  "typst",
- "typst-assets",
  "typst-html",
  "typst-layout",
  "typst-pdf",
@@ -3938,7 +3937,6 @@ dependencies = [
  "gasp-sync",
  "gasp-vault",
  "git2",
- "resvg 0.45.1",
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
@@ -3958,12 +3956,15 @@ dependencies = [
 name = "gasp-math"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
  "mitex",
  "mitex-spec",
  "mitex-spec-gen",
+ "resvg 0.45.1",
  "typst",
  "typst-assets",
  "typst-layout",
+ "typst-render",
  "typst-svg",
 ]
 
@@ -4009,6 +4010,7 @@ version = "0.1.0"
 name = "gasp-prose"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
  "gasp-config",
  "gasp-core",
  "harper-core",

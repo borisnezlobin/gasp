@@ -122,16 +122,80 @@ pub fn word_count(text: &str) -> usize {
 
 /// Where each sentence after the first starts.
 fn boundaries(text: &str) -> Vec<usize> {
-    let mut cuts: Vec<usize> = text
-        .split_sentence_bound_indices()
-        .map(|(at, _)| at)
-        .filter(|&at| at > 0)
-        .collect();
+    let mut cuts = unicode_boundaries(text);
     cuts.extend(ellipsis_cuts(text));
     cuts.sort_unstable();
     cuts.dedup();
     cuts.retain(|&at| ends_sentence(&text[..at], &text[at..]));
     cuts
+}
+
+/// Line and paragraph separators, after which UAX #29 always breaks.
+const SEPARATORS: [char; 5] = ['\n', '\r', '\u{85}', '\u{2028}', '\u{2029}'];
+
+/// Where UAX #29 starts each sentence after the first.
+///
+/// Its rules only break after a full stop, question or exclamation mark
+/// (and the closing quotes and spaces after one), or after a separator.
+/// So rather than classifying every character, only the stretches around
+/// those marks are segmented, each with the context the rules look at.
+fn unicode_boundaries(text: &str) -> Vec<usize> {
+    let mut starts = Vec::new();
+    if text.contains(SEPARATORS) {
+        push_segment_starts(text, 0..text.len(), &mut starts);
+        return starts;
+    }
+    // Each stretch runs from the ASCII character before a possible
+    // terminator (the rules look one letter back, past accents) to the
+    // first ASCII letter after it (they look ahead to the next letter).
+    // Stretches that touch are segmented together.
+    let mut window: Option<Range<usize>> = None;
+    for (at, _) in text.match_indices(may_end_sentence) {
+        let next = ascii_before(text, at)..past_next_ascii_letter(text, at);
+        window = match window {
+            Some(open) if open.end >= next.start => Some(open.start..open.end.max(next.end)),
+            Some(done) => {
+                push_segment_starts(text, done, &mut starts);
+                Some(next)
+            }
+            None => Some(next),
+        };
+    }
+    if let Some(done) = window {
+        push_segment_starts(text, done, &mut starts);
+    }
+    starts
+}
+
+/// Adds the sentence starts UAX #29 finds in `window` of `text`, past its
+/// start, to `starts`.
+fn push_segment_starts(text: &str, window: Range<usize>, starts: &mut Vec<usize>) {
+    starts.extend(
+        text[window.clone()]
+            .split_sentence_bound_indices()
+            .map(|(at, _)| window.start + at)
+            .filter(|&at| at > window.start),
+    );
+}
+
+/// A character that might end a sentence. Every sentence terminator
+/// outside ASCII counts, and so, to be safe, does anything else outside it.
+fn may_end_sentence(c: char) -> bool {
+    matches!(c, '.' | '!' | '?') || !c.is_ascii()
+}
+
+/// Where the nearest ASCII character before `at` starts, or 0.
+fn ascii_before(text: &str, at: usize) -> usize {
+    text[..at].rfind(|c: char| c.is_ascii()).unwrap_or(0)
+}
+
+/// Just past the first ASCII letter after the character at `at`, or the
+/// end of the text.
+fn past_next_ascii_letter(text: &str, at: usize) -> usize {
+    let after = at + text[at..].chars().next().map_or(0, char::len_utf8);
+    text[after..]
+        .find(|c: char| c.is_ascii_alphabetic())
+        .map_or(text.len(), |offset| after + offset + 1)
 }
 
 /// UAX #29 doesn't treat "…" as a full stop, so these are the places
@@ -192,6 +256,11 @@ fn starts_lower_case(after: &str) -> bool {
 }
 
 fn is_abbreviation(word: &str) -> bool {
+    if word.is_ascii() {
+        return ABBREVIATIONS
+            .iter()
+            .any(|abbreviation| abbreviation.eq_ignore_ascii_case(word));
+    }
     let lower = word.to_lowercase();
     ABBREVIATIONS.contains(&lower.as_str())
 }
@@ -325,6 +394,38 @@ mod tests {
     fn stretches_without_words_are_not_sentences() {
         assert_eq!(split("… Right."), ["… Right."]);
         assert!(sentences("  ").is_empty());
+    }
+
+    /// Random text from pieces that exercise every rule of UAX #29.
+    fn random_text(state: &mut u64, pieces: usize) -> String {
+        const PIECES: &[&str] = &[
+            "a", "b", "Z", "Q", "5", " ", " ", "  ", ".", ".", "!", "?", ",", ";", ":", "'", "\"",
+            "(", ")", "[", "]", "“", "”", "‘", "’", "…", "—", "–", "é", "e\u{301}", "\u{200d}",
+            "Ω", "ω", "。", "؟", "ß", "\u{2024}", "\u{fe52}", "‼", "U.S.", "e.g.", "Dr.", "word",
+            "Word", "\t", "\u{a0}", "»", "«", "-", "%", "3.14",
+        ];
+        let mut text = String::new();
+        for _ in 0..pieces {
+            *state ^= *state << 13;
+            *state ^= *state >> 7;
+            *state ^= *state << 17;
+            text.push_str(PIECES[(*state % PIECES.len() as u64) as usize]);
+        }
+        text
+    }
+
+    #[test]
+    fn segmenting_around_terminators_matches_segmenting_everything() {
+        let mut state = 0x9e37_79b9_7f4a_7c15;
+        let mut found = 0;
+        for round in 0..20_000 {
+            let text = random_text(&mut state, 1 + round % 40);
+            let mut everything = Vec::new();
+            push_segment_starts(&text, 0..text.len(), &mut everything);
+            assert_eq!(unicode_boundaries(&text), everything, "{text:?}");
+            found += everything.len();
+        }
+        assert!(found > 20_000, "only {found} boundaries");
     }
 
     #[test]

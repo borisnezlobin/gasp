@@ -21,9 +21,6 @@ gasp-prose = { path = "../prose" }
 gasp-search = { path = "../search" }
 gasp-sync = { path = "../sync", features = ["keychain"] }
 gasp-vault = { path = "../vault" }
-# Rasterises rendered math, as the desktop does; the desktop already
-# builds this version.
-resvg = { version = "0.45", default-features = false }
 serde_json = "1"
 thiserror = "2"
 toml = "0.8"

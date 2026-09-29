@@ -56,16 +56,17 @@ fn marker(index: usize) -> String {
 fn compile(equations: &[Option<String>]) -> Option<String> {
     let mut source = String::from(
         "#import \"/mitex/compat.typ\": mitex-scope\n\
-         #let m(source) = eval(source, scope: mitex-scope)\n",
+         #let m(source, scope) = eval(source, scope: scope)\n",
     );
     for (index, equation) in equations.iter().enumerate() {
         let Some(equation) = equation else {
             continue;
         };
         source.push_str(&format!(
-            "#html.elem(\"div\", attrs: (id: \"{}\"))[#m({})]\n",
+            "#html.elem(\"div\", attrs: (id: \"{}\"))[#m({}, {})]\n",
             marker(index),
-            escape::string(equation)
+            escape::string(equation),
+            gasp_math::mitex_scope_for(equation)
         ));
     }
     let world = ExportWorld::html(source);
@@ -73,13 +74,35 @@ fn compile(equations: &[Option<String>]) -> Option<String> {
     typst_html::html(&document.ok()?, &typst_html::HtmlOptions::default()).ok()
 }
 
+/// Where each equation's marker (`id="eq-N"`) first appears in `html`,
+/// found in one pass rather than one search per equation.
+fn marker_positions(html: &str, count: usize) -> Vec<Option<usize>> {
+    const PREFIX: &str = "id=\"eq-";
+    let mut positions = vec![None; count];
+    for (at, _) in html.match_indices(PREFIX) {
+        let rest = &html[at + PREFIX.len()..];
+        let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+        let canonical = digits == 1 || !rest.starts_with('0');
+        if digits == 0 || !canonical || !rest[digits..].starts_with('"') {
+            continue;
+        }
+        let Ok(index) = rest[..digits].parse::<usize>() else {
+            continue;
+        };
+        if let Some(position @ None) = positions.get_mut(index) {
+            *position = Some(at);
+        }
+    }
+    positions
+}
+
 /// Cuts each marked equation's `<math>` element and the head's stylesheet
 /// out of the compiled document.
 fn extract(html: &str, count: usize) -> (Vec<Option<String>>, Option<String>) {
-    let mathml = (0..count)
-        .map(|index| {
-            let start = html.find(&format!("id=\"{}\"", marker(index)))?;
-            let rest = &html[start..];
+    let mathml = marker_positions(html, count)
+        .into_iter()
+        .map(|start| {
+            let rest = &html[start?..];
             let div_end = rest.find("</div>")?;
             let open = rest[..div_end].find("<math")?;
             let close = rest[open..div_end].rfind("</math>")? + open + "</math>".len();
