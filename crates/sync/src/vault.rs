@@ -4,8 +4,8 @@ use std::path::{Component, Path, PathBuf};
 
 use git2::build::{CheckoutBuilder, RepoBuilder};
 use git2::{
-    AnnotatedCommit, Commit, DiffOptions, FetchOptions, IndexConflict, MergeOptions, Oid,
-    PushOptions, Repository, RepositoryInitOptions, Signature,
+    AnnotatedCommit, Commit, ConfigLevel, DiffOptions, FetchOptions, IndexConflict, MergeOptions,
+    Oid, PushOptions, Repository, RepositoryInitOptions, Signature,
 };
 
 use crate::conflict::ConflictedFile;
@@ -204,13 +204,33 @@ fn combine_outcomes(own: MergeOutcome, legacy: MergeOutcome) -> MergeOutcome {
     own
 }
 
-/// Notes must sync byte for byte on every device. Without this, a machine
-/// whose global git config sets `core.autocrlf` (the default on Windows)
-/// would rewrite line endings on checkout and merge.
-fn keep_bytes_as_committed(repo: &Repository) -> SyncResult<()> {
-    let mut config = repo.config()?;
-    config.set_bool("core.autocrlf", false)?;
-    config.set_str("core.eol", "lf")?;
+/// The largest object a push tries to store as a delta against another.
+/// Photos and plugin binaries above it are sent whole: a delta between two
+/// different photos never pays off, and looking for one took most of the
+/// time a push of new photos spent.
+///
+/// libgit2 reads its big-file threshold from `pack.deltaCacheSize` (the
+/// key is misspelt in its source), which also caps the delta cache; deltas
+/// between note versions are small and stay cached under this cap.
+const LARGEST_DELTA_CANDIDATE: i64 = 512 * 1024;
+
+/// Pins the clone's own settings sync depends on, writing each only when
+/// it differs, so opening a vault normally leaves its config alone.
+///
+/// Notes must sync byte for byte on every device. Without the line-ending
+/// settings, a machine whose global git config sets `core.autocrlf` (the
+/// default on Windows) would rewrite line endings on checkout and merge.
+fn pin_settings(repo: &Repository) -> SyncResult<()> {
+    let mut local = repo.config()?.open_level(ConfigLevel::Local)?;
+    if local.get_bool("core.autocrlf").ok() != Some(false) {
+        local.set_bool("core.autocrlf", false)?;
+    }
+    if local.get_string("core.eol").ok().as_deref() != Some("lf") {
+        local.set_str("core.eol", "lf")?;
+    }
+    if local.get_i64("pack.deltaCacheSize").ok() != Some(LARGEST_DELTA_CANDIDATE) {
+        local.set_i64("pack.deltaCacheSize", LARGEST_DELTA_CANDIDATE)?;
+    }
     Ok(())
 }
 
@@ -249,7 +269,7 @@ impl Vault {
                 repo
             }
         };
-        keep_bytes_as_committed(&repo)?;
+        pin_settings(&repo)?;
         repo.checkout_head(Some(CheckoutBuilder::new().force()))?;
         Self::from_repo(repo, config, token)
     }
@@ -260,7 +280,7 @@ impl Vault {
                 "a vault needs a work tree",
             )));
         }
-        keep_bytes_as_committed(&repo)?;
+        pin_settings(&repo)?;
         config.device_only.write_exclude(repo.path())?;
         let vault = Self {
             repo,

@@ -6,6 +6,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use common::{World, author, sync, write};
+use gasp_sync::{Vault, VaultConfig};
 use git2::Repository;
 
 fn remote_tip(world: &World) -> Option<git2::Oid> {
@@ -79,4 +80,25 @@ fn a_push_without_a_fresh_fetch_always_asks_the_remote() {
 
     laptop.push().unwrap();
     assert_eq!(remote_tip(&world), Some(edited));
+}
+
+#[test]
+fn reopening_a_vault_leaves_its_settings_files_alone() {
+    let world = World::seeded(&[("note.md", b"hello\n")]);
+    let laptop = world.device("laptop");
+    let git_dir = laptop.root().join(".git");
+    let modified = |name: &str| {
+        let metadata = std::fs::metadata(git_dir.join(name)).unwrap();
+        metadata.modified().unwrap()
+    };
+    let before = (modified("config"), modified("info/exclude"));
+    std::thread::sleep(Duration::from_millis(20));
+
+    Vault::open(laptop.root(), VaultConfig::default()).unwrap();
+    assert_eq!((modified("config"), modified("info/exclude")), before);
+    let config = Repository::open(laptop.root()).unwrap().config().unwrap();
+    let local = config.open_level(git2::ConfigLevel::Local).unwrap();
+    assert!(!local.get_bool("core.autocrlf").unwrap());
+    assert_eq!(local.get_string("core.eol").unwrap(), "lf");
+    assert_eq!(local.get_i64("pack.deltaCacheSize").unwrap(), 512 * 1024);
 }
