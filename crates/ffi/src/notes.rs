@@ -106,6 +106,51 @@ impl VaultFolder {
         Ok(to)
     }
 
+    /// Moves a note into `folder` (vault-relative; empty is the root),
+    /// keeping its name and updating links to it when
+    /// `files.update-links-on-rename` is on. Returns its new path.
+    pub fn move_note(&self, path: String, folder: String) -> Result<String, VaultError> {
+        self.note_path(&path)?;
+        self.move_entry(&path, &folder)
+    }
+
+    /// Makes a folder called `name` in `parent` and returns its path.
+    pub fn create_folder(&self, parent: String, name: String) -> Result<String, VaultError> {
+        let parent_path = self.folder_path(&parent)?;
+        let relative = parent_path
+            .strip_prefix(&self.root)
+            .unwrap_or(Path::new(""));
+        let created = ops::create(&self.root, relative, &name, EntryKind::Folder)?;
+        self.forget_index();
+        Ok(slash_path(&created))
+    }
+
+    /// Gives a folder a new name in the same place, updating links to the
+    /// notes in it. Returns its new path.
+    pub fn rename_folder(&self, folder: String, name: String) -> Result<String, VaultError> {
+        self.existing_folder(&folder)?;
+        validate_name(&name)?;
+        let from = PathBuf::from(&folder);
+        let to = from.with_file_name(name.trim());
+        self.moved(&from, &to)
+    }
+
+    /// Moves a folder, with everything in it, into `into` (empty is the
+    /// root). Returns its new path.
+    pub fn move_folder(&self, folder: String, into: String) -> Result<String, VaultError> {
+        self.existing_folder(&folder)?;
+        self.move_entry(&folder, &into)
+    }
+
+    /// Moves a folder and everything in it to the trash, as notes go.
+    pub fn trash_folder(&self, folder: String) -> Result<(), VaultError> {
+        self.existing_folder(&folder)?;
+        let mode = self.config().settings.files.trash;
+        ops::trash(&self.root, Path::new(&folder), mode)?;
+        self.forget_index();
+        Ok(())
+    }
+
     /// Moves a note to the trash that `files.trash` names; on the phone the
     /// system trash is the vault's own `.trash` folder.
     pub fn trash_note(&self, path: String) -> Result<(), VaultError> {
@@ -216,6 +261,40 @@ impl VaultFolder {
     }
 }
 
+impl VaultFolder {
+    /// A folder that exists in the vault, other than the root.
+    fn existing_folder(&self, folder: &str) -> Result<PathBuf, VaultError> {
+        let path = self.folder_path(folder)?;
+        if folder.is_empty() || !path.is_dir() {
+            return Err(VaultError::Refused {
+                message: format!("{folder} isn't a folder in this vault"),
+            });
+        }
+        Ok(path)
+    }
+
+    /// Moves `path` into `folder`, keeping its name.
+    fn move_entry(&self, path: &str, folder: &str) -> Result<String, VaultError> {
+        self.folder_path(folder)?;
+        let from = PathBuf::from(path);
+        let name = from.file_name().ok_or_else(|| VaultError::Refused {
+            message: format!("{path} has no name to move"),
+        })?;
+        self.moved(&from, &Path::new(folder).join(name))
+    }
+
+    /// Renames or moves `from` to `to`, carrying snapshots and links along.
+    fn moved(&self, from: &Path, to: &Path) -> Result<String, VaultError> {
+        let update_links = self.config().settings.files.update_links_on_rename;
+        let renamed = ops::rename(&self.root, from, to, update_links)?;
+        if let Some(store) = self.snapshot_store() {
+            store.moved(&renamed.from, &renamed.to).ok();
+        }
+        self.forget_index();
+        Ok(slash_path(&renamed.to))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -301,6 +380,55 @@ mod tests {
         std::fs::write(dir.path().join("Synced.md"), "[[Swell]]").unwrap();
         vault.files_changed(vec!["Deep/Other.md".into(), "Synced.md".into()]);
         assert_index_is_fresh(&dir, &vault);
+    }
+
+    #[test]
+    fn notes_move_between_folders_and_links_follow() {
+        let (dir, vault) = vault_with(&[("Waves.md", "x"), ("Index.md", "see [[Waves]]")]);
+        vault
+            .create_folder(String::new(), "Physics".into())
+            .unwrap();
+        let moved = vault
+            .move_note("Waves.md".into(), "Physics".into())
+            .unwrap();
+        assert_eq!(moved, "Physics/Waves.md");
+        assert!(dir.path().join("Physics/Waves.md").is_file());
+        assert_eq!(
+            vault.move_note(moved, String::new()).unwrap(),
+            "Waves.md",
+            "back to the root"
+        );
+        assert!(vault.move_note("Waves.md".into(), "../out".into()).is_err());
+        assert!(
+            vault
+                .move_note("Missing.md".into(), "Physics".into())
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn folders_are_made_renamed_moved_and_trashed() {
+        let (dir, vault) = vault_with(&[("Old/Waves.md", "x"), ("Index.md", "see [[Old/Waves]]")]);
+        let renamed = vault.rename_folder("Old".into(), "Physics".into()).unwrap();
+        assert_eq!(renamed, "Physics");
+        assert_eq!(
+            vault.read_note("Index.md".into()).unwrap(),
+            "see [[Physics/Waves]]"
+        );
+        vault.create_folder(String::new(), "School".into()).unwrap();
+        assert_eq!(
+            vault.move_folder(renamed, "School".into()).unwrap(),
+            "School/Physics"
+        );
+        assert!(
+            vault
+                .move_folder("School".into(), "School/Physics".into())
+                .is_err(),
+            "not into itself"
+        );
+        assert!(vault.rename_folder(String::new(), "Root".into()).is_err());
+        vault.trash_folder("School".into()).unwrap();
+        assert!(!dir.path().join("School").exists());
     }
 
     #[test]
