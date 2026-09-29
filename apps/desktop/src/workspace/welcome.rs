@@ -274,12 +274,7 @@ fn open_here(vault: PathBuf, window: &mut Window, cx: &mut App) {
 
 /// The folder a vault is in, with the home folder as `~`.
 fn parent_label(vault: &Path) -> String {
-    let parent = vault.parent().unwrap_or(vault);
-    match dirs::home_dir().and_then(|home| parent.strip_prefix(home).ok()) {
-        Some(rest) if rest.as_os_str().is_empty() => "~".to_owned(),
-        Some(rest) => format!("~/{}", rest.display()),
-        None => parent.display().to_string(),
-    }
+    super::files::display_path(vault.parent().unwrap_or(vault))
 }
 
 impl Render for Welcome {

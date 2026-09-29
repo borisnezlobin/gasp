@@ -878,7 +878,7 @@ impl SettingsView {
             ControlRow::SyncAccount => self.account_description(),
             ControlRow::Font(slot) => slot.description().to_string(),
             ControlRow::Accent => ACCENT_DESCRIPTION.to_string(),
-            ControlRow::Vault => self.vault_root.display().to_string(),
+            ControlRow::Vault => crate::workspace::files::display_path(&self.vault_root),
             ControlRow::IconCredit => ICON_CREDIT.to_string(),
             ControlRow::ObsidianImport => OBSIDIAN_IMPORT_DESCRIPTION.to_string(),
             ControlRow::Shortcut(_) => String::new(),
