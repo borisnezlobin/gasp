@@ -19,6 +19,7 @@ use crate::keymap::{
     KEY_CONTEXT, RunCommand, WORKSPACE_CONTEXT, keystroke_for, keystroke_variants,
 };
 use crate::note::markdown_files;
+use crate::notices::Notice;
 use crate::outline::{OutlineEvent, OutlinePicker};
 use crate::palette::{CommandPalette, PaletteEvent};
 use crate::print::PrintDialog;
@@ -99,6 +100,11 @@ struct Features {
     find_bars: HashMap<EntityId, (EntityId, Entity<FindBar>)>,
     /// Each window's sync indicator, by its sync service.
     sync_indicators: HashMap<EntityId, Entity<SyncIndicator>>,
+    /// Whether Mod+S in a vault that doesn't sync has offered to set sync
+    /// up, which it does once a session.
+    set_up_offered: bool,
+    /// The last notice saying what Mod+S saved.
+    save_notice: Option<u64>,
     subscriptions: Vec<Subscription>,
 }
 
@@ -125,6 +131,7 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     if crate::sandbox::reaches_outside() {
         install_sync(workspace, window, cx);
     }
+    workspace.on_command("sync.now", sync_now);
     workspace.on_command("sync.set-up", open_sync_setup);
     crate::knowledge::install(workspace, window, cx);
     crate::prose::commands::install(workspace, cx);
@@ -276,7 +283,6 @@ fn install_sync(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::C
         .sync_indicators
         .insert(workspace_key(&service), indicator.clone());
     workspace.set_sync(service, indicator.into(), cx);
-    workspace.on_command("sync.now", sync_now);
     workspace.on_command("sync.resolve-conflicts", open_resolver);
 }
 
@@ -286,16 +292,21 @@ fn workspace_key(service: &Entity<SyncService>) -> EntityId {
 
 /// `sync.now`: syncs, or shows what's in the way (signing in, a vault on
 /// the wrong branch) in the sync popover. Notes waiting on a conflict
-/// aren't in the way: everything else syncs.
+/// aren't in the way: everything else syncs. In a vault that doesn't
+/// sync, where Mod+S is pressed out of habit, it saves every note.
 fn sync_now(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Context<Workspace>) {
+    let phase = workspace
+        .sync()
+        .map_or(SyncPhase::Hidden, |service| service.read(cx).phase());
+    match phase {
+        SyncPhase::Hidden => return save_everything(workspace, cx),
+        SyncPhase::Starting => return,
+        _ => {}
+    }
     let Some(service) = workspace.sync().cloned() else {
         return;
     };
-    let phase = service.read(cx).phase();
     let blocked = matches!(phase, SyncPhase::Setup(_) | SyncPhase::SignIn { .. });
-    if matches!(phase, SyncPhase::Hidden | SyncPhase::Starting) {
-        return;
-    }
     if !blocked {
         service.update(cx, |service, cx| service.sync_now(cx));
         return;
@@ -306,6 +317,33 @@ fn sync_now(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Conte
         .cloned();
     if let Some(indicator) = indicator.filter(|indicator| !indicator.read(cx).is_open()) {
         indicator.update(cx, |indicator, cx| indicator.toggle(window, cx));
+    }
+}
+
+/// Saves every note with unsaved edits and says so in a notice that
+/// leaves by itself. The first time in a session it also offers to set
+/// sync up. A new one takes the last one's place rather than stacking.
+fn save_everything(workspace: &mut Workspace, cx: &mut gpui::Context<Workspace>) {
+    let saved = workspace.save_all_and_list(cx);
+    let mut notice = Notice::done(saved_message(&saved));
+    let state = features(cx);
+    if !state.set_up_offered {
+        state.set_up_offered = true;
+        notice = notice.with_action("Set up sync", "sync.set-up");
+    }
+    if let Some(last) = state.save_notice.take() {
+        crate::notices::dismiss(last, cx);
+    }
+    let shown = crate::notices::show(notice, cx);
+    features(cx).save_notice = Some(shown);
+}
+
+/// "Everything’s saved.", "Saved “Plan”." or "Saved 3 notes."
+pub fn saved_message(saved: &[PathBuf]) -> String {
+    match saved {
+        [] => "Everything’s saved.".to_owned(),
+        [one] => format!("Saved “{}”.", crate::workspace::files::note_title(one)),
+        many => format!("Saved {} notes.", many.len()),
     }
 }
 

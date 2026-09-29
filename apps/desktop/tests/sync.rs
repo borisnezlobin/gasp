@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 use gasp_config::settings::SyncSettings;
 use gasp_desktop::actions::bind_keys;
 use gasp_desktop::features;
+use gasp_desktop::notices::{self, NoticeKind};
 use gasp_desktop::settings_view::{ControlRow, SettingsView};
 use gasp_desktop::sync::setup::{SetupField, SetupStop};
 use gasp_desktop::sync::{
@@ -173,9 +174,27 @@ fn a_vault_that_isnt_a_clone_shows_no_sync(cx: &mut TestAppContext) {
     let service = service(&workspace, cx);
     assert_eq!(phase(&service, cx), SyncPhase::Hidden);
     assert!(!is_drawn(cx, "sync-indicator-button"));
-    // Sync now does nothing rather than open something unasked.
+    // Sync now saves instead, says so, and offers setting sync up once,
+    // without opening anything unasked.
     run(&workspace, cx, "sync.now");
     assert!(cx.read(|cx| workspace.read(cx).active_modal::<SettingsView>().is_none()));
+    let shown = cx.update(|window, cx| notices::shown_in(window.window_handle(), cx));
+    let (_, notice) = shown.last().expect("a notice says what happened");
+    assert_eq!(notice.kind, NoticeKind::Done);
+    assert_eq!(notice.message.as_ref(), "Everything’s saved.");
+    let action = notice
+        .action
+        .clone()
+        .expect("the first one offers setting up");
+    assert_eq!(action.command.as_ref(), "sync.set-up");
+    run(&workspace, cx, "sync.now");
+    let shown = cx.update(|window, cx| notices::shown_in(window.window_handle(), cx));
+    assert!(
+        shown.iter().all(|(_, notice)| notice.action.is_none()),
+        "the offer isn't repeated"
+    );
+    run(&workspace, cx, &action.command);
+    assert!(cx.read(|cx| workspace.read(cx).active_modal::<SyncSetup>().is_some()));
 }
 
 #[gpui::test]

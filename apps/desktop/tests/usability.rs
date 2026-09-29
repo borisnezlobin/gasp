@@ -97,6 +97,57 @@ fn shown_notices(cx: &mut VisualTestContext) -> Vec<(NoticeKind, String)> {
     })
 }
 
+fn type_at_end(workspace: &Entity<Workspace>, cx: &mut VisualTestContext, text: &str) {
+    let editor = cx.read(|cx| workspace.read(cx).active_editor(cx).unwrap());
+    editor.update(cx, |editor, cx| {
+        let end = editor.text().len();
+        editor.select(end, end, cx);
+        editor.insert(text, cx);
+    });
+}
+
+#[gpui::test]
+fn mod_s_in_a_vault_that_doesnt_sync_saves_every_note(cx: &mut TestAppContext) {
+    let vault = vault_with(&[("Plan.md", "plan"), ("Ideas.md", "ideas")]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "Plan.md");
+    type_at_end(&workspace, cx, " one");
+    cx.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            workspace
+                .open_path(Path::new("Ideas.md"), OpenIn::NewTab, window, cx)
+                .unwrap()
+        })
+    });
+    cx.run_until_parked();
+    type_at_end(&workspace, cx, " two");
+    press(cx, "sync.now");
+    let read = |name: &str| std::fs::read_to_string(vault.path().join(name)).unwrap();
+    assert_eq!(read("Plan.md"), "plan one");
+    assert_eq!(read("Ideas.md"), "ideas two");
+    assert!(
+        shown_notices(cx).contains(&(NoticeKind::Done, "Saved 2 notes.".to_owned())),
+        "{:?}",
+        shown_notices(cx)
+    );
+
+    type_at_end(&workspace, cx, " three");
+    press(cx, "sync.now");
+    assert_eq!(read("Ideas.md"), "ideas two three");
+    assert!(shown_notices(cx).contains(&(NoticeKind::Done, "Saved “Ideas”.".to_owned())));
+    press(cx, "sync.now");
+    assert_eq!(
+        shown_notices(cx),
+        [(NoticeKind::Done, "Everything’s saved.".to_owned())],
+        "each takes the last one's place"
+    );
+
+    // The notice leaves by itself.
+    cx.executor().advance_clock(Duration::from_secs(30));
+    cx.run_until_parked();
+    assert!(shown_notices(cx).is_empty());
+}
+
 #[gpui::test]
 fn a_notice_reports_what_a_command_did_then_leaves(cx: &mut TestAppContext) {
     let vault = vault_with(&[("Note.md", "A[^2] and B[^1]\n\n[^1]: one\n[^2]: two\n")]);
