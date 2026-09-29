@@ -32,6 +32,7 @@ uniffi = { version = "0.32", default-features = false }
 [dev-dependencies]
 git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }
 tempfile = "3"
+gasp-bench = { path = "../bench" }
 
 [lints]
 workspace = true

@@ -10,6 +10,7 @@ use gasp_core::render::folds::Folds;
 use gasp_core::render::{RenderInput, reveal_settings};
 use gasp_core::syntax::{self, Edit, NodeKind, SyntaxTree, WikiInfo};
 use gasp_core::table::Table;
+use gasp_prose::segment::Thresholds;
 use gasp_prose::{Length, Purpose, sentence_lengths, units};
 
 use crate::display::{DisplayState, SharedDisplay};
@@ -31,6 +32,9 @@ pub(crate) struct ParsedText {
     source_table: Option<Range<usize>>,
     /// Headings and callouts folded in this view.
     pub(crate) folds: Folds,
+    /// The sentence tints of this text, kept for cursor moves, with the
+    /// thresholds they were measured against.
+    tints: Option<(Thresholds, Vec<SentenceTint>)>,
 }
 
 impl ParsedText {
@@ -41,6 +45,7 @@ impl ParsedText {
             text,
             source_table: None,
             folds: Folds::default(),
+            tints: None,
         }
     }
 
@@ -50,9 +55,28 @@ impl ParsedText {
         };
         self.tree.edit(&text, &edit);
         self.folds.map(&edit);
-        self.offsets = Utf16Offsets::new(&text);
+        self.offsets.edited(&text, &edit);
         self.text = text;
         self.source_table = None;
+        self.tints = None;
+    }
+
+    fn sentence_tints(&mut self, thresholds: Thresholds) -> Vec<SentenceTint> {
+        if let Some((measured_with, tints)) = &self.tints
+            && *measured_with == thresholds
+        {
+            return tints.clone();
+        }
+        let tints: Vec<SentenceTint> = units(&self.tree, 0..self.text.len(), Purpose::Rhythm)
+            .iter()
+            .flat_map(|unit| sentence_lengths(&self.text, unit, thresholds))
+            .map(|(range, length)| SentenceTint {
+                range: self.offsets.range(&range),
+                length: sentence_length(length),
+            })
+            .collect();
+        self.tints = Some((thresholds, tints.clone()));
+        tints
     }
 
     fn table_at(&self, offset: usize) -> Option<Range<usize>> {
@@ -125,7 +149,7 @@ impl NoteDocument {
         parsed
             .folds
             .apply(&mut plan.lines, &parsed.tree, &selections);
-        note_plan(&plan, &parsed.offsets)
+        note_plan(plan, &parsed.offsets)
     }
 
     /// Runs the editing command `id` on `selection`.
@@ -214,15 +238,7 @@ impl NoteDocument {
         let Some(thresholds) = self.display.lock().sentence_lengths else {
             return Vec::new();
         };
-        let parsed = self.lock();
-        units(&parsed.tree, 0..parsed.text.len(), Purpose::Rhythm)
-            .iter()
-            .flat_map(|unit| sentence_lengths(&parsed.text, unit, thresholds))
-            .map(|(range, length)| SentenceTint {
-                range: parsed.offsets.range(&range),
-                length: sentence_length(length),
-            })
-            .collect()
+        self.lock().sentence_tints(thresholds)
     }
 }
 
@@ -300,10 +316,11 @@ fn wiki_target(info: &WikiInfo) -> String {
 /// The one edit that turns `old` into `new`: everything between their
 /// common start and common end. `None` when they're the same.
 fn changed_span(old: &str, new: &str) -> Option<Edit> {
-    if old == new {
+    let prefix = common_prefix(old.as_bytes(), new.as_bytes());
+    if prefix == old.len() && prefix == new.len() {
         return None;
     }
-    let prefix = floor_boundary(old, common_prefix(old.as_bytes(), new.as_bytes()));
+    let prefix = floor_boundary(old, prefix);
     let suffix_limit = old.len().min(new.len()) - prefix;
     let suffix = common_suffix(old.as_bytes(), new.as_bytes()).min(suffix_limit);
     let old_end = ceil_boundary(old, old.len() - suffix);
@@ -317,16 +334,39 @@ fn changed_span(old: &str, new: &str) -> Option<Edit> {
     })
 }
 
+/// Compared a block at a time first, so long equal stretches cost a
+/// `memcmp` rather than a loop over bytes.
+const COMPARED_BLOCK: usize = 256;
+
 fn common_prefix(a: &[u8], b: &[u8]) -> usize {
-    a.iter().zip(b).take_while(|(x, y)| x == y).count()
+    let limit = a.len().min(b.len());
+    let mut at = 0;
+    while at + COMPARED_BLOCK <= limit && a[at..at + COMPARED_BLOCK] == b[at..at + COMPARED_BLOCK] {
+        at += COMPARED_BLOCK;
+    }
+    at + a[at..limit]
+        .iter()
+        .zip(&b[at..limit])
+        .take_while(|(x, y)| x == y)
+        .count()
 }
 
 fn common_suffix(a: &[u8], b: &[u8]) -> usize {
-    a.iter()
-        .rev()
-        .zip(b.iter().rev())
-        .take_while(|(x, y)| x == y)
-        .count()
+    let limit = a.len().min(b.len());
+    let mut matched = 0;
+    while matched + COMPARED_BLOCK <= limit
+        && a[a.len() - matched - COMPARED_BLOCK..a.len() - matched]
+            == b[b.len() - matched - COMPARED_BLOCK..b.len() - matched]
+    {
+        matched += COMPARED_BLOCK;
+    }
+    matched
+        + a[..a.len() - matched]
+            .iter()
+            .rev()
+            .zip(b[..b.len() - matched].iter().rev())
+            .take_while(|(x, y)| x == y)
+            .count()
 }
 
 fn floor_boundary(text: &str, mut at: usize) -> usize {
@@ -371,6 +411,26 @@ mod tests {
             let edit = changed_span(old, new).unwrap();
             assert_eq!(apply(old, &edit, new), new, "{old:?} → {new:?}");
         }
+    }
+
+    #[test]
+    fn kept_sentence_tints_follow_edits_and_thresholds() {
+        let mut parsed = ParsedText::new("One two three. Four.\n".into());
+        let thresholds = Thresholds {
+            short_below: 3,
+            long_above: 10,
+        };
+        let first = parsed.sentence_tints(thresholds);
+        assert_eq!(parsed.sentence_tints(thresholds), first);
+        parsed.update("One two three. Four five six seven.\n".into());
+        let fresh = ParsedText::new(parsed.text.clone()).sentence_tints(thresholds);
+        assert_eq!(parsed.sentence_tints(thresholds), fresh);
+        let stricter = Thresholds {
+            short_below: 1,
+            long_above: 2,
+        };
+        let fresh = ParsedText::new(parsed.text.clone()).sentence_tints(stricter);
+        assert_eq!(parsed.sentence_tints(stricter), fresh);
     }
 
     #[test]

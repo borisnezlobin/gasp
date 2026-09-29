@@ -174,7 +174,23 @@ fn text_alignment(alignment: Alignment) -> TextAlign {
 
 /// The theme token that names a callout's colour, `color.callout.<kind>`.
 fn callout_token(kind: CalloutKind) -> String {
-    format!("{kind:?}").to_lowercase()
+    let name = match kind {
+        CalloutKind::Note => "note",
+        CalloutKind::Abstract => "abstract",
+        CalloutKind::Info => "info",
+        CalloutKind::Todo => "todo",
+        CalloutKind::Tip => "tip",
+        CalloutKind::Success => "success",
+        CalloutKind::Question => "question",
+        CalloutKind::Warning => "warning",
+        CalloutKind::Failure => "failure",
+        CalloutKind::Danger => "danger",
+        CalloutKind::Bug => "bug",
+        CalloutKind::Example => "example",
+        CalloutKind::Quote => "quote",
+        CalloutKind::Custom => "custom",
+    };
+    name.to_owned()
 }
 
 fn line_decoration(style: &render::LineStyle) -> LineDecoration {
@@ -288,10 +304,10 @@ pub enum WidgetKind {
     EmptyTabStop,
 }
 
-fn widget(widget: &render::Widget, offsets: &Utf16Offsets) -> Widget {
+fn widget(widget: render::Widget, offsets: &Utf16Offsets) -> Widget {
     Widget {
-        kind: widget_kind(&widget.kind, offsets),
         range: offsets.range(&widget.range),
+        kind: widget_kind(widget.kind, offsets),
         placement: match widget.placement {
             render::Placement::Replace => Placement::Replace,
             render::Placement::Below => Placement::Below,
@@ -300,7 +316,7 @@ fn widget(widget: &render::Widget, offsets: &Utf16Offsets) -> Widget {
     }
 }
 
-fn widget_kind(kind: &render::WidgetKind, offsets: &Utf16Offsets) -> WidgetKind {
+fn widget_kind(kind: render::WidgetKind, offsets: &Utf16Offsets) -> WidgetKind {
     use render::WidgetKind as Core;
     match kind {
         Core::CalloutHeader {
@@ -311,11 +327,11 @@ fn widget_kind(kind: &render::WidgetKind, offsets: &Utf16Offsets) -> WidgetKind 
             folded,
             ..
         } => WidgetKind::CalloutHeader {
-            kind: callout_token(*kind),
-            type_name: type_name.clone(),
-            title: title.as_ref().map(|range| offsets.range(range)),
-            default_title: default_title.clone(),
-            folded: *folded,
+            kind: callout_token(kind),
+            type_name,
+            title: title.map(|range| offsets.range(&range)),
+            default_title,
+            folded,
         },
         Core::CodeBlock {
             language,
@@ -323,27 +339,21 @@ fn widget_kind(kind: &render::WidgetKind, offsets: &Utf16Offsets) -> WidgetKind 
             content,
             ..
         } => WidgetKind::CodeBlock {
-            language: language.clone(),
-            title: title.clone(),
-            content: offsets.range(content),
+            language,
+            title,
+            content: offsets.range(&content),
         },
         other => content_widget_kind(other),
     }
 }
 
 /// Widgets whose description carries no offsets.
-fn content_widget_kind(kind: &render::WidgetKind) -> WidgetKind {
+fn content_widget_kind(kind: render::WidgetKind) -> WidgetKind {
     use render::WidgetKind as Core;
     match kind {
-        Core::InlineMath { tex, display } => WidgetKind::InlineMath {
-            tex: tex.clone(),
-            display: *display,
-        },
-        Core::MathBlock { tex } => WidgetKind::MathBlock { tex: tex.clone() },
-        Core::MathPreview { tex, display } => WidgetKind::MathPreview {
-            tex: tex.clone(),
-            display: *display,
-        },
+        Core::InlineMath { tex, display } => WidgetKind::InlineMath { tex, display },
+        Core::MathBlock { tex } => WidgetKind::MathBlock { tex },
+        Core::MathPreview { tex, display } => WidgetKind::MathPreview { tex, display },
         Core::Image {
             target,
             alt,
@@ -351,44 +361,39 @@ fn content_widget_kind(kind: &render::WidgetKind) -> WidgetKind {
             height,
             embed,
         } => WidgetKind::Image {
-            target: target.clone(),
-            alt: alt.clone(),
-            width: *width,
-            height: *height,
-            embed: *embed,
+            target,
+            alt,
+            width,
+            height,
+            embed,
         },
         Core::ListBullet {
             ordered,
             number,
             depth,
         } => WidgetKind::ListBullet {
-            ordered: *ordered,
-            number: *number,
-            depth: *depth as u32,
+            ordered,
+            number,
+            depth: depth as u32,
         },
         other => marker_widget_kind(other),
     }
 }
 
 /// Widgets drawn in place of a small piece of markup.
-fn marker_widget_kind(kind: &render::WidgetKind) -> WidgetKind {
+fn marker_widget_kind(kind: render::WidgetKind) -> WidgetKind {
     use render::WidgetKind as Core;
     match kind {
-        Core::Checkbox { checked } => WidgetKind::Checkbox { checked: *checked },
-        Core::FootnoteSuperscript { label } => WidgetKind::FootnoteSuperscript {
-            label: label.clone(),
-        },
+        Core::Checkbox { checked } => WidgetKind::Checkbox { checked },
+        Core::FootnoteSuperscript { label } => WidgetKind::FootnoteSuperscript { label },
         Core::ConflictLabel { side } => WidgetKind::ConflictLabel {
-            this_device: *side == ConflictSide::ThisDevice,
+            this_device: side == ConflictSide::ThisDevice,
         },
         Core::LinkCard(card) => WidgetKind::LinkCard {
-            url: card.url.clone(),
-            title: card.title.clone(),
+            url: card.url,
+            title: card.title,
         },
-        Core::PropertyList { items, tags } => WidgetKind::PropertyList {
-            items: items.clone(),
-            tags: *tags,
-        },
+        Core::PropertyList { items, tags } => WidgetKind::PropertyList { items, tags },
         Core::HorizontalRule => WidgetKind::HorizontalRule,
         Core::LineBreak => WidgetKind::LineBreak,
         Core::SubpathSeparator => WidgetKind::SubpathSeparator,
@@ -409,7 +414,7 @@ pub struct TableRow {
     pub table_start: u32,
 }
 
-fn table_row(row: &render::TableRowPlan, offsets: &Utf16Offsets) -> TableRow {
+fn table_row(row: render::TableRowPlan, offsets: &Utf16Offsets) -> TableRow {
     TableRow {
         index: row.index as u32,
         count: row.count as u32,
@@ -419,7 +424,7 @@ fn table_row(row: &render::TableRowPlan, offsets: &Utf16Offsets) -> TableRow {
     }
 }
 
-fn line_plan(line: &render::LinePlan, offsets: &Utf16Offsets) -> LinePlan {
+fn line_plan(line: render::LinePlan, offsets: &Utf16Offsets) -> LinePlan {
     LinePlan {
         line: line.line as u32,
         range: offsets.range(&line.range),
@@ -435,19 +440,21 @@ fn line_plan(line: &render::LinePlan, offsets: &Utf16Offsets) -> LinePlan {
         hidden: offsets.ranges(&line.hidden),
         widgets: line
             .widgets
-            .iter()
+            .into_iter()
             .map(|each| widget(each, offsets))
             .collect(),
         collapsed: line.collapsed,
-        table_row: line.table_row.as_ref().map(|row| table_row(row, offsets)),
+        table_row: line.table_row.map(|row| table_row(row, offsets)),
     }
 }
 
-pub(crate) fn note_plan(plan: &render::RenderPlan, offsets: &Utf16Offsets) -> NotePlan {
+/// The plan in UTF-16 offsets, taking the core plan's text rather than
+/// copying it.
+pub(crate) fn note_plan(plan: render::RenderPlan, offsets: &Utf16Offsets) -> NotePlan {
     NotePlan {
         lines: plan
             .lines
-            .iter()
+            .into_iter()
             .map(|line| line_plan(line, offsets))
             .collect(),
     }
@@ -463,6 +470,18 @@ mod tests {
             start: cursor,
             end: cursor,
         })
+    }
+
+    #[test]
+    fn callout_tokens_are_the_kinds_in_lower_case() {
+        use CalloutKind::*;
+        let kinds = [
+            Note, Abstract, Info, Todo, Tip, Success, Question, Warning, Failure, Danger, Bug,
+            Example, Quote, Custom,
+        ];
+        for kind in kinds {
+            assert_eq!(callout_token(kind), format!("{kind:?}").to_lowercase());
+        }
     }
 
     #[test]
