@@ -310,7 +310,7 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
         window.paint_quad(fill(*rect, *color).corner_radii(theme.radius_sm));
     }
     paint_text_backgrounds(frame, theme, window);
-    paint_highlights(frame, theme, window);
+    paint_highlights(frame, theme, |kind| !drawn_over_selection(kind), window);
     let selection_color = match prepainted.tables.block {
         Some(_) => theme.table.selection,
         None => theme.selection,
@@ -318,6 +318,7 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
     for rect in &prepainted.selection {
         window.paint_quad(fill(*rect, selection_color));
     }
+    paint_highlights(frame, theme, drawn_over_selection, window);
     let context = PaintContext {
         text_left: frame.text_left,
         theme,
@@ -343,9 +344,21 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
     }
 }
 
-/// Find matches and tab stops as fills, footnote problems underlined.
-fn paint_highlights(frame: &FrameLayout, theme: &Theme, window: &mut Window) {
-    for (kind, rect) in &frame.highlights {
+/// The find bar selects the match it's on, so that match is drawn over
+/// the selection, or the selection would hide what marks it as current.
+fn drawn_over_selection(kind: HighlightKind) -> bool {
+    kind == HighlightKind::ActiveSearchMatch
+}
+
+/// The highlights of the kinds `include` takes: find matches and tab
+/// stops as fills, footnote problems underlined.
+fn paint_highlights(
+    frame: &FrameLayout,
+    theme: &Theme,
+    include: impl Fn(HighlightKind) -> bool,
+    window: &mut Window,
+) {
+    for (kind, rect) in frame.highlights.iter().filter(|(kind, _)| include(*kind)) {
         let color = match kind {
             HighlightKind::SearchMatch => theme.search_match,
             HighlightKind::ActiveSearchMatch => theme.active_search_match,
@@ -888,5 +901,22 @@ fn paint_card(bounds: Bounds<Pixels>, theme: &Theme, window: &mut Window) {
 fn report(result: anyhow::Result<()>) {
     if let Err(error) = result {
         eprintln!("paint failed: {error}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_current_find_match_is_drawn_over_the_selection() {
+        assert!(drawn_over_selection(HighlightKind::ActiveSearchMatch));
+        for kind in [
+            HighlightKind::SearchMatch,
+            HighlightKind::FootnoteProblem,
+            HighlightKind::TabStop,
+        ] {
+            assert!(!drawn_over_selection(kind));
+        }
     }
 }

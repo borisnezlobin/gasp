@@ -168,7 +168,10 @@ impl FindBar {
             self.query.update(cx, |query, cx| query.select_all(cx));
             self.refresh_matches(cx);
         }
-        let target = if replace {
+        // The replacement takes the keyboard only once there's something
+        // to find, so typing into a fresh bar always fills the query.
+        let has_query = !self.query.read(cx).text().is_empty();
+        let target = if replace && has_query {
             &self.replacement
         } else {
             &self.query
