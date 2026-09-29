@@ -17,6 +17,7 @@ editor-core = { path = "../core" }
 editor-export = { path = "../export" }
 editor-prose = { path = "../prose" }
 editor-search = { path = "../search" }
+editor-sync = { path = "../sync", features = ["keychain"] }
 editor-vault = { path = "../vault" }
 serde_json = "1"
 thiserror = "2"
@@ -24,6 +25,7 @@ toml = "0.8"
 uniffi = { version = "0.32", default-features = false }
 
 [dev-dependencies]
+git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }
 tempfile = "3"
 
 [lints]
