@@ -68,7 +68,10 @@ pub struct ContextMenu {
     /// places it at the row.
     pub position: Option<Point<Pixels>>,
     pub items: Vec<MenuItem>,
-    pub highlighted: usize,
+    /// The row the keyboard is on. A menu the pointer opened has none
+    /// until an arrow is pressed, so no row looks chosen before the
+    /// pointer gets there.
+    pub highlighted: Option<usize>,
 }
 
 impl ContextMenu {
@@ -78,17 +81,24 @@ impl ContextMenu {
             target,
             position,
             items,
-            highlighted: 0,
+            highlighted: position.is_none().then_some(0),
         }
     }
 
+    /// Moves the highlight by `delta`, wrapping; the first move from no
+    /// highlight lands on the first row going down, the last going up.
     pub fn move_highlight(&mut self, delta: isize) {
         let count = self.items.len() as isize;
-        self.highlighted = (self.highlighted as isize + delta).rem_euclid(count) as usize;
+        let from = match self.highlighted {
+            Some(index) => index as isize,
+            None if delta > 0 => -1,
+            None => count,
+        };
+        self.highlighted = Some((from + delta).rem_euclid(count) as usize);
     }
 
     pub fn highlighted_item(&self) -> Option<MenuItem> {
-        self.items.get(self.highlighted).copied()
+        self.items.get(self.highlighted?).copied()
     }
 }
 
@@ -112,6 +122,18 @@ mod tests {
         assert_eq!(menu.highlighted_item(), Some(MenuItem::Trash));
         menu.move_highlight(1);
         assert_eq!(menu.highlighted_item(), Some(MenuItem::NewNote));
+    }
+
+    #[test]
+    fn a_menu_the_pointer_opened_waits_for_an_arrow() {
+        let at = gpui::point(gpui::px(10.), gpui::px(10.));
+        let mut menu = ContextMenu::new(Some(PathBuf::from("a.md")), Some(at));
+        assert_eq!(menu.highlighted_item(), None);
+        menu.move_highlight(1);
+        assert_eq!(menu.highlighted_item(), Some(MenuItem::NewNote));
+        let mut menu = ContextMenu::new(Some(PathBuf::from("a.md")), Some(at));
+        menu.move_highlight(-1);
+        assert_eq!(menu.highlighted_item(), Some(MenuItem::Trash));
     }
 
     #[test]
