@@ -65,12 +65,20 @@ pub fn fold(text: &str) -> Folded {
         offsets: OffsetMap::default(),
         same_offsets: true,
     };
-    for (start, ch) in text.char_indices() {
-        if ch.is_ascii() {
-            folded.text.push(ch.to_ascii_lowercase());
-        } else {
-            folded.push_folded(start, ch);
+    let mut at = 0;
+    while at < text.len() {
+        let rest = &text[at..];
+        let ascii = rest.bytes().take_while(u8::is_ascii).count();
+        if ascii > 0 {
+            let start = folded.text.len();
+            folded.text.push_str(&rest[..ascii]);
+            folded.text[start..].make_ascii_lowercase();
+            at += ascii;
+            continue;
         }
+        let ch = rest.chars().next().unwrap_or_default();
+        folded.push_folded(at, ch);
+        at += ch.len_utf8();
     }
     folded
 }
