@@ -1,0 +1,15 @@
+[package]
+name = "editor-highlight"
+description = "Syntax colours for fenced code blocks, shared by the desktop and the phone."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+# Typst already builds both with these features, so they add no new crates.
+syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy"] }
+two-face = { version = "0.4.3", default-features = false, features = ["syntect-fancy"] }
+
+[lints]
+workspace = true

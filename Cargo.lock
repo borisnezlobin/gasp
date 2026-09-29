@@ -3096,6 +3096,7 @@ dependencies = [
  "editor-config",
  "editor-core",
  "editor-export",
+ "editor-highlight",
  "editor-math",
  "editor-mcp",
  "editor-migrate",
@@ -3157,6 +3158,7 @@ dependencies = [
  "editor-config",
  "editor-core",
  "editor-export",
+ "editor-highlight",
  "editor-math",
  "editor-prose",
  "editor-search",
@@ -3167,6 +3169,14 @@ dependencies = [
  "thiserror 2.0.21",
  "toml 0.8.23",
  "uniffi",
+]
+
+[[package]]
+name = "editor-highlight"
+version = "0.1.0"
+dependencies = [
+ "syntect",
+ "two-face",
 ]
 
 [[package]]
