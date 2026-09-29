@@ -4019,7 +4019,11 @@ dependencies = [
 name = "gasp-search"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
  "gasp-config",
+ "gasp-vault",
+ "memchr",
+ "rayon",
  "tempfile",
  "unicode-normalization",
 ]
@@ -4051,8 +4055,10 @@ name = "gasp-vault"
 version = "0.1.0"
 dependencies = [
  "dirs 5.0.1",
+ "gasp-bench",
  "gasp-config",
  "jiff",
+ "memchr",
  "tempfile",
  "trash",
 ]
