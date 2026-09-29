@@ -29,10 +29,33 @@ struct SyncDetailsSheet: View {
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
                 }
+            } else {
+                notSynced
             }
         }
         .font(Font(tokens.uiFont(size: tokens.bodySize)))
         .presentationDetents([.medium, .large])
+    }
+
+    /// These notes don't sync: the sample notes or a folder another app
+    /// keeps in step.
+    private var notSynced: some View {
+        ContentUnavailableView {
+            Label("These notes don't sync", systemImage: "icloud.slash")
+        } description: {
+            Text("Sync keeps your notes in a GitHub repository, the same on every device.")
+        } actions: {
+            if VaultLocation.syncedFolder != nil {
+                Button("Open your synced notes") {
+                    dismiss()
+                    model.switchVault(to: .synced)
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button("Set up sync") { model.workspace.sheet = .syncSetup(SyncSetupDraft()) }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
     }
 
     @ViewBuilder private func actions(for overview: SyncOverview) -> some View {
