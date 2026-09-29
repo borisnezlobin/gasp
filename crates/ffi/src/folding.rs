@@ -40,11 +40,13 @@ impl NoteDocument {
         let line = parsed.tree.lines().line_of(at);
         if let Some(heading) = foldable_heading(&parsed, line) {
             parsed.folds.toggle_heading(heading.line_start);
+            parsed.shown.folds_changed();
             return true;
         }
         match callout_header(&parsed, at, line) {
             Some((header, folded_now)) => {
                 parsed.folds.toggle(header, folded_now);
+                parsed.shown.folds_changed();
                 true
             }
             None => false,
@@ -62,12 +64,17 @@ impl NoteDocument {
 
     pub fn fold_all_headings(&self) {
         let mut parsed = self.lock();
-        let ParsedText { tree, folds, .. } = &mut *parsed;
+        let ParsedText {
+            tree, folds, shown, ..
+        } = &mut *parsed;
         folds.fold_all_headings(tree);
+        shown.folds_changed();
     }
 
     pub fn unfold_all_headings(&self) {
-        self.lock().folds.unfold_all_headings();
+        let mut parsed = self.lock();
+        parsed.folds.unfold_all_headings();
+        parsed.shown.folds_changed();
     }
 
     /// The lines of the folded headings, to keep on this device.
@@ -85,8 +92,11 @@ impl NoteDocument {
     pub fn restore_folded_headings(&self, lines: Vec<u32>) {
         let lines: Vec<usize> = lines.into_iter().map(|line| line as usize).collect();
         let mut parsed = self.lock();
-        let ParsedText { tree, folds, .. } = &mut *parsed;
+        let ParsedText {
+            tree, folds, shown, ..
+        } = &mut *parsed;
         folds.restore_heading_lines(&lines, tree);
+        shown.folds_changed();
     }
 }
 

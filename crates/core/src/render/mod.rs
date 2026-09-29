@@ -21,7 +21,7 @@ use std::ops::Range;
 
 use crate::syntax::SyntaxTree;
 
-pub use kept::KeptPlan;
+pub use kept::{KeptPlan, LineSplice, PlanChanges};
 pub use output::{
     LinePlan, LineStyle, Placement, RenderPlan, StyleKey, StyledRun, TableRowPlan, Widget,
     WidgetKind,

@@ -23,6 +23,7 @@ mod plan;
 mod positions;
 mod recovery;
 mod settings;
+mod shown;
 mod sync;
 mod sync_conflicts;
 mod sync_setup;
@@ -54,6 +55,7 @@ pub use plan::{
 pub use positions::ReadingPosition;
 pub use recovery::{SnapshotInfo, use_data_folder};
 pub use settings::{SettingControl, SettingItem, SettingValue};
+pub use shown::{PlanSplice, PlanUpdate};
 pub use sync::{SyncOutcome, SyncOverview, SyncPhaseKind, SyncRunSummary, VaultSync};
 pub use sync_conflicts::{ConflictNote, ConflictPlace, PlaceChoice, merge_note_edits};
 pub use sync_setup::{SyncSetup, repository_url, set_up_sync};
