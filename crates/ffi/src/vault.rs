@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::UNIX_EPOCH;
 
 use gasp_config::loader::CONFIG_DIR;
+use gasp_config::settings::ThemeChoice;
 use gasp_config::store::save;
 use gasp_config::{Config, ConfigLoader};
 use gasp_vault::build::{build_index, scan};
@@ -148,6 +149,16 @@ impl VaultFolder {
     /// `appearance.base-font-size` on top.
     pub fn theme(&self) -> ThemeTokens {
         theme(&self.config())
+    }
+
+    /// The look `appearance.theme` asks for: light, dark, or whichever the
+    /// phone uses. The theme's palettes hold both; this picks one.
+    pub fn appearance(&self) -> Appearance {
+        match self.config().settings.appearance.theme {
+            ThemeChoice::Light => Appearance::Light,
+            ThemeChoice::Dark => Appearance::Dark,
+            ThemeChoice::MatchSystem => Appearance::System,
+        }
     }
 
     /// Every command the phone runs, in the registry's order.
@@ -306,6 +317,20 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn appearance_follows_the_theme_setting() {
+        let (dir, vault) = vault_with(&[]);
+        assert_eq!(vault.appearance(), Appearance::System);
+        std::fs::create_dir_all(dir.path().join(CONFIG_DIR)).unwrap();
+        std::fs::write(
+            dir.path().join(CONFIG_DIR).join("settings.toml"),
+            "[appearance]\ntheme = \"light\"\n",
+        )
+        .unwrap();
+        vault.reload_config();
+        assert_eq!(vault.appearance(), Appearance::Light);
+    }
+
+    #[test]
     fn notes_list_titles_and_folders_and_skip_hidden_files() {
         let hidden = format!("{CONFIG_DIR}/theme.md");
         let (_dir, vault) = vault_with(&[
@@ -384,4 +409,13 @@ pub(crate) mod tests {
         assert_eq!(vault.cycle_symbols(), SymbolVisibility::AlwaysShown);
         assert!(note.plan(cursor_away).lines[0].hidden.is_empty());
     }
+}
+
+/// Which palette the app shows, from `appearance.theme`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum Appearance {
+    Light,
+    Dark,
+    /// Follow the phone's light or dark mode.
+    System,
 }
