@@ -94,6 +94,7 @@ const TOOLBAR_LABELS: &[(&str, &str)] = &[
     ("selection", "By selected text"),
     ("cursor-line", "At the cursor’s line"),
     ("keyboard", "Above the iPhone keyboard"),
+    ("browser-bar", "The iPhone’s bottom bar"),
     ("always", "Always"),
     ("on-hover", "When the pointer comes near"),
     ("hide-while-typing", "Hidden while typing"),
@@ -122,16 +123,7 @@ fn toolbar_summary(toolbar: &Toolbar) -> String {
     if !toolbar.enabled {
         return "Turned off.".to_owned();
     }
-    let place = match toolbar.place {
-        Place::StatusBar => "In the status bar",
-        Place::EditorTop => "Above the notes",
-        Place::EditorBottom => "Below the notes",
-        Place::WindowLeft => "Down the left side",
-        Place::WindowRight => "Down the right side",
-        Place::Selection => "By selected text",
-        Place::CursorLine => "At the end of the cursor’s line",
-        Place::Keyboard => "Above the iPhone’s keyboard",
-    };
+    let place = place_phrase(toolbar.place);
     let when = match toolbar.behaviour {
         Behaviour::Always => "always",
         Behaviour::OnHover => "when the pointer comes near",
@@ -140,6 +132,21 @@ fn toolbar_summary(toolbar: &Toolbar) -> String {
         Behaviour::InContext => "in the kinds of text below",
     };
     format!("{place}, {when}.")
+}
+
+/// Where a toolbar sits, to start the summary's sentence.
+fn place_phrase(place: Place) -> &'static str {
+    match place {
+        Place::StatusBar => "In the status bar",
+        Place::EditorTop => "Above the notes",
+        Place::EditorBottom => "Below the notes",
+        Place::WindowLeft => "Down the left side",
+        Place::WindowRight => "Down the right side",
+        Place::Selection => "By selected text",
+        Place::CursorLine => "At the end of the cursor’s line",
+        Place::Keyboard => "Above the iPhone’s keyboard",
+        Place::BrowserBar => "Along the bottom of the iPhone’s screen",
+    }
 }
 
 /// What an item is called on its row and in the picker.

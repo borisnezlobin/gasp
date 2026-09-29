@@ -3,7 +3,8 @@
 # adds a toolbar, and `enabled = false` turns one off.
 #
 # place     = "status-bar" | "editor-top" | "editor-bottom" | "window-left" |
-#             "window-right" | "selection" | "cursor-line" | "keyboard"
+#             "window-right" | "selection" | "cursor-line" | "keyboard" |
+#             "browser-bar"
 # behaviour = "always" | "on-hover" | "hide-while-typing" | "with-selection" |
 #             "in-context" (with contexts = ["text", "math", "code", "table"])
 # style     = "icons" | "icons-and-labels" | "labels"
@@ -34,9 +35,11 @@ style     = "icons"
 density   = "compact"
 items     = ["format.bold", "format.italic", "format.highlight", "format.link", "format.code"]
 
-# The bar above the iPhone's keyboard: the owner's Obsidian mobile toolbar
-# after "hide the keyboard", then the rest of the editing commands, then
-# the palette for everything else. It scrolls sideways when they don't fit.
+# The bar above the iPhone's keyboard: the owner's Obsidian mobile toolbar,
+# then the rest of the editing commands, then the palette for everything
+# else. It scrolls sideways when they don't fit. The button that hides the
+# keyboard stays at its right end whatever the items are, and undo and
+# redo float above it on their own.
 [toolbar.keyboard]
 title     = "Keyboard bar"
 place     = "keyboard"
@@ -44,13 +47,23 @@ behaviour = "always"
 style     = "icons"
 density   = "comfortable"
 items     = [
-  "keyboard.hide", "note.import-image", "edit.indent", "edit.outdent",
-  "format.callout", "format.math-inline", "footnote.insert-or-jump",
+  "note.import-image", "edit.indent", "edit.outdent", "format.callout",
+  "format.math-inline", "footnote.insert-or-jump",
   "prose.toggle-sentence-highlighting", "table.insert", "find.open",
-  "edit.undo", "edit.redo", "format.bold", "format.italic",
-  "format.highlight", "format.link", "format.code", "edit.toggle-task",
-  "palette.open",
+  "format.bold", "format.italic", "format.highlight", "format.link",
+  "format.code", "edit.toggle-task", "palette.open",
 ]
+
+# The iPhone's bar at the bottom of the screen. The spacer is where the
+# title of the note showing sits, which a swipe moves between tabs; the
+# `sync` widget shows sync's state there too.
+[toolbar.browser-bar]
+title     = "Bottom bar"
+place     = "browser-bar"
+behaviour = "always"
+style     = "icons"
+density   = "comfortable"
+items     = ["sidebar.files.toggle", "spacer", "tab.overview"]
 
 # A dropdown any toolbar can hold as "menu:insert".
 [menu.insert]

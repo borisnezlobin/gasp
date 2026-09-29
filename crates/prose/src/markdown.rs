@@ -40,16 +40,36 @@ impl Unit {
 
 /// The units that overlap `within`, in order.
 pub fn units(tree: &SyntaxTree, within: Range<usize>, purpose: Purpose) -> Vec<Unit> {
-    tree.nodes_overlapping(within)
-        .into_iter()
-        .filter(|&id| is_unit(&tree.node(id).kind, purpose))
-        .filter(|&id| {
-            !tree
-                .ancestors(id)
-                .any(|up| excludes(&tree.node(up).kind, purpose))
-        })
-        .filter_map(|id| unit_of(tree, id, purpose))
-        .collect()
+    let mut found = Vec::new();
+    collect_units(tree, SyntaxTree::ROOT, &within, purpose, &mut found);
+    found
+}
+
+/// Walks the nodes overlapping `within` in document order, as
+/// [`SyntaxTree::nodes_overlapping`] lists them, collecting units and
+/// skipping whatever lies inside a block that holds no prose.
+fn collect_units(
+    tree: &SyntaxTree,
+    id: NodeId,
+    within: &Range<usize>,
+    purpose: Purpose,
+    found: &mut Vec<Unit>,
+) {
+    let node = tree.node(id);
+    if is_unit(&node.kind, purpose) {
+        found.extend(unit_of(tree, id, purpose));
+    }
+    if excludes(&node.kind, purpose) {
+        return;
+    }
+    let children = &node.children;
+    let first = children.partition_point(|&child| tree.node(child).range.end < within.start);
+    for &child in &children[first..] {
+        if tree.node(child).range.start > within.end {
+            break;
+        }
+        collect_units(tree, child, within, purpose, found);
+    }
 }
 
 fn is_unit(kind: &NodeKind, purpose: Purpose) -> bool {

@@ -7,6 +7,7 @@ mod effects;
 pub mod folds;
 mod grid;
 mod html;
+mod kept;
 mod output;
 mod reveal;
 mod settings;
@@ -20,6 +21,7 @@ use std::ops::Range;
 
 use crate::syntax::SyntaxTree;
 
+pub use kept::KeptPlan;
 pub use output::{
     LinePlan, LineStyle, Placement, RenderPlan, StyleKey, StyledRun, TableRowPlan, Widget,
     WidgetKind,

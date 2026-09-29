@@ -174,7 +174,23 @@ fn text_alignment(alignment: Alignment) -> TextAlign {
 
 /// The theme token that names a callout's colour, `color.callout.<kind>`.
 fn callout_token(kind: CalloutKind) -> String {
-    format!("{kind:?}").to_lowercase()
+    let name = match kind {
+        CalloutKind::Note => "note",
+        CalloutKind::Abstract => "abstract",
+        CalloutKind::Info => "info",
+        CalloutKind::Todo => "todo",
+        CalloutKind::Tip => "tip",
+        CalloutKind::Success => "success",
+        CalloutKind::Question => "question",
+        CalloutKind::Warning => "warning",
+        CalloutKind::Failure => "failure",
+        CalloutKind::Danger => "danger",
+        CalloutKind::Bug => "bug",
+        CalloutKind::Example => "example",
+        CalloutKind::Quote => "quote",
+        CalloutKind::Custom => "custom",
+    };
+    name.to_owned()
 }
 
 fn line_decoration(style: &render::LineStyle) -> LineDecoration {
@@ -443,13 +459,9 @@ fn line_plan(line: &render::LinePlan, offsets: &Utf16Offsets) -> LinePlan {
     }
 }
 
-pub(crate) fn note_plan(plan: &render::RenderPlan, offsets: &Utf16Offsets) -> NotePlan {
+pub(crate) fn note_plan(lines: &[render::LinePlan], offsets: &Utf16Offsets) -> NotePlan {
     NotePlan {
-        lines: plan
-            .lines
-            .iter()
-            .map(|line| line_plan(line, offsets))
-            .collect(),
+        lines: lines.iter().map(|line| line_plan(line, offsets)).collect(),
     }
 }
 
@@ -463,6 +475,18 @@ mod tests {
             start: cursor,
             end: cursor,
         })
+    }
+
+    #[test]
+    fn callout_tokens_are_the_kinds_in_lower_case() {
+        use CalloutKind::*;
+        let kinds = [
+            Note, Abstract, Info, Todo, Tip, Success, Question, Warning, Failure, Danger, Bug,
+            Example, Quote, Custom,
+        ];
+        for kind in kinds {
+            assert_eq!(callout_token(kind), format!("{kind:?}").to_lowercase());
+        }
     }
 
     #[test]

@@ -9,7 +9,7 @@ protocol EditingHost: AnyObject {
     /// Opens where a tapped link goes.
     func follow(link target: String, from session: EditingController)
     /// The bar above the software keyboard, from toolbars.toml.
-    var keyboardToolbar: KeyboardToolbar { get }
+    var keyboardToolbar: PhoneToolbar { get }
 }
 
 /// One open note: keeps the core's copy in step with the text view,
@@ -31,6 +31,9 @@ final class EditingController: NSObject, UITextViewDelegate {
     /// The bar above the software keyboard, kept while it's turned off so
     /// turning it back on brings it back.
     private var accessoryBar: AccessoryBar?
+    /// Whether the note is being typed in and undo and redo can run, for
+    /// the pill above the keyboard.
+    let editState = EditState()
     var prose = ProseMarks()
     var code: CodeColors
     var codeColouring: DispatchWorkItem?
@@ -113,7 +116,7 @@ final class EditingController: NSObject, UITextViewDelegate {
             host?.keyBindings ?? [], action: #selector(EditorTextView.runBoundKey(_:))
         )
         textView.runBoundCommand = { [weak self] command in self?.host?.run(command) }
-        let toolbar = host?.keyboardToolbar ?? KeyboardToolbar(enabled: false, labels: .icons, entries: [])
+        let toolbar = host?.keyboardToolbar ?? PhoneToolbar(enabled: false, labels: .icons, entries: [])
         let bar = AccessoryBar(toolbar: toolbar, tokens: tokens) { [weak self] command in
             self?.host?.run(command)
         }
@@ -144,7 +147,7 @@ final class EditingController: NSObject, UITextViewDelegate {
 
     /// Shows the keyboard toolbar anew, after toolbars.toml changed; a
     /// toolbar that's been turned off takes the bar away.
-    func showToolbar(_ toolbar: KeyboardToolbar) {
+    func showToolbar(_ toolbar: PhoneToolbar) {
         accessoryBar?.show(toolbar)
         let wanted: UIView? = toolbar.enabled ? accessoryBar : nil
         if textView.inputAccessoryView !== wanted {
@@ -249,6 +252,18 @@ final class EditingController: NSObject, UITextViewDelegate {
         }
         scheduleGrammarCheck()
         scheduleCodeColours()
+        editState.refresh()
+    }
+
+    func textViewDidBeginEditing(_ textView: UITextView) {
+        editState.follow(textView.undoManager)
+        editState.isEditing = true
+        textView.contentInset.bottom = UndoPill.clearance
+    }
+
+    func textViewDidEndEditing(_ textView: UITextView) {
+        editState.isEditing = false
+        textView.contentInset.bottom = 0
     }
 
     func textViewDidChangeSelection(_ textView: UITextView) {

@@ -3810,9 +3810,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gasp-bench"
+version = "0.1.0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "gasp-config"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
+ "gasp-migrate",
  "gasp-snippets",
  "notify",
  "schemars 0.8.22",
@@ -3827,12 +3836,16 @@ dependencies = [
 name = "gasp-core"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
  "gasp-config",
+ "gasp-migrate",
  "gasp-snippets",
+ "memchr",
  "proptest",
  "pulldown-cmark",
  "regex",
  "ropey",
+ "smallvec",
  "unicode-width",
  "url",
 ]
@@ -3875,7 +3888,6 @@ dependencies = [
  "notify",
  "objc",
  "raw-window-handle",
- "resvg 0.45.1",
  "rustix 1.1.5",
  "serde",
  "serde_json",
@@ -3897,13 +3909,13 @@ name = "gasp-export"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "gasp-bench",
  "gasp-core",
  "gasp-math",
  "lopdf",
  "pulldown-cmark",
  "syntect",
  "typst",
- "typst-assets",
  "typst-html",
  "typst-layout",
  "typst-pdf",
@@ -3914,6 +3926,7 @@ dependencies = [
 name = "gasp-ffi"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
  "gasp-config",
  "gasp-core",
  "gasp-export",
@@ -3924,7 +3937,6 @@ dependencies = [
  "gasp-sync",
  "gasp-vault",
  "git2",
- "resvg 0.45.1",
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
@@ -3944,12 +3956,15 @@ dependencies = [
 name = "gasp-math"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
  "mitex",
  "mitex-spec",
  "mitex-spec-gen",
+ "resvg 0.45.1",
  "typst",
  "typst-assets",
  "typst-layout",
+ "typst-render",
  "typst-svg",
 ]
 
@@ -3995,6 +4010,7 @@ version = "0.1.0"
 name = "gasp-prose"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
  "gasp-config",
  "gasp-core",
  "harper-core",
@@ -4005,7 +4021,11 @@ dependencies = [
 name = "gasp-search"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
  "gasp-config",
+ "gasp-vault",
+ "memchr",
+ "rayon",
  "tempfile",
  "unicode-normalization",
 ]
@@ -4023,6 +4043,7 @@ dependencies = [
 name = "gasp-sync"
 version = "0.1.0"
 dependencies = [
+ "gasp-bench",
  "gasp-config",
  "git2",
  "globset",
@@ -4037,8 +4058,10 @@ name = "gasp-vault"
 version = "0.1.0"
 dependencies = [
  "dirs 5.0.1",
+ "gasp-bench",
  "gasp-config",
  "jiff",
+ "memchr",
  "tempfile",
  "trash",
 ]
