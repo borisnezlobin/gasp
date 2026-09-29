@@ -49,7 +49,9 @@ impl SyntaxTree {
         let Some(region) = self.region_for(new_text, edit) else {
             return false;
         };
-        let lines = self.lines.edited(new_text, edit);
+        // A failed reparse parses the whole document again, lines included,
+        // so the lines can move now.
+        self.lines.edit(new_text, edit);
         let context = self
             .definitions
             .0
@@ -57,12 +59,11 @@ impl SyntaxTree {
         let Some(raw) = super::build::build_region(new_text, region.new.clone(), context) else {
             return false;
         };
-        let nodes = super::process(raw, new_text, &lines);
+        let nodes = super::process(raw, new_text, &self.lines);
         if !self.boundaries_match(&region, &nodes) {
             return false;
         }
         self.splice(&region, nodes, new_text.len());
-        self.lines = lines;
         true
     }
 
@@ -207,7 +208,7 @@ impl SyntaxTree {
     }
 
     fn splice(&mut self, region: &Region, region_nodes: Vec<Node>, new_len: usize) {
-        let blocks = self.blocks().to_vec();
+        let blocks = self.blocks();
         let removed_start = blocks[region.first].0;
         let removed_end = blocks
             .get(region.last + 1)
@@ -227,16 +228,11 @@ impl SyntaxTree {
         for node in &mut self.nodes[removed_start + inserted..] {
             shift_node(node, region.delta, id_shift);
         }
-        let shifted_after = blocks[region.last + 1..]
-            .iter()
-            .map(|id| NodeId((id.0 as isize + id_shift) as usize));
         let root = &mut self.nodes[0];
-        root.children = blocks[..region.first]
-            .iter()
-            .copied()
-            .chain(new_top)
-            .chain(shifted_after)
-            .collect();
+        for id in &mut root.children[region.last + 1..] {
+            id.0 = shift(id.0, id_shift);
+        }
+        root.children.splice(region.first..=region.last, new_top);
         root.range = 0..new_len;
         root.content.clear();
         root.content.push(0..new_len);

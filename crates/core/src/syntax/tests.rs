@@ -827,13 +827,13 @@ fn content_is_the_range_minus_markup() {
         .iter()
         .find(|n| n.kind == NodeKind::Strong)
         .unwrap();
-    assert_eq!(strong.content, vec![2..6]);
+    assert_eq!(strong.content.to_vec(), vec![2..6]);
     let link = tree
         .nodes()
         .iter()
         .find(|n| matches!(n.kind, NodeKind::Link(_)))
         .unwrap();
-    assert_eq!(link.content, vec![10..11]);
+    assert_eq!(link.content.to_vec(), vec![10..11]);
 }
 
 /// A tiny deterministic generator so the randomized tests need no crates.

@@ -43,7 +43,7 @@ impl SyntaxTree {
             return false;
         };
         self.splice_row(&edited, nodes, edit, new_text.len());
-        self.lines = self.lines.edited(new_text, edit);
+        self.lines.edit(new_text, edit);
         true
     }
 

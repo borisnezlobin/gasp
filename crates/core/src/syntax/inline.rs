@@ -23,7 +23,7 @@ impl Arena<'_> {
     }
 
     fn is_text(&self, id: NodeId) -> bool {
-        self.nodes[id.0].kind == NodeKind::Text
+        matches!(self.nodes[id.0].kind, NodeKind::Text)
     }
 
     fn range(&self, id: NodeId) -> Range<usize> {
@@ -164,10 +164,27 @@ impl Arena<'_> {
     /// Wraps `delimiter`-delimited spans among `parent`'s text children into
     /// nodes of `kind`.
     pub fn wrap_delimited(&mut self, parent: NodeId, delimiter: Delimiter) {
+        if !self.texts_contain(parent, delimiter.token) {
+            return;
+        }
         let mut from_child = 0;
         while let Some(pair) = self.find_pair(parent, from_child, &delimiter) {
             from_child = self.wrap_pair(parent, &pair, &delimiter);
         }
+    }
+
+    /// Whether `token` appears anywhere from the first text child of
+    /// `parent` to the end of its last, searched once.
+    fn texts_contain(&self, parent: NodeId, token: &str) -> bool {
+        let texts = self.nodes[parent.0]
+            .children
+            .iter()
+            .filter(|&&id| self.is_text(id))
+            .map(|&id| self.range(id));
+        let span = texts.reduce(|span, range| span.start.min(range.start)..span.end.max(range.end));
+        span.is_some_and(|span| {
+            memchr::memmem::find(&self.text.as_bytes()[span], token.as_bytes()).is_some()
+        })
     }
 
     fn delimiter_positions(
@@ -178,13 +195,14 @@ impl Arena<'_> {
     ) -> Vec<(usize, usize)> {
         let children = &self.nodes[parent.0].children;
         let mut positions = Vec::new();
+        let finder = memchr::memmem::Finder::new(delimiter.token);
         for (index, &id) in children.iter().enumerate().skip(from_child) {
             if !self.is_text(id) {
                 continue;
             }
             let range = self.range(id);
             let mut at = range.start;
-            while let Some(found) = self.text[at..range.end].find(delimiter.token) {
+            while let Some(found) = finder.find(&self.text.as_bytes()[at..range.end]) {
                 positions.push((index, at + found));
                 at += found + delimiter.token.len();
             }
@@ -401,30 +419,43 @@ fn curly_tags(text: &str, range: Range<usize>) -> Vec<(NodeKind, Range<usize>)> 
         .collect()
 }
 
-/// Tags, bare URLs and empty `$$` in a text range, in order.
+/// Tags, bare URLs and empty `$$` in a text range, in order. Each starts
+/// at an ASCII byte, so the scan jumps from one such byte to the next.
 fn special_pieces(text: &str, range: Range<usize>) -> Vec<(NodeKind, Range<usize>)> {
     let mut pieces = Vec::new();
+    let bytes = text.as_bytes();
     let mut at = range.start;
     while at < range.end {
+        let Some(skipped) = bytes[at..range.end].iter().position(|&b| starts_special(b)) else {
+            break;
+        };
+        at += skipped;
         match special_at(text, at, range.end) {
             Some((kind, piece)) => {
                 at = piece.end;
                 pieces.push((kind, piece));
             }
-            None => at += text[at..].chars().next().map_or(1, char::len_utf8),
+            None => at += 1,
         }
     }
     pieces
 }
 
+/// The bytes [`special_at`] can find something at.
+fn starts_special(byte: u8) -> bool {
+    matches!(byte, b'#' | b'h' | b'w' | b'$')
+}
+
 fn special_at(text: &str, at: usize, end: usize) -> Option<(NodeKind, Range<usize>)> {
     let byte = text.as_bytes()[at];
-    let preceded_by_space = text[..at]
-        .chars()
-        .next_back()
-        .is_none_or(char::is_whitespace);
+    let preceded_by_space = || {
+        text[..at]
+            .chars()
+            .next_back()
+            .is_none_or(char::is_whitespace)
+    };
     match byte {
-        b'#' if preceded_by_space => tag_at(text, at, end),
+        b'#' if preceded_by_space() => tag_at(text, at, end),
         b'h' | b'w' if !preceded_by_word(text, at) => url_at(text, at, end),
         b'$' => empty_math_at(text, at, end),
         _ => None,

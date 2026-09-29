@@ -3838,10 +3838,12 @@ dependencies = [
  "gasp-config",
  "gasp-migrate",
  "gasp-snippets",
+ "memchr",
  "proptest",
  "pulldown-cmark",
  "regex",
  "ropey",
+ "smallvec",
  "unicode-width",
  "url",
 ]

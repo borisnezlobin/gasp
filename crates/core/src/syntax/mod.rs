@@ -33,7 +33,7 @@ pub use kinds::{
     Alignment, CalloutInfo, CalloutKind, CodeBlockInfo, ConflictSide, Fold, HtmlKind, LinkInfo,
     LinkKind, MarkupKind, NodeKind, SyntaxKind, WikiInfo,
 };
-pub use tree::{LineIndex, Markup, Node, NodeId, SyntaxTree};
+pub use tree::{ContentRanges, LineIndex, Markup, MarkupTokens, Node, NodeId, SyntaxTree};
 
 use inline::{Arena, Delimiter};
 
@@ -90,7 +90,10 @@ fn preorder(nodes: &[Node]) -> Vec<NodeId> {
 /// Drops line terminators from the end of text nodes, which pulldown-cmark
 /// includes for code block lines.
 fn trim_text_newlines(nodes: &mut [Node], text: &str) {
-    for node in nodes.iter_mut().filter(|node| node.kind == NodeKind::Text) {
+    for node in nodes
+        .iter_mut()
+        .filter(|node| matches!(node.kind, NodeKind::Text))
+    {
         let trimmed = text[node.range.clone()]
             .trim_end_matches(['\n', '\r'])
             .len();
@@ -124,13 +127,12 @@ fn convert_math_blocks(nodes: &mut [Node]) {
         if nodes[index].kind != NodeKind::Paragraph {
             continue;
         }
-        let meaningful: Vec<NodeId> = nodes[index]
+        let mut meaningful = nodes[index]
             .children
             .iter()
             .copied()
-            .filter(|id| nodes[id.0].kind != NodeKind::SoftBreak)
-            .collect();
-        if let [only] = meaningful[..]
+            .filter(|id| !matches!(nodes[id.0].kind, NodeKind::SoftBreak));
+        if let (Some(only), None) = (meaningful.next(), meaningful.next())
             && nodes[only.0].kind == (NodeKind::Math { display: true })
         {
             let range = nodes[only.0].range.clone();
@@ -244,8 +246,8 @@ fn finish_node(node: &mut Node, new_ids: &[NodeId]) {
 }
 
 /// `range` minus the sorted `holes`, as non-empty pieces.
-fn subtract(range: &Range<usize>, holes: impl Iterator<Item = Range<usize>>) -> Vec<Range<usize>> {
-    let mut pieces = Vec::new();
+fn subtract(range: &Range<usize>, holes: impl Iterator<Item = Range<usize>>) -> ContentRanges {
+    let mut pieces = ContentRanges::new();
     let mut at = range.start;
     for hole in holes {
         if hole.start > at {

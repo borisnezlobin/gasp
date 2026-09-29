@@ -332,6 +332,11 @@ impl KeyTimings {
             self.whole.samples.p95(),
             ms(3),
         );
+        report.note_time(format!("{label}: reparse, p95"), self.reparse.samples.p95());
+        report.note_time(
+            format!("{label}: reparse, slowest"),
+            self.reparse.samples.max(),
+        );
         let keys = self.keys.max(1) as f64;
         report.count(
             format!("{label}: allocations per key"),
