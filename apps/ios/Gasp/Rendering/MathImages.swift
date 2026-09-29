@@ -86,6 +86,9 @@ final class MathImages {
         queue.addOperation { warmUpMath() }
     }
 
+    /// How many renders are asked for and not finished yet.
+    var pendingCount: Int { pending.count }
+
     func image(_ key: MathKey) -> RenderedMath? {
         cache.object(forKey: MathCacheKey(key))
     }

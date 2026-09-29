@@ -26,6 +26,7 @@ struct StartPage: View {
             .padding(.bottom, TabBarView.clearance)
         }
         .scrollDismissesKeyboard(.interactively)
+        .onAppear { PerformanceProbe.shared.startPageShown = true }
     }
 
     private var actions: some View {
