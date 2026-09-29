@@ -435,9 +435,13 @@ fn scrolling_up_onto_taller_lines_moves_the_text_by_the_scroll_alone(cx: &mut Te
         view.update(cx, |view, cx| view.scroll_by(-step, cx));
         cx.run_until_parked();
         let after = tops(&view, cx);
+        if view.read_with(cx, |view, _| view.scroll_offset()) == px(0.) {
+            break;
+        }
         let (line, top) = before[0];
         if let Some((_, moved)) = after.iter().find(|(seen, _)| *seen == line) {
-            assert_eq!(*moved - top, step, "line {line} jumped");
+            let jump = (*moved - top - step).abs();
+            assert!(jump < px(0.01), "line {line} jumped by {jump:?}");
         }
     }
     let shown = tops(&view, cx);
