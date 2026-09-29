@@ -297,6 +297,10 @@ pub struct LinePlan {
     pub collapsed: bool,
     /// The line is a row of a table drawn as a grid.
     pub table_row: Option<TableRowPlan>,
+    /// The list or task marker shown as source, such as `- ` or `- [ ] `.
+    /// The apps set it in the room a bullet takes, so the text after it
+    /// stays put as it shows and hides.
+    pub shown_marker: Option<Range<usize>>,
 }
 
 /// The plan for a range of lines.
