@@ -152,9 +152,14 @@ impl SyncService {
                 self.presence = Presence::Problem(problem);
                 self.remote_url = Some(remote_url);
             }
-            Opened::Ready { engine, signed_in } => {
+            Opened::Ready {
+                engine,
+                signed_in,
+                conflicts,
+            } => {
                 self.remote_url = Some(engine.remote_url().to_owned());
                 self.signed_in = signed_in;
+                self.conflicts = conflicts;
                 self.presence = Presence::Ready(engine);
                 if self.settings.auto {
                     self.scheduler.request_sync();
@@ -481,6 +486,15 @@ impl SyncService {
         } else {
             self.reschedule(cx);
         }
+        cx.notify();
+    }
+
+    /// Looks at the vault again with `settings`, such as once setting up
+    /// has made it a clone, and syncs if it can.
+    pub fn reopen(&mut self, settings: SyncSettings, cx: &mut Context<Self>) {
+        self.scheduler.set_config(scheduler_config(&settings));
+        self.settings = settings;
+        self.open(cx);
         cx.notify();
     }
 

@@ -323,9 +323,123 @@ impl SegmentBuilder {
     }
 }
 
+/// Merges two versions of a file that share no history, such as a note a
+/// folder had before it became a clone and the repository's copy of it.
+///
+/// Lines both versions have are kept once, and lines only one of them has
+/// are kept where they stand, since nothing says the other side removed
+/// them. A place where the two read differently, each with lines the other
+/// lacks between the same shared lines, is a conflict for a person.
+pub fn merge_unrelated(this_device: &str, other_device: &str) -> LineMerge {
+    // With no base to say which side changed the ending, this device's wins.
+    let endings = OpenEndings::of(other_device, this_device, other_device);
+    let (this_device, other_device) = (close_last_line(this_device), close_last_line(other_device));
+    let sides = UnrelatedSides {
+        this_device: split_lines(&this_device),
+        other_device: split_lines(&other_device),
+    };
+    let mut segments = sides.segments();
+    endings.reopen_last_line(&mut segments);
+    match segments.as_slice() {
+        [] => LineMerge::Clean(String::new()),
+        [Segment::Clean(text)] => LineMerge::Clean(text.clone()),
+        _ => LineMerge::Conflicted(segments),
+    }
+}
+
+/// The lines of two versions with no common ancestor.
+struct UnrelatedSides<'a> {
+    this_device: Vec<&'a str>,
+    other_device: Vec<&'a str>,
+}
+
+impl UnrelatedSides<'_> {
+    fn segments(&self) -> Vec<Segment> {
+        let mut output = SegmentBuilder::default();
+        let mut this_changed = 0..0;
+        let mut other_changed = 0..0;
+        for op in capture_diff_slices(Algorithm::Myers, &self.this_device, &self.other_device) {
+            let (tag, this_range, other_range) = op.as_tag_tuple();
+            if tag != DiffTag::Equal {
+                this_changed.end = this_range.end;
+                other_changed.end = other_range.end;
+                continue;
+            }
+            self.push_difference(&mut output, &this_changed, &other_changed);
+            output.push_clean(&self.this_device[this_range.clone()]);
+            this_changed = this_range.end..this_range.end;
+            other_changed = other_range.end..other_range.end;
+        }
+        self.push_difference(&mut output, &this_changed, &other_changed);
+        output.finish()
+    }
+
+    /// Lines only one side has are kept; lines on both sides at one place
+    /// are a conflict.
+    fn push_difference(
+        &self,
+        output: &mut SegmentBuilder,
+        this_lines: &Range<usize>,
+        other_lines: &Range<usize>,
+    ) {
+        let this_text = &self.this_device[this_lines.clone()];
+        let other_text = &self.other_device[other_lines.clone()];
+        if this_text.is_empty() || other_text.is_empty() {
+            output.push_clean(this_text);
+            output.push_clean(other_text);
+            return;
+        }
+        output.push_conflict(ConflictHunk {
+            base: String::new(),
+            this_device: this_text.concat(),
+            other_device: other_text.concat(),
+            base_lines: 0..0,
+            this_device_lines: this_lines.clone(),
+            other_device_lines: other_lines.clone(),
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unrelated_versions_keep_every_line_and_clash_where_they_differ() {
+        let this_device = "# Plan\nold line\nshared\nonly here\n";
+        let other_device = "# Plan\nnew line\nshared\nadded there\nend";
+        let LineMerge::Conflicted(segments) = merge_unrelated(this_device, other_device) else {
+            panic!("the differing line is a conflict");
+        };
+        let hunks: Vec<&ConflictHunk> = segments
+            .iter()
+            .filter_map(|segment| match segment {
+                Segment::Conflict(hunk) => Some(hunk),
+                Segment::Clean(_) => None,
+            })
+            .collect();
+        assert_eq!(hunks.len(), 2);
+        assert_eq!(hunks[0].this_device, "old line\n");
+        assert_eq!(hunks[0].other_device, "new line\n");
+        assert_eq!(hunks[1].this_device, "only here\n");
+        assert_eq!(hunks[1].other_device, "added there\nend");
+    }
+
+    #[test]
+    fn unrelated_versions_with_one_sided_lines_merge_cleanly() {
+        assert_eq!(
+            merge_unrelated("a\nb\n", "a\nb\nc\n"),
+            LineMerge::Clean("a\nb\nc\n".to_owned())
+        );
+        assert_eq!(
+            merge_unrelated("a\nlocal\nb", "a\nb"),
+            LineMerge::Clean("a\nlocal\nb".to_owned())
+        );
+        assert_eq!(
+            merge_unrelated("same\n", "same"),
+            LineMerge::Clean("same\n".to_owned())
+        );
+    }
 
     const BASE: &str = "one\ntwo\nthree\nfour\nfive\n";
 

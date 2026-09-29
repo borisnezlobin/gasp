@@ -12,8 +12,10 @@ use gasp_config::settings::SyncSettings;
 use gasp_desktop::actions::bind_keys;
 use gasp_desktop::features;
 use gasp_desktop::settings_view::{ControlRow, SettingsView};
+use gasp_desktop::sync::setup::{SetupField, SetupStop};
 use gasp_desktop::sync::{
-    ConflictResolver, SetupProblem, SyncPhase, SyncService, set_credential_store,
+    ConflictResolver, SetupPhase, SetupProblem, SyncPhase, SyncService, SyncSetup,
+    set_credential_store,
 };
 use gasp_desktop::workspace::{OpenIn, Workspace};
 use gasp_sync::{
@@ -670,4 +672,196 @@ fn step_timings_on_a_synthetic_vault(cx: &mut TestAppContext) {
             SyncStep::Push
         ]
     );
+}
+
+// ---- Setting up sync for a vault that isn't a clone ----
+
+/// A vault folder with `files` and no git, beside an empty bare remote.
+fn unsynced_vault(files: &[(&str, &str)]) -> (TempDir, PathBuf, String) {
+    let dir = tempfile::tempdir().unwrap();
+    let bare = dir.path().join("remote.git");
+    let mut options = git2::RepositoryInitOptions::new();
+    options.bare(true).initial_head("master");
+    git2::Repository::init_opts(&bare, &options).unwrap();
+    let vault = dir.path().join("vault");
+    std::fs::create_dir_all(&vault).unwrap();
+    for (name, text) in files {
+        write(&vault, name, text);
+    }
+    let remote = bare.to_str().unwrap().to_owned();
+    (dir, vault, remote)
+}
+
+fn setup_dialog(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<SyncSetup> {
+    cx.read(|cx| workspace.read(cx).active_modal::<SyncSetup>())
+        .expect("the setup dialog is open")
+}
+
+fn setup_phase(setup: &Entity<SyncSetup>, cx: &mut VisualTestContext) -> SetupPhase {
+    setup.read_with(cx, |setup, _| setup.phase().clone())
+}
+
+fn fill_and_submit(
+    setup: &Entity<SyncSetup>,
+    cx: &mut VisualTestContext,
+    repository: &str,
+    token: &str,
+) {
+    cx.update(|window, cx| {
+        setup.update(cx, |setup, cx| {
+            setup.fill(repository, "master", token, cx);
+            setup.submit(window, cx);
+        })
+    });
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn setting_up_sync_makes_the_vault_a_clone_and_starts_syncing(cx: &mut TestAppContext) {
+    let (_dir, vault, remote) = unsynced_vault(&[("Plan.md", "# Plan\n")]);
+    let store = Arc::new(InMemoryCredentialStore::default());
+    let (workspace, cx) = open_workspace(cx, &vault, store.clone());
+    let service = service(&workspace, cx);
+    assert_eq!(phase(&service, cx), SyncPhase::Hidden);
+
+    run(&workspace, cx, "sync.set-up");
+    let setup = setup_dialog(&workspace, cx);
+    fill_and_submit(&setup, cx, &remote, "synthetic-token");
+    let SetupPhase::Done(done) = setup_phase(&setup, cx) else {
+        panic!("setting up finished: {:?}", setup_phase(&setup, cx));
+    };
+    assert!(done.report.remote_was_empty);
+    assert_eq!(done.report.sent, [PathBuf::from("Plan.md")]);
+    assert!(vault.join(".git").is_dir());
+
+    // The window's sync picked up the new clone without a relaunch.
+    assert_eq!(phase(&service, cx), SyncPhase::Synced);
+    assert!(is_drawn(cx, "sync-indicator-button"));
+    assert_eq!(
+        store.load(&remote).unwrap(),
+        Some(Token::new("synthetic-token"))
+    );
+    click(cx, "sync-setup-done");
+    assert!(cx.read(|cx| workspace.read(cx).active_modal::<SyncSetup>().is_none()));
+}
+
+#[gpui::test]
+fn setting_up_brings_in_the_repositorys_notes_and_parks_clashes(cx: &mut TestAppContext) {
+    let world = World::seeded(&[("Remote.md", "from GitHub\n"), ("Plan.md", "new goal\n")]);
+    let vault = world.path("laptop");
+    write(&vault, "Plan.md", "old goal\n");
+    let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
+    run(&workspace, cx, "sync.set-up");
+    let setup = setup_dialog(&workspace, cx);
+    fill_and_submit(&setup, cx, &world.remote, "");
+    let SetupPhase::Done(done) = setup_phase(&setup, cx) else {
+        panic!("setting up finished: {:?}", setup_phase(&setup, cx));
+    };
+    assert_eq!(done.report.waiting, [PathBuf::from("Plan.md")]);
+    assert_eq!(
+        std::fs::read_to_string(vault.join("Remote.md")).unwrap(),
+        "from GitHub\n"
+    );
+    let service = service(&workspace, cx);
+    assert_eq!(cx.read(|cx| service.read(cx).conflicts().len()), 1);
+
+    // The finished screen offers the resolver, which shows the clash.
+    click(cx, "sync-setup-resolve");
+    let resolver = cx
+        .read(|cx| workspace.read(cx).active_modal::<ConflictResolver>())
+        .expect("the resolver opens");
+    assert_eq!(
+        resolver.read_with(cx, |resolver, _| resolver.files().len()),
+        1
+    );
+}
+
+#[gpui::test]
+fn setup_says_what_is_wrong_and_leaves_the_vault_alone(cx: &mut TestAppContext) {
+    let (dir, vault, _remote) = unsynced_vault(&[("Plan.md", "# Plan\n")]);
+    let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
+    run(&workspace, cx, "sync.set-up");
+    let setup = setup_dialog(&workspace, cx);
+
+    fill_and_submit(&setup, cx, "notes", "");
+    let SetupPhase::Refused { field, .. } = setup_phase(&setup, cx) else {
+        panic!("a bare name isn't a repository");
+    };
+    assert_eq!(field, Some(SetupField::Repository));
+
+    fill_and_submit(&setup, cx, "you/notes", "");
+    let SetupPhase::Refused { field, message } = setup_phase(&setup, cx) else {
+        panic!("GitHub needs a token");
+    };
+    assert_eq!(field, Some(SetupField::Token));
+    assert!(message.contains("token"), "{message}");
+
+    let missing = dir.path().join("nowhere.git");
+    fill_and_submit(&setup, cx, missing.to_str().unwrap(), "");
+    let SetupPhase::Refused { field, message } = setup_phase(&setup, cx) else {
+        panic!("a missing repository can't be reached");
+    };
+    assert_eq!(field, Some(SetupField::Repository));
+    assert!(message.contains("Check the address"), "{message}");
+    assert!(!vault.join(".git").exists());
+    let service = service(&workspace, cx);
+    assert_eq!(phase(&service, cx), SyncPhase::Hidden);
+}
+
+#[gpui::test]
+fn the_setup_dialog_works_from_the_keyboard(cx: &mut TestAppContext) {
+    let (_dir, vault, remote) = unsynced_vault(&[("Plan.md", "# Plan\n")]);
+    let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
+    run(&workspace, cx, "sync.set-up");
+    let setup = setup_dialog(&workspace, cx);
+    let stop = |cx: &mut VisualTestContext| {
+        cx.update(|window, cx| setup.read(cx).current_stop(window, cx))
+    };
+    assert_eq!(stop(cx), SetupStop::Repository);
+    cx.simulate_input(&remote);
+    cx.simulate_keystrokes("tab");
+    assert_eq!(stop(cx), SetupStop::Branch);
+    cx.simulate_keystrokes("tab tab");
+    assert_eq!(stop(cx), SetupStop::CreateToken);
+    cx.simulate_keystrokes("tab tab");
+    assert_eq!(stop(cx), SetupStop::Submit);
+    cx.simulate_keystrokes("shift-tab");
+    assert_eq!(stop(cx), SetupStop::Cancel);
+    cx.simulate_keystrokes("shift-tab shift-tab shift-tab");
+    assert_eq!(stop(cx), SetupStop::Branch);
+    // Enter in a field sets up, and Enter again closes the finished screen.
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert!(matches!(setup_phase(&setup, cx), SetupPhase::Done(_)));
+    cx.simulate_keystrokes("enter");
+    assert!(cx.read(|cx| workspace.read(cx).active_modal::<SyncSetup>().is_none()));
+
+    // Once the vault syncs, setting up again opens its settings instead.
+    run(&workspace, cx, "sync.set-up");
+    let settings = cx.read(|cx| workspace.read(cx).active_modal::<SettingsView>());
+    assert!(settings.is_some(), "a vault that syncs gets its settings");
+}
+
+#[gpui::test]
+fn escape_closes_the_setup_dialog(cx: &mut TestAppContext) {
+    let (_dir, vault, _remote) = unsynced_vault(&[("Plan.md", "# Plan\n")]);
+    let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
+    run(&workspace, cx, "sync.set-up");
+    setup_dialog(&workspace, cx);
+    cx.simulate_keystrokes("escape");
+    assert!(cx.read(|cx| workspace.read(cx).active_modal::<SyncSetup>().is_none()));
+}
+
+#[gpui::test]
+fn the_sync_page_of_a_vault_that_doesnt_sync_offers_setting_up(cx: &mut TestAppContext) {
+    let (_dir, vault, _remote) = unsynced_vault(&[("Plan.md", "# Plan\n")]);
+    let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
+    run(&workspace, cx, "settings.open");
+    let settings = cx
+        .read(|cx| workspace.read(cx).active_modal::<SettingsView>())
+        .unwrap();
+    settings.update(cx, |settings, cx| settings.show_section("sync", cx));
+    cx.run_until_parked();
+    click(cx, "set-up-sync");
+    assert!(cx.read(|cx| workspace.read(cx).active_modal::<SyncSetup>().is_some()));
 }

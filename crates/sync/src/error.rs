@@ -24,6 +24,9 @@ pub enum SyncError {
     /// The clone's HEAD is on a different branch than the one the vault syncs.
     #[error("the vault is on branch `{actual}` but syncs `{expected}`")]
     WrongBranch { expected: String, actual: String },
+    /// Setting up sync in place found the folder already a git clone.
+    #[error("the vault is already a git repository")]
+    AlreadyAClone,
     /// A path that is not inside the vault.
     #[error("path outside the vault: {0}")]
     OutsideVault(PathBuf),

@@ -24,7 +24,10 @@ use crate::palette::{CommandPalette, PaletteEvent};
 use crate::print::PrintDialog;
 use crate::settings_view::{SettingsEvent, SettingsRequest, SettingsView};
 use crate::switcher::{QuickSwitcher, SwitcherEvent};
-use crate::sync::{ConflictResolver, SyncIndicator, SyncIndicatorEvent, SyncPhase, SyncService};
+use crate::sync::{
+    ConflictResolver, SyncIndicator, SyncIndicatorEvent, SyncPhase, SyncService, SyncSetup,
+    SyncSetupEvent,
+};
 use crate::text_input::{self, TEXT_INPUT_CONTEXT};
 use crate::vault_search::{VaultSearch, VaultSearchEvent};
 use crate::workspace::deleted::DeletedNote;
@@ -34,7 +37,7 @@ use crate::workspace::{OpenIn, Workspace};
 const RECENT_COMMANDS: usize = 8;
 
 /// Commands this module gives a handler, for the menus.
-pub const WIRED_COMMANDS: [&str; 30] = [
+pub const WIRED_COMMANDS: [&str; 31] = [
     "palette.open",
     "switcher.open",
     "outline.jump-to-heading",
@@ -53,6 +56,7 @@ pub const WIRED_COMMANDS: [&str; 30] = [
     "file-tree.focus",
     "sync.now",
     "sync.resolve-conflicts",
+    "sync.set-up",
     "sidebar.right.toggle",
     "sidebar.right.focus",
     "sidebar.backlinks",
@@ -121,6 +125,7 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     if crate::sandbox::reaches_outside() {
         install_sync(workspace, window, cx);
     }
+    workspace.on_command("sync.set-up", open_sync_setup);
     crate::knowledge::install(workspace, window, cx);
     crate::prose::commands::install(workspace, cx);
     crate::recovery::install(workspace, cx);
@@ -302,6 +307,40 @@ fn sync_now(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Conte
     if let Some(indicator) = indicator.filter(|indicator| !indicator.read(cx).is_open()) {
         indicator.update(cx, |indicator, cx| indicator.toggle(window, cx));
     }
+}
+
+/// `sync.set-up`: the dialog that makes the vault a clone of a
+/// repository. A vault that already syncs gets the Sync settings instead.
+fn open_sync_setup(
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    let syncs = workspace
+        .sync()
+        .is_some_and(|sync| sync.read(cx).is_present());
+    if syncs {
+        open_settings_at(workspace, "sync", window, cx);
+        return;
+    }
+    let host = cx.weak_entity();
+    let root = workspace.vault().to_path_buf();
+    let settings = workspace.config().settings.sync.clone();
+    workspace.toggle_modal(window, cx, |window, cx| {
+        SyncSetup::new(host, root, settings, window, cx)
+    });
+    let Some(setup) = workspace.active_modal::<SyncSetup>() else {
+        return;
+    };
+    let requests = cx.subscribe_in(
+        &setup,
+        window,
+        |_, _, request: &SyncSetupEvent, window, cx| {
+            let SyncSetupEvent::RunCommand(id) = request;
+            run_after_modal_closes(id.clone(), window, cx);
+        },
+    );
+    features(cx).subscriptions.push(requests);
 }
 
 /// `sync.resolve-conflicts`: the resolver, over the window.
