@@ -4,6 +4,8 @@ import UIKit
 protocol EditingHost: AnyObject {
     /// Runs a command from the registry, as the toolbar's buttons do.
     func run(_ command: String)
+    /// The keymap's keys with a hardware keyboard.
+    var keyBindings: [KeyBinding] { get }
     /// Opens where a tapped link goes.
     func follow(link target: String, from session: EditingController)
     var toolbar: [CommandInfo] { get }
@@ -15,12 +17,35 @@ protocol EditingHost: AnyObject {
 final class EditingController: NSObject, UITextViewDelegate {
     let textView = EditorTextView(usingTextLayoutManager: true)
     var path: String {
-        didSet { saver.path = path }
+        didSet {
+            saver.path = path
+            media.notePath = path
+        }
     }
     let document: NoteDocument
     let vault: VaultFolder
     private(set) var tokens: Tokens
     private(set) var styler: PlanStyler
+    let media: NoteMedia
+    var prose = ProseMarks()
+    let grammar: GrammarChecker
+    /// Counts changes to the text, so a grammar check that finishes after
+    /// the text moved on is dropped.
+    var editCount = 0
+    var grammarCheck: DispatchWorkItem?
+    /// Whether a restyle for newly arrived math or images is on its way,
+    /// and what arrived since the last one.
+    var redrawQueued = false
+    var arrivedMath: Set<String> = []
+    var imagesArrived = false
+    /// Set while the cursor is put in a table for one of its commands, so
+    /// it isn't taken for a tap on the table's grid.
+    var placingCursorForTable = false
+    /// Where the line at the top of the screen should start, once the text
+    /// is laid out, when the note opens where it was left.
+    var pendingTop: Int?
+    /// The wide tables' scrolling grids, by where each table starts.
+    var tableGrids: [UInt32: TableGridView] = [:]
     private let saver: NoteSaver
     private let displayParagraphs = DisplayParagraphs()
     private var blockFragments: BlockFragments
@@ -39,13 +64,20 @@ final class EditingController: NSObject, UITextViewDelegate {
         self.tokens = tokens
         self.host = host
         document = vault.document(text: text)
+        media = NoteMedia(vault: vault, notePath: path)
+        grammar = GrammarService.checker(for: vault)
+        prose.colors = ProseColors(vault: vault)
         styler = PlanStyler(tokens: tokens)
+        styler.media = media
         blockFragments = BlockFragments(tokens: tokens)
         saver = NoteSaver(vault: vault, path: path)
         super.init()
         configure()
         textView.text = text
+        restorePosition()
         restyle(edited: nil)
+        prefetchMath()
+        scheduleGrammarCheck()
         NotificationCenter.default.addObserver(
             self, selector: #selector(saveNow), name: UIApplication.didEnterBackgroundNotification, object: nil
         )
@@ -54,6 +86,7 @@ final class EditingController: NSObject, UITextViewDelegate {
     private func configure() {
         textView.delegate = self
         textView.widthDidChange = { [weak self] in self?.columnWidthChanged() }
+        textView.didLayout = { [weak self] in self?.placeTableGrids() }
         textView.textLayoutManager?.delegate = blockFragments
         textView.textLayoutManager?.textContentManager?.delegate = displayParagraphs
         textView.keyboardDismissMode = .interactive
@@ -61,8 +94,13 @@ final class EditingController: NSObject, UITextViewDelegate {
         textView.autocapitalizationType = .sentences
         textView.smartQuotesType = .no
         textView.smartDashesType = .no
+        if grammar.isEnabled() { textView.spellCheckingType = .no }
         textView.isFindInteractionEnabled = true
         textView.textContainer.lineFragmentPadding = 0
+        textView.boundKeys = KeyCommands.uiKeyCommands(
+            host?.keyBindings ?? [], action: #selector(EditorTextView.runBoundKey(_:))
+        )
+        textView.runBoundCommand = { [weak self] command in self?.host?.run(command) }
         textView.inputAccessoryView = AccessoryBar(
             commands: host?.toolbar ?? [], tokens: tokens
         ) { [weak self] command in self?.host?.run(command) }
@@ -82,6 +120,7 @@ final class EditingController: NSObject, UITextViewDelegate {
     func use(_ tokens: Tokens) {
         self.tokens = tokens
         styler = PlanStyler(tokens: tokens)
+        styler.media = media
         blockFragments = BlockFragments(tokens: tokens)
         textView.textLayoutManager?.delegate = blockFragments
         applyColors()
@@ -112,6 +151,9 @@ final class EditingController: NSObject, UITextViewDelegate {
         )
         styler.setColumnWidth(textView.bounds.width - side * 2)
         restyle(edited: nil)
+        if pendingTop != nil {
+            DispatchQueue.main.async { [weak self] in self?.scrollToPendingTop() }
+        }
         guard scrollsToCursorAfterLayout else { return }
         scrollsToCursorAfterLayout = false
         DispatchQueue.main.async { [textView] in
@@ -134,6 +176,7 @@ final class EditingController: NSObject, UITextViewDelegate {
     /// the keyboard.
     func placeCursor(at location: Int) {
         textView.selectedRange = NSRange(location: min(location, textView.textStorage.length), length: 0)
+        pendingTop = nil
         if textView.bounds.width == 0 {
             scrollsToCursorAfterLayout = true
         } else {
@@ -155,6 +198,7 @@ final class EditingController: NSObject, UITextViewDelegate {
 
     @objc func saveNow() {
         saver.flush()
+        savePosition()
     }
 
     // MARK: UITextViewDelegate
@@ -164,14 +208,42 @@ final class EditingController: NSObject, UITextViewDelegate {
         let text = textView.text ?? ""
         if textBeforeEdits == nil { textBeforeEdits = document.text() }
         document.update(text: text)
+        editCount += 1
         restyle(edited: textView.selectedRange)
         saver.schedule(text) { [weak self] in self?.keepSnapshot() }
+        scheduleGrammarCheck()
     }
 
     func textViewDidChangeSelection(_ textView: UITextView) {
         guard !isRestyling, textView.markedTextRange == nil,
               textView.textStorage.length == styledLength else { return }
+        let selection = textView.selectedRange
+        if selection.length == 0, textView.isFirstResponder, editGridCell(at: selection.location) { return }
         restyle(edited: nil)
+    }
+
+    /// Moves the grammar flags along with an edit, dropping the ones it
+    /// touches, until the paragraph is checked again.
+    func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+        let delta = (text as NSString).length - range.length
+        prose.flags = prose.flags.compactMap { flag in
+            let flagged = flag.range.nsRange
+            if NSMaxRange(flagged) < range.location { return flag }
+            guard flagged.location > NSMaxRange(range) else { return nil }
+            var moved = flag
+            let start = UInt32(Int(flag.range.start) + delta)
+            moved.range = TextRange(start: start, end: UInt32(Int(flag.range.end) + delta))
+            return moved
+        }
+        return true
+    }
+
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        scheduleGrammarCheck()
+    }
+
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        if !decelerate { scheduleGrammarCheck() }
     }
 
     /// Keeps the text the saved edits replaced, once the recovery interval
@@ -185,15 +257,20 @@ final class EditingController: NSObject, UITextViewDelegate {
     func restyle(edited: NSRange?) {
         let storage = textView.textStorage
         let plan = document.plan(selection: TextRange(textView.selectedRange))
-        let tints = document.sentenceTints()
+        prose.tints = document.sentenceTints()
+        styler.headingFolds = Dictionary(
+            document.headingFolds().map { ($0.line, $0.folded) }, uniquingKeysWith: { first, _ in first }
+        )
         isRestyling = true
         let selection = textView.selectedRange
         textView.textLayoutManager?.textContentManager?.performEditingTransaction {
-            styler.apply(plan, tints: tints, to: storage, edited: edited)
+            styler.apply(plan, prose: prose, to: storage, edited: edited)
         }
         if textView.selectedRange != selection { textView.selectedRange = selection }
         textView.typingAttributes = styler.typingAttributes
         styledLength = storage.length
         isRestyling = false
+        fetchMissingMedia()
+        updateTableGrids()
     }
 }

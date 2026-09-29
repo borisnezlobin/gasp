@@ -10,6 +10,16 @@ final class DisplayParagraphs: NSObject, NSTextContentStorageDelegate {
     ) -> NSTextParagraph? {
         guard let storage = textContentStorage.textStorage, NSMaxRange(range) <= storage.length else { return nil }
         let source = storage.attributedSubstring(from: range)
+        guard let display = Self.substituted(source) else { return nil }
+        return NSTextParagraph(attributedString: display)
+    }
+
+    /// `source` as it's drawn, its substitutes in place.
+    static func displayed(_ source: NSAttributedString) -> NSAttributedString {
+        substituted(source) ?? source
+    }
+
+    private static func substituted(_ source: NSAttributedString) -> NSAttributedString? {
         var substitutes: [(NSRange, DisplaySubstitute)] = []
         let whole = NSRange(location: 0, length: source.length)
         source.enumerateAttribute(.displaySubstitute, in: whole) { value, run, _ in
@@ -21,7 +31,7 @@ final class DisplayParagraphs: NSObject, NSTextContentStorageDelegate {
             let attributes = source.attributes(at: run.location, effectiveRange: nil)
             display.replaceCharacters(in: run, with: Self.drawn(substitute, length: run.length, attributes: attributes))
         }
-        return NSTextParagraph(attributedString: display)
+        return display
     }
 
     func textContentManager(
@@ -49,6 +59,12 @@ final class DisplayParagraphs: NSObject, NSTextContentStorageDelegate {
             let rest = NSAttributedString(string: padding, attributes: attributes)
             symbol.append(rest)
             return symbol
+        case .attachment(let attachment):
+            let picture = NSMutableAttributedString(attachment: attachment)
+            picture.addAttributes(attributes, range: NSRange(location: 0, length: picture.length))
+            let padding = String(repeating: " ", count: max(length - 1, 0))
+            picture.append(NSAttributedString(string: padding, attributes: attributes))
+            return picture
         }
     }
 

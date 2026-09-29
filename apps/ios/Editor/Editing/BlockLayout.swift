@@ -1,16 +1,19 @@
 import UIKit
 
 /// Blocks the phone draws from their source until it has their widgets:
-/// a math block shows its TeX centred, and a link card shows its title,
-/// description and address. Their fence lines take no room.
+/// a math block shows its TeX centred until its render is ready, and a
+/// link card shows its title, description and address. Their fence lines
+/// take no room.
 struct BlockFallbacks {
     private var presentations: [Int: LinePresentation] = [:]
 
-    init(plan: NotePlan, text: NSString) {
+    /// `isRendered` says whether a `$$` block's TeX is ready to draw.
+    init(plan: NotePlan, text: NSString, isRendered: (String) -> Bool = { _ in false }) {
         for (index, line) in plan.lines.enumerated() {
             for widget in line.widgets {
                 switch widget.kind {
-                case .mathBlock: mark(widget.range, from: index, in: plan) { _ in .mathSource }
+                case .mathBlock(let tex) where !isRendered(tex):
+                    mark(widget.range, from: index, in: plan) { _ in .mathSource }
                 case .linkCard: mark(widget.range, from: index, in: plan) { Self.cardField(of: $0, in: text) }
                 default: continue
                 }

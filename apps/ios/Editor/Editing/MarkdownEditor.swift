@@ -33,13 +33,29 @@ struct MarkdownEditor: UIViewRepresentable {
 }
 
 /// A text view that says when its width changes, since tables and the
-/// readable line length lay out against it.
+/// readable line length lay out against it, and when it has laid out, for
+/// the table grids that sit over its text.
 final class EditorTextView: UITextView {
     var widthDidChange: (() -> Void)?
+    /// Runs after every layout pass, as the text scrolls or changes.
+    var didLayout: (() -> Void)?
+    /// The keymap's keys, answered here first while the note is edited.
+    var boundKeys: [UIKeyCommand] = []
+    var runBoundCommand: ((String) -> Void)?
     private var laidOutWidth: CGFloat = 0
+
+    override var keyCommands: [UIKeyCommand]? {
+        (super.keyCommands ?? []) + boundKeys
+    }
+
+    @objc func runBoundKey(_ command: UIKeyCommand) {
+        guard let id = command.propertyList as? String else { return }
+        runBoundCommand?(id)
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        didLayout?()
         guard bounds.width != laidOutWidth else { return }
         laidOutWidth = bounds.width
         widthDidChange?()
