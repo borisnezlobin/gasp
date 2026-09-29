@@ -4,7 +4,7 @@
 use std::collections::BTreeSet;
 use std::sync::atomic::AtomicUsize;
 
-use gasp_search::engine::{LineHit, NoteCache, NoteResult, search};
+use gasp_search::engine::{LineHit, NoteResult, search};
 use gasp_search::tags::{search_tagged, tag_query};
 use gasp_vault::ops::slash_path;
 
@@ -95,9 +95,14 @@ impl VaultFolder {
     /// Searches every note, best first, with the desktop's ranking.
     /// `tag:name` or `#name` finds tagged notes.
     pub fn search(&self, query: String) -> Vec<SearchResult> {
-        let mut cache = NoteCache::default();
-        cache.refresh(&self.root);
-        let notes = cache.notes();
+        let notes = {
+            let mut cache = self
+                .search_notes
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            cache.refresh(&self.root);
+            cache.notes()
+        };
         let generation = AtomicUsize::new(0);
         let results = match tag_query(&query) {
             Some(tag) => {
@@ -124,26 +129,54 @@ impl VaultFolder {
         notes: &[gasp_search::engine::Note],
     ) -> SearchResult {
         let text = notes
-            .iter()
-            .find(|note| note.path == result.path)
-            .map(|note| note.text.clone());
-        let offsets = text.as_deref().map(Utf16Offsets::new);
+            .binary_search_by(|note| note.path.cmp(&result.path))
+            .ok()
+            .map(|at| notes[at].text.clone());
+        let mut counted = Utf16Count::default();
         SearchResult {
             note: self.summary(slash_path(&result.path)),
             hits: result
                 .hits
                 .iter()
-                .map(|hit| search_hit(hit, offsets.as_ref()))
+                .map(|hit| search_hit(hit, text.as_deref(), &mut counted))
                 .collect(),
         }
     }
 }
 
-fn search_hit(hit: &LineHit, note: Option<&Utf16Offsets>) -> SearchHit {
+/// UTF-16 lengths counted forward through a note, as its hits come in
+/// order.
+#[derive(Default)]
+struct Utf16Count {
+    byte: usize,
+    utf16: u32,
+}
+
+impl Utf16Count {
+    fn at(&mut self, text: &str, byte: usize) -> u32 {
+        let mut byte = byte.min(text.len());
+        while !text.is_char_boundary(byte) {
+            byte -= 1;
+        }
+        if byte < self.byte {
+            *self = Utf16Count::default();
+        }
+        let part = &text[self.byte..byte];
+        self.utf16 += if part.is_ascii() {
+            part.len() as u32
+        } else {
+            part.encode_utf16().count() as u32
+        };
+        self.byte = byte;
+        self.utf16
+    }
+}
+
+fn search_hit(hit: &LineHit, note: Option<&str>, counted: &mut Utf16Count) -> SearchHit {
     let excerpt = Utf16Offsets::new(&hit.excerpt);
     SearchHit {
         line: hit.line as u32,
-        offset: note.map_or(0, |offsets| offsets.utf16(hit.offset)),
+        offset: note.map_or(0, |text| counted.at(text, hit.offset)),
         excerpt: hit.excerpt.clone(),
         highlights: excerpt.ranges(&hit.ranges),
     }
