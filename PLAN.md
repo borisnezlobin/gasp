@@ -581,6 +581,16 @@ This covers the document model, transactions and undo, the parser with Obsidian 
 
 This is the GPUI app with the file sidebar, tabs, quick switcher, command palette, live preview for every block type in your vault, replacements, emoji, snippets, footnotes, math, code blocks and images. It's done when you can use it as your daily editor on the Mac, and CI produces working Windows and Linux builds.
 
+**Workspace audit.** The chrome around the notes (sidebars, tab bar, panes, status bar, docked toolbars, menus, tooltips, palette and switcher) was checked for layout shift, hover regions, states, keyboard reach, menus, drags, hit areas and copy. What changed:
+
+- The file sidebar shown on hover no longer hides under its own sort or vault menu, or while it has the keyboard or a drag. Whether the pointer is in it is worked out from where it was last drawn (`ui::DrawnArea`), from a window-level listener for moves, releases and the window's mouse-exit, rather than from GPUI's hover, which ends whenever anything is drawn over the panel, during any drag, and never reports a leave it didn't see start. A hide that comes due while the panel is in use is dropped.
+- Toolbars shown on hover follow the same rule: they stay while their menu is open or the keyboard is in them, and hide when the pointer leaves straight from their edge strip, where they used to stay up.
+- The status bar's widgets use tabular figures, keep the widest width they've had for the note, and the cursor position keeps room for `000:00`, so moving the caret no longer shifts the counts beside it.
+- With the sidebar over the note, the first tab bar keeps the window buttons' room and its show-sidebar button while the sidebar shows, so the tabs no longer jump on every reveal.
+- Escape cancels a drag: a tab or note goes back, and a divider or sidebar resize returns to its size.
+- Sort order, collapse all, new folder, the vault switcher and the shortcuts list are commands (`file-tree.sort`, `file-tree.collapse-all`, `file-tree.new-folder`, `vault.switch`, `help.shortcuts`), so the keyboard reaches them; the phone leaves them out.
+- The sidebars' resize strips show a line on hover and while dragged, as pane dividers do; the tab drop zone uses a ring rather than a border on its rounded shape; the sync button has a pressed look; a file tree menu opened by the pointer starts with no row highlighted; a background tab's close button no longer names Cmd+W, which closes the active tab.
+
 ### Phase 3: sync, then travel check
 
 This builds git sync, the conflict resolver and the setup flow, and replaces `vault-sync` on the Mac. It's done when you've installed the app on the Windows/Ubuntu laptop, synced the vault on both systems, and edited offline and merged. This is the checkpoint that has to pass before your next trip. The app is only for you for now, so desktop builds are signed for personal use and there's no store listing.
