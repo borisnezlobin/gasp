@@ -4048,6 +4048,7 @@ dependencies = [
  "gasp-bench",
  "gasp-config",
  "jiff",
+ "memchr",
  "tempfile",
  "trash",
 ]

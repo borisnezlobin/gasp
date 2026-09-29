@@ -473,9 +473,9 @@ fn percent_encode(path: &str, fully: bool) -> String {
 fn find_wikilinks(text: &str) -> Vec<Range<usize>> {
     let mut found = Vec::new();
     let mut from = 0;
-    while let Some(open) = text[from..].find("[[").map(|at| at + from) {
+    while let Some(open) = find_from(text, from, "[[") {
         let body_start = open + 2;
-        let Some(close) = text[body_start..].find("]]").map(|at| at + body_start) else {
+        let Some(close) = find_from(text, body_start, "]]") else {
             break;
         };
         let body = &text[body_start..close];
@@ -500,7 +500,7 @@ fn wikilink_target_len(body: &str) -> usize {
 pub fn find_markdown_destinations(text: &str) -> Vec<Range<usize>> {
     let mut found = Vec::new();
     let mut from = 0;
-    while let Some(at) = text[from..].find("](").map(|at| at + from) {
+    while let Some(at) = find_from(text, from, "](") {
         let start = at + 2;
         if let Some(len) = destination_len(&text[start..]) {
             found.push(start..start + len);
@@ -608,13 +608,18 @@ fn inline_code_spans(text: &str) -> Vec<Range<usize>> {
 
 fn backtick_runs(text: &str) -> Vec<Range<usize>> {
     let mut runs: Vec<Range<usize>> = Vec::new();
-    for (at, ch) in text.char_indices().filter(|(_, ch)| *ch == '`') {
+    for at in memchr::memchr_iter(b'`', text.as_bytes()) {
         match runs.last_mut() {
-            Some(run) if run.end == at => run.end = at + ch.len_utf8(),
+            Some(run) if run.end == at => run.end = at + 1,
             _ => runs.push(at..at + 1),
         }
     }
     runs
+}
+
+/// Where `needle` next starts in `text`, at or after byte `from`.
+pub(crate) fn find_from(text: &str, from: usize, needle: &str) -> Option<usize> {
+    memchr::memmem::find(&text.as_bytes()[from..], needle.as_bytes()).map(|at| from + at)
 }
 
 fn apply_edits(text: &str, mut edits: Vec<(Range<usize>, String)>) -> String {
