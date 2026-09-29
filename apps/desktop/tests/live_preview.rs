@@ -384,6 +384,74 @@ fn list_numbers_end_where_bullets_end(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_list_item_keeps_its_text_and_wraps_as_its_marker_shows(cx: &mut TestAppContext) {
+    let item = format!("- {}", long_paragraph());
+    let note = format!("{item}\n\nend");
+    let (view, cx) = open(cx, &note);
+    place_cursor(&view, cx, note.len());
+    let text_start = 2;
+    let layout = |line: &VisualLine| {
+        let hangs: Vec<Pixels> = line.rows[1..]
+            .iter()
+            .map(|row| row.x_for(row.range.start))
+            .collect();
+        let breaks: Vec<usize> = line.rows.iter().map(|row| row.range.start).collect();
+        (line.rows[0].x_for(text_start), hangs, breaks)
+    };
+    let with_bullet = layout(&visual(&view, cx, 0));
+    place_cursor(&view, cx, text_start + 4);
+    let shown = visual(&view, cx, 0);
+    assert!(shows_text_at(&shown, 0), "the marker shows at the cursor");
+    let with_marker = layout(&shown);
+    assert_eq!(with_marker, with_bullet);
+    assert!(with_marker.1.iter().all(|hang| *hang == with_marker.0));
+}
+
+#[gpui::test]
+fn scrolling_up_onto_taller_lines_moves_the_text_by_the_scroll_alone(cx: &mut TestAppContext) {
+    let lines: Vec<String> = (0..80)
+        .map(|index| match index {
+            40..=42 => "![[missing.png]]".to_owned(),
+            _ => format!("line {index}"),
+        })
+        .collect();
+    let note = lines.join("\n");
+    let (view, cx) = open(cx, &note);
+    let tops = |view: &Entity<EditorView>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |view, _| {
+            view.frame()
+                .unwrap()
+                .lines
+                .iter()
+                .map(|placed| (placed.visual.line, placed.top))
+                .collect::<Vec<_>>()
+        })
+    };
+    view.update(cx, |view, cx| view.scroll_by(px(100_000.), cx));
+    cx.run_until_parked();
+    let step = px(40.);
+    for _ in 0..30 {
+        let before = tops(&view, cx);
+        view.update(cx, |view, cx| view.scroll_by(-step, cx));
+        cx.run_until_parked();
+        let after = tops(&view, cx);
+        if view.read_with(cx, |view, _| view.scroll_offset()) == px(0.) {
+            break;
+        }
+        let (line, top) = before[0];
+        if let Some((_, moved)) = after.iter().find(|(seen, _)| *seen == line) {
+            let jump = (*moved - top - step).abs();
+            assert!(jump < px(0.01), "line {line} jumped by {jump:?}");
+        }
+    }
+    let shown = tops(&view, cx);
+    assert!(
+        shown.iter().any(|(line, _)| *line == 40),
+        "the images came into view"
+    );
+}
+
+#[gpui::test]
 fn headings_have_room_above_them(cx: &mut TestAppContext) {
     let note = "text\n## Heading\ntext\n\nend";
     let (view, cx) = open(cx, note);

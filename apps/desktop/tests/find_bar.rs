@@ -271,6 +271,18 @@ fn escape_closes_and_selects_the_match(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn replace_opened_with_nothing_to_find_types_into_the_query(cx: &mut TestAppContext) {
+    let mut h = open(cx, NOTE, 0..0);
+    let bar = h.bar.clone();
+    h.cx.update(|window, cx| bar.update(cx, |bar, cx| bar.show(true, window, cx)));
+    h.type_text("cat");
+    assert_eq!(h.bar.read_with(h.cx, |bar, cx| bar.query_text(cx)), "cat");
+    h.keys("tab");
+    h.type_text("dog");
+    assert_eq!(h.bar.read_with(h.cx, |bar, cx| bar.query_text(cx)), "cat");
+}
+
+#[gpui::test]
 fn a_closed_bar_leaves_edits_unmarked(cx: &mut TestAppContext) {
     let mut h = open(cx, NOTE, 0..3);
     h.keys("escape");

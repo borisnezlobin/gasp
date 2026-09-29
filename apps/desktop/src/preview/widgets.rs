@@ -199,7 +199,7 @@ impl LineLayouter<'_, '_> {
         )
     }
 
-    fn marker_slot(&self) -> Pixels {
+    pub(super) fn marker_slot(&self) -> Pixels {
         self.theme().list_marker_width * (self.font_size() / self.theme().body_font_size)
     }
 

@@ -23,7 +23,7 @@ use crate::theme::Theme;
 
 /// Suggestions and hover previews draw above the text and the editor's
 /// own overlays, below menus.
-const SUGGESTION_LAYER: usize = 1;
+pub(crate) const SUGGESTION_LAYER: usize = 1;
 
 /// Draws an [`EditorView`].
 pub struct EditorElement {
@@ -137,10 +137,7 @@ impl Element for EditorElement {
                 popover.layout_as_root(AvailableSpace::min_size(), window, cx);
                 window.defer_draw(popover, window.element_offset(), SUGGESTION_LAYER);
             }
-            for mut bar in view.floating_toolbars(&frame, focused, cx) {
-                bar.layout_as_root(AvailableSpace::min_size(), window, cx);
-                window.defer_draw(bar, window.element_offset(), SUGGESTION_LAYER);
-            }
+            view.draw_floating_toolbars(&frame, focused, window, cx);
             if let Some(mut chip) = view.card_offer_chip(&frame, cx) {
                 chip.layout_as_root(AvailableSpace::min_size(), window, cx);
                 window.defer_draw(chip, window.element_offset(), SUGGESTION_LAYER);
@@ -313,18 +310,7 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
         window.paint_quad(fill(*rect, *color).corner_radii(theme.radius_sm));
     }
     paint_text_backgrounds(frame, theme, window);
-    for (kind, rect) in &frame.highlights {
-        let color = match kind {
-            HighlightKind::SearchMatch => theme.search_match,
-            HighlightKind::ActiveSearchMatch => theme.active_search_match,
-            HighlightKind::FootnoteProblem => {
-                paint_problem_underline(*rect, theme, window);
-                continue;
-            }
-            HighlightKind::TabStop => theme.tab_stop,
-        };
-        window.paint_quad(fill(*rect, color).corner_radii(theme.radius_sm / 2.));
-    }
+    paint_highlights(frame, theme, |kind| !drawn_over_selection(kind), window);
     let selection_color = match prepainted.tables.block {
         Some(_) => theme.table.selection,
         None => theme.selection,
@@ -332,6 +318,7 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
     for rect in &prepainted.selection {
         window.paint_quad(fill(*rect, selection_color));
     }
+    paint_highlights(frame, theme, drawn_over_selection, window);
     let context = PaintContext {
         text_left: frame.text_left,
         theme,
@@ -354,6 +341,34 @@ fn paint_contents(prepainted: &Prepainted, focused: bool, window: &mut Window, c
     }
     for placed in &frame.lines {
         paint_overlays(placed, frame.text_left, theme, window);
+    }
+}
+
+/// The find bar selects the match it's on, so that match is drawn over
+/// the selection, or the selection would hide what marks it as current.
+fn drawn_over_selection(kind: HighlightKind) -> bool {
+    kind == HighlightKind::ActiveSearchMatch
+}
+
+/// The highlights of the kinds `include` takes: find matches and tab
+/// stops as fills, footnote problems underlined.
+fn paint_highlights(
+    frame: &FrameLayout,
+    theme: &Theme,
+    include: impl Fn(HighlightKind) -> bool,
+    window: &mut Window,
+) {
+    for (kind, rect) in frame.highlights.iter().filter(|(kind, _)| include(*kind)) {
+        let color = match kind {
+            HighlightKind::SearchMatch => theme.search_match,
+            HighlightKind::ActiveSearchMatch => theme.active_search_match,
+            HighlightKind::FootnoteProblem => {
+                paint_problem_underline(*rect, theme, window);
+                continue;
+            }
+            HighlightKind::TabStop => theme.tab_stop,
+        };
+        window.paint_quad(fill(*rect, color).corner_radii(theme.radius_sm / 2.));
     }
 }
 
@@ -886,5 +901,22 @@ fn paint_card(bounds: Bounds<Pixels>, theme: &Theme, window: &mut Window) {
 fn report(result: anyhow::Result<()>) {
     if let Err(error) = result {
         eprintln!("paint failed: {error}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_current_find_match_is_drawn_over_the_selection() {
+        assert!(drawn_over_selection(HighlightKind::ActiveSearchMatch));
+        for kind in [
+            HighlightKind::SearchMatch,
+            HighlightKind::FootnoteProblem,
+            HighlightKind::TabStop,
+        ] {
+            assert!(!drawn_over_selection(kind));
+        }
     }
 }

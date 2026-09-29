@@ -458,7 +458,8 @@ impl Workspace {
     // ---- Keyboard ----
 
     /// The bars the keyboard can move into, in order, with where it can
-    /// stop in each: the docked ones, then those floating over the note.
+    /// stop in each: those floating over the note first, since they're
+    /// about the selection or the cursor's line, then the docked ones.
     fn focusable_toolbars(&self, cx: &gpui::App) -> Vec<(String, Vec<FocusStop>)> {
         let docked = DOCKED
             .iter()
@@ -475,8 +476,9 @@ impl Workspace {
                     .collect()
             })
             .unwrap_or_default();
-        docked
-            .chain(floating)
+        floating
+            .into_iter()
+            .chain(docked)
             .filter(|(_, stops)| !stops.is_empty())
             .collect()
     }
