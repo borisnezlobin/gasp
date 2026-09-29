@@ -56,8 +56,8 @@ final class PlanStyler {
 
     /// Restyles every line whose plan differs from the last one applied, or
     /// that overlaps `edited`, and tints the sentences and marks the
-    /// grammar flags on those lines.
-    func apply(_ plan: NotePlan, prose: ProseMarks, to storage: NSTextStorage, edited: NSRange?) {
+    /// grammar flags and colour the code on those lines.
+    func apply(_ plan: NotePlan, prose: ProseMarks, code: CodeColors, to storage: NSTextStorage, edited: NSRange?) {
         let text = storage.string as NSString
         let fallbacks = BlockFallbacks(plan: plan, text: text) { [media, tokens] tex in
             media?.math(MathKey(tex: tex, display: true, fontSize: tokens.bodySize)) != nil
@@ -71,12 +71,14 @@ final class PlanStyler {
             var styler = LineStyler(tokens: tokens, storage: storage, text: text, line: line)
             styler.media = media
             styler.fold = headingFolds[line.line]
+            styler.cardImage = fallbacks.cardImages[index]
             styler.style(paragraph: paragraph, presentation: fallbacks.presentation(of: index))
         }
         decorateBlocks(plan, fallbacks: fallbacks, restyled: restyled, storage: storage)
         let tables = TableLayout(tokens: tokens, storage: storage, columnWidth: columnWidth)
         keepGrids(tables.layOut(plan, restyled: restyled), plan: plan, restyled: restyled)
         let restyledRanges = restyled.map { plan.lines[$0].range.nsRange }
+        code.paint(within: restyledRanges, storage: storage)
         SentenceTinter(tokens: tokens, storage: storage).tint(prose.tints, within: restyledRanges)
         prose.mark(within: restyledRanges, storage: storage)
         appliedLines = plan.lines

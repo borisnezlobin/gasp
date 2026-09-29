@@ -23,6 +23,12 @@ extension EditingController: MathImagesObserver {
     func fetchMissingMedia() {
         let wanted = media.takeWanted()
         MathImages.shared.request(wanted.math)
+        for url in wanted.cards {
+            CardImages.shared.load(url) { [weak self] in
+                self?.imagesArrived = true
+                self?.scheduleMediaRedraw()
+            }
+        }
         for (file, pixels) in wanted.images {
             VaultImages.shared.load(file, pixels: pixels) { [weak self] in
                 self?.imagesArrived = true
@@ -48,7 +54,7 @@ extension EditingController: MathImagesObserver {
             imagesArrived = false
             redrawQueued = false
             styler.forgetLines { line in
-                line.widgets.contains { images && $0.isImage || $0.mathSource.map(math.contains) == true }
+                line.widgets.contains { images && $0.showsPicture || $0.mathSource.map(math.contains) == true }
             }
             restyle(edited: nil)
         }
@@ -66,9 +72,13 @@ extension EditingController: MathImagesObserver {
 }
 
 extension Widget {
-    var isImage: Bool {
-        if case .image = kind { return true }
-        return false
+    /// Whether the widget draws a picture that loads later: an image or
+    /// a link card's preview.
+    var showsPicture: Bool {
+        switch kind {
+        case .image, .linkCard: true
+        default: false
+        }
     }
 
     /// The TeX of the equation the widget draws, if it draws one.

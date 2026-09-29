@@ -57,6 +57,10 @@ struct CommandPalette: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .onAppear { searching = true }
+        .onKeyPress(.escape) {
+            dismiss()
+            return .handled
+        }
     }
 
     private func row(_ command: CommandInfo) -> some View {

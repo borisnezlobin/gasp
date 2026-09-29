@@ -48,6 +48,30 @@ final class EditorTextView: UITextView {
         (super.keyCommands ?? []) + boundKeys
     }
 
+    /// Command-B, I and U reach UIKit's own formatting actions before any
+    /// key command, so those run whatever the keymap binds to the key.
+    override func toggleBoldface(_ sender: Any?) {
+        runKey("b", default: "format.bold")
+    }
+
+    override func toggleItalics(_ sender: Any?) {
+        runKey("i", default: "format.italic")
+    }
+
+    override func toggleUnderline(_ sender: Any?) {
+        runKey("u", default: "format.underline")
+    }
+
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        let formatting = [#selector(toggleBoldface(_:)), #selector(toggleItalics(_:)), #selector(toggleUnderline(_:))]
+        return formatting.contains(action) || super.canPerformAction(action, withSender: sender)
+    }
+
+    private func runKey(_ input: String, default command: String) {
+        let bound = boundKeys.first { $0.input == input && $0.modifierFlags == .command }
+        runBoundCommand?(bound?.propertyList as? String ?? command)
+    }
+
     @objc func runBoundKey(_ command: UIKeyCommand) {
         guard let id = command.propertyList as? String else { return }
         runBoundCommand?(id)

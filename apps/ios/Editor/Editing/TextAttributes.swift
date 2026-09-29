@@ -68,12 +68,16 @@ final class BlockDecoration: NSObject {
 final class FragmentExtras: NSObject {
     let above: FragmentExtra?
     let below: FragmentExtra?
+    let trailing: FragmentExtra?
     /// Where the line's text starts, for pictures that aren't centred.
     let indent: CGFloat
 
-    init(above: FragmentExtra?, below: FragmentExtra?, indent: CGFloat) {
+    init(
+        above: FragmentExtra? = nil, below: FragmentExtra? = nil, trailing: FragmentExtra? = nil, indent: CGFloat = 0
+    ) {
         self.above = above
         self.below = below
+        self.trailing = trailing
         self.indent = indent
     }
 }

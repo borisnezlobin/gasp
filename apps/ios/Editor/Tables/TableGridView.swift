@@ -63,6 +63,8 @@ final class TableGridView: UIScrollView, UIContextMenuInteractionDelegate {
     private let content: TableGridContent
     private var editor: CellEditor?
     private(set) var editing: GridCell?
+    /// The cell a long press opened the menu on.
+    private var menuCell: GridCell?
 
     init(tableStart: UInt32, model: TableGridModel, tokens: Tokens) {
         self.tableStart = tableStart
@@ -146,7 +148,28 @@ final class TableGridView: UIScrollView, UIContextMenuInteractionDelegate {
         _ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint
     ) -> UIContextMenuConfiguration? {
         guard let cell = content.cell(at: location), let menu = host?.gridMenu(self, cell: cell) else { return nil }
+        menuCell = cell
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in menu }
+    }
+
+    /// The pressed cell lifts alone, rather than the whole grid.
+    func contextMenuInteraction(
+        _ interaction: UIContextMenuInteraction,
+        configuration: UIContextMenuConfiguration,
+        highlightPreviewForItemWithIdentifier identifier: any NSCopying
+    ) -> UITargetedPreview? {
+        guard let menuCell else { return nil }
+        let rect = content.rect(of: menuCell)
+        guard let snapshot = content.resizableSnapshotView(
+            from: rect, afterScreenUpdates: false, withCapInsets: .zero
+        ) else { return nil }
+        let parameters = UIPreviewParameters()
+        parameters.visiblePath = UIBezierPath(
+            roundedRect: CGRect(origin: .zero, size: rect.size), cornerRadius: CGFloat(tokens.spacing.radiusMd)
+        )
+        parameters.backgroundColor = tokens.color(\.background)
+        let target = UIPreviewTarget(container: content, center: CGPoint(x: rect.midX, y: rect.midY))
+        return UITargetedPreview(view: snapshot, parameters: parameters, target: target)
     }
 }
 
@@ -215,7 +238,8 @@ final class TableGridContent: UIView {
             let color = tokens.color(row.header ? \.divider : \.fill)
             color.setFill()
             UIRectFill(CGRect(x: 0, y: place.top + place.height - hairline, width: bounds.width, height: hairline))
-            for (column, cell) in row.cells.enumerated() where columnLefts.indices.contains(column) {
+            for (column, cell) in row.cells.enumerated() where columnLefts.indices.contains(column)
+                && highlighted != GridCell(row: index, column: column) {
                 draw(cell, alignment: row.alignments.indices.contains(column) ? row.alignments[column] : .natural,
                      in: self.rect(of: GridCell(row: index, column: column)))
             }
@@ -296,6 +320,14 @@ final class CellEditor: UITextField, UITextFieldDelegate {
         let escape = UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(leave))
         [tab, backTab, escape].forEach { $0.wantsPriorityOverSystemBehavior = true }
         return [tab, backTab, escape]
+    }
+
+    /// Escape leaves the table, whether or not a key command claims it.
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        guard presses.contains(where: { $0.key?.keyCode == .keyboardEscape }) else {
+            return super.pressesBegan(presses, with: event)
+        }
+        finish(.leave)
     }
 
     @objc private func nextCell() { finish(.next) }
