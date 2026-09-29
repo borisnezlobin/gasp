@@ -581,6 +581,22 @@ This covers the document model, transactions and undo, the parser with Obsidian 
 
 This is the GPUI app with the file sidebar, tabs, quick switcher, command palette, live preview for every block type in your vault, replacements, emoji, snippets, footnotes, math, code blocks and images. It's done when you can use it as your daily editor on the Mac, and CI produces working Windows and Linux builds.
 
+**Settings audit.** Every page and control of the settings screen was walked with `gasp --snapshot` and fixed where it moved, hid a state or lost the keyboard; each fix has a test in `apps/desktop/tests/settings_view.rs`.
+
+- A resettable row keeps its reset button's room (`controls::reset_slot`), so picking an accent, a choice, a number or a font no longer shifts and rewraps the row.
+- The chosen accent swatch has a concentric ring and a check, drawn as filled circles in a control-sized square (a shadow's spread kept the swatch's radius and drew a rounded square).
+- Dropdowns are as wide as their widest option (`controls::widest_of`), and font dropdowns have one width, so a new choice doesn't move the row.
+- "+" on a shortcut stays pressed while it waits, with the prompt and any refusal hung under it, instead of a box that pushed the row.
+- Arming "Remove toolbar" or "Reset toolbars" keeps the button's size; the armed state is a warning fill and, for remove, a note.
+- Hover and press fills are see-through tokens (`hover_fill`, `pressed`), so icon buttons, menu options, sections and switches show hover on cards and in dark mode, where the old fill matched the card or the popover. Buttons, switches, segments and swatches now have a pressed look, an open dropdown stays pressed, and a chosen chip keeps its fill under the pointer.
+- A row whose switch is off takes no clicks or keys (its stepper and dropdown used to still change it).
+- A refused value rings its field in the warning colour and keeps the keyboard there; Escape puts the saved value back instead of closing the screen.
+- Moving the first item up or the last down is an inert button with no hover; the move and remove tooltips name Alt+Up, Alt+Down and Delete.
+- Focused toolbar items and list entries get an opaque fill under their ring (it used to fill the group grey), switches and the swatch group get concentric rings, and the repository row of a vault that doesn't sync no longer takes an invisible focus.
+- "Create a token" is reachable from the keyboard (Left and Right on the account row).
+- Menus and their options have concentric radii, the snippet slot's outline is square-cornered, the section list fits "Snippets and replacements", the add-button picker says "Pick a button", and the status widgets say what they count.
+- GPUI draws a shadow's spread with the element's own radius, so focus rings on radius-6 controls (buttons, fields, dropdowns) are still 2 px short of concentric.
+
 ### Phase 3: sync, then travel check
 
 This builds git sync, the conflict resolver and the setup flow, and replaces `vault-sync` on the Mac. It's done when you've installed the app on the Windows/Ubuntu laptop, synced the vault on both systems, and edited offline and merged. This is the checkpoint that has to pass before your next trip. The app is only for you for now, so desktop builds are signed for personal use and there's no store listing.
