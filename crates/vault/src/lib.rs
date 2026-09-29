@@ -7,6 +7,7 @@
 //! rename, a delete or a backlinks list means the same in either. Nothing
 //! here depends on GPUI, so the server starts without loading it.
 
+pub mod attachments;
 pub mod build;
 pub mod entries;
 pub mod files;
