@@ -34,15 +34,35 @@ const KEYS_PER_RUN: usize = 300;
 const PROSE_TYPED: &str = "the quick brown fox -- and ... ";
 const MATH_TYPED: &str = "x2 + ab - cd ";
 
+type Section = fn(&str, &mut Report);
+
+const SECTIONS: [(&str, Section); 3] = [
+    ("parse", parse_benches),
+    ("plan", plan_benches),
+    ("keys", keystroke_benches),
+];
+
+/// Runs every section, or only the one named as the first argument (for a
+/// profiler), `repeat` times as the second.
 fn main() {
+    let only = std::env::args().nth(1);
+    let repeat: usize = std::env::args()
+        .nth(2)
+        .and_then(|count| count.parse().ok())
+        .unwrap_or(1);
     let long = long_note(LONG_NOTE_BYTES);
     let mut report = Report::new(format!(
         "gasp-core on a {} KB note built from the corpus",
         long.len() / 1024
     ));
-    parse_benches(&long, &mut report);
-    plan_benches(&long, &mut report);
-    keystroke_benches(&long, &mut report);
+    let chosen = SECTIONS
+        .iter()
+        .filter(|(name, _)| only.as_deref().is_none_or(|only| only == *name));
+    for (_, section) in chosen {
+        for _ in 0..repeat {
+            section(&long, &mut report);
+        }
+    }
     report.finish();
 }
 

@@ -139,15 +139,19 @@ pub(crate) fn tex(revealer: &Revealer<'_>, id: NodeId) -> String {
         })
         .map(|m| m.range.clone())
         .collect();
+    let text = revealer.text;
+    if markers.is_empty() {
+        return text[range].trim().to_owned();
+    }
     let mut tex = String::with_capacity(range.len());
     let mut at = range.start;
     let mut sorted = markers;
     sorted.sort_by_key(|m| m.start);
     for marker in sorted {
-        tex.push_str(&revealer.text[at..marker.start]);
+        tex.push_str(&text[at..marker.start]);
         at = marker.end;
     }
-    tex.push_str(&revealer.text[at..range.end]);
+    tex.push_str(&text[at..range.end]);
     tex.trim().to_owned()
 }
 
