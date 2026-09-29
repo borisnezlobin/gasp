@@ -29,15 +29,14 @@ static HTML_LIBRARY: LazyLock<LazyHash<Library>> = LazyLock::new(|| {
 
 struct Embedded {
     library: LazyHash<Library>,
-    fonts: Vec<Font>,
+    /// Typst's embedded fonts, parsed once for math and export alike.
+    fonts: &'static [Font],
     sources: Vec<Source>,
 }
 
 static EMBEDDED: LazyLock<Embedded> = LazyLock::new(|| Embedded {
     library: LazyHash::new(Library::default()),
-    fonts: typst_assets::fonts()
-        .flat_map(|data| Font::iter(Bytes::new(data)))
-        .collect(),
+    fonts: gasp_math::embedded_fonts(),
     sources: std::iter::once((TEMPLATE_PATH, include_str!("../../assets/template.typ")))
         .chain(gasp_math::MITEX_SOURCES)
         .map(|(path, text)| Source::new(file_id(path), text.to_owned()))
@@ -120,7 +119,7 @@ impl ExportWorld {
         images: &[(String, PathBuf)],
         extra_fonts: Vec<Font>,
     ) -> Self {
-        let mut book = FontBook::from_fonts(&EMBEDDED.fonts);
+        let mut book = FontBook::from_fonts(EMBEDDED.fonts);
         for font in &extra_fonts {
             book.push(font.info().clone());
         }
