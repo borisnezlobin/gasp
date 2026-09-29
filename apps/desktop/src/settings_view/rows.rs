@@ -4,15 +4,15 @@ use std::ops::Range;
 
 use gasp_config::schema::SettingKind;
 use gpui::{
-    AnyElement, ClickEvent, Context, Div, Focusable, MouseButton, SharedString, Stateful, Window,
-    div, prelude::*, uniform_list,
+    AnyElement, ClickEvent, Context, Div, Focusable, MouseButton, Pixels, SharedString, Stateful,
+    Window, div, prelude::*, uniform_list,
 };
 use serde_json::Value;
 
 use super::controls::{
-    button, capture_field, control_note, dropdown_button, field_box, icon_button, menu_option,
-    menu_panel, popover, removable_keycap, row_text, small_icon_button, stepper, swatch,
-    toggle_switch,
+    FieldState, button, capture_prompt, control_note, dropdown_button_in, field_box, field_box_in,
+    focus_frame, icon_button, menu_option, menu_panel, popover, removable_keycap, reset_slot,
+    row_text, small_icon_button, stepper, swatch, toggle_switch, tooltip_keys, widest_of,
 };
 use super::menu::MenuTarget;
 use super::model::{
@@ -63,10 +63,11 @@ impl SettingsView {
     /// Why the last write for this row failed, or why the chord just
     /// pressed for it was refused.
     pub(super) fn row_error(&self, row: &ControlRow) -> Option<String> {
-        if let (ControlRow::Shortcut(shortcut), Some(capture)) = (row, &self.capture)
+        if let ControlRow::Shortcut(shortcut) = row
             && self.capturing() == Some(shortcut.id.as_str())
         {
-            return capture.rejection.clone();
+            // The capture panel says why a chord was refused.
+            return None;
         }
         let key = self.error_key(row)?;
         self.error
@@ -225,36 +226,42 @@ impl SettingsView {
             SettingKind::Integer | SettingKind::Number => self.number_control(item, focused, cx),
             _ => self.field_control(&ControlRow::Setting(item.clone()), focused),
         };
-        let reset = self.is_changed(item).then(|| {
-            let key = item.key.clone();
-            self.reset_button(&item.key, cx, move |view, cx| view.reset(&key, cx))
+        let key = item.key.clone();
+        let reset = self.reset_slot(&item.key, self.is_changed(item), cx, move |view, cx| {
+            view.reset(&key, cx)
         });
         div()
             .flex()
             .items_center()
             .gap(self.style.gap_sm)
-            .children(reset)
+            .child(reset)
             .child(control)
             .into_any_element()
     }
 
-    pub(super) fn reset_button(
+    /// The reset button's slot, before a resettable row's control: the
+    /// button while the value differs from its default, else the same
+    /// room left empty, so changing a value never moves the row.
+    pub(super) fn reset_slot(
         &self,
         key: &str,
+        changed: bool,
         cx: &mut Context<Self>,
         reset: impl Fn(&mut SettingsView, &mut Context<SettingsView>) + 'static,
     ) -> AnyElement {
         let style = &self.style;
         let selector = format!("reset-{key}");
-        let id = SharedString::from(selector.clone());
-        icon_button(id, IconName::ArrowCounterClockwise, style.text_muted, style)
-            .selector(|| selector)
-            .tooltip(Tooltip::new("Reset to default", None).builder())
-            .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
-                cx.stop_propagation();
-                reset(view, cx);
-            }))
-            .into_any_element()
+        let button = changed.then(|| {
+            let id = SharedString::from(selector.clone());
+            icon_button(id, IconName::ArrowCounterClockwise, style.text_muted, style)
+                .selector(|| selector)
+                .tooltip(Tooltip::new("Reset to default", None).builder())
+                .on_click(cx.listener(move |view, _: &ClickEvent, _, cx| {
+                    cx.stop_propagation();
+                    reset(view, cx);
+                }))
+        });
+        reset_slot(button, style).into_any_element()
     }
 
     fn toggle_control(
@@ -287,9 +294,24 @@ impl SettingsView {
         focused: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        self.dropdown_sized(index, id, label, None, focused, cx)
+    }
+
+    /// A [`Self::dropdown`] of a fixed `width`, or as wide as its label.
+    pub(super) fn dropdown_sized(
+        &self,
+        index: usize,
+        id: String,
+        label: AnyElement,
+        width: Option<Pixels>,
+        focused: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let selector = id.clone();
-        let button = dropdown_button(SharedString::from(id), label, focused, &self.style)
+        let open = self.menu.as_ref().is_some_and(|menu| menu.row == index);
+        let button = dropdown_button_in(SharedString::from(id), label, focused, open, &self.style)
             .selector(|| selector)
+            .when(width.is_some(), |button| button.w_full().max_w_full())
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .on_click(cx.listener(move |view, _: &ClickEvent, window, cx| {
                 let open = view.menu.as_ref().is_some_and(|menu| menu.row == index);
@@ -307,6 +329,7 @@ impl SettingsView {
             .map(|_| popover(self.render_menu(cx), &self.style));
         div()
             .relative()
+            .when_some(width, |dropdown, width| dropdown.w(width))
             .child(button)
             .children(menu)
             .into_any_element()
@@ -322,13 +345,14 @@ impl SettingsView {
         let value = self.current_value(item);
         let label = choice_label(value.as_str().unwrap_or_default());
         let id = format!("dropdown-{}", item.key);
-        self.dropdown(
-            index,
-            id,
-            div().child(label).into_any_element(),
-            focused,
-            cx,
-        )
+        let options = match &item.kind {
+            SettingKind::Choice(options) => {
+                options.iter().map(|o| choice_label(o).into()).collect()
+            }
+            _ => Vec::new(),
+        };
+        let label = widest_of(div().child(label), options);
+        self.dropdown(index, id, label.into_any_element(), focused, cx)
     }
 
     /// The open menu's panel: the filter for a font menu, then the
@@ -458,9 +482,19 @@ impl SettingsView {
         let Some(field) = self.field_for(row) else {
             return div().into_any_element();
         };
-        field_box(field, None, focused, &self.style)
+        field_box_in(field, None, self.field_state(row, focused), &self.style)
             .w(self.style.field_width)
             .into_any_element()
+    }
+
+    /// How a row's text field is ringed: in the warning colour while the
+    /// value typed into it was refused, else by focus.
+    pub(super) fn field_state(&self, row: &ControlRow, focused: bool) -> FieldState {
+        match (self.row_error(row).is_some(), focused) {
+            (true, _) => FieldState::Refused,
+            (false, true) => FieldState::Focused,
+            (false, false) => FieldState::Idle,
+        }
     }
 
     /// Adds an entry to a map: a menu of the names it can take when
@@ -534,16 +568,19 @@ impl SettingsView {
             .child(family)
             .into_any_element();
         let id = format!("dropdown-{}", slot.token());
-        let dropdown = self.dropdown(index, id, label, focused, cx);
+        // Font names run long and short, so the button has one width
+        // whichever is picked.
+        let width = Some(self.style.font_button_width);
+        let dropdown = self.dropdown_sized(index, id, label, width, focused, cx);
         let token = slot.token();
-        let reset = self.is_token_changed(token).then(|| {
-            self.reset_button(token, cx, move |view, cx| view.write_token(token, None, cx))
+        let reset = self.reset_slot(token, self.is_token_changed(token), cx, move |view, cx| {
+            view.write_token(token, None, cx)
         });
         div()
             .flex()
             .items_center()
             .gap(self.style.gap_sm)
-            .children(reset)
+            .child(reset)
             .child(dropdown)
             .into_any_element()
     }
@@ -563,33 +600,34 @@ impl SettingsView {
                 }))
         });
         let swatches: Vec<_> = swatches.collect();
-        let reset = self.is_token_changed(token).then(|| {
-            self.reset_button(token, cx, move |view, cx| view.write_token(token, None, cx))
+        let reset = self.reset_slot(token, self.is_token_changed(token), cx, move |view, cx| {
+            view.write_token(token, None, cx)
         });
+        let group = div()
+            .id("accent-swatches")
+            .selector(|| "accent-swatches".to_string())
+            .flex()
+            .items_center()
+            .rounded_full()
+            .bg(style.card_background)
+            .children(swatches);
         div()
             .flex()
             .flex_wrap()
             .justify_end()
             .items_center()
             .gap(style.control_gap)
-            .children(reset)
+            .child(reset)
+            .child(focus_frame(group, focused, style))
             .child(
-                div()
-                    .id("accent-swatches")
-                    .flex()
-                    .flex_wrap()
-                    .items_center()
-                    .gap(style.control_gap)
-                    .p(style.gap_sm)
-                    .rounded(style.radius)
-                    // Opaque under the ring, which would otherwise fill
-                    // the group in behind the swatches.
-                    .when(focused, |group| {
-                        group.bg(style.card_background).shadow(vec![style.focus()])
-                    })
-                    .children(swatches),
+                field_box_in(
+                    self.hex_field.clone(),
+                    None,
+                    self.field_state(&ControlRow::Accent, typing),
+                    style,
+                )
+                .w(style.hex_field_width),
             )
-            .child(field_box(self.hex_field.clone(), None, typing, style).w(style.hex_field_width))
             .into_any_element()
     }
 
@@ -658,62 +696,92 @@ impl SettingsView {
                 )))
         });
         let caps: Vec<_> = caps.collect();
-        let unbound = (shortcut.keys.is_empty() && !capturing).then(|| {
+        let unbound = shortcut.keys.is_empty().then(|| {
             div()
                 .text_size(style.small_text_size)
                 .text_color(style.text_faint)
                 .child("No shortcut")
         });
-        let waiting = capturing.then(|| self.capture_box("Press a shortcut", cx));
-        let reset = shortcut.changed_from.is_some().then(|| {
+        let reset = {
             let command = shortcut.id.clone();
-            self.reset_button(&shortcut.id, cx, move |view, cx| {
+            let changed = shortcut.changed_from.is_some();
+            self.reset_slot(&shortcut.id, changed, cx, move |view, cx| {
                 view.reset_shortcuts(&command, cx)
             })
-        });
-        let command = shortcut.id.clone();
-        let selector = format!("add-key-{command}");
-        let add = (!capturing).then(|| {
-            icon_button(
-                SharedString::from(selector.clone()),
-                IconName::Plus,
-                style.text_muted,
-                style,
-            )
-            .selector(|| selector)
-            .tooltip(Tooltip::new("Add a shortcut", None).builder())
-            .when(focused, |add| {
-                add.bg(style.control_background).shadow(vec![style.focus()])
-            })
-            .on_click(cx.listener(move |view, _: &ClickEvent, window, cx| {
-                view.start_capture(&command, window, cx)
-            }))
-        });
+        };
         div()
             .flex()
             .flex_wrap()
             .justify_end()
             .items_center()
             .gap(style.control_gap)
-            .children(reset)
+            .child(reset)
             .children(caps)
             .children(unbound)
-            .children(waiting)
-            .children(add)
+            .child(self.add_key_button(&shortcut.id, capturing, focused, cx))
             .into_any_element()
     }
 
-    /// The ringed box a chord is pressed into, with a cancel button.
-    pub(super) fn capture_box(&self, prompt: &str, cx: &mut Context<Self>) -> AnyElement {
+    /// "+", which waits for a chord to add to `command`. While it waits the
+    /// button stays pressed in, and what it's waiting for hangs under it,
+    /// so nothing in the row moves; pressing it again stops waiting.
+    fn add_key_button(
+        &self,
+        command: &str,
+        capturing: bool,
+        focused: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let style = &self.style;
+        let selector = format!("add-key-{command}");
+        let command = command.to_string();
+        let tooltip = if capturing {
+            "Stop waiting for keys"
+        } else {
+            "Add a shortcut"
+        };
+        let button = icon_button(
+            SharedString::from(selector.clone()),
+            IconName::Plus,
+            style.text_muted,
+            style,
+        )
+        .selector(|| selector)
+        .tooltip(Tooltip::new(tooltip, None).builder())
+        .when(capturing, |add| add.bg(style.selected))
+        .when(focused || capturing, |add| add.shadow(vec![style.focus()]))
+        .when(focused && !capturing, |add| {
+            add.bg(style.control_background)
+        })
+        .on_click(cx.listener(move |view, _: &ClickEvent, window, cx| {
+            cx.stop_propagation();
+            if view.capturing() == Some(command.as_str()) {
+                view.cancel_capture(cx);
+            } else {
+                view.start_capture(&command, window, cx);
+            }
+        }));
+        let waiting = capturing.then(|| self.capture_panel(cx));
+        div()
+            .relative()
+            .child(button)
+            .children(waiting)
+            .into_any_element()
+    }
+
+    /// What "+" is waiting for, hung under it: a prompt, or why the chord
+    /// just pressed was refused, and a button that stops waiting.
+    fn capture_panel(&self, cx: &mut Context<Self>) -> AnyElement {
         let style = &self.style;
         let cancel = small_icon_button("cancel-capture", IconName::X, style)
             .selector(|| "cancel-capture".to_string())
-            .tooltip(Tooltip::new("Stop waiting for keys", None).builder())
+            .tooltip(Tooltip::new("Stop waiting for keys", tooltip_keys("Escape")).builder())
             .on_click(cx.listener(|view, _: &ClickEvent, _, cx| {
                 cx.stop_propagation();
                 view.cancel_capture(cx)
             }));
-        capture_field(prompt.to_string(), cancel, style).into_any_element()
+        let rejection = self.capture_rejection().map(str::to_string);
+        capture_prompt(rejection, cancel, style).into_any_element()
     }
 }
 

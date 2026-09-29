@@ -10,7 +10,7 @@ use gpui::{
     SharedString, Size, Window, div, list, prelude::*, relative,
 };
 
-use super::controls::{button, control_note, icon_button, two_column_row};
+use super::controls::{button, control_note, icon_button, inert, two_column_row};
 use super::model::{PAGES, Page, PageSpec, ShortcutQuery};
 use super::view::{Card, ControlRow, ListShows, PaneLayout, SettingsFocus, SettingsView};
 use crate::icons::{IconName, icon};
@@ -195,7 +195,7 @@ impl SettingsView {
         let style = &self.style;
         let selected = index == self.current;
         let list_focused = self.rings(SettingsFocus::Sections, window, cx);
-        let hover = style.hover;
+        let (hover, pressed) = (style.hover_fill, style.pressed);
         div()
             .id(("settings-section", index))
             .selector(|| format!("settings-section-{}", spec.id))
@@ -208,7 +208,10 @@ impl SettingsView {
             .rounded(style.radius)
             .cursor_pointer()
             .when(selected, |item| item.bg(style.selected))
-            .when(!selected, |item| item.hover(move |s| s.bg(hover)))
+            .when(!selected, |item| {
+                item.hover(move |s| s.bg(hover))
+                    .active(move |s| s.bg(pressed))
+            })
             .when(selected && list_focused, |item| {
                 item.shadow(vec![style.focus()])
             })
@@ -464,11 +467,13 @@ impl SettingsView {
             return self.render_typing_row(index, row, focused, window, cx);
         }
         let text = self.row_text(row);
-        let control = self.row_control(index, row, focused, window, cx);
+        let inactive = row.item().is_some_and(|item| self.is_inactive(item));
+        let control = self
+            .row_control(index, row, focused, window, cx)
+            .map(|control| if inactive { inert(control) } else { control });
         let page = self
             .current_section()
             .map_or("", |page| PageSpec::get(page).id);
-        let inactive = row.item().is_some_and(|item| self.is_inactive(item));
         two_column_row(&format!("{page}-{index}"), text, control, &self.style)
             .when(inactive, |row| row.opacity(self.style.inactive_opacity))
             .on_mouse_down(
