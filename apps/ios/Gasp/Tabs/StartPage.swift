@@ -37,9 +37,9 @@ struct StartPage: View {
             ActionChip(title: "Today", symbol: "calendar", tokens: tokens) {
                 model.runner.run("daily.open")
             }
-            if VaultLocation.syncedFolder == nil {
-                ActionChip(title: "Set up sync", symbol: "icloud.and.arrow.down", tokens: tokens) {
-                    model.workspace.sheet = .syncSetup(SyncSetupDraft())
+            if !model.vaultSyncs {
+                ActionChip(title: "Set up sync", symbol: "icloud", tokens: tokens) {
+                    model.workspace.sheet = .syncChooser
                 }
             }
         }

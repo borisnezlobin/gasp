@@ -50,7 +50,8 @@ final class TabStore {
     func session(for tab: BrowserTab) -> EditingController? {
         guard let path = tab.path else { return nil }
         if let session = sessions[tab.id], session.path == path { return session }
-        guard let text = try? library.vault?.readNote(path: path),
+        guard let vault = library.vault,
+              let text = try? VaultFileCoordination.read(path, { try vault.readNote(path: path) }),
               let session = makeSession?(path, text) else { return nil }
         sessions[tab.id]?.saveNow()
         sessions[tab.id] = session
@@ -213,7 +214,9 @@ final class TabStore {
         guard onDisk != text else { return false }
         guard session.hasUnsavedEdits else { return true }
         guard let merged = mergeNoteEdits(base: session.savedText, edited: text, synced: onDisk),
-              (try? vault.saveNote(path: session.path, text: merged)) != nil else { return false }
+              (try? VaultFileCoordination.write(session.path, with: VaultFileCoordination.active, {
+                  try vault.saveNote(path: session.path, text: merged)
+              })) != nil else { return false }
         NotificationCenter.default.post(name: .vaultEdited, object: nil)
         return true
     }

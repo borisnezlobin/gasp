@@ -10,11 +10,15 @@ final class AppModel {
     let library: VaultLibrary
     let workspace = Workspace()
     let sync = SyncCenter()
+    let icloud = ICloudCenter()
     let welcome: WelcomeFlow
     private(set) var tabs: TabStore
     private(set) var runner: CommandRunner
 
     init() {
+        #if DEBUG
+        VaultLocation.useICloudVaultFromArguments()
+        #endif
         let welcomeIsDue = WelcomeFlow.isDue(vaultIsSetUp: VaultLocation.isSetUp)
         library = VaultLibrary(opensVault: !welcomeIsDue)
         welcome = WelcomeFlow(isFirstRun: welcomeIsDue)
@@ -23,6 +27,7 @@ final class AppModel {
         runner = CommandRunner(library: library, tabs: tabs, workspace: workspace, sync: sync)
         sync.beforeSync = { [weak self] in self?.tabs.saveAllNotes() }
         sync.onNotesChanged = { [weak self] paths in self?.notesChangedOnDisk(paths) }
+        icloud.onNotesChanged = { [weak self] paths in self?.notesChangedOnDisk(paths) }
         NotificationCenter.default.addObserver(forName: .vaultEdited, object: nil, queue: .main) { [weak self] _ in
             self?.sync.noteEdited()
         }
@@ -57,10 +62,22 @@ final class AppModel {
         switchVault(to: .synced)
     }
 
+    /// Opens the Gasp folder in iCloud Drive as the vault.
+    func openICloudVault(at folder: URL) {
+        reopen { library.open(icloudFolder: folder) }
+    }
+
+    /// Whether the open vault already syncs, with git or through iCloud.
+    var vaultSyncs: Bool {
+        library.kind == .synced || library.kind == .icloud
+    }
+
     /// The app came to the front, or went away.
     func sceneChanged(to phase: ScenePhase) {
         switch phase {
-        case .active: sync.syncForAppEvent()
+        case .active:
+            sync.syncForAppEvent()
+            icloud.rescan()
         case .background: sync.syncForBackground()
         default: break
         }
@@ -76,9 +93,11 @@ final class AppModel {
     }
 
     /// Sync runs on the clone it set up, never on the sample notes or a
-    /// folder another app may be syncing.
+    /// folder another app may be syncing. iCloud syncs its own folder, so
+    /// the iCloud vault gets a watcher instead.
     private func attachSync() {
         sync.attach(to: library.kind == .synced ? library.folder : nil)
+        icloud.attach(to: library.kind == .icloud ? library.folder : nil)
     }
 
     private func notesChangedOnDisk(_ paths: [String]) {

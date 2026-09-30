@@ -1,8 +1,8 @@
 import Foundation
 
 /// Writes a note back through the core a moment after the last change, off
-/// the main thread, so typing never waits on the disk. Called on the main
-/// thread.
+/// the main thread, so typing never waits on the disk. In the iCloud vault
+/// the write is coordinated with iCloud. Called on the main thread.
 final class NoteSaver {
     private let vault: VaultFolder
     var path: String
@@ -49,9 +49,12 @@ final class NoteSaver {
         unsavedText = nil
         let text = read()
         let (vault, path, afterSave) = (vault, path, afterSave)
+        let coordination = VaultFileCoordination.active
         Self.disk.async {
             do {
-                try vault.saveNote(path: path, text: text)
+                try VaultFileCoordination.write(path, with: coordination) {
+                    try vault.saveNote(path: path, text: text)
+                }
                 DispatchQueue.main.async {
                     afterSave?(text)
                     NotificationCenter.default.post(name: .vaultEdited, object: nil)

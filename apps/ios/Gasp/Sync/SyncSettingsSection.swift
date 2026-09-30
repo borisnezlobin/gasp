@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Sync on the settings screen. For the synced vault: the repository, the
-/// branches, how often to check, and the token. Otherwise, a way to set
-/// sync up or to open the synced notes.
+/// branches, how often to check, and the token. For the iCloud vault:
+/// where it is and how it stands. Otherwise, the ways to start syncing.
 struct SyncSettingsSection: View {
     @Environment(AppModel.self) private var model
     /// Writes a setting the way every other row does.
@@ -11,17 +11,63 @@ struct SyncSettingsSection: View {
     var body: some View {
         if model.library.kind == .synced, let overview = model.sync.overview {
             SyncedVaultRows(overview: overview, write: write)
-        } else if VaultLocation.syncedFolder != nil {
-            Section("Sync") {
-                Button("Open your synced notes") { model.switchVault(to: .synced) }
-            }
+        } else if model.library.kind == .icloud {
+            ICloudVaultRows()
         } else {
-            Section {
-                Button("Set up sync") { model.workspace.sheet = .syncSetup(SyncSetupDraft()) }
-            } header: {
-                Text("Sync")
-            } footer: {
-                Text("Clone your notes from GitHub and keep them in step with your other devices.")
+            NotSyncingRows()
+        }
+    }
+}
+
+/// Where the iCloud vault is, and a row for how it stands that opens the
+/// details.
+private struct ICloudVaultRows: View {
+    @Environment(AppModel.self) private var model
+
+    private var tokens: Tokens { model.library.tokens }
+
+    var body: some View {
+        Section("Sync") {
+            LabeledContent("Where", value: model.icloud.place)
+            Button { model.workspace.sheet = .icloudDetails } label: {
+                HStack(spacing: tokens.spacing.md) {
+                    SyncGlyph(look: SyncLook(icloud: model.icloud), tokens: tokens)
+                        .frame(width: 28)
+                    Text(model.icloud.headline)
+                        .foregroundStyle(tokens.swiftUIColor(\.textStrong))
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(tokens.symbolFont(0.75, weight: .semibold))
+                        .foregroundStyle(tokens.swiftUIColor(\.textFaint))
+                }
+            }
+        }
+    }
+}
+
+/// The ways to start syncing a vault that doesn't: iCloud, GitHub, and the
+/// address and token form; and the synced notes when this phone has them.
+private struct NotSyncingRows: View {
+    @Environment(AppModel.self) private var model
+
+    private var tokens: Tokens { model.library.tokens }
+
+    var body: some View {
+        Section("Sync") {
+            Button { model.workspace.sheet = .icloudSetup } label: {
+                Label("Sync with iCloud", systemImage: "icloud")
+            }
+            Button { model.workspace.sheet = .githubSignIn } label: {
+                Label("Sign in with GitHub", systemImage: "arrow.triangle.branch")
+            }
+            .disabled(GitHubConnection.clientId == nil)
+            Button { model.workspace.sheet = .syncSetup(SyncSetupDraft()) } label: {
+                Text("Use a repository address and token")
+                    .font(Font(tokens.uiFont(size: tokens.smallSize)))
+                    .foregroundStyle(tokens.swiftUIColor(\.textDetail))
+            }
+            if VaultLocation.syncedFolder != nil {
+                Button("Open your synced notes") { model.switchVault(to: .synced) }
             }
         }
     }
@@ -169,6 +215,9 @@ struct VaultChoiceSection: View {
         Section("Vault") {
             if let synced = VaultLocation.syncedFolder {
                 VaultRow(title: synced.lastPathComponent, detail: "Synced", kind: .synced)
+            }
+            if let icloud = VaultLocation.icloudFolder {
+                VaultRow(title: icloud.lastPathComponent, detail: "In iCloud Drive", kind: .icloud)
             }
             VaultRow(title: VaultLocation.localFolder.lastPathComponent, detail: "On this iPhone only", kind: .local)
             if VaultLocation.hasPickedFolder {
