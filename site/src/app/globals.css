@@ -19,6 +19,7 @@
   /* Chart series, from the dataviz reference palette's first two slots. */
   --series-1: #2a78d6;
   --series-2: #eb6834;
+  --grain: 0.05;
   color-scheme: light;
 }
 
@@ -39,6 +40,7 @@
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 16px 40px -12px rgb(0 0 0 / 0.6);
     --series-1: #3987e5;
     --series-2: #d95926;
+    --grain: 0.04;
     color-scheme: dark;
   }
 }
@@ -74,6 +76,16 @@
     font-feature-settings: "kern", "liga";
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
+  }
+  /* The app icon's paper grain, laid faintly over the whole page. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+    opacity: var(--grain);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
   }
   :focus-visible {
     outline: 2px solid var(--ink);
