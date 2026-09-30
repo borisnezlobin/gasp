@@ -42,10 +42,10 @@ Everything the owner has asked for, newest last, ticked off as it lands on maste
 - [x] Undo and redo are a pill that greys out when there's nothing to undo or redo.
 - [x] The tab swipe doesn't wrap around; swiping past the last tab opens the start page, as in Safari.
 - [x] The bottom row has too many buttons; make it configurable.
-- [ ] A first-run setup on the iPhone, matching the Mac's.
-- [ ] Drag to move notes instead of typing a folder path.
-- [ ] Number settings overlap their labels in Settings.
-- [ ] Settings values can be typed in, not only stepped.
+- [x] A first-run setup on the iPhone, matching the Mac's.
+- [x] Drag to move notes instead of typing a folder path.
+- [x] Number settings overlap their labels in Settings.
+- [x] Settings values can be typed in, not only stepped.
 
 ## Settings copy (both apps)
 
