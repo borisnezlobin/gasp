@@ -16,7 +16,7 @@ use crate::toolbars::{Place, ToolbarItem, Toolbars, build_toolbars, choice_name,
 pub const TOOLBARS_FILE: &str = "toolbars.toml";
 
 /// The fields of a `[toolbar.<id>]` table that the writers change.
-pub const TOOLBAR_FIELDS: [&str; 8] = [
+pub const TOOLBAR_FIELDS: [&str; 9] = [
     "title",
     "enabled",
     "place",
@@ -24,6 +24,7 @@ pub const TOOLBAR_FIELDS: [&str; 8] = [
     "contexts",
     "style",
     "density",
+    "surface",
     "items",
 ];
 
@@ -62,6 +63,7 @@ fn built_in_value(id: &str, field: &str) -> Option<Value> {
         ),
         "style" => Value::from(choice_name(toolbar.style)),
         "density" => Value::from(choice_name(toolbar.density)),
+        "surface" => Value::from(choice_name(toolbar.surface)),
         "items" => Value::from(item_names(&toolbar.items)),
         _ => return None,
     };
@@ -234,6 +236,25 @@ items = [\"word-count\"]   # just the count
     }
 
     #[test]
+    fn a_bar_is_set_to_float_over_the_note_and_back() {
+        let dir = vault(Some(FILE));
+        let (id, _) = add_toolbar(dir.path(), Place::EditorTop).unwrap();
+        let overlay = Value::from("overlay");
+        let toolbars = set_toolbar_field(dir.path(), &id, "surface", Some(&overlay)).unwrap();
+        assert!(toolbars.get(&id).unwrap().floats_over_note());
+        assert!(read(&dir).contains("surface = \"overlay\""));
+        let strip = Value::from("strip");
+        set_toolbar_field(dir.path(), "status", "surface", Some(&strip)).unwrap();
+        assert!(
+            !read(&dir).contains("surface = \"strip\""),
+            "the built-in value isn't written"
+        );
+        let toolbars = set_toolbar_field(dir.path(), &id, "surface", None).unwrap();
+        assert!(!toolbars.get(&id).unwrap().floats_over_note());
+        assert!(!read(&dir).contains("surface"));
+    }
+
+    #[test]
     fn toolbars_are_added_removed_and_reset() {
         let dir = vault(None);
         let (id, toolbars) = add_toolbar(dir.path(), Place::EditorTop).unwrap();
@@ -249,8 +270,8 @@ items = [\"word-count\"]   # just the count
         assert_eq!(toolbars.get(&second).unwrap().items, items);
         let toolbars = remove_toolbar(dir.path(), "toolbar").unwrap();
         assert!(toolbars.get("toolbar").is_none());
-        let toolbars = remove_toolbar(dir.path(), "selection").unwrap();
-        assert!(!toolbars.get("selection").unwrap().enabled);
+        let toolbars = remove_toolbar(dir.path(), "status").unwrap();
+        assert!(!toolbars.get("status").unwrap().enabled);
         let toolbars = reset_toolbars(dir.path()).unwrap();
         assert_eq!(toolbars, Toolbars::defaults());
         assert_eq!(read(&dir).trim(), "");
