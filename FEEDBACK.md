@@ -18,10 +18,10 @@ Everything the owner has asked for, newest last, ticked off as it lands on maste
 - [x] The settings screen's reset icon shifts the explanation text; nothing should move when a control changes state.
 - [x] With the sidebar on hover, reaching for New note makes the sidebar disappear.
 - [x] A pass over every interaction in the app.
-- [ ] The selection menu should be off by default. *(Done on the toolbar branch; merging it into master was blocked by the permission check and is waiting on the owner.)*
-- [ ] A bar with icons and labels runs off the edge of the window. *(Toolbar branch.)*
-- [ ] The top bar sits too high, up by the window buttons. *(Toolbar branch.)*
-- [ ] A bar can float over the note as an overlay instead of taking its own strip. *(Toolbar branch.)*
+- [x] The selection menu should be off by default.
+- [x] A bar with icons and labels runs off the edge of the window.
+- [x] The top bar sits too high, up by the window buttons.
+- [x] A bar can float over the note as an overlay instead of taking its own strip.
 
 ## First launch and the new tab (Mac)
 
@@ -46,6 +46,8 @@ Everything the owner has asked for, newest last, ticked off as it lands on maste
 - [x] Drag to move notes instead of typing a folder path.
 - [x] Number settings overlap their labels in Settings.
 - [x] Settings values can be typed in, not only stepped.
+- [x] A number setting's value doesn't line up with its label; it sits inside its − and + control now.
+- [x] Move notes in the sidebar itself rather than in a bottom sheet of folders.
 
 ## Settings copy (both apps)
 
