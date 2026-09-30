@@ -119,7 +119,7 @@ impl fmt::Display for InstallError {
             }
             InstallError::NotABundle => write!(
                 f,
-                "This Gasp isn't an app bundle, so there's nothing to move. Build one with make dmg."
+                "This is a development build, not an app bundle, so there's nothing to move."
             ),
             InstallError::NoDestination(reason) => write!(
                 f,
@@ -215,8 +215,13 @@ pub fn offer_at_launch() -> Option<Placement> {
 
 /// Where the app runs from, for `--show-install`, which asks anywhere.
 pub fn preview_placement() -> Placement {
-    let exe = std::env::current_exe().unwrap_or_default();
-    let (bundle, original) = running_bundle().unwrap_or((exe, None));
+    let Some((bundle, original)) = running_bundle() else {
+        return Placement {
+            bundle: std::env::current_exe().unwrap_or_default(),
+            original: None,
+            source: Source::Development,
+        };
+    };
     let home = dirs::home_dir();
     location::placement_for_preview(&bundle, original.as_deref(), home.as_deref())
 }

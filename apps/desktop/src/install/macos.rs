@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use super::location::Placement;
+use super::location::{Placement, Source};
 use super::{InstallError, Installer, JUST_INSTALLED_FLAG, Prepared, Progress};
 
 const SYSTEM_APPLICATIONS: &str = "/Applications";
@@ -34,6 +34,9 @@ pub struct MacInstaller;
 
 impl Installer for MacInstaller {
     fn prepare(&self, placement: &Placement) -> Result<Prepared, InstallError> {
+        if placement.source == Source::Development {
+            return Err(InstallError::NotABundle);
+        }
         let name = placement
             .bundle
             .file_name()

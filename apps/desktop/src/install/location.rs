@@ -26,6 +26,9 @@ pub enum Source {
     Translocated,
     /// Anywhere else. Only `--show-install` asks from here.
     Elsewhere,
+    /// Not a bundle at all: a development build. Only `--show-install`
+    /// shows the window for one, and there's nothing to move.
+    Development,
 }
 
 /// The running bundle, where it came from, and why it could move.

@@ -55,9 +55,13 @@ def svg_path(mask: np.ndarray) -> str:
 
 
 def write(name: str, mask: np.ndarray, size: tuple[int, int]) -> None:
+    # The drawing is square, with the whale across its middle: GPUI skips
+    # a sprite whose unturned bounds miss the clip, and a square's reach
+    # covers the whale at any angle.
     width, height = size
+    top = -(width - height) / 2
     svg = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}">'
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 {top:.1f} {width} {width}" width="{width}" height="{width}">'
         f'<path fill="#000" fill-rule="evenodd" d="{svg_path(mask)}"/></svg>\n'
     )
     (HERE / name).write_text(svg)

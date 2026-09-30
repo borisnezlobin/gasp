@@ -1,7 +1,7 @@
 //! Draws a [`Frame`] of the install window's page: the whale as two
-//! single-colour SVGs turned on the GPU, the water laid over what's under
-//! the surface, the text lines as filled ribbons, the caret and its glow,
-//! and the flying letters as text.
+//! single-colour SVGs turned on the GPU (only its tinted silhouette under
+//! the surface, fading into the paper with depth), the text lines as
+//! filled ribbons, the caret and its glow, and the flying letters as text.
 
 use std::f32::consts::PI;
 
@@ -64,10 +64,10 @@ fn paint_frame(
             page.paint_letter(letter, letter_font, window, cx);
         }
         if let Some(whale) = frame.whale {
-            page.paint_whale(whale, window, cx);
+            page.paint_whale(whale, frame.surface, bounds, window, cx);
         }
-        page.paint_water(frame.surface, bounds, window);
-        page.paint_depths(bounds, window);
+        page.paint_foam(frame.surface, bounds, window);
+        page.paint_depths(frame.surface, bounds, window);
         for piece in &frame.lines {
             page.paint_line(piece, theme.line, window);
         }
@@ -89,11 +89,20 @@ impl Page<'_> {
         point(self.origin.x + px(spot.x), self.origin.y + px(spot.y))
     }
 
-    fn paint_whale(&self, whale: WhalePose, window: &mut Window, cx: &mut App) {
+    /// The whale in full above the surface; below it, only its
+    /// silhouette, tinted towards the paper.
+    fn paint_whale(
+        &self,
+        whale: WhalePose,
+        surface: f32,
+        page: Bounds<Pixels>,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
         let stage = &self.theme.stage;
         let length = stage.whale_length;
         let center = self.at(whale.center);
-        let whale_size = size(px(length), px(length * stage.whale_aspect));
+        let whale_size = size(px(length), px(length));
         let bounds = Bounds::centered_at(center, whale_size);
         let pivot = center.scale(window.scale_factor());
         // GPUI turns clockwise; the pose's angle is nose up.
@@ -101,27 +110,45 @@ impl Page<'_> {
             .translate(pivot)
             .rotate(radians(-whale.angle.to_radians()))
             .translate(pivot.negate());
-        for (layer, color) in [
-            (WHALE_BODY, self.theme.whale_body),
-            (WHALE_LIGHT, self.theme.whale_light),
-        ] {
-            if let Err(error) = window.paint_svg(bounds, layer.into(), turn, color, cx) {
-                eprintln!("could not draw the whale: {error}");
-            }
+        // The whale is drawn in full from the first line's top edge up,
+        // so it comes out from behind the line rather than as a sliver
+        // cut flat along the line's middle.
+        let waterline = self.origin.y + px(surface - stage.line_thickness / 2.);
+        let air = Bounds::from_corners(page.origin, point(page.right(), waterline));
+        let water = Bounds::from_corners(point(page.left(), waterline), page.bottom_right());
+        let layers = [
+            (air, WHALE_BODY, self.theme.whale_body),
+            (air, WHALE_LIGHT, self.theme.whale_light),
+            (water, WHALE_BODY, self.theme.submerged),
+        ];
+        for (part, layer, color) in layers {
+            window.with_content_mask(Some(ContentMask { bounds: part }), |window| {
+                if let Err(error) = window.paint_svg(bounds, layer.into(), turn, color, cx) {
+                    eprintln!("could not draw the whale: {error}");
+                }
+            });
         }
     }
 
-    fn paint_water(&self, surface: f32, bounds: Bounds<Pixels>, window: &mut Window) {
+    /// A band of paper just under the surface that clears with depth, so
+    /// the waterline across the whale is foam rather than a cut.
+    fn paint_foam(&self, surface: f32, bounds: Bounds<Pixels>, window: &mut Window) {
         let top = self.origin.y + px(surface);
-        let water = Bounds::from_corners(point(bounds.left(), top), bounds.bottom_right());
-        window.paint_quad(fill(water, self.theme.water));
+        let bottom = top + px(self.theme.stage.foam_depth);
+        let foam = Bounds::from_corners(point(bounds.left(), top), point(bounds.right(), bottom));
+        let shade = linear_gradient(
+            180.,
+            linear_color_stop(self.theme.foam, 0.),
+            linear_color_stop(self.theme.paper.opacity(0.), 1.),
+        );
+        window.paint_quad(fill(foam, shade));
     }
 
-    /// Fades the water to paper under the lines, so the whale rises out
-    /// of the depths rather than from the page's edge.
-    fn paint_depths(&self, bounds: Bounds<Pixels>, window: &mut Window) {
-        let stage = &self.theme.stage;
-        let top = self.origin.y + px(stage.depths_top);
+    /// Fades everything under the surface into the paper with depth, so
+    /// the whale rises out of the page rather than from its edge. The
+    /// lines are drawn over it.
+    fn paint_depths(&self, surface: f32, bounds: Bounds<Pixels>, window: &mut Window) {
+        let top = self.origin.y + px(surface);
         let depths = Bounds::from_corners(point(bounds.left(), top), bounds.bottom_right());
         let clear = self.theme.paper.opacity(0.);
         let shade = linear_gradient(
