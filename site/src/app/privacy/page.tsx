@@ -49,7 +49,7 @@ export default function Privacy() {
       <main className="mx-auto max-w-3xl px-4 pt-12 pb-20 sm:px-8 lg:pt-20">
         <h1 className="heading">Privacy</h1>
         <p className="lede mt-6 text-ink-soft">
-          Your notes live on your devices and in the GitHub repository you sync with, if you sync. We never see them. The
+          Your notes live on your devices, and in your iCloud Drive or your own GitHub repository if you sync. We never see them. The
           one thing Gasp sends us is a tiny message, at most once a day, so we can count how many people use it. This page
           shows all of it.
         </p>
@@ -103,7 +103,7 @@ export default function Privacy() {
 
         <Part title="Everything else the app connects to">
           <p>
-            Sync talks straight to GitHub with your own account, and the writing check runs on your device. When a note
+            Sync goes through your own iCloud Drive, or straight to GitHub with your own account, and the writing check runs on your device. When a note
             shows a link card, Gasp fetches that page&apos;s title and picture from the site the link points to.
           </p>
           <p>

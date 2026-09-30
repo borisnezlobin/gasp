@@ -1,28 +1,15 @@
+import { AskToChange } from "@/components/AskToChange";
 import { BreachHero } from "@/components/BreachHero";
-import { ConfigFiles } from "@/components/ConfigFiles";
 import { DownloadButton } from "@/components/DownloadButton";
 import { FeatureGrid } from "@/components/FeatureGrid";
-import { IdleTrace } from "@/components/IdleTrace";
-import { LaunchDemo } from "@/components/LaunchDemo";
+import { LaunchRace } from "@/components/LaunchRace";
+import { IdleFigures, KeystrokeFrame } from "@/components/LightFigures";
+import { LineField } from "@/components/LineField";
 import { LiveEditor } from "@/components/LiveEditor";
-import { MemoryField } from "@/components/MemoryField";
 import { ScreenshotTabs } from "@/components/ScreenshotTabs";
-import { ScrollSwimmer } from "@/components/ScrollSwimmer";
 import { Section } from "@/components/Section";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
-import { SwimmingWhale } from "@/components/SwimmingWhale";
-
-const REQUIREMENTS = "Free, for macOS 12 or later on Apple silicon and Intel.";
-
-function DownloadRow() {
-  return (
-    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
-      <DownloadButton size="large" />
-      <p className="small text-ink-muted">{REQUIREMENTS}</p>
-    </div>
-  );
-}
 
 function FriendQuote() {
   return (
@@ -34,7 +21,6 @@ function FriendQuote() {
         </p>
         <p className="lede mt-8 text-ink-soft">“Works very well, very smooth, very cool.”</p>
       </blockquote>
-      <figcaption className="small mt-4 text-ink-muted">A friend who tried it</figcaption>
     </figure>
   );
 }
@@ -45,17 +31,20 @@ export default function Home() {
       <SiteHeader />
       <main>
         <BreachHero>
-          <DownloadRow />
+          <DownloadButton size="large" />
         </BreachHero>
 
-        <Section id="speed" title="Opens in 300 ms">
-          <LaunchDemo />
+        <Section id="speed" title="Ready to edit in under half a second">
+          <LaunchRace />
         </Section>
 
-        <Section id="light" title="Stays light">
-          <MemoryField />
-          <div className="mt-14">
-            <IdleTrace />
+        <Section id="light" title="Quick in huge notes">
+          <LineField />
+          <div className="mt-8">
+            <KeystrokeFrame />
+          </div>
+          <div className="mt-16">
+            <IdleFigures />
           </div>
         </Section>
 
@@ -63,7 +52,7 @@ export default function Home() {
           id="formatting"
           title="Formats as you type"
           layout="side"
-          intro="Every note stays a plain .md file, so any other app can still open it."
+          intro="Gasp uses Markdown, an open format. You're never tied to Gasp."
         >
           <LiveEditor />
         </Section>
@@ -74,11 +63,10 @@ export default function Home() {
 
         <Section
           id="customization"
-          title="Yours to change"
-          layout="side"
-          intro="Everything Gasp does is set in files in your vault. Ask Claude Code for a new shortcut or toolbar, and the app picks up the change the moment it's saved."
+          title="Change it by asking"
+          intro="Tell Claude Code what you'd like. It edits Gasp's settings files, and the app updates the moment they're saved."
         >
-          <ConfigFiles />
+          <AskToChange />
         </Section>
 
         <Section id="features" title="Everything else">
@@ -87,20 +75,16 @@ export default function Home() {
 
         <FriendQuote />
 
-        <section aria-labelledby="try-title" className="mx-auto max-w-7xl px-4 pt-12 pb-8 sm:px-8">
+        <section aria-labelledby="try-title" className="mx-auto max-w-7xl px-4 pt-12 sm:px-8">
           <h2 id="try-title" className="heading">
             Try Gasp
           </h2>
           <div className="mt-8">
-            <DownloadRow />
-          </div>
-          <div className="mt-12 md:hidden">
-            <SwimmingWhale />
+            <DownloadButton size="large" />
           </div>
         </section>
       </main>
       <SiteFooter />
-      <ScrollSwimmer />
     </>
   );
 }

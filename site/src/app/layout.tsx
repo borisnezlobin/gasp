@@ -15,7 +15,7 @@ const charis = Charis_SIL({
 });
 
 const description =
-  "A Markdown editor for Mac and iPhone that opens in about 300 ms, stays under 300 MB of memory on huge notes, and syncs for free.";
+  "A Markdown editor for Mac that's ready to edit in under half a second, stays quick in 48,000-line notes, and syncs for free.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

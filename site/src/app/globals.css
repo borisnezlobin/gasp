@@ -100,6 +100,11 @@
   :root {
     --wordmark-size: clamp(7rem, 27vw, 26rem);
   }
+  @media (min-width: 64rem) {
+    :root {
+      --wordmark-size: clamp(7rem, 21vw, 20rem);
+    }
+  }
   .wordmark {
     font-weight: 700;
     line-height: 0.86;
@@ -137,11 +142,6 @@
     font-family: var(--font-code);
     font-size: 0.875em;
   }
-  .sea-line {
-    height: 0.625rem;
-    border-radius: 9999px;
-    background: var(--sea);
-  }
 }
 
 @keyframes blink {
@@ -149,35 +149,14 @@
   50%, 100% { opacity: 0; }
 }
 
-@keyframes swim {
-  from { background-position-x: 0; }
-  to { background-position-x: -6600px; }
-}
-
-@keyframes swim-small {
-  from { background-position-x: 0; }
-  to { background-position-x: -3600px; }
-}
-
-@keyframes trace {
-  from { transform: none; }
-  to { transform: translateX(-50%); }
-}
-
-@keyframes cruise {
-  from { transform: translateX(-240px); }
-  to { transform: translateX(100cqw); }
-}
-
 @keyframes rise {
   from { transform: translateY(22%); }
   to { transform: none; }
 }
 
-@keyframes leap {
-  0% { transform: none; }
-  40% { transform: translateY(-2.5rem) rotate(-4deg); }
-  100% { transform: none; }
+@keyframes leap-frames {
+  from { transform: none; }
+  to { transform: translateX(-100%); }
 }
 
 @utility animate-blink {
@@ -185,23 +164,11 @@
 }
 
 @utility animate-rise {
-  animation: rise 1.6s var(--ease-out-soft) both;
+  animation: rise 1.1s var(--ease-out-soft) both;
 }
 
-@utility animate-swim {
-  animation: swim 1.98s steps(30) infinite;
-}
-
-@utility animate-swim-small {
-  animation: swim-small 1.98s steps(30) infinite;
-}
-
-@utility animate-cruise {
-  animation: cruise 38s linear infinite;
-}
-
-@utility animate-leap {
-  animation: leap 0.9s var(--ease-out-soft);
+@utility animate-leap-frames {
+  animation: leap-frames 1.1s steps(22) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

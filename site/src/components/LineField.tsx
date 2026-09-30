@@ -3,11 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 
 const LINES = 48_000;
-const MEMORY_MB = 300;
-const MAC_MEMORY_MB = 8 * 1024;
-const FILL_MS = 1600;
-const LINE_HEIGHT = 3;
-const COLUMN_WIDTH = 16;
+const FILL_MS = 700;
+/** A drawn line and the gap under it, in device pixels. */
+const ROW_PITCH = 2;
 
 /** The same pseudo-random line lengths on every draw, with a short last
     line and a blank one closing each paragraph. */
@@ -20,6 +18,8 @@ function lineLength(index: number): number {
   return 0.75 + fraction * 0.25;
 }
 
+/** Lays out exactly `LINES` marks, one device pixel tall each, in as many
+    columns as the canvas needs, and draws the first `count` of them. */
 function drawLines(canvas: HTMLCanvasElement, count: number) {
   const context = canvas.getContext("2d");
   if (!context) return;
@@ -27,30 +27,26 @@ function drawLines(canvas: HTMLCanvasElement, count: number) {
   const { width, height } = canvas.getBoundingClientRect();
   canvas.width = Math.round(width * scale);
   canvas.height = Math.round(height * scale);
-  context.scale(scale, scale);
   context.fillStyle = getComputedStyle(canvas).color;
-  const rows = Math.floor(height / LINE_HEIGHT);
-  const columns = Math.floor(width / COLUMN_WIDTH);
-  const perLine = LINES / (rows * columns);
-  const shown = Math.floor(count / perLine);
-  for (let cell = 0; cell < shown; cell++) {
-    const column = Math.floor(cell / rows);
-    const row = cell % rows;
-    context.fillRect(column * COLUMN_WIDTH, row * LINE_HEIGHT, (COLUMN_WIDTH - 4) * lineLength(cell), 1.5);
+  const rows = Math.floor(canvas.height / ROW_PITCH);
+  const columns = Math.ceil(LINES / rows);
+  const columnWidth = canvas.width / columns;
+  const markWidth = Math.max(1, columnWidth - Math.max(1, Math.round(scale * 2)));
+  for (let line = 0; line < count; line++) {
+    const column = Math.floor(line / rows);
+    const row = line % rows;
+    context.fillRect(column * columnWidth, row * ROW_PITCH, markWidth * lineLength(line), 1);
   }
 }
 
-function useFillWhenSeen(target: React.RefObject<HTMLElement | null>) {
+function useCountWhenSeen(target: React.RefObject<HTMLElement | null>) {
   const [count, setCount] = useState(0);
   useEffect(() => {
     const element = target.current;
     if (!element) return;
     let frame = 0;
     const run = () => {
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        setCount(LINES);
-        return;
-      }
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return setCount(LINES);
       const began = performance.now();
       const step = (now: number) => {
         const share = Math.min(1, (now - began) / FILL_MS);
@@ -76,14 +72,8 @@ function useFillWhenSeen(target: React.RefObject<HTMLElement | null>) {
   return count;
 }
 
-/** A 48,000-line note drawn to scale as a field of lines, and under it a
-    Mac's 8 GB of memory with the part Gasp uses for that note marked. */
-export function MemoryField() {
-  const box = useRef<HTMLDivElement>(null);
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const count = useFillWhenSeen(box);
+function useRedrawOnResize() {
   const [, redraw] = useState(0);
-
   useEffect(() => {
     const onChange = () => redraw((n) => n + 1);
     const scheme = window.matchMedia("(prefers-color-scheme: dark)");
@@ -94,35 +84,28 @@ export function MemoryField() {
       scheme.removeEventListener("change", onChange);
     };
   }, []);
+}
+
+/** A 48,000-line note drawn to scale, one mark per line. */
+export function LineField() {
+  const box = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const count = useCountWhenSeen(box);
+  useRedrawOnResize();
 
   useEffect(() => {
     if (canvas.current) drawLines(canvas.current, count);
   });
 
-  const filled = count / LINES;
   return (
     <div ref={box}>
-      <p className="figure text-2xl font-bold sm:text-3xl">{count.toLocaleString("en")} lines in one note</p>
+      <p className="figure text-2xl font-bold sm:text-3xl">{count.toLocaleString("en")} lines</p>
       <canvas
         ref={canvas}
-        aria-label="A field of 48,000 short lines standing for one very long note."
         role="img"
-        className="mt-4 h-56 w-full text-ink-muted/60 sm:h-72"
+        aria-label="48,000 short marks, one for each line of a very long note."
+        className="mt-4 h-56 w-full text-ink-muted/70 sm:h-72"
       />
-      <div className="mt-10">
-        <div className="relative h-4 rounded-full bg-fill" role="img" aria-label="Gasp uses under 300 MB of a Mac's 8 GB of memory for it.">
-          <div
-            className="absolute inset-y-0 left-0 rounded-full bg-caret transition-[width] duration-700 ease-out-soft"
-            style={{ width: `${(MEMORY_MB / MAC_MEMORY_MB) * 100 * filled}%`, minWidth: filled > 0 ? "0.5rem" : 0 }}
-          />
-        </div>
-        <div className="figure mt-3 flex justify-between gap-4">
-          <p>
-            <span className="text-2xl font-bold sm:text-3xl">Under 300 MB</span>
-          </p>
-          <p className="small self-end text-ink-muted">of a Mac&apos;s 8 GB</p>
-        </div>
-      </div>
     </div>
   );
 }

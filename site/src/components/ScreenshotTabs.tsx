@@ -56,8 +56,30 @@ const SHOTS: Shot[] = [
   },
 ];
 
-const STEP_KEYS: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1 };
+const STEP_KEYS: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
 
+function ShotTab({ shot, selected, onSelect }: { shot: Shot; selected: boolean; onSelect: () => void }) {
+  return (
+    <button
+      id={`shot-tab-${shot.id}`}
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      aria-controls="shot-panel"
+      tabIndex={selected ? 0 : -1}
+      onClick={onSelect}
+      className={`shrink-0 cursor-pointer rounded-xl px-4 py-2.5 text-left transition-colors duration-150 lg:w-full lg:py-4 ${selected ? "bg-surface shadow-lifted" : "hover:bg-fill"}`}
+    >
+      <span className={`block font-bold ${selected ? "text-ink" : "text-ink-soft"}`}>{shot.label}</span>
+      <span className="small mt-1 hidden text-ink-muted lg:block">{shot.caption}</span>
+    </button>
+  );
+}
+
+/** The screens as a list beside the picture on wide windows, each with its
+    caption, so the list, the picture and what it shows fit on one screen.
+    Narrow windows put the names in a row and the caption under the
+    picture. */
 export function ScreenshotTabs() {
   const [selected, setSelected] = useState(0);
   const shot = SHOTS[selected];
@@ -72,28 +94,19 @@ export function ScreenshotTabs() {
   };
 
   return (
-    <div>
-      <div role="tablist" aria-label="Screens" onKeyDown={onKeyDown} className="flex flex-wrap gap-1">
-        {SHOTS.map((each, index) => {
-          const isSelected = index === selected;
-          return (
-            <button
-              key={each.id}
-              id={`shot-tab-${each.id}`}
-              type="button"
-              role="tab"
-              aria-selected={isSelected}
-              aria-controls="shot-panel"
-              tabIndex={isSelected ? 0 : -1}
-              onClick={() => setSelected(index)}
-              className={`h-10 shrink-0 cursor-pointer rounded-lg px-4 font-bold transition-colors ${isSelected ? "bg-button text-on-button" : "text-ink-soft hover:bg-fill"}`}
-            >
-              {each.label}
-            </button>
-          );
-        })}
+    <div className="lg:grid lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start lg:gap-10">
+      <div
+        role="tablist"
+        aria-label="Screens"
+        aria-orientation="vertical"
+        onKeyDown={onKeyDown}
+        className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-2 [scrollbar-width:none] lg:mx-0 lg:flex-col lg:gap-2 lg:overflow-visible lg:px-0 lg:pb-0"
+      >
+        {SHOTS.map((each, index) => (
+          <ShotTab key={each.id} shot={each} selected={index === selected} onSelect={() => setSelected(index)} />
+        ))}
       </div>
-      <div id="shot-panel" role="tabpanel" aria-labelledby={`shot-tab-${shot.id}`} className="mt-6">
+      <div id="shot-panel" role="tabpanel" aria-labelledby={`shot-tab-${shot.id}`} className="mt-4 lg:mt-0">
         <div className="relative aspect-[1280/820] overflow-hidden rounded-2xl bg-surface shadow-lifted">
           {SHOTS.map((each, index) => (
             <div key={each.id} className={index === selected ? "" : "hidden"}>
@@ -101,13 +114,13 @@ export function ScreenshotTabs() {
                 light={each.light}
                 dark={each.dark}
                 alt={each.alt}
-                sizes="(min-width: 1152px) 72rem, 100vw"
+                sizes="(min-width: 1024px) 56rem, 100vw"
                 className="h-auto w-full"
               />
             </div>
           ))}
         </div>
-        <p className="body mt-4 max-w-2xl text-ink-soft">{shot.caption}</p>
+        <p className="body mt-4 min-h-[3.3em] text-ink-soft lg:hidden">{shot.caption}</p>
       </div>
     </div>
   );
