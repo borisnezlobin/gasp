@@ -61,8 +61,8 @@ Everything the owner has asked for, newest last, ticked off as it lands on maste
 ## Releases, website and usage
 
 - [x] Release notes stay short.
-- [ ] A website at gaspmd.com, deployed on Vercel. *(In progress.)*
-- [ ] Count downloads and daily use, with a plain "send anonymous usage data" setting that's on by default and easy to turn off. *(In progress.)*
+- [x] A website at gaspmd.com, deployed on Vercel. *(Live on Vercel; waiting on two DNS records at Porkbun.)*
+- [x] Count downloads and daily use, with a plain "send anonymous usage data" setting that's on by default and easy to turn off. *(Needs the Upstash store connected in Vercel to start counting.)*
 
 ## Sync (from friends trying it)
 
