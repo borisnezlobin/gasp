@@ -41,6 +41,9 @@ pub struct AppState {
     pub last_vault: Option<PathBuf>,
     /// Vaults opened on this device, most recent first.
     pub recent_vaults: Vec<PathBuf>,
+    /// The copy of the app, outside Applications, the user said "Not
+    /// now" to moving.
+    pub install_declined: Option<crate::install::Declined>,
 }
 
 /// Vaults the switcher remembers.
@@ -173,6 +176,10 @@ mod tests {
         let state = AppState {
             last_vault: Some(PathBuf::from("vaults/notes")),
             recent_vaults: vec![PathBuf::from("vaults/notes")],
+            install_declined: Some(crate::install::Declined {
+                bundle: PathBuf::from("/Volumes/Gasp/Gasp.app"),
+                version: "0.1.0".into(),
+            }),
         };
         state.save(&path).unwrap();
         assert_eq!(AppState::load(&path), state);

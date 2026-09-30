@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use gasp_config::command_name;
 
 use crate::bench::BenchConfig;
+use crate::install::{JUST_INSTALLED_FLAG, SHOW_INSTALL_FLAG};
 
 pub const USAGE: &str = concat!(
     "usage: ",
@@ -42,7 +43,18 @@ the vault, they also see its tabs and cursor and run its commands."
 /// What the binary was asked to do.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
-    Open(Option<PathBuf>),
+    /// Opens a vault, a note or the last vault. `just_installed` is set
+    /// when the install window opened this copy, which then doesn't ask
+    /// to move again.
+    Open {
+        path: Option<PathBuf>,
+        just_installed: bool,
+    },
+    /// `--show-install`, hidden: the install window wherever the app
+    /// is, for testing and screenshots, in light or dark when asked.
+    ShowInstall {
+        dark: Option<bool>,
+    },
     Bench {
         path: PathBuf,
         config: BenchConfig,
@@ -56,8 +68,10 @@ pub enum Command {
 /// Parses arguments after the program name.
 pub fn parse(args: &[String]) -> Result<Command, String> {
     match args.first().map(String::as_str) {
-        None => Ok(Command::Open(None)),
+        None => Ok(Command::open(None)),
         Some("-h" | "--help") => Ok(Command::Help),
+        Some(JUST_INSTALLED_FLAG) => parse_just_installed(&args[1..]),
+        Some(SHOW_INSTALL_FLAG) => parse_show_install(&args[1..]),
         Some("--bench-layout") => parse_bench(&args[1..]),
         Some("--bench-index") => match &args[1..] {
             [vault] => Ok(Command::BenchIndex(PathBuf::from(vault))),
@@ -65,9 +79,38 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
         },
         Some("mcp") => parse_mcp(&args[1..]),
         Some(flag) if flag.starts_with("--") => Err(format!("unknown option {flag}")),
-        Some(path) if args.len() == 1 => Ok(Command::Open(Some(PathBuf::from(path)))),
+        Some(path) if args.len() == 1 => Ok(Command::open(Some(PathBuf::from(path)))),
         Some(_) => Err("expected one path".to_owned()),
     }
+}
+
+impl Command {
+    fn open(path: Option<PathBuf>) -> Command {
+        Command::Open {
+            path,
+            just_installed: false,
+        }
+    }
+}
+
+fn parse_just_installed(args: &[String]) -> Result<Command, String> {
+    match parse(args)? {
+        Command::Open { path, .. } => Ok(Command::Open {
+            path,
+            just_installed: true,
+        }),
+        _ => Err(format!("{JUST_INSTALLED_FLAG} only goes with opening")),
+    }
+}
+
+fn parse_show_install(args: &[String]) -> Result<Command, String> {
+    let dark = match args {
+        [] => None,
+        [mode] if mode == "light" => Some(false),
+        [mode] if mode == "dark" => Some(true),
+        _ => return Err(format!("{SHOW_INSTALL_FLAG} takes light or dark")),
+    };
+    Ok(Command::ShowInstall { dark })
 }
 
 fn parse_mcp(args: &[String]) -> Result<Command, String> {
@@ -127,15 +170,40 @@ mod tests {
 
     #[test]
     fn no_arguments_reopens_the_last_vault() {
-        assert_eq!(parse(&[]), Ok(Command::Open(None)));
+        assert_eq!(parse(&[]), Ok(Command::open(None)));
     }
 
     #[test]
     fn a_path_opens_it() {
         assert_eq!(
             parse(&args(&["notes/a.md"])),
-            Ok(Command::Open(Some(PathBuf::from("notes/a.md"))))
+            Ok(Command::open(Some(PathBuf::from("notes/a.md"))))
         );
+    }
+
+    #[test]
+    fn the_moved_copy_opens_without_asking_again() {
+        assert_eq!(
+            parse(&args(&["--installed"])),
+            Ok(Command::Open {
+                path: None,
+                just_installed: true
+            })
+        );
+        assert!(parse(&args(&["--installed", "mcp"])).is_err());
+    }
+
+    #[test]
+    fn show_install_takes_an_appearance() {
+        assert_eq!(
+            parse(&args(&["--show-install"])),
+            Ok(Command::ShowInstall { dark: None })
+        );
+        assert_eq!(
+            parse(&args(&["--show-install", "dark"])),
+            Ok(Command::ShowInstall { dark: Some(true) })
+        );
+        assert!(parse(&args(&["--show-install", "dim"])).is_err());
     }
 
     #[test]

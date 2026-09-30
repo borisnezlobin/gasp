@@ -22,6 +22,7 @@ pub mod hover;
 pub mod icons;
 pub mod images;
 pub mod input;
+pub mod install;
 pub mod keymap;
 pub mod keytrace;
 pub mod knowledge;

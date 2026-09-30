@@ -2786,3 +2786,129 @@ impl PickerTheme {
         }
     }
 }
+
+// Install window ------------------------------------------------------------
+
+/// Where things sit on the install window's page, in logical pixels from
+/// its top-left. The text lines and the whale's resting pose are the app
+/// icon's, scaled to the window, so the animation settles on the icon.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InstallStage {
+    pub width: f32,
+    pub height: f32,
+    /// The text lines: the first one is the water's surface.
+    pub line_left: f32,
+    pub line_top: f32,
+    pub line_gap: f32,
+    pub line_thickness: f32,
+    pub line_lengths: [f32; 5],
+    /// The caret after the first line.
+    pub caret_gap: f32,
+    pub caret_width: f32,
+    pub caret_height: f32,
+    /// Where the water starts fading to paper, down to the page's
+    /// bottom edge.
+    pub depths_top: f32,
+    /// The whale's drawn length, and its height per unit of length.
+    pub whale_length: f32,
+    pub whale_aspect: f32,
+    /// Where the whale's middle rests, and its nose-up angle in degrees.
+    pub whale_rest: (f32, f32),
+    pub whale_rest_angle: f32,
+    /// The letters that fly off the lines.
+    pub letter_size: f32,
+    /// How long the breach and the dive take, in seconds.
+    pub breach_seconds: f32,
+    pub dive_seconds: f32,
+}
+
+impl InstallStage {
+    fn icon_scaled() -> InstallStage {
+        InstallStage {
+            width: 460.,
+            height: 312.,
+            line_left: 97.,
+            line_top: 199.,
+            line_gap: 24.4,
+            line_thickness: 7.5,
+            line_lengths: [218., 252., 190., 244., 160.],
+            caret_gap: 9.,
+            caret_width: 3.,
+            caret_height: 17.5,
+            depths_top: 262.,
+            whale_length: 339.,
+            whale_aspect: 349. / 1200.,
+            whale_rest: (219.5, 165.),
+            whale_rest_angle: 38.,
+            letter_size: 15.,
+            breach_seconds: 1.6,
+            dive_seconds: 0.9,
+        }
+    }
+}
+
+/// The install window's colours and sizes. It's the app icon's page:
+/// warm paper, charcoal ink and one red, the caret's, used as light.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InstallTheme {
+    pub stage: InstallStage,
+    pub window_width: Pixels,
+    pub window_height: Pixels,
+    pub paper: Hsla,
+    /// The text lines, and the part of the first line that's written as
+    /// the copy runs.
+    pub line: Hsla,
+    pub written_line: Hsla,
+    pub whale_body: Hsla,
+    pub whale_light: Hsla,
+    /// Laid over whatever is below the surface.
+    pub water: Hsla,
+    pub caret: Hsla,
+    pub caret_glow: Hsla,
+    pub caret_glow_blur: Pixels,
+    pub letter: Hsla,
+    pub text: Hsla,
+    pub text_muted: Hsla,
+    pub text_size: Pixels,
+    /// Space around the words and buttons under the page.
+    pub footer_padding: Pixels,
+    pub footer_gap: Pixels,
+    pub button_gap: Pixels,
+    /// The widest a message under the page runs.
+    pub message_width: Pixels,
+}
+
+impl InstallTheme {
+    /// The page in light or dark. Dark keeps the paper's warmth in its
+    /// ink and turns the paper to night.
+    pub fn new(dark: bool) -> InstallTheme {
+        let (paper, ink, body, light, red) = if dark {
+            (0x1c1b1f, 0xebe8e1, 0x7a7982, 0xf4f1ea, 0xe5486a)
+        } else {
+            (0xf8f6f1, 0x0b0b0d, 0x3a393e, 0xf8f6f1, 0xc02b4a)
+        };
+        let (paper, ink, red) = (hex_color(paper), hex_color(ink), hex_color(red));
+        InstallTheme {
+            stage: InstallStage::icon_scaled(),
+            window_width: px(460.),
+            window_height: px(424.),
+            paper,
+            line: ink.opacity(if dark { 0.2 } else { 0.135 }),
+            written_line: ink.opacity(if dark { 0.62 } else { 0.55 }),
+            whale_body: hex_color(body),
+            whale_light: hex_color(light),
+            water: paper.opacity(if dark { 0.68 } else { 0.62 }),
+            caret: red,
+            caret_glow: red.opacity(0.55),
+            caret_glow_blur: px(14.),
+            letter: ink.opacity(0.5),
+            text: ink.opacity(0.86),
+            text_muted: ink.opacity(0.55),
+            text_size: px(14.),
+            footer_padding: px(20.),
+            footer_gap: px(14.),
+            button_gap: px(8.),
+            message_width: px(380.),
+        }
+    }
+}
