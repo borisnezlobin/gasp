@@ -30,7 +30,9 @@ final class SyncCenter {
     @ObservationIgnored private var progressTimer: Timer?
     @ObservationIgnored private var attachedFolder: URL?
 
-    private static var deviceName: String {
+    /// Names this phone in commits and in the notes it brings to iCloud:
+    /// `iphone`.
+    static var deviceName: String {
         UIDevice.current.model.lowercased().replacingOccurrences(of: " ", with: "-")
     }
 

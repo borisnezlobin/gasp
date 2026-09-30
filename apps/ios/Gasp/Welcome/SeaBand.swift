@@ -17,6 +17,7 @@ struct SeaBand: View {
     private static let swimmerOpacity = 0.55
     static let height: CGFloat = 56
     private static let swimmerWidth: CGFloat = 84
+    private let steps = WelcomeStep.allCases.count
 
     var body: some View {
         GeometryReader { proxy in
@@ -32,7 +33,7 @@ struct SeaBand: View {
         .frame(height: Self.height)
         .clipped()
         .accessibilityElement()
-        .accessibilityLabel("Step \(Int((tide * 4).rounded()) + 1) of 5")
+        .accessibilityLabel("Step \(Int((tide * Double(steps - 1)).rounded()) + 1) of \(steps)")
     }
 
     private var swimmer: some View {

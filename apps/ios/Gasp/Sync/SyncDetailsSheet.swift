@@ -43,7 +43,7 @@ struct SyncDetailsSheet: View {
         ContentUnavailableView {
             Label("These notes don't sync", systemImage: "icloud.slash")
         } description: {
-            Text("Sync keeps your notes in a GitHub repository, the same on every device.")
+            Text("Sync keeps your notes the same on every device, through iCloud or GitHub.")
         } actions: {
             if VaultLocation.syncedFolder != nil {
                 Button("Open your synced notes") {
@@ -52,7 +52,7 @@ struct SyncDetailsSheet: View {
                 }
                 .buttonStyle(.borderedProminent)
             } else {
-                Button("Set up sync") { model.workspace.sheet = .syncSetup(SyncSetupDraft()) }
+                Button("Set up sync") { model.workspace.sheet = .syncChooser }
                     .buttonStyle(.borderedProminent)
             }
         }

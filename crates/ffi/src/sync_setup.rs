@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use gasp_config::settings::SyncSettings;
 use gasp_sync::phase::plain_git_message;
-use gasp_sync::{CredentialStore, SyncError, Token, Vault};
+use gasp_sync::{CredentialStore, InPlaceSetup, SyncError, Token, Vault};
 
 use crate::sync::vault_config;
 use crate::vault::{VaultError, VaultFolder};
@@ -84,6 +84,78 @@ pub(crate) fn set_up_with(
     }
     kept?;
     use_branch_in_settings(&folder, &branch)
+}
+
+/// Makes the folder `folder` a clone of the repository where it is,
+/// merging the notes it has with the repository's, as the desktop does.
+/// It needn't exist: an empty one is made. Used when signing in with
+/// GitHub, whose new repositories are empty and so can't be cloned.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct InPlaceSyncSetup {
+    /// The repository's HTTPS address.
+    pub url: String,
+    /// Empty means `master`.
+    pub branch: String,
+    pub token: String,
+    pub folder: String,
+    /// Names this device in the first commit.
+    pub device: String,
+}
+
+/// What setting up in place did, for the finished screen.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct InPlaceSetupSummary {
+    pub brought_in: u32,
+    pub sent: u32,
+    /// Notes that differ between the folder and the repository and wait
+    /// for a person.
+    pub waiting: u32,
+}
+
+#[uniffi::export]
+pub fn set_up_sync_in_place(setup: InPlaceSyncSetup) -> Result<InPlaceSetupSummary, VaultError> {
+    set_up_in_place_with(&setup, &*token_store())
+}
+
+pub(crate) fn set_up_in_place_with(
+    setup: &InPlaceSyncSetup,
+    store: &dyn CredentialStore,
+) -> Result<InPlaceSetupSummary, VaultError> {
+    let branch = match setup.branch.trim() {
+        "" => SyncSettings::default().branch,
+        branch => branch.to_owned(),
+    };
+    let settings = SyncSettings {
+        branch: branch.clone(),
+        ..SyncSettings::default()
+    };
+    let config = vault_config(&settings).map_err(|message| refused(&message))?;
+    let folder = PathBuf::from(&setup.folder);
+    std::fs::create_dir_all(&folder)?;
+    let token = (!setup.token.trim().is_empty()).then(|| Token::new(setup.token.trim()));
+    let report = gasp_sync::set_up_in_place(&InPlaceSetup {
+        root: &folder,
+        url: &setup.url,
+        config,
+        token: token.clone(),
+        author: gasp_sync::sync_author(&setup.device),
+        device: &setup.device,
+    })
+    .map_err(|error| refused(&gasp_sync::setup_problem(&error, &setup.url)))?;
+    if let Some(token) = token {
+        store.save(&setup.url, &token).map_err(|error| {
+            refused(&format!(
+                "Your notes are set up to sync, but the token couldn't be kept in the Keychain: {error}"
+            ))
+        })?;
+    }
+    use_branch_in_settings(&folder, &branch)?;
+    let count = |paths: &[PathBuf]| u32::try_from(paths.len()).unwrap_or(u32::MAX);
+    Ok(InPlaceSetupSummary {
+        brought_in: count(&report.brought_in),
+        sent: count(&report.sent),
+        waiting: count(&report.waiting),
+    })
 }
 
 /// Clones into a folder beside `folder` first, and moves it into place

@@ -150,8 +150,8 @@ pub fn open_here(vault: PathBuf, after: AfterOpening, window: &mut Window, cx: &
     workspace.update(cx, |workspace, cx| {
         AppState::remember_vault(workspace.vault());
         workspace.focus_active(window, cx);
-        if after == AfterOpening::SetUpSync {
-            workspace.run_command("sync.set-up", window, cx);
+        if let AfterOpening::SetUpSync(start) = after {
+            crate::features::open_sync_start(workspace, start, window, cx);
         }
     });
 }

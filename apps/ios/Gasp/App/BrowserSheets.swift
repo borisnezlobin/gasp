@@ -54,6 +54,10 @@ struct BrowserSheets: ViewModifier {
         case .syncSetup(let draft): SyncSetupView(draft: draft)
         case .syncDetails: SyncDetailsSheet()
         case .resolver: ConflictResolverView()
+        case .syncChooser: SyncChooserSheet()
+        case .icloudSetup: ICloudSetupSheet()
+        case .githubSignIn: GitHubSignInSheet()
+        case .icloudDetails: ICloudDetailsSheet()
         }
     }
 

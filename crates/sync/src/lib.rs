@@ -7,11 +7,16 @@
 //! waits with both versions on disk, and every other file keeps syncing.
 //! [`Scheduler`] is the pure timing state machine that decides when each
 //! step runs.
+//!
+//! [`github`] signs in with GitHub and finds or makes the repository, and
+//! [`icloud`] keeps a vault in iCloud Drive instead of a repository.
 
 mod conflict;
 mod credentials;
 mod device_files;
 mod error;
+pub mod github;
+pub mod icloud;
 mod line_merge;
 mod message;
 mod parked;

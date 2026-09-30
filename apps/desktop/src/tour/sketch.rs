@@ -1,7 +1,7 @@
 //! Small drawings the tour explains things with: sheets of paper with
-//! lines of text on them, a folder, a laptop, a phone and a Keychain
-//! prompt. They're drawn from the theme's own surfaces and fills,
-//! so they look like the app in both themes.
+//! lines of text on them, a folder, a laptop and a phone. They're drawn
+//! from the theme's own surfaces and fills, so they look like the app in
+//! both themes.
 
 use gpui::{Div, Hsla, Pixels, div, prelude::*};
 
@@ -174,61 +174,4 @@ fn screen_note(width: Pixels, ui: &UiTheme) -> Div {
         .child(heading_bar(inner * 0.6, ui))
         .child(text_bar(inner, ui))
         .child(text_bar(inner * 0.7, ui))
-}
-
-/// The Keychain's question, with `Always Allow` ringed in the caret's red
-/// as the button to press.
-pub fn keychain_prompt(width: Pixels, ui: &UiTheme) -> Div {
-    let button = |label: &'static str, ringed: bool| {
-        div()
-            .flex_none()
-            .px(ui.space_md)
-            .h(ui.button_height * 0.8)
-            .flex()
-            .items_center()
-            .rounded(ui.menu_radius)
-            .text_size(ui.small_font_size)
-            .bg(crate::theme::over(ui.fill_strong, ui.note_background))
-            .when(ringed, |button| {
-                button.shadow(vec![
-                    ui.ring(ui.caret_mark),
-                    ui.ring(ui.caret_mark.opacity(0.3)),
-                ])
-            })
-            .child(label)
-    };
-    paper(ui)
-        .w(width)
-        .p(ui.space_lg)
-        .gap(ui.space_md)
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .items_center()
-                .gap(ui.space_md)
-                .child(
-                    icon(IconName::Key)
-                        .size(ui.icon_size * 1.5)
-                        .text_color(ui.icon),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap(ui.space_sm)
-                        .child(heading_bar(width * 0.5, ui))
-                        .child(text_bar(width * 0.62, ui)),
-                ),
-        )
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .justify_end()
-                .gap(ui.space_sm)
-                .child(button("Deny", false))
-                .child(button("Allow", false))
-                .child(button("Always Allow", true)),
-        )
 }

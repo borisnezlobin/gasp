@@ -102,7 +102,9 @@ struct BrowserView: View {
     /// `-open gasp://open?path=…` on the command line opens a note at
     /// launch, `-editing YES` puts the cursor in it with the keyboard up,
     /// and `-run <command>` runs a command (or `overview` shows the tabs,
-    /// `sync-details` the sync sheet), as `xcrun simctl launch` passes
+    /// `sync-details` the sync sheet, `sync-chooser`, `icloud-setup`,
+    /// `github-sign-in` and `icloud-details` the sheets for setting sync
+    /// up and for the iCloud vault), as `xcrun simctl launch` passes
     /// them. `-syncRepository`, `-syncBranch` and `-syncToken` fill
     /// in the sync setup, and `-syncStart YES` clones straight away.
     private func openLaunchLink() async {
@@ -115,12 +117,22 @@ struct BrowserView: View {
         try? await Task.sleep(for: .milliseconds(600))
         if arguments.bool(forKey: "editing") { model.tabs.activeSession?.textView.becomeFirstResponder() }
         guard let command = arguments.string(forKey: "run") else { return }
-        switch command {
-        case "overview": workspace.overviewOpen = true
-        case "sync-details": workspace.sheet = .syncDetails
-        default: model.runner.run(command)
+        if command == "overview" {
+            workspace.overviewOpen = true
+        } else if let sheet = Self.launchSheets[command] {
+            workspace.sheet = sheet
+        } else {
+            model.runner.run(command)
         }
     }
+
+    private static let launchSheets: [String: WorkspaceSheet] = [
+        "sync-details": .syncDetails,
+        "sync-chooser": .syncChooser,
+        "icloud-setup": .icloudSetup,
+        "github-sign-in": .githubSignIn,
+        "icloud-details": .icloudDetails
+    ]
 
     private func openSyncSetupFromArguments(_ arguments: UserDefaults) {
         guard let repository = arguments.string(forKey: "syncRepository") else { return }
