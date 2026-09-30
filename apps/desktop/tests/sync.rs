@@ -14,8 +14,9 @@ use gasp_desktop::features;
 use gasp_desktop::notices::{self, NoticeKind};
 use gasp_desktop::settings_view::{ControlRow, SettingsView};
 use gasp_desktop::sync::setup::{SetupField, SetupStop};
+use gasp_desktop::sync::start::{Stage, StartAction};
 use gasp_desktop::sync::{
-    ConflictResolver, SetupPhase, SetupProblem, SyncPhase, SyncService, SyncSetup,
+    ConflictResolver, SetupPhase, SetupProblem, SyncPhase, SyncService, SyncSetup, SyncStart,
     set_credential_store,
 };
 use gasp_desktop::workspace::{OpenIn, Workspace};
@@ -114,10 +115,20 @@ fn open_workspace<'a>(
     vault: &Path,
     store: Arc<InMemoryCredentialStore>,
 ) -> (Entity<Workspace>, &'a mut VisualTestContext) {
+    // Stand-ins for iCloud Drive and GitHub beside the vault, so nothing
+    // here reaches the real ones.
+    let beside = vault
+        .ancestors()
+        .skip(1)
+        .find(|folder| !folder.ends_with("stand-in-icloud"))
+        .unwrap_or(vault)
+        .to_path_buf();
     cx.update(|cx| {
         bind_keys(cx);
         features::bind_view_keys(cx);
         set_credential_store(store, cx);
+        gasp_desktop::sync::icloud::use_drive(beside.join("stand-in-icloud"), cx);
+        gasp_desktop::sync::github_client::use_stand_in(beside.join("stand-in-github"), cx);
     });
     let vault = vault.to_path_buf();
     let (workspace, cx) = cx.add_window_view(move |window, cx| {
@@ -194,7 +205,7 @@ fn a_vault_that_isnt_a_clone_shows_no_sync(cx: &mut TestAppContext) {
         "the offer isn't repeated"
     );
     run(&workspace, cx, &action.command);
-    assert!(cx.read(|cx| workspace.read(cx).active_modal::<SyncSetup>().is_some()));
+    assert!(cx.read(|cx| workspace.read(cx).active_modal::<SyncStart>().is_some()));
 }
 
 #[gpui::test]
@@ -711,6 +722,13 @@ fn unsynced_vault(files: &[(&str, &str)]) -> (TempDir, PathBuf, String) {
     (dir, vault, remote)
 }
 
+/// "Set up sync", then the quiet link to the form for an address and a token.
+fn open_setup_form(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<SyncSetup> {
+    run(workspace, cx, "sync.set-up");
+    click(cx, "sync-start-advanced");
+    setup_dialog(workspace, cx)
+}
+
 fn setup_dialog(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<SyncSetup> {
     cx.read(|cx| workspace.read(cx).active_modal::<SyncSetup>())
         .expect("the setup dialog is open")
@@ -743,8 +761,7 @@ fn setting_up_sync_makes_the_vault_a_clone_and_starts_syncing(cx: &mut TestAppCo
     let service = service(&workspace, cx);
     assert_eq!(phase(&service, cx), SyncPhase::Hidden);
 
-    run(&workspace, cx, "sync.set-up");
-    let setup = setup_dialog(&workspace, cx);
+    let setup = open_setup_form(&workspace, cx);
     fill_and_submit(&setup, cx, &remote, "synthetic-token");
     let SetupPhase::Done(done) = setup_phase(&setup, cx) else {
         panic!("setting up finished: {:?}", setup_phase(&setup, cx));
@@ -770,8 +787,7 @@ fn setting_up_brings_in_the_repositorys_notes_and_parks_clashes(cx: &mut TestApp
     let vault = world.path("laptop");
     write(&vault, "Plan.md", "old goal\n");
     let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
-    run(&workspace, cx, "sync.set-up");
-    let setup = setup_dialog(&workspace, cx);
+    let setup = open_setup_form(&workspace, cx);
     fill_and_submit(&setup, cx, &world.remote, "");
     let SetupPhase::Done(done) = setup_phase(&setup, cx) else {
         panic!("setting up finished: {:?}", setup_phase(&setup, cx));
@@ -799,8 +815,7 @@ fn setting_up_brings_in_the_repositorys_notes_and_parks_clashes(cx: &mut TestApp
 fn setup_says_what_is_wrong_and_leaves_the_vault_alone(cx: &mut TestAppContext) {
     let (dir, vault, _remote) = unsynced_vault(&[("Plan.md", "# Plan\n")]);
     let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
-    run(&workspace, cx, "sync.set-up");
-    let setup = setup_dialog(&workspace, cx);
+    let setup = open_setup_form(&workspace, cx);
 
     fill_and_submit(&setup, cx, "notes", "");
     let SetupPhase::Refused { field, .. } = setup_phase(&setup, cx) else {
@@ -831,8 +846,7 @@ fn setup_says_what_is_wrong_and_leaves_the_vault_alone(cx: &mut TestAppContext) 
 fn the_setup_dialog_works_from_the_keyboard(cx: &mut TestAppContext) {
     let (_dir, vault, remote) = unsynced_vault(&[("Plan.md", "# Plan\n")]);
     let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
-    run(&workspace, cx, "sync.set-up");
-    let setup = setup_dialog(&workspace, cx);
+    let setup = open_setup_form(&workspace, cx);
     let stop = |cx: &mut VisualTestContext| {
         cx.update(|window, cx| setup.read(cx).current_stop(window, cx))
     };
@@ -865,8 +879,7 @@ fn the_setup_dialog_works_from_the_keyboard(cx: &mut TestAppContext) {
 fn escape_closes_the_setup_dialog(cx: &mut TestAppContext) {
     let (_dir, vault, _remote) = unsynced_vault(&[("Plan.md", "# Plan\n")]);
     let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
-    run(&workspace, cx, "sync.set-up");
-    setup_dialog(&workspace, cx);
+    open_setup_form(&workspace, cx);
     cx.simulate_keystrokes("escape");
     assert!(cx.read(|cx| workspace.read(cx).active_modal::<SyncSetup>().is_none()));
 }
@@ -882,5 +895,162 @@ fn the_sync_page_of_a_vault_that_doesnt_sync_offers_setting_up(cx: &mut TestAppC
     settings.update(cx, |settings, cx| settings.show_section("sync", cx));
     cx.run_until_parked();
     click(cx, "set-up-sync");
-    assert!(cx.read(|cx| workspace.read(cx).active_modal::<SyncSetup>().is_some()));
+    assert!(cx.read(|cx| workspace.read(cx).active_modal::<SyncStart>().is_some()));
+}
+
+fn start_dialog(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<SyncStart> {
+    cx.read(|cx| workspace.read(cx).active_modal::<SyncStart>())
+        .expect("set up sync is open")
+}
+
+fn start_stage(dialog: &Entity<SyncStart>, cx: &mut VisualTestContext) -> Stage {
+    dialog.read_with(cx, |dialog, _| dialog.stage().clone())
+}
+
+#[gpui::test]
+fn setting_up_offers_icloud_first_then_github_then_the_form(cx: &mut TestAppContext) {
+    let (_dir, vault, _remote) = unsynced_vault(&[("Plan.md", "# Plan\n")]);
+    let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
+    run(&workspace, cx, "sync.set-up");
+    let dialog = start_dialog(&workspace, cx);
+    let actions = dialog.read_with(cx, |dialog, _| dialog.actions());
+    assert_eq!(
+        actions,
+        [
+            StartAction::ICloud,
+            StartAction::GitHub,
+            StartAction::SignUp,
+            StartAction::Advanced,
+            StartAction::Cancel,
+        ]
+    );
+    assert!(is_drawn(cx, "sync-start-icloud"));
+    cx.simulate_keystrokes("escape");
+    assert!(cx.read(|cx| workspace.read(cx).active_modal::<SyncStart>().is_none()));
+}
+
+#[gpui::test]
+fn syncing_with_icloud_copies_the_vault_checks_it_and_opens_it_there(cx: &mut TestAppContext) {
+    let (dir, vault, _remote) =
+        unsynced_vault(&[("Plan.md", "# Plan\n"), ("Daily/Monday.md", "Ran\n")]);
+    let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
+    run(&workspace, cx, "sync.set-up");
+    let dialog = start_dialog(&workspace, cx);
+    click(cx, "sync-start-icloud");
+    let icloud = dir.path().join("stand-in-icloud/Gasp");
+    assert!(
+        matches!(start_stage(&dialog, cx), Stage::ICloudConfirm { ref folder, notes_there: 0 } if *folder == icloud),
+        "a vault with notes shows where they're going first"
+    );
+    click(cx, "sync-start-move");
+    cx.run_until_parked();
+
+    assert_eq!(
+        std::fs::read_to_string(icloud.join("Daily/Monday.md")).unwrap(),
+        "Ran\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(vault.join("Plan.md")).unwrap(),
+        "# Plan\n",
+        "the original stays where it was"
+    );
+    let shown = cx.update(|window, cx| notices::shown_in(window.window_handle(), cx));
+    let (_, notice) = shown.last().expect("a notice says where the notes went");
+    assert!(notice.message.contains("The old folder is still at"));
+    assert!(
+        is_drawn(cx, "icloud-status-button"),
+        "the window opened the vault from iCloud"
+    );
+}
+
+#[gpui::test]
+fn a_vault_already_in_icloud_gets_its_settings_rather_than_set_up(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().join("stand-in-icloud/Gasp");
+    std::fs::create_dir_all(&vault).unwrap();
+    std::fs::write(vault.join("Plan.md"), "# Plan\n").unwrap();
+    std::fs::write(vault.join("Plan 2.md"), "# Plan\nfrom the phone\n").unwrap();
+    let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
+    assert!(is_drawn(cx, "icloud-status-button"));
+    run(&workspace, cx, "sync.set-up");
+    assert!(cx.read(|cx| workspace.read(cx).active_modal::<SettingsView>().is_some()));
+    assert!(is_drawn(cx, "show-icloud-folder"));
+    assert!(!is_drawn(cx, "set-up-sync"));
+}
+
+#[gpui::test]
+fn icloud_copies_open_beside_their_notes_to_compare(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().join("stand-in-icloud/Gasp");
+    std::fs::create_dir_all(&vault).unwrap();
+    std::fs::write(vault.join("Plan.md"), "# Plan\nBuy milk\n").unwrap();
+    std::fs::write(vault.join("Plan 2.md"), "# Plan\nBuy milk\nCall Sam\n").unwrap();
+    let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
+    click(cx, "icloud-status-button");
+    assert!(is_drawn(cx, "icloud-popover"));
+    click(cx, "icloud-compare-0");
+    let titles: Vec<Vec<String>> = cx.read(|cx| {
+        workspace
+            .read(cx)
+            .panes()
+            .iter()
+            .map(|pane| {
+                pane.read(cx)
+                    .tabs()
+                    .iter()
+                    .map(|tab| tab.title(cx))
+                    .collect()
+            })
+            .collect()
+    });
+    assert_eq!(titles, [vec!["Plan".to_owned()], vec!["Plan 2".to_owned()]]);
+}
+
+#[gpui::test]
+fn signing_in_with_github_makes_a_private_repository_and_syncs_with_it(cx: &mut TestAppContext) {
+    let (dir, vault, _remote) = unsynced_vault(&[("Plan.md", "# Plan\n")]);
+    let store = Arc::new(InMemoryCredentialStore::default());
+    let (workspace, cx) = open_workspace(cx, &vault, store.clone());
+    run(&workspace, cx, "sync.set-up");
+    let dialog = start_dialog(&workspace, cx);
+    click(cx, "sync-start-github");
+    assert!(
+        matches!(start_stage(&dialog, cx), Stage::Code { ref code, .. } if code == "WDJB-MJHT"),
+        "{:?}",
+        start_stage(&dialog, cx)
+    );
+    for _ in 0..3 {
+        cx.executor().advance_clock(Duration::from_secs(5));
+        cx.run_until_parked();
+    }
+    let Stage::Picking(picking) = start_stage(&dialog, cx) else {
+        panic!("signed in: {:?}", start_stage(&dialog, cx));
+    };
+    assert_eq!(picking.login, "you");
+    assert_eq!(
+        picking.new_name, "gasp-notes",
+        "the stand-in has a notes already"
+    );
+
+    click(cx, "sync-start-make-repository");
+    cx.run_until_parked();
+    assert!(
+        matches!(start_stage(&dialog, cx), Stage::Done(_)),
+        "{:?}",
+        start_stage(&dialog, cx)
+    );
+    assert!(vault.join(".git").is_dir());
+    let bare = dir.path().join("stand-in-github/gasp-notes.git");
+    let remote = format!("file://{}", bare.display());
+    assert_eq!(
+        store.load(&remote).unwrap(),
+        Some(Token::new("stand-in-token"))
+    );
+    let pushed = git2::Repository::open_bare(&bare).unwrap();
+    let tree = pushed
+        .find_reference("refs/heads/master")
+        .unwrap()
+        .peel_to_tree()
+        .unwrap();
+    assert!(tree.get_path(Path::new("Plan.md")).is_ok());
 }

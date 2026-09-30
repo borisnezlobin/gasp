@@ -85,9 +85,16 @@ impl SettingsView {
 
     pub(super) fn remote_description(&self) -> String {
         if self.sync_remote().is_none() {
-            return "This vault doesn’t sync yet. Connect it to a GitHub repository to keep it the same on every device.".to_string();
+            return "This vault doesn’t sync yet. Keep it the same on every device through iCloud or GitHub.".to_string();
         }
         "The HTTPS address of the GitHub repository this vault syncs with.".to_string()
+    }
+
+    pub(super) fn icloud_description(&self) -> String {
+        format!(
+            "This vault is in {}. iCloud keeps it the same on your iPhone and other Macs, with nothing to set here.",
+            crate::sync::icloud::shown_location(&self.vault_root)
+        )
     }
 
     pub(super) fn account_description(&self) -> String {
@@ -247,6 +254,30 @@ impl SettingsView {
             cx.listener(|view, _: &ClickEvent, _, cx| view.request_command(SET_UP_COMMAND, cx)),
         )
         .into_any_element()
+    }
+
+    pub(super) fn icloud_control(&self, focused: bool, cx: &mut Context<Self>) -> AnyElement {
+        button(
+            "show-icloud-folder",
+            "Show in Finder",
+            false,
+            focused,
+            &self.style,
+        )
+        .selector(|| "show-icloud-folder".to_string())
+        .on_click(cx.listener(|view, _: &ClickEvent, _, cx| {
+            crate::sandbox::reveal_path(&view.vault_root, cx)
+        }))
+        .into_any_element()
+    }
+
+    /// Space or Enter on the iCloud row shows the vault in Finder.
+    pub(super) fn icloud_key(&mut self, key: &str, cx: &mut Context<Self>) -> bool {
+        let presses = matches!(key, "space" | "enter");
+        if presses {
+            crate::sandbox::reveal_path(&self.vault_root, cx);
+        }
+        presses
     }
 
     pub(super) fn account_control(&self, focused: bool, cx: &mut Context<Self>) -> AnyElement {

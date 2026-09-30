@@ -8,12 +8,17 @@
 //! writes to the clone once it's on the branch the settings name, so a
 //! vault that another tool still syncs on `main` is left alone.
 
+pub mod cloud_status;
 pub mod credentials;
 pub mod engine;
+pub mod github_client;
+pub mod icloud;
 pub mod indicator;
 pub mod resolver;
 pub mod service;
 pub mod setup;
+pub mod start;
+mod start_view;
 pub mod state;
 
 use std::sync::Arc;
@@ -21,10 +26,12 @@ use std::sync::Arc;
 use gasp_sync::CredentialStore;
 use gpui::{App, Global};
 
+pub use cloud_status::{ICloudStatus, ICloudStatusEvent};
 pub use indicator::{SyncIndicator, SyncIndicatorEvent};
 pub use resolver::{Choice, ConflictResolver};
 pub use service::SyncService;
 pub use setup::{SetupPhase, SyncSetup, SyncSetupEvent};
+pub use start::{StartAt, SyncStart, SyncStartEvent};
 pub use state::{SetupProblem, SyncPhase, SyncRun};
 
 struct StoreGlobal(Arc<dyn CredentialStore>);

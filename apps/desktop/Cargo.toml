@@ -27,6 +27,9 @@ gasp-prose = { path = "../../crates/prose" }
 similar = "2.7"
 gasp-export = { path = "../../crates/export" }
 gasp-sync = { path = "../../crates/sync", features = ["keychain"] }
+# The stand-in GitHub a snapshot run signs in to keeps bare repositories.
+# gasp-sync already builds it.
+git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }
 gasp-search = { path = "../../crates/search" }
 gasp-vault = { path = "../../crates/vault" }
 gasp-mcp = { path = "../../crates/mcp" }
@@ -78,7 +81,6 @@ rustix = { version = "1", default-features = false, features = ["std", "system",
 [dev-dependencies]
 gpui = { version = "=0.2.2", features = ["test-support"] }
 tempfile = "3"
-git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }
 
 [lints]
 workspace = true
