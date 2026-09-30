@@ -48,7 +48,6 @@ struct BrowserSheets: ViewModifier {
         case .toolbars: ToolbarSettingsSheet()
         case .templates: TemplatePicker()
         case .recovery(let path): RecoverySheet(path: path)
-        case .moveNote(let path): MoveNoteSheet(path: path)
         case .share(let url): ShareSheet(items: [url])
         case .lookUp(let term): LookUpView(term: term)
         case .photos: EmptyView()
@@ -99,6 +98,13 @@ struct BrowserPrompts: ViewModifier {
                     }
                 }
             }
+            .alert("New folder", isPresented: showing(\.isNewFolder), presenting: model.workspace.prompt) { prompt in
+                TextField("Name", text: $newName)
+                Button("Make and move") {
+                    if case .newFolder(let entry) = prompt { model.runner.moveIntoNewFolder(entry, named: newName) }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
             .fileImporter(isPresented: showing(\.isPickVault), allowedContentTypes: [.folder]) { result in
                 if case .success(let folder) = result { model.switchVault(to: folder) }
             }
@@ -113,8 +119,11 @@ struct BrowserPrompts: ViewModifier {
     }
 
     private func prefillName() {
-        guard case .rename(let path) = model.workspace.prompt else { return }
-        newName = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+        switch model.workspace.prompt {
+        case .rename(let path): newName = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+        case .newFolder: newName = ""
+        default: break
+        }
     }
 }
 
@@ -123,6 +132,7 @@ extension WorkspacePrompt {
     var isDelete: Bool { if case .delete = self { true } else { false } }
     var isExport: Bool { if case .export = self { true } else { false } }
     var isPickVault: Bool { if case .pickVault = self { true } else { false } }
+    var isNewFolder: Bool { if case .newFolder = self { true } else { false } }
 }
 
 /// The system share sheet, for an exported file.
