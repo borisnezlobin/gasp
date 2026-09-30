@@ -48,6 +48,9 @@ Everything the owner has asked for, newest last, ticked off as it lands on maste
 - [x] Settings values can be typed in, not only stepped.
 - [x] A number setting's value doesn't line up with its label; it sits inside its − and + control now.
 - [x] Move notes by dragging in the sidebar, with no sheet and no "Move here" buttons.
+- [x] Haptics: checkbox, fold, tab swipe and the start page, number steps and limits, undo and redo, sync conflicts, and the sidebar opening.
+- [x] The sidebar opens from a swipe that starts anywhere in the left quarter of the screen.
+- [x] Notes show their title above the text, as on the Mac.
 
 ## Settings copy (both apps)
 
