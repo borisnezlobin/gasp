@@ -8,6 +8,7 @@
 pub mod commands;
 pub mod config_files;
 pub mod device;
+pub mod device_file;
 pub mod diagnostics;
 pub mod keymap;
 pub mod keys;

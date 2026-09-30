@@ -80,6 +80,9 @@ impl ConfigFile {
     /// The config file a path refers to, by file name.
     pub fn from_path(path: &Path) -> Option<ConfigFile> {
         let name = path.file_name()?.to_str()?;
+        if crate::device_file::is_device_file_name(name) {
+            return Some(ConfigFile::Device);
+        }
         FILES
             .iter()
             .find(|(_, file_name, _)| *file_name == name)
@@ -269,7 +272,11 @@ impl ConfigLoader {
     /// Re-reads one file. On error, that part keeps its last good version.
     pub fn reload(&mut self, file: ConfigFile) -> Vec<Diagnostic> {
         let name = file.file_name();
-        let text = match read_optional(&self.dir.join(name)) {
+        let path = match file {
+            ConfigFile::Device => self.dir.join(crate::device_file::device_file_name(&self.dir)),
+            _ => self.dir.join(name),
+        };
+        let text = match read_optional(&path) {
             Ok(text) => text,
             Err(error) => return vec![Diagnostic::error(name, "", None, error.to_string())],
         };

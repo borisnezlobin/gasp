@@ -3,7 +3,6 @@
 //! the cursor, the line at the top of the view and the folded headings.
 
 use gasp_config::device::{NotePosition, move_positions, remember_position};
-use gasp_config::loader::CONFIG_DIR;
 use gasp_config::store::save;
 
 use crate::document::NoteDocument;
@@ -66,7 +65,7 @@ impl VaultFolder {
         };
         let mut config = self.config();
         remember_position(&mut config.device.positions, entry);
-        let file = self.root.join(CONFIG_DIR).join("device.toml");
+        let file = gasp_config::device_file::device_file(&self.root);
         Ok(save(&file, &config.device.to_toml())?)
     }
 

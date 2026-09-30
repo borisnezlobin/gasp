@@ -36,6 +36,13 @@ pub fn icloud_folder_name() -> String {
 }
 
 /// Whether `path` is in iCloud Drive or an app's iCloud container.
+/// Names this device for its own state file in a vault kept in iCloud (see
+/// `gasp_config::device_file`), once, as the app starts.
+#[uniffi::export]
+pub fn set_device_name(name: String) {
+    gasp_config::device_file::set_device_name(&name);
+}
+
 #[uniffi::export]
 pub fn is_in_icloud(path: String) -> bool {
     icloud::is_in_icloud(Path::new(&path))
