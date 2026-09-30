@@ -58,6 +58,41 @@ extension CommandRunner {
         }
     }
 
+    /// Moves a note or a folder picked up in the file tree into `folder`.
+    func move(_ entry: TreeEntry, into folder: String) {
+        switch entry {
+        case .note(let path): move(path, to: folder)
+        case .folder(let path): moveFolder(path, into: folder)
+        }
+    }
+
+    /// Moves a folder and everything in it into `parent`, following its
+    /// notes in the tabs showing them.
+    func moveFolder(_ folder: String, into parent: String) {
+        guard let vault = library.vault else { return }
+        tabs.saveAllNotes()
+        do {
+            let moved = try vault.moveFolder(folder: folder, into: parent)
+            tabs.folderMoved(from: folder, to: moved)
+            library.edited()
+        } catch {
+            workspace.tell(error.shownMessage)
+        }
+    }
+
+    /// Makes a folder called `name` in `parent` and answers its path.
+    func createFolder(named name: String, in parent: String) -> String? {
+        guard let vault = library.vault else { return nil }
+        do {
+            let folder = try vault.createFolder(parent: parent, name: name)
+            library.edited()
+            return folder
+        } catch {
+            workspace.tell(error.shownMessage)
+            return nil
+        }
+    }
+
     func delete(_ path: String) {
         guard let vault = library.vault else { return }
         tabs.saveAllNotes()
