@@ -107,7 +107,10 @@ struct NumberSettingRow: View {
 
     private func stepButton(symbol: String, by change: Double, label: String, enabled: Bool) -> some View {
         Button {
-            save(limits.clamped(value + change))
+            let stepped = limits.clamped(value + change)
+            let atEnd = stepped == limits.minimum || stepped == limits.maximum
+            atEnd ? Haptics.limit() : Haptics.tick()
+            save(stepped)
         } label: {
             Image(systemName: symbol)
                 .font(.system(size: 14, weight: .semibold))

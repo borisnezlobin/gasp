@@ -13,6 +13,9 @@ struct TabTitleSwiper: View {
     /// launch starts it there, to look at a drag in a screenshot.
     @State private var drag = CGFloat(UserDefaults.standard.double(forKey: "tabBarDrag"))
     @State private var dragging = false
+    /// Whether letting go now would move to the neighbouring tab, so the
+    /// finger feels the moment it becomes true or stops being.
+    @State private var willSwitch = false
 
     private var tokens: Tokens { model.library.tokens }
     private var tabs: TabStore { model.tabs }
@@ -100,6 +103,7 @@ struct TabTitleSwiper: View {
             .onChanged { value in
                 dragging = true
                 drag = value.translation.width
+                noticeSwitchPoint(width: width)
             }
             .onEnded { value in
                 dragging = false
@@ -111,7 +115,18 @@ struct TabTitleSwiper: View {
                     settle(on: .previous)
                 }
                 drag = 0
+                willSwitch = false
             }
+    }
+
+    /// Ticks as the drag passes a third of the way towards a tab it can
+    /// move to, and again if it comes back.
+    private func noticeSwitchPoint(width: CGFloat) {
+        let open = drag < 0 ? hasNext : hasPrevious
+        let passed = open && abs(drag) > width / 3
+        guard passed != willSwitch else { return }
+        willSwitch = passed
+        Haptics.tick()
     }
 
     /// Moves to the neighbouring tab, making the new tab when it's the one
@@ -123,6 +138,7 @@ struct TabTitleSwiper: View {
         case .next where tabs.activeIndex < tabs.tabs.count - 1:
             tabs.select(tabs.activeIndex + 1)
         case .next where newTabWaits:
+            Haptics.limit()
             tabs.newTab()
         default:
             break

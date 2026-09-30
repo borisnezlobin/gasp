@@ -1,10 +1,9 @@
 import SwiftUI
 
 /// The sidebar slides over the note from the left, over a dimmed backdrop.
-/// A swipe in from the screen's left edge opens it; a swipe back or a tap
-/// on the backdrop closes it. With no navigation stack, nothing else
-/// claims that edge, and a tap there still reaches the note, such as a
-/// heading's fold control in the margin.
+/// A rightward swipe that starts in the left quarter of the screen opens
+/// it; a swipe back or a tap on the backdrop closes it. Taps there still
+/// reach the note, such as a heading's fold control in the margin.
 struct SidebarOverlay: View {
     @Environment(AppModel.self) private var model
     @State private var drag: CGFloat = 0
@@ -38,6 +37,9 @@ struct SidebarOverlay: View {
             }
         }
         .animation(.snappy(duration: 0.28), value: isOpen)
+        .onChange(of: isOpen) { _, open in
+            if open { Haptics.arrived() }
+        }
     }
 
     private func backdrop(width: CGFloat) -> some View {
@@ -61,8 +63,8 @@ struct SidebarOverlay: View {
     }
 }
 
-/// A swipe in from the screen's left edge, recognised on the window by
-/// UIKit, so taps near the edge go to what's under them.
+/// A rightward swipe from the left quarter of the screen, recognised on the
+/// window by UIKit, so taps there go to what's under them.
 private struct EdgeSwipe: UIViewRepresentable {
     let swiped: () -> Void
 
@@ -77,9 +79,10 @@ private struct EdgeSwipe: UIViewRepresentable {
 
 final class EdgeSwipeView: UIView {
     var swiped: () -> Void
-    private lazy var recognizer: UIScreenEdgePanGestureRecognizer = {
-        let recognizer = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(panned(_:)))
-        recognizer.edges = .left
+    private let gate = SwipeGate()
+    private lazy var recognizer: UIPanGestureRecognizer = {
+        let recognizer = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+        recognizer.delegate = gate
         return recognizer
     }()
     private var opened = false
@@ -101,11 +104,54 @@ final class EdgeSwipeView: UIView {
     }
 
     /// Opens once per swipe, as soon as it has come far enough.
-    @objc private func panned(_ recognizer: UIScreenEdgePanGestureRecognizer) {
+    @objc private func panned(_ recognizer: UIPanGestureRecognizer) {
         if recognizer.state == .began { opened = false }
         guard !opened, recognizer.state == .changed || recognizer.state == .ended,
               recognizer.translation(in: recognizer.view).x > Self.openDistance else { return }
         opened = true
         swiped()
+    }
+}
+
+/// Where a swipe that opens the sidebar may start.
+private final class SwipeGate: NSObject, UIGestureRecognizerDelegate {
+    /// How far in from the left edge a swipe may start, as a share of the
+    /// screen's width.
+    private static let reach: CGFloat = 0.25
+    /// The bar along the bottom, whose title swipes between tabs.
+    private static let bottomBarHeight: CGFloat = 96
+
+    /// Starts only for a mostly sideways swipe to the right, from the left
+    /// quarter, above the bottom bar, and not on something that scrolls
+    /// sideways itself, such as a wide table.
+    func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
+        guard let pan = gesture as? UIPanGestureRecognizer, let window = pan.view else { return false }
+        let start = pan.location(in: window)
+        let velocity = pan.velocity(in: window)
+        guard velocity.x > 0, abs(velocity.x) > abs(velocity.y) * 1.5 else { return false }
+        guard start.x <= window.bounds.width * Self.reach,
+              start.y < window.bounds.height - Self.bottomBarHeight else { return false }
+        return !scrollsSideways(window.hitTest(start, with: nil))
+    }
+
+    /// Runs alongside the note's own scrolling, which a sideways swipe
+    /// barely moves, rather than waiting for it to give up.
+    func gestureRecognizer(
+        _ gesture: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+    ) -> Bool {
+        true
+    }
+
+    private func scrollsSideways(_ view: UIView?) -> Bool {
+        var current = view
+        while let candidate = current {
+            if let scroll = candidate as? UIScrollView,
+               scroll.contentSize.width > scroll.bounds.width + 1 {
+                return true
+            }
+            current = candidate.superview
+        }
+        return false
     }
 }

@@ -11,6 +11,7 @@ extension EditingController {
     @discardableResult
     func toggleFold(at offset: Int) -> Bool {
         guard document.toggleFold(offset: UInt32(offset)) else { return false }
+        Haptics.tap()
         let folds = document.headingFolds()
         if let heading = folds.first(where: { $0.range.nsRange.contains(offset) || Int($0.range.end) == offset }),
            heading.folded {

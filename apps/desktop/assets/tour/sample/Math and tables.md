@@ -1,5 +1,3 @@
-# Math and tables
-
 Dollar signs hold math. One pair keeps it in the line, like $e^{i\pi} + 1 = 0$, and two pairs give it a line of its own:
 
 $$

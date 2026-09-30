@@ -100,6 +100,7 @@ extension EditingController: UIGestureRecognizerDelegate {
         textView.selectedRange = mark
         insert(checked ? " " : "x")
         textView.selectedRange = keep
+        Haptics.tap()
     }
 
     private func characterOffsets(at point: CGPoint) -> [Int] {

@@ -76,7 +76,10 @@ struct UndoPill: View {
     }
 
     private func button(_ symbol: String, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button {
+            Haptics.tap()
+            action()
+        } label: {
             Image(systemName: symbol)
                 .font(tokens.symbolFont(weight: .medium))
                 .foregroundStyle(tokens.swiftUIColor(enabled ? \.icon : \.iconDisabled))
