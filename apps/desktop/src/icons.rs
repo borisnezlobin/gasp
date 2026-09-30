@@ -745,8 +745,23 @@ pub fn icon(name: IconName) -> Svg {
 /// Serves the embedded icons to GPUI.
 pub struct Assets;
 
+/// Pictures other than icons, by the path GPUI asks for them by.
+const PICTURES: &[(&str, &[u8])] = &[
+    (
+        crate::install::WHALE_BODY,
+        include_bytes!("../assets/install/whale-body.svg"),
+    ),
+    (
+        crate::install::WHALE_LIGHT,
+        include_bytes!("../assets/install/whale-light.svg"),
+    ),
+];
+
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> gpui::Result<Option<Cow<'static, [u8]>>> {
+        if let Some((_, bytes)) = PICTURES.iter().find(|(known, _)| *known == path) {
+            return Ok(Some(Cow::Borrowed(*bytes)));
+        }
         let bytes = path
             .strip_prefix(ICON_PREFIX)
             .and_then(|file| file.strip_suffix(".svg"))
@@ -775,6 +790,14 @@ mod tests {
                 .unwrap()
                 .expect("icon is embedded");
             assert!(bytes.starts_with(b"<svg"), "{icon:?}");
+        }
+    }
+
+    #[test]
+    fn the_whale_loads_as_svgs() {
+        for path in [crate::install::WHALE_BODY, crate::install::WHALE_LIGHT] {
+            let bytes = Assets.load(path).unwrap().expect("whale is embedded");
+            assert!(bytes.starts_with(b"<svg"), "{path}");
         }
     }
 

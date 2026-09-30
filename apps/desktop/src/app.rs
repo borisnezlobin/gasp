@@ -1,14 +1,16 @@
 //! Starting the GPUI application: a vault window, or the lone editor the
 //! layout benchmark drives.
 
+use std::rc::Rc;
 use std::time::Duration;
 
-use gpui::{AppContext, Application, Bounds, WindowBounds, WindowOptions, px, size};
+use gpui::{App, AppContext, Application, Bounds, WindowBounds, WindowOptions, px, size};
 
 use crate::actions::bind_keys;
 use crate::bench::BenchConfig;
 use crate::editor::EditorView;
 use crate::icons::Assets;
+use crate::install::{self, InstallHooks, Placement, view::open_install_window};
 use crate::note::LoadedNote;
 use crate::trace;
 use crate::workspace::menus::{built_in_available, set_app_menus};
@@ -41,19 +43,7 @@ pub fn launch(target: LaunchTarget) {
     };
     application.run(move |cx| {
         trace::mark("gpui-ready");
-        {
-            let _span = trace::span("bind-keys");
-            bind_keys(cx);
-            crate::features::bind_view_keys(cx);
-        }
-        {
-            let _span = trace::span("app-menus");
-            set_app_menus(cx, &built_in_available(&crate::features::WIRED_COMMANDS));
-            use_in_window_prompts(cx);
-        }
-        #[cfg(target_os = "macos")]
-        crate::look_up::install(cx);
-        crate::window_drag::install();
+        set_up_app(cx);
         let _span = trace::span("open-window-total");
         if let Err(error) = open_target(target, reading, cx) {
             eprintln!("could not open a window: {error}");
@@ -62,12 +52,57 @@ pub fn launch(target: LaunchTarget) {
         // Only the font menus and font fallbacks need the full list;
         // it's made off the main thread once the window is up.
         crate::ui::load_installed_fonts(cx);
-        cx.on_window_closed(|cx| {
-            if cx.windows().is_empty() {
-                cx.quit();
-            }
-        })
-        .detach();
+    });
+}
+
+/// Keys, menus and the platform hooks every window needs, and quitting
+/// once the last window closes.
+fn set_up_app(cx: &mut App) {
+    {
+        let _span = trace::span("bind-keys");
+        bind_keys(cx);
+        crate::features::bind_view_keys(cx);
+    }
+    {
+        let _span = trace::span("app-menus");
+        set_app_menus(cx, &built_in_available(&crate::features::WIRED_COMMANDS));
+        use_in_window_prompts(cx);
+    }
+    #[cfg(target_os = "macos")]
+    crate::look_up::install(cx);
+    crate::window_drag::install();
+    cx.on_window_closed(|cx| {
+        if cx.windows().is_empty() {
+            cx.quit();
+        }
+    })
+    .detach();
+}
+
+/// Opens the install window for `placement` instead of a vault. "Not
+/// now", or opening from here after a failed move, opens `target` as a
+/// plain launch would; a finished move quits, leaving the moved copy
+/// open. `dark` picks the appearance, or follows the system's.
+pub fn launch_install(placement: Placement, target: LaunchTarget, dark: Option<bool>) {
+    Application::new().with_assets(Assets).run(move |cx| {
+        set_up_app(cx);
+        let hooks = InstallHooks {
+            open_here: Rc::new(move |window, cx| {
+                if let Err(error) = open_target(target.clone(), None, cx) {
+                    eprintln!("could not open a window: {error}");
+                }
+                crate::ui::load_installed_fonts(cx);
+                window.remove_window();
+            }),
+            remember_not_now: Rc::new(install::remember_not_now),
+            finished: Rc::new(|_, cx| cx.quit()),
+        };
+        let installer = install::platform_installer();
+        if let Err(error) = open_install_window(placement, installer, hooks, dark, cx) {
+            eprintln!("could not open a window: {error}");
+            std::process::exit(1);
+        }
+        crate::ui::load_installed_fonts(cx);
     });
 }
 
