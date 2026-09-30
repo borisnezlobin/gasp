@@ -60,6 +60,9 @@ keep-days        = 7
 [mcp]
 enabled = true   # the running app answers `gasp mcp` about its tabs, cursor and commands
 
+[telemetry]
+enabled = true   # once a day: the app's version, platform, system version and chip type, nothing else
+
 [appearance]
 base-font-size = 12
 theme          = "match-system"   # "light" | "dark" | "match-system"
