@@ -60,10 +60,19 @@ final class AppModel {
     /// The app came to the front, or went away.
     func sceneChanged(to phase: ScenePhase) {
         switch phase {
-        case .active: sync.syncForAppEvent()
+        case .active:
+            sync.syncForAppEvent()
+            UsagePing.sendIfDue { [weak self] in self?.allowsUsagePing ?? false }
         case .background: sync.syncForBackground()
         default: break
         }
+    }
+
+    /// The vault's `telemetry.enabled`, or its default while no vault is open.
+    private var allowsUsagePing: Bool {
+        let setting = library.vault?.settings().first { $0.key == UsagePing.settingKey }
+        guard case .bool(let enabled) = setting?.value else { return true }
+        return enabled
     }
 
     private func reopen(_ open: () -> Void) {
