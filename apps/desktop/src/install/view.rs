@@ -499,11 +499,14 @@ impl Render for InstallView {
 fn running_from(placement: &Placement) -> String {
     match &placement.source {
         Source::DiskImage { .. } => "Gasp is running from its disk image.".into(),
-        Source::Downloads => "Gasp is running from Downloads.".into(),
-        Source::Translocated => "Gasp is running from a temporary copy.".into(),
+        Source::Downloads => "Gasp is running from your Downloads folder.".into(),
+        // Gatekeeper runs it from a hidden copy; where the original is
+        // couldn't be found, only that it isn't in Applications.
+        Source::Translocated => "Gasp is running from outside Applications.".into(),
         Source::Elsewhere => {
             format!("Gasp is running from {}.", folder(&placement.bundle))
         }
+        Source::Development => "This is a development build of Gasp.".into(),
     }
 }
 
@@ -567,5 +570,33 @@ mod tests {
             source: Source::Elsewhere,
         };
         assert_eq!(running_from(&elsewhere), "Gasp is running from Tools.");
+    }
+
+    #[test]
+    fn each_place_reads_naturally() {
+        let from = |source: Source| {
+            running_from(&Placement {
+                bundle: PathBuf::from("/private/var/AppTranslocation/A/d/Gasp.app"),
+                original: None,
+                source,
+            })
+        };
+        let mount = PathBuf::from("/Volumes/Gasp");
+        assert_eq!(
+            from(Source::DiskImage { mount }),
+            "Gasp is running from its disk image."
+        );
+        assert_eq!(
+            from(Source::Downloads),
+            "Gasp is running from your Downloads folder."
+        );
+        assert_eq!(
+            from(Source::Translocated),
+            "Gasp is running from outside Applications."
+        );
+        assert_eq!(
+            from(Source::Development),
+            "This is a development build of Gasp."
+        );
     }
 }

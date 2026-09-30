@@ -2806,12 +2806,10 @@ pub struct InstallStage {
     pub caret_gap: f32,
     pub caret_width: f32,
     pub caret_height: f32,
-    /// Where the water starts fading to paper, down to the page's
-    /// bottom edge.
-    pub depths_top: f32,
-    /// The whale's drawn length, and its height per unit of length.
+    /// How deep the foam under the surface reaches.
+    pub foam_depth: f32,
+    /// The whale's drawn length. Its drawing is square, this wide.
     pub whale_length: f32,
-    pub whale_aspect: f32,
     /// Where the whale's middle rests, and its nose-up angle in degrees.
     pub whale_rest: (f32, f32),
     pub whale_rest_angle: f32,
@@ -2835,9 +2833,8 @@ impl InstallStage {
             caret_gap: 9.,
             caret_width: 3.,
             caret_height: 17.5,
-            depths_top: 262.,
+            foam_depth: 24.,
             whale_length: 339.,
-            whale_aspect: 349. / 1200.,
             whale_rest: (219.5, 165.),
             whale_rest_angle: 38.,
             letter_size: 15.,
@@ -2861,8 +2858,11 @@ pub struct InstallTheme {
     pub written_line: Hsla,
     pub whale_body: Hsla,
     pub whale_light: Hsla,
-    /// Laid over whatever is below the surface.
-    pub water: Hsla,
+    /// The whale's silhouette under the surface: its ink, tinted
+    /// towards the paper.
+    pub submerged: Hsla,
+    /// The paper just under the surface, where the foam is.
+    pub foam: Hsla,
     pub caret: Hsla,
     pub caret_glow: Hsla,
     pub caret_glow_blur: Pixels,
@@ -2897,7 +2897,11 @@ impl InstallTheme {
             written_line: ink.opacity(if dark { 0.62 } else { 0.55 }),
             whale_body: hex_color(body),
             whale_light: hex_color(light),
-            water: paper.opacity(if dark { 0.68 } else { 0.62 }),
+            submerged: over(
+                hex_color(body).opacity(if dark { 0.5 } else { 0.48 }),
+                paper,
+            ),
+            foam: paper.opacity(0.95),
             caret: red,
             caret_glow: red.opacity(0.55),
             caret_glow_blur: px(14.),
