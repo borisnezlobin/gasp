@@ -224,6 +224,11 @@ pub const SETTING_TEXTS: &[(&str, &str, &str)] = &[
             " mcp."
         ),
     ),
+    (
+        "telemetry.enabled",
+        "Send anonymous usage data",
+        "Once a day, Gasp sends its version, system version and chip type so we can count its users. Never your notes or file names.",
+    ),
 ];
 
 /// How each option of a choice reads. Values are unique across settings.

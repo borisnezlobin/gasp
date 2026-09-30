@@ -65,6 +65,7 @@ pub mod suggest;
 pub mod switcher;
 pub mod sync;
 pub mod table_edit;
+pub mod telemetry;
 pub mod text_input;
 pub mod text_offsets;
 pub mod theme;
