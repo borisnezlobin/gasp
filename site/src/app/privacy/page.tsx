@@ -1,0 +1,123 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import settingDark from "@/assets/setting-usage-dark.png";
+import settingLight from "@/assets/setting-usage-light.png";
+import { FactList, type Fact } from "@/components/FactList";
+import { InkImage } from "@/components/InkImage";
+import { SiteFooter } from "@/components/SiteFooter";
+import { SiteHeader } from "@/components/SiteHeader";
+import { REPO_URL } from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: "Privacy",
+  description: "Exactly what Gasp sends, which is four small facts once a day, and how to turn it off.",
+};
+
+const PAYLOAD = `{
+  "version": "0.1.0",
+  "platform": "mac",
+  "os": "15.1",
+  "arch": "arm64"
+}`;
+
+const FIELDS: Fact[] = [
+  { term: <span className="code">version</span>, detail: "Which version of Gasp you have." },
+  { term: <span className="code">platform</span>, detail: "Mac or iPhone." },
+  { term: <span className="code">os</span>, detail: "Your macOS or iOS version number." },
+  { term: <span className="code">arch</span>, detail: "Apple silicon or Intel." },
+];
+
+const NEVER = [
+  "Anything you've written, or the names of your notes, files and folders.",
+  "Your name, email, GitHub account or anything else about you.",
+  "An ID. Nothing links one day's ping to the next, so there's no way to follow one Mac over time.",
+];
+
+function Part({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="mt-16">
+      <h2 className="subheading text-2xl">{title}</h2>
+      <div className="body mt-4 space-y-4 text-ink-soft">{children}</div>
+    </section>
+  );
+}
+
+export default function Privacy() {
+  return (
+    <>
+      <SiteHeader />
+      <main className="mx-auto max-w-3xl px-4 pt-12 pb-20 sm:px-8 lg:pt-20">
+        <h1 className="heading">Privacy</h1>
+        <p className="lede mt-6 text-ink-soft">
+          Your notes live on your devices and in the GitHub repository you sync with, if you sync. We never see them. The
+          one thing Gasp sends us is a tiny message, at most once a day, so we can count how many people use it. This page
+          shows all of it.
+        </p>
+
+        <Part title="What the app sends">
+          <p>Once a day, a little after Gasp opens, it sends exactly this to gaspmd.com:</p>
+          <pre className="code overflow-x-auto rounded-xl bg-fill p-5 leading-relaxed text-ink">{PAYLOAD}</pre>
+          <FactList facts={FIELDS} className="pt-2" />
+        </Part>
+
+        <Part title="What it never sends">
+          <ul className="list-disc space-y-2 pl-5 marker:text-ink-muted">
+            {NEVER.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </Part>
+
+        <Part title="What we keep">
+          <p>
+            Each ping adds one to a count for that day and those four values, such as twelve Macs on version 0.1.0,
+            macOS 15.1 and Apple silicon. That count is all that&apos;s stored. We don&apos;t keep your IP address.
+            Vercel, which runs this site, has to see it to answer any request, as every web host does, and we
+            don&apos;t look it up or save it.
+          </p>
+          <p>
+            The download button counts downloads the same way, as one number per day. The site has no cookies, no ads
+            and no analytics scripts.
+          </p>
+        </Part>
+
+        <Part title="Turning it off">
+          <p>
+            Open Settings in Gasp. On the Mac the switch is on the General page, under Agent access. On the iPhone
+            it&apos;s in the Telemetry section.
+          </p>
+          <div className="overflow-hidden rounded-xl shadow-lifted">
+            <InkImage
+              light={settingLight}
+              dark={settingDark}
+              alt="The Send anonymous usage data switch in Gasp's settings, turned on."
+              sizes="(min-width: 768px) 44rem, 100vw"
+              className="h-auto w-full"
+            />
+          </div>
+          <p>
+            The switch is saved in your vault as <span className="code">telemetry.enabled</span>, so turning it off
+            on one device turns it off on every device that syncs that vault.
+          </p>
+        </Part>
+
+        <Part title="Everything else the app connects to">
+          <p>
+            Sync talks straight to GitHub with your own account, and the writing check runs on your device. When a note
+            shows a link card, Gasp fetches that page&apos;s title and picture from the site the link points to.
+          </p>
+          <p>
+            Gasp&apos;s source is public, so you can <a href={REPO_URL} className="underline underline-offset-4">read the code</a>{" "}
+            that sends the ping. If something here is unclear, open an issue on GitHub and we&apos;ll answer it.
+          </p>
+          <p>
+            <Link href="/" className="underline underline-offset-4">
+              Back to Gasp
+            </Link>
+          </p>
+        </Part>
+      </main>
+      <SiteFooter />
+    </>
+  );
+}
