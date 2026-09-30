@@ -18,6 +18,8 @@ reoriented, scaled to a 14-meter representative length, adjusted at the
 pectoral fins and head, made more robust through the torso, given modeled
 ventral throat pleats, rigged, weighted and animated. For the icon it was
 posed mid-breach, rendered in an ink style, rotated, faded where it sits
-below the text lines, and composited onto a paper-coloured tile.
+below the text lines, and composited onto a paper-coloured tile. For the
+install window it was traced into two single-colour vector shapes, and
+for the disk image's background it was drawn faintly beneath text lines.
 
 No endorsement by the original authors is implied.
