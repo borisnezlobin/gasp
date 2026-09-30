@@ -47,7 +47,7 @@ Everything the owner has asked for, newest last, ticked off as it lands on maste
 - [x] Number settings overlap their labels in Settings.
 - [x] Settings values can be typed in, not only stepped.
 - [x] A number setting's value doesn't line up with its label; it sits inside its − and + control now.
-- [x] Move notes in the sidebar itself rather than in a bottom sheet of folders.
+- [x] Move notes by dragging in the sidebar, with no sheet and no "Move here" buttons.
 
 ## Settings copy (both apps)
 
