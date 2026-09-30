@@ -24,6 +24,7 @@ pub struct Settings {
     pub templates: TemplateSettings,
     pub recovery: RecoverySettings,
     pub mcp: McpSettings,
+    pub telemetry: TelemetrySettings,
     /// Only still read so an older file loads; see [`LegacyMobileSettings`].
     #[schemars(skip)]
     #[serde(skip_serializing_if = "LegacyMobileSettings::is_empty")]
@@ -391,6 +392,22 @@ pub struct McpSettings {
 impl Default for McpSettings {
     fn default() -> Self {
         McpSettings { enabled: true }
+    }
+}
+
+/// The once-a-day count of who uses the app, which gaspmd.com/privacy
+/// describes.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct TelemetrySettings {
+    /// Whether the app sends its version, platform, system version and
+    /// chip type once a day. Never notes, file names or an identifier.
+    pub enabled: bool,
+}
+
+impl Default for TelemetrySettings {
+    fn default() -> Self {
+        TelemetrySettings { enabled: true }
     }
 }
 

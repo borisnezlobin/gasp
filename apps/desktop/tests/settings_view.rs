@@ -314,7 +314,7 @@ fn general_shows_the_vault_and_opens_another(cx: &mut TestAppContext) {
         .iter()
         .filter_map(|row| Some(row.item()?.key.as_str()))
         .collect();
-    assert_eq!(keys, ["mcp.enabled"]);
+    assert_eq!(keys, ["mcp.enabled", "telemetry.enabled"]);
     assert!(
         ControlRow::Version
             .title()
@@ -406,7 +406,8 @@ fn tab_walks_search_sections_and_controls(cx: &mut TestAppContext) {
     let focus = |cx: &mut VisualTestContext| view.read_with(cx, |view, _| view.focus_state());
     assert_eq!(focus(cx), SettingsFocus::Sections);
     // General's controls are the vault button, the Obsidian import, the
-    // agents switch and the icon credit's link. Version is skipped.
+    // agents switch, the usage data switch and the icon credit's link.
+    // Version is skipped.
     cx.simulate_keystrokes("tab");
     assert_eq!(focus(cx), SettingsFocus::Control(0));
     cx.simulate_keystrokes("tab");
@@ -416,8 +417,12 @@ fn tab_walks_search_sections_and_controls(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("tab");
     assert_eq!(focus(cx), SettingsFocus::Control(4));
     cx.simulate_keystrokes("tab");
+    assert_eq!(focus(cx), SettingsFocus::Control(5));
+    cx.simulate_keystrokes("tab");
     assert_eq!(focus(cx), SettingsFocus::Search);
     cx.simulate_keystrokes("shift-tab");
+    assert_eq!(focus(cx), SettingsFocus::Control(5));
+    cx.simulate_keystrokes("up");
     assert_eq!(focus(cx), SettingsFocus::Control(4));
     cx.simulate_keystrokes("up");
     assert_eq!(focus(cx), SettingsFocus::Control(3));

@@ -175,6 +175,7 @@ pub const PAGES: &[PageSpec] = &[
             &[RowSpec::Vault, RowSpec::Version],
             &[RowSpec::ObsidianImport],
             &[setting("mcp.enabled")],
+            &[setting("telemetry.enabled")],
             &[RowSpec::IconCredit],
         ],
     },
