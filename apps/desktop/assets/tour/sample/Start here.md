@@ -2,7 +2,7 @@
 
 This vault is a folder of plain text files on your Mac. Every note is a `.md` file you can open in any other app, and Gasp shows it formatted as you write.
 
-Click into any line to see the Markdown behind it. The symbols come back while your cursor is on them and fade away when it leaves.
+Click or tap any line to see the Markdown behind it. The symbols come back while your cursor is on them and fade away when it leaves.
 
 ## Look around
 
@@ -13,4 +13,4 @@ Click into any line to see the Markdown behind it. The symbols come back while y
 
 ## When you're done
 
-Delete this vault whenever you like; it's only a sample. To start your own, press ⌘⇧N and pick a folder.
+Delete this vault whenever you like; it's only a sample.
