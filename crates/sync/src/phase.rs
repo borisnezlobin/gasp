@@ -174,7 +174,7 @@ fn setup_explanation(problem: &SetupProblem) -> String {
             expected,
             actual: Some(actual),
         } => format!(
-            "This vault is on the branch {actual}, but sync uses {expected}, so it doesn’t sync here yet. Switch the vault to {expected} to move it to this app, or change the branch in sync settings."
+            "This vault saves to the branch {actual}, but the sync settings name {expected}. Nothing syncs until they match."
         ),
         SetupProblem::WrongBranch {
             expected,
@@ -364,14 +364,14 @@ mod tests {
     }
 
     #[test]
-    fn a_wrong_branch_names_both_branches_and_the_fix() {
+    fn a_wrong_branch_names_both_branches() {
         let phase = SyncPhase::Setup(SetupProblem::WrongBranch {
             expected: "master".into(),
             actual: Some("main".into()),
         });
         let text = explanation(&phase).unwrap();
         assert!(
-            text.contains("on the branch main, but sync uses master"),
+            text.contains("saves to the branch main, but the sync settings name master"),
             "{text}"
         );
         assert!(phase.needs_attention());

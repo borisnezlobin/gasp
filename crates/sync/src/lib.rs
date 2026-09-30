@@ -43,10 +43,10 @@ pub use scheduler::{
     SyncEventKind, SyncStatus, SyncStep,
 };
 pub use setup::{
-    InPlaceSetup, STAGING_FOLDER, SetupReport, default_author, repository_url, set_up_in_place,
+    InPlaceSetup, STAGING_FOLDER, SetupReport, sync_author, repository_url, set_up_in_place,
     setup_problem, url_is_local, url_takes_token,
 };
 pub use vault::{
-    Author, FALLBACK_AUTHOR_EMAIL, MergeOutcome, RepoProbe, Vault, VaultConfig, probe,
+    Author, SYNC_AUTHOR_EMAIL, MergeOutcome, RepoProbe, Vault, VaultConfig, probe, switch_branch, follow_branch,
     set_remote_url,
 };

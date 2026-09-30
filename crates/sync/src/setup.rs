@@ -116,15 +116,11 @@ pub fn setup_problem(error: &SyncError, url: &str) -> String {
     }
 }
 
-/// Who commits on this device: git's own `user.name` and `user.email`
-/// when both are set, else the device's name.
-pub fn default_author(device: &str) -> Author {
-    let configured = git2::Config::open_default().ok().and_then(|config| {
-        let name = config.get_string("user.name").ok()?;
-        let email = config.get_string("user.email").ok()?;
-        Some(Author::new(name, email))
-    });
-    configured.unwrap_or_else(|| Author::new(device, crate::vault::FALLBACK_AUTHOR_EMAIL))
+/// Who sync's commits are from: this device, at an address no account
+/// owns, rather than the person's own git identity. Commits under their
+/// own address would fill their GitHub contribution graph with autosaves.
+pub fn sync_author(device: &str) -> Author {
+    Author::new(device, crate::vault::SYNC_AUTHOR_EMAIL)
 }
 
 /// Makes the vault at `setup.root` a clone of `setup.url` on the configured

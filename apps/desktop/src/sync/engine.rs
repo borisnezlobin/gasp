@@ -103,9 +103,7 @@ pub fn open(root: &Path, settings: &SyncSettings, store: &dyn CredentialStore) -
     let signed_in = token.is_some();
     vault.set_token(token);
     let device = device_name();
-    let author = probe
-        .author
-        .unwrap_or_else(|| Author::new(device.clone(), gasp_sync::FALLBACK_AUTHOR_EMAIL));
+    let author = gasp_sync::sync_author(&device);
     let engine = Engine {
         vault: Mutex::new(vault),
         author,

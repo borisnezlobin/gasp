@@ -9,7 +9,7 @@ use gpui::{
 };
 
 use super::service::SyncService;
-use super::state::{self, SyncPhase, SyncRun, ago, file_list};
+use super::state::{self, SetupProblem, SyncPhase, SyncRun, ago, file_list};
 use crate::icons::{IconName, icon};
 use crate::settings_view::controls::{button, inert_button};
 use crate::theme::{SettingsTheme, UiTheme};
@@ -98,12 +98,18 @@ enum Action {
     Syncing,
     Resolve,
     Settings,
+    /// Moves the vault onto the branch the settings name, when it's on
+    /// another one.
+    SwitchBranch,
 }
 
 fn action_for(phase: &SyncPhase) -> Action {
     match phase {
         SyncPhase::Syncing(_) | SyncPhase::Starting => Action::Syncing,
         SyncPhase::Conflict { .. } => Action::Resolve,
+        SyncPhase::Setup(SetupProblem::WrongBranch {
+            actual: Some(_), ..
+        }) => Action::SwitchBranch,
         SyncPhase::SignIn { .. } | SyncPhase::Setup(_) => Action::Settings,
         _ => Action::SyncNow,
     }
@@ -158,6 +164,9 @@ impl SyncIndicator {
                 self.close(window, cx);
                 cx.emit(SyncIndicatorEvent::OpenSettings);
             }
+            Action::SwitchBranch => self
+                .service
+                .update(cx, |service, cx| service.switch_to_settings_branch(cx)),
         }
     }
 
@@ -294,6 +303,13 @@ impl SyncIndicator {
                 false,
                 style,
             ),
+            Action::SwitchBranch => button(
+                "sync-popover-action",
+                format!("Switch to {}", self.service.read(cx).settings_branch()),
+                true,
+                false,
+                style,
+            ),
         };
         let main = main
             .selector(|| "sync-popover-action".to_owned())
@@ -423,5 +439,10 @@ mod tests {
             action_for(&SyncPhase::Syncing(gasp_sync::SyncStep::Push)),
             Action::Syncing
         );
+        let wrong_branch = SyncPhase::Setup(SetupProblem::WrongBranch {
+            expected: "notes".into(),
+            actual: Some("master".into()),
+        });
+        assert_eq!(action_for(&wrong_branch), Action::SwitchBranch);
     }
 }
