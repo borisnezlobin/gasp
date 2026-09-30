@@ -6,8 +6,7 @@ enum WelcomeStep: Int, CaseIterable, Identifiable {
     case hello
     case writing
     case vault
-    case syncHow
-    case syncSetUp
+    case sync
 
     var id: Int { rawValue }
 
