@@ -25,13 +25,13 @@ impl TextInput {
             .unwrap_or_else(|| self.state.selected_range())
     }
 
-    /// The x of byte `offset` in the painted line.
-    fn x_for_offset(&self, offset: usize) -> Option<Pixels> {
+    /// Where byte `offset` is drawn in the painted text.
+    fn position_for_offset(&self, offset: usize) -> Option<Point<Pixels>> {
         let painted = self.painted.as_ref()?;
-        let x = painted.line.as_ref().map_or(Pixels::ZERO, |line| {
-            line.x_for_index(self.shown_offset(offset))
+        let at = painted.line.as_ref().map_or(Point::default(), |line| {
+            line.position(self.shown_offset(offset), painted.line_height)
         });
-        Some(painted.origin.x + x)
+        Some(painted.origin + at)
     }
 }
 
@@ -109,9 +109,18 @@ impl EntityInputHandler for TextInput {
         _: &mut Context<Self>,
     ) -> Option<Bounds<Pixels>> {
         let range = range_from_utf16(&self.doc(), &range_utf16);
+        let start = self.position_for_offset(range.start)?;
+        let end = self.position_for_offset(range.end)?;
+        let line_height = self.painted.as_ref()?.line_height;
+        let top = start.y.max(bounds.top());
+        let right = if end.y > start.y {
+            bounds.right()
+        } else {
+            end.x
+        };
         Some(Bounds::from_corners(
-            point(self.x_for_offset(range.start)?, bounds.top()),
-            point(self.x_for_offset(range.end)?, bounds.bottom()),
+            point(start.x, top),
+            point(right, top + line_height),
         ))
     }
 

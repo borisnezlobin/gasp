@@ -596,6 +596,9 @@ impl Pane {
                 .left_0()
                 .right_0()
                 .top(-scroll)
+                // The note under the title would take a click on it too,
+                // and focus itself after the title did.
+                .occlude()
                 .child(self.render_title(note, cx))
                 .child(measure),
         )
