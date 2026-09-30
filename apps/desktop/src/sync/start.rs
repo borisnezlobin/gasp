@@ -156,7 +156,19 @@ impl SyncStart {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let mut dialog = SyncStart {
+        // Starting touches the workspace, which may be mid-update opening
+        // this dialog, so it waits for that to finish.
+        let first = match start {
+            StartAt::Choice => None,
+            StartAt::ICloud => Some(StartAction::ICloud),
+            StartAt::GitHub => Some(StartAction::GitHub),
+        };
+        if let Some(action) = first {
+            cx.defer_in(window, move |dialog, window, cx| {
+                dialog.press(action, window, cx)
+            });
+        }
+        SyncStart {
             workspace,
             readiness: readiness(&root, cx),
             root,
@@ -168,13 +180,7 @@ impl SyncStart {
             style: crate::ui::settings_theme(cx),
             github: github_client(cx),
             work: None,
-        };
-        match start {
-            StartAt::Choice => {}
-            StartAt::ICloud => dialog.start_icloud(window, cx),
-            StartAt::GitHub => dialog.start_github(window, cx),
         }
-        dialog
     }
 
     pub fn stage(&self) -> &Stage {

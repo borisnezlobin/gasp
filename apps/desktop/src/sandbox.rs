@@ -142,7 +142,9 @@ pub fn trash_mode(mode: TrashMode) -> TrashMode {
 pub fn open_url(url: &str, cx: &App) {
     if !blocks(format_args!("opening {url}")) {
         cx.open_url(url);
+        return;
     }
+    crate::sync::github_client::opened(url);
 }
 
 /// Opens `path` in its default app, outside a snapshot run.

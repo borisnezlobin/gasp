@@ -278,9 +278,7 @@ impl View<'_> {
             .px(style.card_padding_x)
             .py(style.row_padding_y * if choice.dominant { 1.5 } else { 1. })
             .rounded(style.card_radius)
-            .when(choice.dominant, |row| {
-                row.bg(style.card_background).shadow(vec![style.outline()])
-            })
+            .when(choice.dominant, |row| row.bg(style.card_background))
             .when(focused, |row| row.shadow(vec![style.focus()]))
             .child(mark)
             .child(text);
@@ -386,9 +384,7 @@ impl View<'_> {
         let style = self.style();
         let ui = crate::ui::ui_theme(cx);
         let root = &self.dialog.root;
-        let name = root
-            .file_name()
-            .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+        let name = folder_name(root);
         let arrow = if moving {
             super::indicator::turning_icon(style.icon_size, style.text_muted, &ui)
         } else {
@@ -405,7 +401,7 @@ impl View<'_> {
             .child(div().flex_none().child(arrow))
             .child(self.place(
                 IconName::Cloud,
-                shown_location(folder),
+                folder_name(folder),
                 "iCloud Drive".to_owned(),
             ))
             .into_any_element()
@@ -424,7 +420,6 @@ impl View<'_> {
             .py(style.row_padding_y * 1.5)
             .rounded(style.card_radius)
             .bg(style.card_background)
-            .shadow(vec![style.outline()])
             .child(
                 icon(mark)
                     .size(style.icon_size * 1.6)
@@ -464,7 +459,6 @@ impl View<'_> {
             .py(style.row_padding_y * 2.)
             .rounded(style.card_radius)
             .bg(style.card_background)
-            .shadow(vec![style.outline()])
             .font_family(style.code_font_family.clone())
             .text_size(style.page_title_size * 1.6)
             .font_weight(style.strong_weight)
@@ -739,4 +733,10 @@ fn selector_name(action: StartAction) -> String {
         StartAction::Done => "done",
     };
     format!("sync-start-{name}")
+}
+
+fn folder_name(folder: &Path) -> String {
+    folder
+        .file_name()
+        .map_or_else(String::new, |name| name.to_string_lossy().into_owned())
 }

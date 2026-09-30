@@ -271,7 +271,7 @@ impl ICloudStatus {
                 "The vault is in {location}. iCloud keeps it the same on your iPhone and other Macs."
             );
         }
-        "Two devices changed these before iCloud caught up, so it kept the other version as a copy. Compare them, keep what you want, then delete the copy.".to_owned()
+        "When two devices change a note before iCloud catches up, iCloud keeps the other version as a copy beside it. Compare the two, keep what you want, then delete the copy.".to_owned()
     }
 
     fn render_copy(
