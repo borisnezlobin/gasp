@@ -81,42 +81,61 @@ pub enum GitHubError {
     Unreadable(String),
 }
 
-/// Asks GitHub for the codes that start signing in.
-pub fn start_sign_in(http: &dyn HttpClient) -> Result<DeviceCode, GitHubError> {
-    let client = client_id().ok_or(GitHubError::NotConfigured)?;
-    let response = http
-        .send(&device_code_request(client, SCOPE))
-        .map_err(GitHubError::Unreachable)?;
-    read_device_code(&response)
+/// Signing in with a short code, from asking GitHub for it to the token.
+#[derive(Clone, Debug)]
+pub struct SignIn {
+    client: String,
+    code: DeviceCode,
+    poll: DevicePoll,
 }
 
-/// Asks GitHub once whether the person approved `code`, `waited` after it
-/// was handed out. A poll that gets no answer waits and tries again: a
-/// dropped connection while the person is on GitHub shouldn't end it.
-pub fn poll_sign_in(
-    http: &dyn HttpClient,
-    code: &DeviceCode,
-    poll: &mut DevicePoll,
-    waited: Duration,
-) -> PollState {
-    let Some(client) = client_id() else {
-        return PollState::Failed(SignInFailure::Refused(
-            GitHubError::NotConfigured.to_string(),
-        ));
-    };
-    let answer = http
-        .send(&token_request(client, &code.device_code))
-        .map_err(GitHubError::Unreachable)
-        .and_then(|response| read_token_answer(&response));
-    match answer {
-        Ok(answer) => poll.answer(answer, waited),
-        Err(_) => poll.answer(TokenAnswer::Pending, waited),
+impl SignIn {
+    /// Asks GitHub for the codes, as the OAuth App `client` (normally
+    /// [`client_id`]).
+    pub fn start(http: &dyn HttpClient, client: &str) -> Result<Self, GitHubError> {
+        let response = http
+            .send(&device_code_request(client, SCOPE))
+            .map_err(GitHubError::Unreachable)?;
+        let code = read_device_code(&response)?;
+        let poll = DevicePoll::new(&code);
+        Ok(SignIn {
+            client: client.to_owned(),
+            code,
+            poll,
+        })
+    }
+
+    /// The codes GitHub handed out: the short one to show, and where to
+    /// type it.
+    pub fn code(&self) -> &DeviceCode {
+        &self.code
+    }
+
+    /// How long to wait before the first poll.
+    pub fn first_wait(&self) -> Duration {
+        self.poll.interval()
+    }
+
+    /// Asks GitHub once whether the person approved, `waited` after the
+    /// code was handed out. A poll that gets no answer waits and tries
+    /// again: a dropped connection while the person is on GitHub
+    /// shouldn't end it.
+    pub fn poll_once(&mut self, http: &dyn HttpClient, waited: Duration) -> PollState {
+        let answer = http
+            .send(&token_request(&self.client, &self.code.device_code))
+            .map_err(GitHubError::Unreachable)
+            .and_then(|response| read_token_answer(&response));
+        self.poll
+            .answer(answer.unwrap_or(TokenAnswer::Pending), waited)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use super::*;
+    use crate::credentials::Token;
 
     #[test]
     fn the_placeholder_client_id_counts_as_not_configured() {
@@ -125,5 +144,51 @@ mod tests {
         } else {
             assert_eq!(client_id(), Some(GITHUB_CLIENT_ID));
         }
+    }
+
+    /// GitHub's sign-in endpoints: a code, then "not yet" until the
+    /// person approves on the third poll, with one dropped connection.
+    struct SignInGitHub {
+        polls: Mutex<u32>,
+    }
+
+    impl HttpClient for SignInGitHub {
+        fn send(&self, request: &HttpRequest) -> Result<HttpResponse, String> {
+            let answer = |body: &str| {
+                Ok(HttpResponse {
+                    status: 200,
+                    body: body.to_owned(),
+                })
+            };
+            if request.url.ends_with("/device/code") {
+                return answer(
+                    r#"{"device_code":"long","user_code":"WDJB-MJHT","verification_uri":"https://github.com/login/device","expires_in":900,"interval":5}"#,
+                );
+            }
+            let mut polls = self.polls.lock().unwrap();
+            *polls += 1;
+            match *polls {
+                1 => answer(r#"{"error":"authorization_pending"}"#),
+                2 => Err("The network connection was lost.".to_owned()),
+                _ => answer(r#"{"access_token":"gho_abc","token_type":"bearer","scope":"repo"}"#),
+            }
+        }
+    }
+
+    #[test]
+    fn signing_in_waits_through_a_dropped_connection_for_the_token() {
+        let github = SignInGitHub {
+            polls: Mutex::new(0),
+        };
+        let mut sign_in = SignIn::start(&github, "Ov23li-client").unwrap();
+        assert_eq!(sign_in.code().user_code, "WDJB-MJHT");
+        let five = Duration::from_secs(5);
+        let waiting = PollState::Waiting { next_poll: five };
+        assert_eq!(sign_in.poll_once(&github, five), waiting);
+        assert_eq!(sign_in.poll_once(&github, five * 2), waiting);
+        assert_eq!(
+            sign_in.poll_once(&github, five * 3),
+            PollState::SignedIn(Token::new("gho_abc"))
+        );
     }
 }
