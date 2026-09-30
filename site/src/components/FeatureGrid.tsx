@@ -1,25 +1,38 @@
-type Feature = { name: string; detail: string };
+import {
+  ArrowsClockwise,
+  Command,
+  Export,
+  FolderOpen,
+  MagnifyingGlass,
+  Robot,
+  Sigma,
+  TextAa,
+} from "@phosphor-icons/react/dist/ssr";
+import type { Icon } from "@phosphor-icons/react";
+
+type Feature = { icon: Icon; name: string; detail: string };
 
 const FEATURES: Feature[] = [
-  { name: "Search every note", detail: "⌘⇧F looks through the whole vault as you type." },
-  { name: "MCP", detail: "Agents can search, read and write notes, and run the app's commands." },
-  { name: "Keyboard first", detail: "Every command is in the ⌘P palette, and any shortcut can be rebound." },
-  { name: "Math", detail: "LaTeX renders in place, with Latex Suite's snippets as you type." },
-  { name: "Writing check", detail: "Spelling and grammar are checked on your device, offline." },
-  { name: "HTML export", detail: "Any note becomes a standalone web page, math and all." },
-  { name: "Free sync", detail: "Notes travel between devices through a GitHub repository you own." },
-  { name: "Obsidian vaults", detail: "Open the folder you already have; its settings can come along." },
+  { icon: MagnifyingGlass, name: "Search", detail: "Every note, as you type" },
+  { icon: Command, name: "Command palette", detail: "⌘P runs anything" },
+  { icon: Sigma, name: "Math", detail: "LaTeX renders in place" },
+  { icon: TextAa, name: "Spelling and grammar", detail: "Checked offline, on your Mac" },
+  { icon: ArrowsClockwise, name: "Sync", detail: "Free, through iCloud or GitHub" },
+  { icon: FolderOpen, name: "Obsidian vaults", detail: "Open the folder you have" },
+  { icon: Robot, name: "AI agents", detail: "Claude can read and edit notes" },
+  { icon: Export, name: "HTML export", detail: "Any note as a web page" },
 ];
 
 export function FeatureGrid() {
   return (
-    <dl className="grid gap-x-16 sm:grid-cols-2">
-      {FEATURES.map(({ name, detail }) => (
-        <div key={name} className="border-t border-rule py-5">
-          <dt className="subheading">{name}</dt>
-          <dd className="body mt-1 text-ink-soft">{detail}</dd>
-        </div>
+    <ul className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-4">
+      {FEATURES.map(({ icon: FeatureIcon, name, detail }) => (
+        <li key={name}>
+          <FeatureIcon size={28} className="text-ink" aria-hidden />
+          <p className="mt-3 font-bold">{name}</p>
+          <p className="small mt-0.5 text-ink-muted">{detail}</p>
+        </li>
       ))}
-    </dl>
+    </ul>
   );
 }
