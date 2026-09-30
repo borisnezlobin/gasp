@@ -18,6 +18,7 @@ static ALLOCATOR: gasp_desktop::allocator::ReturningAllocator =
 fn main() -> ExitCode {
     trace::init();
     env_logger::init();
+    gasp_config::device_file::set_device_name(&gasp_desktop::edit_time::device_name());
     let args: Vec<String> = std::env::args().skip(1).collect();
     let command = match cli::parse(&args) {
         Ok(command) => command,

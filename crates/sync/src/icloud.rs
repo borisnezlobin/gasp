@@ -18,7 +18,7 @@
 use std::collections::HashSet;
 use std::fs;
 use std::io;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 /// The folder at the top of iCloud Drive that holds the vault.
 pub const ICLOUD_FOLDER_NAME: &str = "Gasp";
@@ -46,8 +46,7 @@ pub fn icloud_vault(drive: &Path) -> PathBuf {
 /// Whether `path` is somewhere iCloud keeps in step: iCloud Drive, or an
 /// app's iCloud container.
 pub fn is_in_icloud(path: &Path) -> bool {
-    path.components()
-        .any(|part| part == Component::Normal(MOBILE_DOCUMENTS.as_ref()))
+    gasp_config::device_file::is_in_icloud(path)
 }
 
 /// Whether the vault at `root` syncs with git, which it then keeps doing:

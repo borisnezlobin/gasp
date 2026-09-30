@@ -5,7 +5,6 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::UNIX_EPOCH;
 
-use gasp_config::loader::CONFIG_DIR;
 use gasp_config::settings::ThemeChoice;
 use gasp_config::store::save;
 use gasp_config::{Config, ConfigLoader};
@@ -205,12 +204,13 @@ impl VaultFolder {
         }
     }
 
-    /// Saves the open tabs to `.gasp/device.toml`.
+    /// Saves the open tabs to this device's state file (see
+    /// `gasp_config::device_file`).
     pub fn save_open_tabs(&self, tabs: OpenTabs) -> Result<(), VaultError> {
         let mut config = self.config();
         config.device.open_tabs = tabs.paths;
         config.device.active_tab = tabs.active.map(|index| index as usize);
-        let path = self.root.join(CONFIG_DIR).join("device.toml");
+        let path = gasp_config::device_file::device_file(&self.root);
         Ok(save(&path, &config.device.to_toml())?)
     }
 }
@@ -343,6 +343,7 @@ fn collect_folders(root: &Path, relative: &str, out: &mut Vec<String>) {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use gasp_config::loader::CONFIG_DIR;
 
     pub(crate) fn vault_with(notes: &[(&str, &str)]) -> (tempfile::TempDir, Arc<VaultFolder>) {
         let dir = tempfile::tempdir().unwrap();

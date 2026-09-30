@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftUI
+import UIKit
 
 /// The app's state: the vault, the browser around it, sync, and the
 /// command runner that joins them. Opening another vault starts a fresh
@@ -16,6 +17,7 @@ final class AppModel {
     private(set) var runner: CommandRunner
 
     init() {
+        setDeviceName(name: Self.deviceName)
         #if DEBUG
         VaultLocation.useICloudVaultFromArguments()
         #endif
@@ -32,6 +34,13 @@ final class AppModel {
             self?.sync.noteEdited()
         }
         attachSync()
+    }
+
+    /// Names this iPhone's own state file in a vault kept in iCloud, so
+    /// its open tabs never overwrite the Mac's.
+    private static var deviceName: String {
+        let vendorID = UIDevice.current.identifierForVendor?.uuidString.prefix(6) ?? "phone"
+        return "iphone-\(vendorID)"
     }
 
     func switchVault(to folder: URL) {

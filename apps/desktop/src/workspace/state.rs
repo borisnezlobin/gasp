@@ -11,7 +11,6 @@ use std::collections::BTreeSet;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use gasp_config::CONFIG_DIR;
 use gasp_config::device::{DeviceSettings, WindowState};
 use gasp_config::migration::migrate_app_folder_and_log;
 use gpui::{Bounds, Pixels, WindowBounds, point, px, size};
@@ -20,7 +19,6 @@ use serde::{Deserialize, Serialize};
 use super::files::atomic_write;
 
 const STATE_FILE: &str = "state.toml";
-const DEVICE_FILE: &str = "device.toml";
 
 /// Moves the app's folders from the names an earlier version used, in
 /// the platform's config and data folders (one and the same on macOS).
@@ -114,7 +112,7 @@ impl AppState {
 
 /// `<vault>/.gasp/device.toml`.
 pub fn device_path(vault: &Path) -> PathBuf {
-    vault.join(CONFIG_DIR).join(DEVICE_FILE)
+    gasp_config::device_file::device_file(vault)
 }
 
 /// Writes the vault's device file, creating `.gasp/` if needed.
