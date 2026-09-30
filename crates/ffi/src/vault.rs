@@ -179,6 +179,11 @@ impl VaultFolder {
         commands::key_bindings(&self.config())
     }
 
+    /// Whether a note's name shows as an editable title above its text.
+    pub fn shows_inline_title(&self) -> bool {
+        self.config().settings.editor.show_inline_title
+    }
+
     pub fn symbol_visibility(&self) -> SymbolVisibility {
         self.display.lock().symbols.mode.into()
     }

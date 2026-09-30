@@ -127,6 +127,10 @@ final class CommandRunner: EditingHost {
 
     // MARK: EditingHost
 
+    func rename(_ session: EditingController, to title: String) {
+        rename(session.path, to: title)
+    }
+
     func follow(link target: String, from session: EditingController) {
         do {
             let destination = try session.vault.resolveLink(fromPath: session.path, target: target)

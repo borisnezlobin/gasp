@@ -1,5 +1,3 @@
-# Writing in Markdown
-
 Markdown is a way of formatting text with ordinary characters. Two stars make **bold**, one star makes *italics*, and two equals signs make ==a highlight==. Backticks mark `code`.
 
 ## Headings

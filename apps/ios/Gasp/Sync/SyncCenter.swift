@@ -192,6 +192,8 @@ final class SyncCenter {
     }
 
     private func publish(_ overview: SyncOverview, conflicts: [ConflictNote]) {
+        let known = Set(self.conflicts.map(\.path))
+        if conflicts.contains(where: { !known.contains($0.path) }) { Haptics.warning() }
         self.overview = overview
         self.conflicts = conflicts
     }

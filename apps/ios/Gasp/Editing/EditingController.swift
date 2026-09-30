@@ -10,6 +10,8 @@ protocol EditingHost: AnyObject {
     func follow(link target: String, from session: EditingController)
     /// The bar above the software keyboard, from toolbars.toml.
     var keyboardToolbar: PhoneToolbar { get }
+    /// Gives the session's note a new name, typed in its title.
+    func rename(_ session: EditingController, to title: String)
 }
 
 /// One open note: keeps the core's copy in step with the text view,
@@ -21,6 +23,7 @@ final class EditingController: NSObject, UITextViewDelegate {
         didSet {
             saver.path = path
             media.notePath = path
+            showTitle()
         }
     }
     let document: NoteDocument
@@ -56,6 +59,11 @@ final class EditingController: NSObject, UITextViewDelegate {
     var pendingTop: Int?
     /// The wide tables' scrolling grids, by where each table starts.
     var tableGrids: [UInt32: TableGridView] = [:]
+    /// The note's name above its text, which renames it when edited.
+    let titleField = UITextField()
+    /// Set for a note that isn't a file of the vault, such as the welcome
+    /// tour's practice note, whose title would name nothing.
+    private(set) var titleHidden = false
     private let saver: NoteSaver
     private let displayParagraphs = DisplayParagraphs()
     private var blockFragments: BlockFragments
@@ -136,9 +144,11 @@ final class EditingController: NSObject, UITextViewDelegate {
         textView.inputAccessoryView = toolbar.enabled ? bar : nil
         applyColors()
         installTapHandling()
+        configureTitle()
     }
 
     private func applyColors() {
+        styleTitle()
         textView.backgroundColor = tokens.color(\.background)
         textView.tintColor = tokens.color(\.accent)
         textView.typingAttributes = styler.typingAttributes
@@ -168,6 +178,11 @@ final class EditingController: NSObject, UITextViewDelegate {
         }
     }
 
+    func hideTitle() {
+        titleHidden = true
+        columnWidthChanged()
+    }
+
     func setReadableWidth(_ enabled: Bool) {
         readableWidth = enabled
         columnWidthChanged()
@@ -183,9 +198,11 @@ final class EditingController: NSObject, UITextViewDelegate {
     private func columnWidthChanged() {
         let spacing = tokens.spacing
         let side = sideInset(spacing)
+        let top = CGFloat(spacing.lg)
         textView.textContainerInset = UIEdgeInsets(
-            top: CGFloat(spacing.lg), left: side, bottom: CGFloat(spacing.xxl) * 4, right: side
+            top: top + titleRoom, left: side, bottom: CGFloat(spacing.xxl) * 4, right: side
         )
+        placeTitle(top: top, side: side)
         styler.setColumnWidth(textView.bounds.width - side * 2)
         restyle(edited: nil)
         if pendingTop != nil {

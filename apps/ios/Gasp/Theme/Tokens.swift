@@ -78,6 +78,11 @@ struct Tokens {
         return bodySize * CGFloat(scales[index])
     }
 
+    /// A note's title above its text.
+    var titleSize: CGFloat {
+        bodySize * CGFloat(typography.titleScale)
+    }
+
     var codeSize: CGFloat {
         bodySize * CGFloat(typography.codeScale)
     }

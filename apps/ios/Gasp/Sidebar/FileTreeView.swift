@@ -190,7 +190,7 @@ private struct TreeDropDelegate: DropDelegate {
 
     func dropEntered(info: DropInfo) {
         hovering = true
-        if accepts { Haptics.target() }
+        if accepts { Haptics.tick() }
         springOpenSoon()
     }
 
@@ -219,7 +219,7 @@ private struct TreeDropDelegate: DropDelegate {
         Task { @MainActor in
             try? await Task.sleep(for: Self.springDelay)
             guard stillHovering.wrappedValue, !opening.wrappedValue else { return }
-            Haptics.target()
+            Haptics.tick()
             withAnimation(.snappy) { opening.wrappedValue = true }
         }
     }
@@ -235,21 +235,5 @@ extension Workspace {
 
     func canDrop(into folder: String) -> Bool {
         treeDrag?.canMove(into: folder) == true
-    }
-}
-
-/// The taps under the finger as a note or folder is picked up, lands
-/// over a folder and is dropped.
-enum Haptics {
-    static func pickedUp() {
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-    }
-
-    static func target() {
-        UISelectionFeedbackGenerator().selectionChanged()
-    }
-
-    static func dropped() {
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 }

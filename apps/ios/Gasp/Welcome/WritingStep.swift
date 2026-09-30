@@ -90,6 +90,7 @@ final class PracticeNote: EditingHost {
             return nil
         }
         session = EditingController(path: Self.path, text: Self.text, vault: vault, tokens: tokens, host: self)
+        session.hideTitle()
         session.setReadableWidth(false)
         session.textView.backgroundColor = .clear
     }
@@ -116,4 +117,6 @@ final class PracticeNote: EditingHost {
     var keyboardToolbar: PhoneToolbar { vault.keyboardToolbar() }
 
     func follow(link target: String, from session: EditingController) {}
+
+    func rename(_ session: EditingController, to title: String) {}
 }
