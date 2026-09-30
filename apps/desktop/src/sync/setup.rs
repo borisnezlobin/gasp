@@ -87,8 +87,9 @@ pub enum SyncSetupEvent {
     RunCommand(String),
 }
 
-/// Everything the background work needs, taken from the form.
-struct SetupJob {
+/// Everything the background work needs, taken from the form or from
+/// signing in with GitHub.
+pub(super) struct SetupJob {
     root: PathBuf,
     repository: String,
     url: String,
@@ -133,6 +134,48 @@ fn field(placeholder: &str, window: &mut Window, cx: &mut Context<SyncSetup>) ->
             .with_placeholder(placeholder)
             .with_style(TextInputStyle::Query)
     })
+}
+
+impl SetupJob {
+    /// Setting up the vault at `root` with the repository at `url` (shown
+    /// as `repository`) on `branch`, signed in with `token`. `settings`
+    /// are the vault's sync settings as they are now.
+    pub(super) fn new(
+        root: PathBuf,
+        repository: String,
+        url: String,
+        branch: String,
+        token: Option<Token>,
+        settings: &SyncSettings,
+    ) -> Result<Self, String> {
+        let config = vault_config(&SyncSettings {
+            branch: branch.clone(),
+            ..settings.clone()
+        })?;
+        Ok(SetupJob {
+            root,
+            repository,
+            url,
+            branch,
+            token,
+            config,
+            settings_branch: settings.branch.clone(),
+        })
+    }
+
+    /// Makes the folder a clone and merges its notes with the
+    /// repository's. It blocks, so it runs on the background executor.
+    pub(super) fn run(self, device: &str) -> (Self, Result<SetupReport, SyncError>) {
+        let result = gasp_sync::set_up_in_place(&InPlaceSetup {
+            root: &self.root,
+            url: &self.url,
+            config: self.config.clone(),
+            token: self.token.clone(),
+            author: gasp_sync::sync_author(device),
+            device,
+        });
+        (self, result)
+    }
 }
 
 impl SyncSetup {
@@ -287,20 +330,16 @@ impl SyncSetup {
             "" => SyncSettings::default().branch,
             typed => typed.to_owned(),
         };
-        let settings = SyncSettings {
-            branch: branch.clone(),
-            ..self.settings.clone()
-        };
-        let config = vault_config(&settings).map_err(|message| (SetupField::Branch, message))?;
-        Ok(SetupJob {
-            root: self.root.clone(),
+        let token = (!token.is_empty()).then(|| Token::new(token));
+        SetupJob::new(
+            self.root.clone(),
             repository,
             url,
             branch,
-            token: (!token.is_empty()).then(|| Token::new(token)),
-            config,
-            settings_branch: self.settings.branch.clone(),
-        })
+            token,
+            &self.settings,
+        )
+        .map_err(|message| (SetupField::Branch, message))
     }
 
     /// Saves open notes, so the folder holds what's on screen, then sets
@@ -313,17 +352,7 @@ impl SyncSetup {
         self.phase = SetupPhase::Working;
         cx.notify();
         let device = crate::edit_time::device_name();
-        let work = cx.background_spawn(async move {
-            let result = gasp_sync::set_up_in_place(&InPlaceSetup {
-                root: &job.root,
-                url: &job.url,
-                config: job.config.clone(),
-                token: job.token.clone(),
-                author: gasp_sync::sync_author(&device),
-                device: &device,
-            });
-            (job, result)
-        });
+        let work = cx.background_spawn(async move { job.run(&device) });
         let workspace = self.workspace.clone();
         cx.spawn_in(window, async move |this, cx| {
             let (job, result) = work.await;
@@ -791,7 +820,7 @@ fn field_for(error: &SyncError) -> Option<SetupField> {
 /// After the work: on success, keeps the token, names the branch in the
 /// vault's settings if it isn't the one they name, and starts the
 /// window's sync on the new clone.
-fn finish(
+pub(super) fn finish(
     job: SetupJob,
     result: Result<SetupReport, SyncError>,
     workspace: &WeakEntity<Workspace>,

@@ -224,6 +224,7 @@ impl SettingsView {
             ControlRow::Shortcut(shortcut) => self.shortcut_key(row, &shortcut.id, key, window, cx),
             ControlRow::MapAdd(_) => self.menu_button_key(index, row, key, window, cx),
             ControlRow::SyncAccount | ControlRow::SyncRemote => self.sync_row_key(row, key, cx),
+            ControlRow::ICloudFolder => self.icloud_key(key, cx),
             ControlRow::ListEntry { list, value } => self.list_entry_key(list, value, key, cx),
             ControlRow::SnippetsFile | ControlRow::Snippet(_) | ControlRow::Replacement(_) => {
                 self.typing_row_key(row, key, window, cx)

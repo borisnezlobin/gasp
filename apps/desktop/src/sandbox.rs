@@ -78,6 +78,13 @@ pub fn documents_folder() -> PathBuf {
     }
 }
 
+/// A folder of the sandbox's own, named `name`, in a snapshot run; outside
+/// one, nothing. Stand-ins for the world outside, such as iCloud Drive and
+/// GitHub, keep their files there.
+pub fn folder(name: &str) -> Option<PathBuf> {
+    SANDBOX.get().map(|sandbox| sandbox.data_root.join(name))
+}
+
 fn app_folder(kind: &str, system: fn() -> Option<PathBuf>) -> Option<PathBuf> {
     match SANDBOX.get() {
         Some(sandbox) => Some(sandbox.data_root.join(kind)),

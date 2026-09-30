@@ -26,8 +26,8 @@ use crate::print::PrintDialog;
 use crate::settings_view::{SettingsEvent, SettingsRequest, SettingsView};
 use crate::switcher::{QuickSwitcher, SwitcherEvent};
 use crate::sync::{
-    ConflictResolver, SyncIndicator, SyncIndicatorEvent, SyncPhase, SyncService, SyncSetup,
-    SyncSetupEvent,
+    ConflictResolver, ICloudStatus, ICloudStatusEvent, StartAt, SyncIndicator, SyncIndicatorEvent,
+    SyncPhase, SyncService, SyncSetup, SyncSetupEvent, SyncStart, SyncStartEvent,
 };
 use crate::text_input::{self, TEXT_INPUT_CONTEXT};
 use crate::vault_search::{VaultSearch, VaultSearchEvent};
@@ -128,7 +128,9 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     });
     workspace.set_reading_probe(reading, cx);
     install_file_tree(workspace, window, cx);
-    if crate::sandbox::reaches_outside() {
+    if crate::sync::icloud::is_icloud_vault(workspace.vault(), cx) {
+        install_icloud_status(workspace, window, cx);
+    } else if crate::sandbox::reaches_outside() {
         install_sync(workspace, window, cx);
     }
     workspace.on_command("sync.now", sync_now);
@@ -290,6 +292,27 @@ fn install_sync(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::C
     workspace.on_command("sync.resolve-conflicts", open_resolver);
 }
 
+/// A vault in iCloud Drive shows iCloud's state where git's indicator goes.
+fn install_icloud_status(
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    let root = workspace.vault().to_path_buf();
+    let status = cx.new(|cx| ICloudStatus::new(root, cx));
+    let events = cx.subscribe_in(
+        &status,
+        window,
+        |workspace, _, event: &ICloudStatusEvent, window, cx| {
+            let ICloudStatusEvent::Compare { original, copy } = event;
+            open_note(workspace, original, OpenIn::ActiveTab, window, cx);
+            open_note(workspace, copy, OpenIn::SplitRight, window, cx);
+        },
+    );
+    features(cx).subscriptions.push(events);
+    workspace.set_sync_widget(status.into(), cx);
+}
+
 fn workspace_key(service: &Entity<SyncService>) -> EntityId {
     service.entity_id()
 }
@@ -330,8 +353,9 @@ fn sync_now(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Conte
 fn save_everything(workspace: &mut Workspace, cx: &mut gpui::Context<Workspace>) {
     let saved = workspace.save_all_and_list(cx);
     let mut notice = Notice::done(saved_message(&saved));
+    let in_icloud = crate::sync::icloud::is_icloud_vault(workspace.vault(), cx);
     let state = features(cx);
-    if !state.set_up_offered {
+    if !state.set_up_offered && !in_icloud {
         state.set_up_offered = true;
         notice = notice.with_action("Set up sync", "sync.set-up");
     }
@@ -351,20 +375,59 @@ pub fn saved_message(saved: &[PathBuf]) -> String {
     }
 }
 
-/// `sync.set-up`: the dialog that makes the vault a clone of a
-/// repository. A vault that already syncs gets the Sync settings instead.
+/// `sync.set-up`: the choice between iCloud and GitHub for a vault that
+/// doesn't sync. A vault that already syncs, with git or iCloud, gets
+/// the Sync settings instead.
 fn open_sync_setup(
     workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    open_sync_start(workspace, StartAt::Choice, window, cx);
+}
+
+/// Opens "Set up sync" at `start`, unless the vault syncs already.
+pub fn open_sync_start(
+    workspace: &mut Workspace,
+    start: StartAt,
     window: &mut Window,
     cx: &mut gpui::Context<Workspace>,
 ) {
     let syncs = workspace
         .sync()
         .is_some_and(|sync| sync.read(cx).is_present());
-    if syncs {
+    if syncs || crate::sync::icloud::is_icloud_vault(workspace.vault(), cx) {
         open_settings_at(workspace, "sync", window, cx);
         return;
     }
+    let host = cx.weak_entity();
+    let root = workspace.vault().to_path_buf();
+    let settings = workspace.config().settings.sync.clone();
+    workspace.toggle_modal(window, cx, |window, cx| {
+        SyncStart::new(host, root, settings, start, window, cx)
+    });
+    let Some(dialog) = workspace.active_modal::<SyncStart>() else {
+        return;
+    };
+    let requests = cx.subscribe_in(
+        &dialog,
+        window,
+        |_, _, request: &SyncStartEvent, window, cx| match request {
+            SyncStartEvent::OpenForm => cx.defer_in(window, |workspace, window, cx| {
+                open_sync_form(workspace, window, cx)
+            }),
+            SyncStartEvent::RunCommand(id) => run_after_modal_closes(id.clone(), window, cx),
+        },
+    );
+    features(cx).subscriptions.push(requests);
+}
+
+/// The form for a repository address and a token, for people who have both.
+fn open_sync_form(
+    workspace: &mut Workspace,
+    window: &mut Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
     let host = cx.weak_entity();
     let root = workspace.vault().to_path_buf();
     let settings = workspace.config().settings.sync.clone();

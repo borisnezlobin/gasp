@@ -87,6 +87,8 @@ pub enum ControlRow {
     SyncRemote,
     /// The token sync signs in with.
     SyncAccount,
+    /// Where a vault in iCloud Drive is, with a way to show it in Finder.
+    ICloudFolder,
     /// The field that adds an entry to a list setting.
     ListAdd(SettingItem),
     /// One entry of a list setting, such as a device-only pattern.
@@ -191,6 +193,7 @@ impl ControlRow {
             ControlRow::Shortcut(shortcut) => shortcut.title.clone(),
             ControlRow::SyncRemote => "Notes repository".to_string(),
             ControlRow::SyncAccount => "GitHub token".to_string(),
+            ControlRow::ICloudFolder => "iCloud Drive".to_string(),
             ControlRow::ListAdd(item) => item.title.clone(),
             ControlRow::ListEntry { value, .. } => value.clone(),
             _ => self.page_list_title(),
@@ -253,6 +256,9 @@ pub(super) struct Layouts {
 pub struct SettingsView {
     pub(super) focus_handle: FocusHandle,
     pub(super) vault_root: PathBuf,
+    /// Whether the vault is in iCloud Drive, whose Sync page has none of
+    /// git's settings.
+    pub(super) in_icloud: bool,
     pub(super) style: SettingsTheme,
     /// How shortcuts are drawn, shared with the rest of the app.
     pub(super) keycaps: KeycapTheme,
@@ -370,6 +376,7 @@ impl SettingsView {
         let mut view = SettingsView {
             focus_handle: cx.focus_handle(),
             file: SettingsFile::load(&settings_path(&vault_root)).unwrap_or_default(),
+            in_icloud: crate::sync::icloud::is_icloud_vault(&vault_root, cx),
             vault_root,
             style: SettingsTheme::default(),
             keycaps: crate::ui::ui_theme(cx).keycap,
@@ -814,6 +821,11 @@ impl SettingsView {
 
     fn rows_for_spec(&self, spec: &RowSpec, query: &str) -> Vec<ControlRow> {
         let row = match spec {
+            RowSpec::Setting(key) if self.in_icloud && key.starts_with("sync.") => {
+                return Vec::new();
+            }
+            RowSpec::SyncRemote if self.in_icloud => ControlRow::ICloudFolder,
+            RowSpec::SyncAccount if self.in_icloud => return Vec::new(),
             RowSpec::Setting(key) => {
                 return self
                     .item_for(key)
@@ -876,6 +888,7 @@ impl SettingsView {
             }
             ControlRow::SyncRemote => self.remote_description(),
             ControlRow::SyncAccount => self.account_description(),
+            ControlRow::ICloudFolder => self.icloud_description(),
             ControlRow::Font(slot) => slot.description().to_string(),
             ControlRow::Accent => ACCENT_DESCRIPTION.to_string(),
             ControlRow::Vault => crate::workspace::files::display_path(&self.vault_root),
