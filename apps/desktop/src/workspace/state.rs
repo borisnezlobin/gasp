@@ -41,6 +41,8 @@ pub struct AppState {
     pub last_vault: Option<PathBuf>,
     /// Vaults opened on this device, most recent first.
     pub recent_vaults: Vec<PathBuf>,
+    /// The day the last usage ping went out, such as `2026-09-30`.
+    pub last_ping: Option<String>,
 }
 
 /// Vaults the switcher remembers.
@@ -176,6 +178,7 @@ mod tests {
         let state = AppState {
             last_vault: Some(PathBuf::from("vaults/notes")),
             recent_vaults: vec![PathBuf::from("vaults/notes")],
+            last_ping: Some("2026-09-30".to_string()),
         };
         state.save(&path).unwrap();
         assert_eq!(AppState::load(&path), state);
