@@ -98,19 +98,31 @@ extension CommandRunner {
     }
 }
 
-/// Sync's commands: syncing now (or setting sync up when it isn't yet),
-/// and the resolver.
+/// Sync's commands: syncing now (or choosing how to sync when the vault
+/// doesn't yet), setting it up, and the resolver. The iCloud vault syncs
+/// on its own, so both show where it stands.
 extension CommandRunner {
     static let syncHandlers: [String: Handler] = [
         "sync.now": { $0.syncNow() },
+        "sync.set-up": { $0.setUpSync() },
         "sync.resolve-conflicts": { $0.resolveConflicts() }
     ]
 
     private func syncNow() {
-        if sync.isSynced {
+        if library.kind == .icloud {
+            workspace.sheet = .icloudDetails
+        } else if sync.isSynced {
             sync.syncNow()
         } else {
-            workspace.sheet = .syncSetup(SyncSetupDraft())
+            workspace.sheet = .syncChooser
+        }
+    }
+
+    private func setUpSync() {
+        switch library.kind {
+        case .icloud: workspace.sheet = .icloudDetails
+        case .synced: workspace.sheet = .syncDetails
+        case .local, .picked: workspace.sheet = .syncChooser
         }
     }
 
