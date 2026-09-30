@@ -57,3 +57,21 @@ Everything the owner has asked for, newest last, ticked off as it lands on maste
 - [x] The MCP setting's description says too much and explains too little. Say what it's for, such as "access and change Gasp from the command line, useful for agents".
 - [x] Explain date formats instead of naming "Moment.js formats".
 - [x] Go through every setting's description the same way.
+
+## Releases, website and usage
+
+- [x] Release notes stay short.
+- [ ] A website at gaspmd.com, deployed on Vercel. *(In progress.)*
+- [ ] Count downloads and daily use, with a plain "send anonymous usage data" setting that's on by default and easy to turn off. *(In progress.)*
+
+## Sync (from friends trying it)
+
+- [x] Sync commits no longer fill the GitHub contribution graph.
+- [x] Changing the branch in settings moves sync to that branch, and a vault stuck on the old one gets a "Switch to" button.
+- [ ] Sync for people with no GitHub account: iCloud first, one button. *(In progress.)*
+- [ ] GitHub as the second choice: sign in with GitHub, and Gasp makes the private repository. *(In progress.)*
+
+## Titles
+
+- [x] Rename a note by editing its title on the Mac (a click on the title now reaches it).
+- [x] A long title wraps instead of being cut off, on the Mac and the iPhone.
