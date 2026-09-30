@@ -68,8 +68,8 @@ Everything the owner has asked for, newest last, ticked off as it lands on maste
 
 - [x] Sync commits no longer fill the GitHub contribution graph.
 - [x] Changing the branch in settings moves sync to that branch, and a vault stuck on the old one gets a "Switch to" button.
-- [ ] Sync for people with no GitHub account: iCloud first, one button. *(In progress.)*
-- [ ] GitHub as the second choice: sign in with GitHub, and Gasp makes the private repository. *(In progress.)*
+- [x] Sync for people with no GitHub account: iCloud first, one button. *(Built. The iPhone's Files picker still needs a try on a real phone.)*
+- [ ] GitHub as the second choice: sign in with GitHub, and Gasp makes the private repository. *(Built. It waits on a GitHub OAuth App and its client ID.)*
 
 ## Titles
 
