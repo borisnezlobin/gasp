@@ -59,8 +59,10 @@ final class EditingController: NSObject, UITextViewDelegate {
     var pendingTop: Int?
     /// The wide tables' scrolling grids, by where each table starts.
     var tableGrids: [UInt32: TableGridView] = [:]
-    /// The note's name above its text, which renames it when edited.
-    let titleField = UITextField()
+    /// The note's name above its text, wrapping onto as many lines as it
+    /// needs, which renames the note when edited.
+    let titleView = UITextView(usingTextLayoutManager: true)
+    let titleEditor = TitleEditor()
     /// Set for a note that isn't a file of the vault, such as the welcome
     /// tour's practice note, whose title would name nothing.
     private(set) var titleHidden = false
@@ -178,6 +180,17 @@ final class EditingController: NSObject, UITextViewDelegate {
         }
     }
 
+    /// Makes room for the title again when typing in it changes how many
+    /// lines it takes, without restyling the note.
+    func titleHeightMayHaveChanged() {
+        let spacing = tokens.spacing
+        let side = textView.textContainerInset.left
+        let room = placeTitle(top: CGFloat(spacing.lg), side: side)
+        let top = CGFloat(spacing.lg) + room
+        guard textView.textContainerInset.top != top else { return }
+        textView.textContainerInset.top = top
+    }
+
     func hideTitle() {
         titleHidden = true
         columnWidthChanged()
@@ -199,10 +212,10 @@ final class EditingController: NSObject, UITextViewDelegate {
         let spacing = tokens.spacing
         let side = sideInset(spacing)
         let top = CGFloat(spacing.lg)
+        let titleRoom = placeTitle(top: top, side: side)
         textView.textContainerInset = UIEdgeInsets(
             top: top + titleRoom, left: side, bottom: CGFloat(spacing.xxl) * 4, right: side
         )
-        placeTitle(top: top, side: side)
         styler.setColumnWidth(textView.bounds.width - side * 2)
         restyle(edited: nil)
         if pendingTop != nil {
