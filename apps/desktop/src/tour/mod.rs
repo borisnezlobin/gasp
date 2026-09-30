@@ -46,7 +46,7 @@ pub fn drawn_still(still: &std::sync::Arc<gpui::RenderImage>, width: Pixels) -> 
 }
 pub use sample::{FIRST_NOTE, SAMPLE_VAULT_NAME, write_sample_vault};
 pub use shortcuts::SHORTCUT_COMMANDS;
-pub use vault_step::{NEW_VAULT_NAME, VaultChoice};
+pub use vault_step::{NEW_VAULT_NAME, VaultChoice, open_here};
 
 /// One screen of the tour.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,22 +56,20 @@ pub enum Step {
     Shortcuts,
     Vault,
     Sync,
-    Keychain,
 }
 
 impl Step {
     /// Every step, for a first launch.
-    pub const WHOLE_TOUR: [Step; 6] = [
+    pub const WHOLE_TOUR: [Step; 5] = [
         Step::Hello,
         Step::Writing,
         Step::Shortcuts,
         Step::Vault,
         Step::Sync,
-        Step::Keychain,
     ];
 
     /// Only choosing a vault, for a launch with none to reopen.
-    pub const PICK_A_VAULT: [Step; 3] = [Step::Vault, Step::Sync, Step::Keychain];
+    pub const PICK_A_VAULT: [Step; 2] = [Step::Vault, Step::Sync];
 
     fn title(self) -> &'static str {
         match self {
@@ -80,14 +78,13 @@ impl Step {
             Step::Shortcuts => "Get around with the keyboard",
             Step::Vault => "Where your notes live",
             Step::Sync => "Sync with your other devices",
-            Step::Keychain => "Keychain access",
         }
     }
 
     /// Whether this step moves on by its own choices rather than a
     /// Continue button.
     fn chooses(self) -> bool {
-        matches!(self, Step::Vault | Step::Keychain)
+        matches!(self, Step::Vault | Step::Sync)
     }
 }
 
@@ -97,7 +94,8 @@ impl Step {
 pub enum AfterOpening {
     Nothing,
     OpenNote(PathBuf),
-    SetUpSync,
+    /// Opens "Set up sync" where the tour's choice leads.
+    SetUpSync(crate::sync::StartAt),
 }
 
 /// A move from one step to another, for the motion between them.
@@ -349,7 +347,7 @@ impl Tour {
     fn choice_count(&self) -> usize {
         match self.step() {
             Step::Vault => self.vault_choices().len(),
-            Step::Keychain => sync_step::CHOICES,
+            Step::Sync => sync_step::CHOICE_COUNT,
             _ => 0,
         }
     }
@@ -361,7 +359,7 @@ impl Tour {
                     self.take_vault_choice(choice, window, cx);
                 }
             }
-            Step::Keychain => self.take_sync_choice(index, window, cx),
+            Step::Sync => self.take_sync_choice(index, window, cx),
             _ => {}
         }
     }
@@ -503,7 +501,6 @@ impl Tour {
             Step::Shortcuts => shortcuts::render(self, now, window, cx),
             Step::Vault => vault_step::render(self, window, cx),
             Step::Sync => sync_step::render_how(self, now, cx),
-            Step::Keychain => sync_step::render_keychain(cx),
         }
     }
 
@@ -553,7 +550,7 @@ impl Tour {
         });
         let onward: Option<AnyElement> = match step {
             Step::Hello | Step::Vault => None,
-            Step::Sync | Step::Keychain => Some(sync_step::walk_buttons(self, window, cx)),
+            Step::Sync => Some(sync_step::walk_buttons(self, window, cx)),
             _ => Some(
                 Button::new("tour-continue", "Continue")
                     .primary()

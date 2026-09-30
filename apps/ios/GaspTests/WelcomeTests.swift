@@ -6,12 +6,12 @@ final class SyncHistoryTests: XCTestCase {
         SyncHistory.moment(at: SyncHistory.tripSeconds * share).travelling
     }
 
-    func testANoteGoesToTheRepositoryThenOnToTheOtherDevice() throws {
+    func testANoteGoesToICloudThenOnToTheOtherDevice() throws {
         let leaving = try XCTUnwrap(travelling(atShare: 0.1))
         XCTAssertEqual(leaving.line, .phone)
         XCTAssertEqual(leaving.origin, .phone)
         XCTAssertLessThan(leaving.along, 0.5)
-        XCTAssertNil(travelling(atShare: 0.4), "it's becoming a commit")
+        XCTAssertNil(travelling(atShare: 0.4), "it's resting in iCloud")
         XCTAssertEqual(travelling(atShare: 0.7)?.line, .mac)
         XCTAssertNil(travelling(atShare: 0.95))
     }
@@ -23,13 +23,12 @@ final class SyncHistoryTests: XCTestCase {
         XCTAssertGreaterThan(back.along, 0.5, "it starts at the Mac's end")
     }
 
-    func testEachTripAddsACommitFromItsDevice() {
-        let before = SyncHistory.moment(at: SyncHistory.tripSeconds * 0.2)
-        let after = SyncHistory.moment(at: SyncHistory.tripSeconds * 0.6)
-        XCTAssertEqual(before.commits.count, SyncHistory.shownCommits)
-        XCTAssertEqual(Array(after.commits.dropLast()), Array(before.commits.dropFirst()))
-        XCTAssertEqual(after.commits.last, .phone)
-        XCTAssertEqual(SyncHistory.moment(at: SyncHistory.tripSeconds * 1.6).commits.last, .mac)
+    func testEachNoteRestsInICloudBetweenItsTwoLegs() {
+        let resting = SyncHistory.moment(at: SyncHistory.tripSeconds * 0.4)
+        XCTAssertNil(resting.travelling)
+        XCTAssertEqual(resting.resting, .phone)
+        XCTAssertNil(SyncHistory.moment(at: SyncHistory.tripSeconds * 0.2).resting)
+        XCTAssertEqual(SyncHistory.moment(at: SyncHistory.tripSeconds * 1.4).resting, .mac)
     }
 }
 
@@ -58,6 +57,6 @@ final class WelcomeFlowTests: XCTestCase {
 
     func testTheCaretMovesFromStartToEnd() {
         XCTAssertEqual(WelcomeStep.hello.tide, 0)
-        XCTAssertEqual(WelcomeStep.syncSetUp.tide, 1)
+        XCTAssertEqual(WelcomeStep.sync.tide, 1)
     }
 }

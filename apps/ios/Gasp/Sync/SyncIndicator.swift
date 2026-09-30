@@ -27,6 +27,19 @@ struct SyncLook {
         }
     }
 
+    /// How the iCloud vault looks: a quiet check once everything is down,
+    /// a cloud with an arrow and a count while files download, and the
+    /// conflict colour with a count while iCloud's copies wait.
+    init(icloud: ICloudCenter) {
+        if !icloud.copies.isEmpty {
+            self.init("doc.on.doc", \.conflict, count: UInt32(clamping: icloud.copies.count))
+        } else if !icloud.downloading.isEmpty {
+            self.init("icloud.and.arrow.down", \.syncing, count: UInt32(clamping: icloud.downloading.count))
+        } else {
+            self.init("checkmark.icloud", \.textFaint)
+        }
+    }
+
     private init(_ symbol: String, _ color: KeyPath<Palette, ThemeColor>, count: UInt32? = nil) {
         self.symbol = symbol
         self.color = color
@@ -37,14 +50,25 @@ struct SyncLook {
 /// A phase's symbol, turning while a sync runs, with a count of what's
 /// waiting when something is.
 struct SyncGlyph: View {
-    let phase: SyncPhaseKind
+    let look: SyncLook
+    let isTurning: Bool
     let tokens: Tokens
     var size: CGFloat = 18
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var turning = false
 
-    private var look: SyncLook { SyncLook(phase) }
-    private var spins: Bool { phase == .syncing && !reduceMotion }
+    init(phase: SyncPhaseKind, tokens: Tokens, size: CGFloat = 18) {
+        self.init(look: SyncLook(phase), isTurning: phase == .syncing, tokens: tokens, size: size)
+    }
+
+    init(look: SyncLook, isTurning: Bool = false, tokens: Tokens, size: CGFloat = 18) {
+        self.look = look
+        self.isTurning = isTurning
+        self.tokens = tokens
+        self.size = size
+    }
+
+    private var spins: Bool { isTurning && !reduceMotion }
 
     var body: some View {
         Image(systemName: look.symbol)
@@ -71,13 +95,16 @@ struct SyncGlyph: View {
 }
 
 /// The sync indicator, at the sidebar's foot and wherever the bottom bar
-/// has the `sync` widget. It shows only for the synced vault; a tap opens
-/// the details and Sync now.
+/// has the `sync` widget. It shows for the synced vault, where a tap opens
+/// the details and Sync now, and for the iCloud vault, where it shows
+/// iCloud's state and a tap opens its details.
 struct SyncIndicator: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        if let overview = model.sync.overview, overview.phase != .hidden {
+        if model.icloud.isAttached {
+            ICloudIndicator()
+        } else if let overview = model.sync.overview, overview.phase != .hidden {
             let tokens = model.library.tokens
             Button { model.workspace.sheet = .syncDetails } label: {
                 SyncGlyph(phase: overview.phase, tokens: tokens)

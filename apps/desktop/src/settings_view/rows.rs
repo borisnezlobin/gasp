@@ -177,6 +177,7 @@ impl SettingsView {
             ControlRow::Shortcut(shortcut) => self.shortcut_control(shortcut, focused, cx),
             ControlRow::SyncRemote => return self.remote_control(row, focused, cx),
             ControlRow::SyncAccount => self.account_control(focused, cx),
+            ControlRow::ICloudFolder => self.icloud_control(focused, cx),
             ControlRow::ListAdd(item) => self.list_add_control(item, row, focused, cx),
             ControlRow::ListEntry { list, value } => {
                 self.list_entry_control(list, value, focused, cx)

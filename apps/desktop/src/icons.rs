@@ -45,6 +45,8 @@ pub enum IconName {
     ClipboardText,
     Clock,
     ClockCounterClockwise,
+    Cloud,
+    CloudArrowDown,
     CloudArrowUp,
     CloudCheck,
     CloudSlash,
@@ -76,6 +78,7 @@ pub enum IconName {
     Function,
     GearSix,
     GitMerge,
+    GithubLogo,
     GlobeSimple,
     Hash,
     HighlighterCircle,
@@ -91,6 +94,7 @@ pub enum IconName {
     ListBullets,
     ListDashes,
     ListNumbers,
+    LockSimple,
     MagnifyingGlass,
     MagnifyingGlassMinus,
     MagnifyingGlassPlus,
@@ -144,7 +148,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 133] = [
+const ICONS: [(IconName, &str, &[u8]); 137] = [
     (
         IconName::AppWindow,
         "app-window",
@@ -326,6 +330,16 @@ const ICONS: [(IconName, &str, &[u8]); 133] = [
         include_bytes!("../assets/icons/clock-counter-clockwise.svg"),
     ),
     (
+        IconName::Cloud,
+        "cloud",
+        include_bytes!("../assets/icons/cloud.svg"),
+    ),
+    (
+        IconName::CloudArrowDown,
+        "cloud-arrow-down",
+        include_bytes!("../assets/icons/cloud-arrow-down.svg"),
+    ),
+    (
         IconName::CloudArrowUp,
         "cloud-arrow-up",
         include_bytes!("../assets/icons/cloud-arrow-up.svg"),
@@ -481,6 +495,11 @@ const ICONS: [(IconName, &str, &[u8]); 133] = [
         include_bytes!("../assets/icons/git-merge.svg"),
     ),
     (
+        IconName::GithubLogo,
+        "github-logo",
+        include_bytes!("../assets/icons/github-logo.svg"),
+    ),
+    (
         IconName::GlobeSimple,
         "globe-simple",
         include_bytes!("../assets/icons/globe-simple.svg"),
@@ -554,6 +573,11 @@ const ICONS: [(IconName, &str, &[u8]); 133] = [
         IconName::ListNumbers,
         "list-numbers",
         include_bytes!("../assets/icons/list-numbers.svg"),
+    ),
+    (
+        IconName::LockSimple,
+        "lock-simple",
+        include_bytes!("../assets/icons/lock-simple.svg"),
     ),
     (
         IconName::MagnifyingGlass,

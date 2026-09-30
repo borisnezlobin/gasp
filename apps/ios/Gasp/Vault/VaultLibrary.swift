@@ -17,6 +17,9 @@ enum VaultKind: String {
     case local = "sample"
     /// A folder picked in Files.
     case picked
+    /// The Gasp folder in iCloud Drive, which iCloud keeps the same on
+    /// every device.
+    case icloud
 }
 
 /// The open vault: its folder, its notes, the theme and commands it asks
@@ -60,6 +63,13 @@ final class VaultLibrary {
         vault?.name() ?? "Notes"
     }
 
+    /// Whether the open vault is one made on this iPhone, not the sample
+    /// notes: the notes setting up sync can bring along.
+    var isThisPhonesOwn: Bool {
+        guard kind == .local, let folder else { return false }
+        return !folder.lastPathComponent.hasPrefix(VaultLocation.sampleVaultName)
+    }
+
     func refresh() {
         notes = vault?.notes() ?? []
         folders = vault?.folders() ?? []
@@ -91,6 +101,12 @@ final class VaultLibrary {
     func open(folder url: URL) {
         VaultLocation.remember(url)
         VaultLocation.choice = .picked
+        open(VaultLocation.current())
+    }
+
+    /// Opens the Gasp folder in iCloud Drive as the vault from now on.
+    func open(icloudFolder url: URL) {
+        VaultLocation.rememberICloud(url)
         open(VaultLocation.current())
     }
 
@@ -130,6 +146,7 @@ final class VaultLibrary {
 
 enum VaultLocation {
     private static let bookmarkKey = "vault.bookmark"
+    private static let icloudBookmarkKey = "vault.icloud-bookmark"
     private static let choiceKey = "vault.choice"
     /// The synced clone's path inside `Documents`, which keeps working when
     /// an update moves the app's container.
@@ -163,6 +180,7 @@ enum VaultLocation {
         let defaults = UserDefaults.standard
         return defaults.string(forKey: choiceKey) != nil || syncedFolder != nil
             || defaults.data(forKey: bookmarkKey) != nil
+            || defaults.data(forKey: icloudBookmarkKey) != nil
             || FileManager.default.fileExists(atPath: localFolder.path)
     }
 
@@ -230,13 +248,15 @@ enum VaultLocation {
     }
 
     /// Which vault opens: the one last chosen, or the synced notes when
-    /// there are some, or a picked folder, or the one made on this iPhone.
+    /// there are some, or the iCloud folder, or a picked folder, or the one
+    /// made on this iPhone.
     static var choice: VaultKind {
         get {
             if let stored = UserDefaults.standard.string(forKey: choiceKey).flatMap(VaultKind.init) {
                 return stored
             }
             if syncedFolder != nil { return .synced }
+            if UserDefaults.standard.data(forKey: icloudBookmarkKey) != nil { return .icloud }
             return UserDefaults.standard.data(forKey: bookmarkKey) != nil ? .picked : .local
         }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: choiceKey) }
@@ -250,6 +270,8 @@ enum VaultLocation {
             if let folder = syncedFolder { return .success((.synced, folder)) }
         case .picked:
             if let folder = pickedFolder() { return .success((.picked, folder)) }
+        case .icloud:
+            if let folder = icloudFolder { return .success((.icloud, folder)) }
         case .local:
             break
         }
@@ -257,20 +279,53 @@ enum VaultLocation {
     }
 
     static func remember(_ url: URL) {
-        guard url.startAccessingSecurityScopedResource() || url.isFileURL,
-              let bookmark = try? url.bookmarkData() else { return }
-        UserDefaults.standard.set(bookmark, forKey: bookmarkKey)
+        bookmark(url, under: bookmarkKey)
+    }
+
+    #if DEBUG
+    /// `-icloudVault <path>` opens a folder as the iCloud vault, for
+    /// screenshots in the simulator, where nothing can be picked.
+    static func useICloudVaultFromArguments() {
+        guard let path = UserDefaults.standard.string(forKey: "icloudVault") else { return }
+        let folder = URL(fileURLWithPath: path, isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        rememberICloud(folder)
+    }
+    #endif
+
+    /// Keeps the Gasp folder picked in iCloud Drive and chooses it.
+    static func rememberICloud(_ url: URL) {
+        bookmark(url, under: icloudBookmarkKey)
+        choice = .icloud
     }
 
     static var hasPickedFolder: Bool {
         pickedFolder() != nil
     }
 
+    /// The vault in iCloud Drive: the Gasp folder, picked once in Files
+    /// and kept with a bookmark. The one place that knows how the phone
+    /// reaches it.
+    static var icloudFolder: URL? {
+        bookmarkedFolder(under: icloudBookmarkKey)
+    }
+
+    private static func bookmark(_ url: URL, under key: String) {
+        guard url.startAccessingSecurityScopedResource() || url.isFileURL,
+              let bookmark = try? url.bookmarkData() else { return }
+        UserDefaults.standard.set(bookmark, forKey: key)
+    }
+
     private static func pickedFolder() -> URL? {
-        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return nil }
+        bookmarkedFolder(under: bookmarkKey)
+    }
+
+    private static func bookmarkedFolder(under key: String) -> URL? {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
         var stale = false
         guard let url = try? URL(resolvingBookmarkData: data, bookmarkDataIsStale: &stale) else { return nil }
         _ = url.startAccessingSecurityScopedResource()
+        if stale { bookmark(url, under: key) }
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 

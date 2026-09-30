@@ -12,7 +12,7 @@ use git2::{Repository, RepositoryInitOptions};
 
 use crate::sync::{SyncPhaseKind, VaultSync};
 use crate::sync_conflicts::PlaceChoice;
-use crate::sync_setup::{SyncSetup, set_up_with};
+use crate::sync_setup::{InPlaceSyncSetup, SyncSetup, set_up_in_place_with, set_up_with};
 
 struct World {
     dir: tempfile::TempDir,
@@ -270,4 +270,57 @@ fn a_token_the_keychain_refuses_leaves_no_clone_behind() {
     assert!(!folder.exists());
     set_up_with(&setup, &*world.store).unwrap();
     assert!(folder.join("Note.md").is_file());
+}
+
+fn in_place(url: String, folder: &Path) -> InPlaceSyncSetup {
+    InPlaceSyncSetup {
+        url,
+        branch: String::new(),
+        token: "synthetic-token".into(),
+        folder: folder.to_string_lossy().into_owned(),
+        device: "iphone".into(),
+    }
+}
+
+#[test]
+fn signing_in_with_github_sets_up_a_new_empty_repository_in_place() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut options = RepositoryInitOptions::new();
+    options.bare(true);
+    Repository::init_opts(dir.path().join("notes.git"), &options).unwrap();
+    let url = format!("file://{}", dir.path().join("notes.git").display());
+    let phone = dir.path().join("Notes");
+    std::fs::create_dir(&phone).unwrap();
+    std::fs::write(phone.join("Plan.md"), "# Plan\n").unwrap();
+    let store = InMemoryCredentialStore::default();
+
+    let summary = set_up_in_place_with(&in_place(url.clone(), &phone), &store).unwrap();
+
+    assert_eq!(summary.waiting, 0);
+    assert!(phone.join(".git").is_dir());
+    assert_eq!(
+        store.load(&url).unwrap(),
+        Some(Token::new("synthetic-token"))
+    );
+    let remote = Repository::open_bare(dir.path().join("notes.git")).unwrap();
+    let tree = remote
+        .find_reference("refs/heads/master")
+        .unwrap()
+        .peel_to_tree()
+        .unwrap();
+    assert!(tree.get_path(Path::new("Plan.md")).is_ok());
+}
+
+#[test]
+fn signing_in_with_github_brings_an_existing_repository_into_a_new_folder() {
+    let world = World::new();
+    let folder = world.path("Synced/notes");
+
+    let summary = set_up_in_place_with(&in_place(world.url(), &folder), &*world.store).unwrap();
+
+    assert_eq!(summary.brought_in, 1);
+    assert_eq!(
+        std::fs::read_to_string(folder.join("Note.md")).unwrap(),
+        "one\ntwo\nthree\n"
+    );
 }

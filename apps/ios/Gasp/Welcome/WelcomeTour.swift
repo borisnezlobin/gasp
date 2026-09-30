@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// The welcome tour, the first thing a new install shows: hello, writing
-/// in Markdown, choosing where notes live, and how sync works. Each step
+/// in Markdown, choosing where notes live, and syncing them. Each step
 /// fills the screen; swipe between them or take the button at the bottom.
 /// Until a vault is chosen the tour stops at choosing one. Replayed from
 /// Settings, it can be closed at any step.
@@ -10,14 +10,14 @@ struct WelcomeTour: View {
     @Environment(AppModel.self) private var model
     @State private var step: WelcomeStep = .hello
     @State private var pickingFolder = false
-    @State private var settingUpSync = false
+    @State private var syncSheet: WelcomeSyncSheet?
     @State private var keyboardShown = false
     @State private var problem: String?
 
     private var tokens: Tokens { model.library.tokens }
     private var welcome: WelcomeFlow { model.welcome }
 
-    /// The steps that can be reached: the sync steps once there's a vault.
+    /// The steps that can be reached: the sync step once there's a vault.
     private var steps: [WelcomeStep] {
         model.library.vault == nil ? [.hello, .writing, .vault] : WelcomeStep.allCases
     }
@@ -39,8 +39,14 @@ struct WelcomeTour: View {
         }
         .background(tokens.swiftUIColor(\.background).ignoresSafeArea())
         .fileImporter(isPresented: $pickingFolder, allowedContentTypes: [.folder], onCompletion: openPicked)
-        .sheet(isPresented: $settingUpSync, onDismiss: finishIfSynced) {
-            SyncSetupView(draft: SyncSetupDraft()).environment(model)
+        .sheet(item: $syncSheet, onDismiss: finishIfSynced) { sheet in
+            Group {
+                switch sheet {
+                case .icloud: ICloudSetupSheet()
+                case .github: GitHubSignInSheet()
+                }
+            }
+            .environment(model)
         }
         .alert("Couldn't make the vault", isPresented: showingProblem, presenting: problem) { _ in
             Button("OK", role: .cancel) {}
@@ -62,10 +68,11 @@ struct WelcomeTour: View {
             WritingStep(tokens: tokens, isShowing: step == .writing, keyboardShown: keyboardShown) { go(to: .vault) }
         case .vault:
             VaultStep(tokens: tokens, makeNew: makeNewVault, openFolder: { pickingFolder = true }, trySample: openSample)
-        case .syncHow:
-            SyncHowStep(tokens: tokens, onward: { go(to: .syncSetUp) }, notNow: welcome.finish)
-        case .syncSetUp:
-            SyncSetUpStep(tokens: tokens, setUp: { settingUpSync = true }, notNow: welcome.finish)
+        case .sync:
+            SyncStep(
+                tokens: tokens, alreadySyncs: model.vaultSyncs,
+                icloud: { syncSheet = .icloud }, github: { syncSheet = .github }, notNow: welcome.finish
+            )
         }
     }
 
@@ -103,7 +110,7 @@ struct WelcomeTour: View {
     private func makeNewVault() {
         do {
             try model.openNewVault()
-            go(to: .syncHow)
+            go(to: .sync)
         } catch {
             problem = error.shownMessage
         }
@@ -121,14 +128,22 @@ struct WelcomeTour: View {
     private func openPicked(_ result: Result<URL, Error>) {
         guard case .success(let folder) = result else { return }
         model.switchVault(to: folder)
-        go(to: .syncHow)
+        go(to: .sync)
     }
 
     private func finishIfSynced() {
-        if model.library.kind == .synced { welcome.finish() }
+        if model.vaultSyncs { welcome.finish() }
     }
 
     private var showingProblem: Binding<Bool> {
         Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })
     }
+}
+
+/// The sheet the sync step opens.
+private enum WelcomeSyncSheet: String, Identifiable {
+    case icloud
+    case github
+
+    var id: String { rawValue }
 }

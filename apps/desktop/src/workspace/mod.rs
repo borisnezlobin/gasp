@@ -387,6 +387,13 @@ impl Workspace {
         cx.notify();
     }
 
+    /// Shows `widget` where the status bar's sync indicator goes, for a
+    /// vault something other than git keeps in step, such as iCloud.
+    pub fn set_sync_widget(&mut self, widget: AnyView, cx: &mut Context<Self>) {
+        self.sync_indicator = Some(widget);
+        cx.notify();
+    }
+
     pub fn sync(&self) -> Option<&Entity<SyncService>> {
         self.sync.as_ref()
     }

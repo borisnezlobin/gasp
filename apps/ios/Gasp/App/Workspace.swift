@@ -33,12 +33,21 @@ enum WorkspaceSheet: Identifiable {
     case syncSetup(SyncSetupDraft)
     case syncDetails
     case resolver
+    /// iCloud or GitHub, for a vault that doesn't sync yet.
+    case syncChooser
+    case icloudSetup
+    case githubSignIn
+    case icloudDetails
 
     var id: String {
         switch self {
         case .syncSetup: "sync setup"
         case .syncDetails: "sync details"
         case .resolver: "resolver"
+        case .syncChooser: "sync chooser"
+        case .icloudSetup: "icloud setup"
+        case .githubSignIn: "github sign-in"
+        case .icloudDetails: "icloud details"
         case .palette: "palette"
         case .settings: "settings"
         case .toolbars: "toolbars"
