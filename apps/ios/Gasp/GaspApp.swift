@@ -8,7 +8,7 @@ struct GaspApp: App {
 
     var body: some Scene {
         WindowGroup {
-            BrowserView()
+            root
                 .environment(model)
                 .tint(model.library.tokens.swiftUIColor(\.accent))
                 .onAppear {
@@ -26,6 +26,16 @@ struct GaspApp: App {
         }
         .backgroundTask(.appRefresh(SyncCenter.refreshTaskIdentifier)) {
             await model.sync.syncInBackgroundRefresh()
+        }
+    }
+
+    /// The welcome tour on the first launch or when replayed, and the
+    /// browser otherwise.
+    @ViewBuilder private var root: some View {
+        if model.welcome.isShowing {
+            WelcomeTour()
+        } else {
+            BrowserView()
         }
     }
 

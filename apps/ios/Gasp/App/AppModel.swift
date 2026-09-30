@@ -7,13 +7,17 @@ import SwiftUI
 /// browser.
 @Observable
 final class AppModel {
-    let library = VaultLibrary()
+    let library: VaultLibrary
     let workspace = Workspace()
     let sync = SyncCenter()
+    let welcome: WelcomeFlow
     private(set) var tabs: TabStore
     private(set) var runner: CommandRunner
 
     init() {
+        let welcomeIsDue = WelcomeFlow.isDue(vaultIsSetUp: VaultLocation.isSetUp)
+        library = VaultLibrary(opensVault: !welcomeIsDue)
+        welcome = WelcomeFlow(isFirstRun: welcomeIsDue)
         let tabs = TabStore(library: library)
         self.tabs = tabs
         runner = CommandRunner(library: library, tabs: tabs, workspace: workspace, sync: sync)
@@ -31,6 +35,20 @@ final class AppModel {
 
     func switchVault(to kind: VaultKind) {
         reopen { library.open(kind) }
+    }
+
+    /// Makes an empty vault on this iPhone and opens it.
+    func openNewVault() throws {
+        _ = try VaultLocation.makeNewVault()
+        switchVault(to: .local)
+    }
+
+    /// Writes the sample notes into a new vault, opens it and shows its
+    /// first note.
+    func openSampleVault() throws {
+        _ = try VaultLocation.makeSampleVault()
+        switchVault(to: .local)
+        tabs.open(VaultLocation.sampleFirstNote)
     }
 
     /// Opens the clone sync just made.

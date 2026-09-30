@@ -170,7 +170,7 @@ struct VaultChoiceSection: View {
             if let synced = VaultLocation.syncedFolder {
                 VaultRow(title: synced.lastPathComponent, detail: "Synced", kind: .synced)
             }
-            VaultRow(title: "Sample notes", detail: "On this iPhone only", kind: .sample)
+            VaultRow(title: VaultLocation.localFolder.lastPathComponent, detail: "On this iPhone only", kind: .local)
             if VaultLocation.hasPickedFolder {
                 VaultRow(title: "Folder from Files", detail: "Picked in Files", kind: .picked)
             }
