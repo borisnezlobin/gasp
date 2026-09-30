@@ -27,7 +27,6 @@ enum WorkspaceSheet: Identifiable {
     case toolbars
     case templates
     case recovery(path: String)
-    case moveNote(path: String)
     case share(URL)
     case lookUp(String)
     case photos
@@ -45,7 +44,6 @@ enum WorkspaceSheet: Identifiable {
         case .toolbars: "toolbars"
         case .templates: "templates"
         case .recovery(let path): "recovery \(path)"
-        case .moveNote(let path): "move \(path)"
         case .share(let url): "share \(url.path)"
         case .lookUp(let term): "look up \(term)"
         case .photos: "photos"
@@ -59,6 +57,8 @@ enum WorkspacePrompt: Identifiable {
     case delete(path: String)
     case export(path: String)
     case pickVault
+    /// A name for a new folder, which what's being moved then goes into.
+    case newFolder(moving: TreeEntry)
 
     var id: String {
         switch self {
@@ -66,6 +66,7 @@ enum WorkspacePrompt: Identifiable {
         case .delete(let path): "delete \(path)"
         case .export(let path): "export \(path)"
         case .pickVault: "pick vault"
+        case .newFolder(let entry): "new folder for \(entry.path)"
         }
     }
 }
@@ -75,7 +76,9 @@ enum WorkspacePrompt: Identifiable {
 /// line length.
 @Observable
 final class Workspace {
-    var sidebarOpen = false
+    var sidebarOpen = false {
+        didSet { if !sidebarOpen { moving = nil } }
+    }
     var sidebarSection: SidebarSection = .files
     var searchQuery = ""
     /// Bumped to put the cursor in the sidebar's search field.
@@ -87,6 +90,9 @@ final class Workspace {
     var keyboardShown = false
     /// The note or folder being dragged in the file tree.
     var treeDrag: TreeEntry?
+    /// The note or folder being moved by tapping the folder it goes into,
+    /// while the file tree offers every folder as a place for it.
+    var moving: TreeEntry?
 
     var zoom: Double {
         didSet { UserDefaults.standard.set(zoom, forKey: Self.zoomKey) }
@@ -109,6 +115,14 @@ final class Workspace {
     func openSidebar(_ section: SidebarSection) {
         sidebarSection = section
         sidebarOpen = true
+    }
+
+    /// Opens the file tree with `entry` picked up, ready to be moved by
+    /// tapping a folder.
+    func startMoving(_ entry: TreeEntry) {
+        searchQuery = ""
+        openSidebar(.files)
+        moving = entry
     }
 
     func openSearch() {

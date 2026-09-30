@@ -33,11 +33,11 @@ struct NumberLimits: Equatable {
     }
 }
 
-/// A number setting: its name and value on one line with a stepper at the
-/// trailing side, and its description wrapping under the name. Tapping the
-/// value types a new one on the number pad; it's kept in range when
-/// editing ends. At the accessibility text sizes the stepper moves under
-/// the text, so nothing overlaps.
+/// A number setting: its name and description on the leading side, and
+/// on the trailing side one control holding − and + around the value.
+/// Tapping the value types a new one on the number pad; it's kept in range
+/// when editing ends. At the accessibility text sizes the control moves
+/// under the text, so nothing overlaps.
 struct NumberSettingRow: View {
     let item: SettingItem
     let tokens: Tokens
@@ -45,6 +45,10 @@ struct NumberSettingRow: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var draft = ""
     @FocusState private var typing: Bool
+
+    /// The control's height, and the width of each of its buttons.
+    private static let controlHeight: CGFloat = 36
+    private static let buttonWidth: CGFloat = 40
 
     private var isWhole: Bool {
         if case .integer = item.value { return true }
@@ -66,23 +70,20 @@ struct NumberSettingRow: View {
         if typeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: tokens.spacing.sm) {
                 text.frame(maxWidth: .infinity, alignment: .leading)
-                stepper
+                control
             }
         } else {
-            HStack(alignment: .top, spacing: tokens.spacing.md) {
+            HStack(alignment: .center, spacing: tokens.spacing.md) {
                 text
                 Spacer(minLength: 0)
-                stepper
+                control
             }
         }
     }
 
     private var text: some View {
         VStack(alignment: .leading, spacing: tokens.spacing.xs) {
-            HStack(alignment: .firstTextBaseline, spacing: tokens.spacing.sm) {
-                Text(item.title)
-                valueField
-            }
+            Text(item.title)
             if !item.description.isEmpty {
                 Text(item.description)
                     .font(Font(tokens.uiFont(size: tokens.smallSize)))
@@ -92,20 +93,50 @@ struct NumberSettingRow: View {
         }
     }
 
+    /// − value +, as one capsule.
+    private var control: some View {
+        HStack(spacing: 0) {
+            stepButton(symbol: "minus", by: -step, label: "Less", enabled: value > limits.minimum)
+            valueField
+            stepButton(symbol: "plus", by: step, label: "More", enabled: value < limits.maximum)
+        }
+        .frame(height: Self.controlHeight)
+        .background(Capsule().fill(tokens.swiftUIColor(\.fillStrong)))
+        .fixedSize()
+    }
+
+    private func stepButton(symbol: String, by change: Double, label: String, enabled: Bool) -> some View {
+        Button {
+            save(limits.clamped(value + change))
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .semibold))
+                .frame(width: Self.buttonWidth, height: Self.controlHeight)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(tokens.swiftUIColor(\.text))
+        .opacity(enabled ? 1 : 0.3)
+        .disabled(!enabled)
+        .accessibilityLabel("\(label) \(item.title)")
+    }
+
     private var valueField: some View {
         TextField("", text: $draft)
             .keyboardType(isWhole ? .numberPad : .decimalPad)
             .focused($typing)
+            .multilineTextAlignment(.center)
             .font(Font(tokens.uiFont(size: tokens.bodySize, bold: true)).monospacedDigit())
-            .frame(minWidth: tokens.bodySize)
             .foregroundStyle(tokens.swiftUIColor(\.textStrong))
+            .frame(minWidth: tokens.bodySize * 1.6)
             .fixedSize()
-            .padding(.horizontal, tokens.spacing.sm)
-            .padding(.vertical, 2)
+            .padding(.horizontal, tokens.spacing.xs)
+            .frame(height: Self.controlHeight - 8)
             .background(
-                Capsule().fill(tokens.swiftUIColor(typing ? \.selection : \.fillStrong))
+                Capsule().fill(tokens.swiftUIColor(\.selection)).opacity(typing ? 1 : 0)
             )
             .accessibilityLabel(item.title)
+            .accessibilityValue(draft)
             .accessibilityHint("Type a number")
             .toolbar {
                 if typing {
@@ -118,12 +149,6 @@ struct NumberSettingRow: View {
             .onAppear { draft = Self.shown(value) }
             .onChange(of: item.value) { draft = Self.shown(value) }
             .onChange(of: typing) { _, isTyping in if !isTyping { commit() } }
-    }
-
-    private var stepper: some View {
-        Stepper(item.title, value: Binding(get: { value }, set: save), in: limits.minimum...limits.maximum, step: step)
-            .labelsHidden()
-            .fixedSize()
     }
 
     private func commit() {
