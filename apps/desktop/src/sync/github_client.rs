@@ -5,6 +5,7 @@
 //! screen of signing in can be drawn and set up.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -14,6 +15,18 @@ use reqwest::blocking::Client;
 
 /// How long GitHub may take to answer.
 const TIMEOUT: Duration = Duration::from_secs(20);
+
+/// Whether a snapshot run has opened GitHub's device page, which stands
+/// for the person approving there: its clock runs ahead, so without this
+/// the stand-in would approve before the code could be drawn.
+static DEVICE_PAGE_OPENED: AtomicBool = AtomicBool::new(false);
+
+/// Notes that `url` was opened, for the stand-in.
+pub fn opened(url: &str) {
+    if url == github::DEVICE_PAGE {
+        DEVICE_PAGE_OPENED.store(true, Ordering::Relaxed);
+    }
+}
 
 /// The client ID a snapshot run signs in with.
 const STAND_IN_CLIENT: &str = "stand-in";
@@ -126,7 +139,9 @@ impl StandInGitHub {
     fn poll(&self) -> &'static str {
         let mut polls = self.polls.lock().unwrap_or_else(PoisonError::into_inner);
         *polls += 1;
-        if *polls < 2 {
+        let waits_for_page =
+            crate::sandbox::is_active() && !DEVICE_PAGE_OPENED.load(Ordering::Relaxed);
+        if *polls < 2 || waits_for_page {
             r#"{"error":"authorization_pending"}"#
         } else {
             r#"{"access_token":"stand-in-token","token_type":"bearer","scope":"repo"}"#
