@@ -46,6 +46,12 @@ struct SettingsScreen: View {
             }
             SyncSettingsSection(write: write)
             VaultChoiceSection()
+            Section {
+                Button("Show the welcome tour", systemImage: "sparkles") {
+                    dismiss()
+                    model.welcome.replay()
+                }
+            }
             ToolbarSettingsSection()
             ForEach(sections, id: \.title) { section in
                 Section(section.title) {

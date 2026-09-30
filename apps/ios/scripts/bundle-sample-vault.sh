@@ -1,25 +1,13 @@
 #!/usr/bin/env bash
-# Copies a few notes from the synthetic corpus into the app as its sample
-# vault, which the app copies into Documents on first launch. Xcode runs
-# this as a build phase.
+# Copies the welcome tour's sample notes, the same ones the Mac offers,
+# into the app as its sample vault. "Try the sample vault" writes them into
+# a new folder in Documents. Xcode runs this as a build phase.
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/../../.." && pwd)"
-corpus="$repo/fixtures/corpus"
+sample="$repo/apps/desktop/assets/tour/sample"
 destination="${TARGET_BUILD_DIR:?}/${UNLOCALIZED_RESOURCES_FOLDER_PATH:?}/SampleVault"
 
-notes=(
-  "Course Notes/Classical Mechanics/Entropy.md"
-  "On Formal Model.md"
-  "On Stronger Chapter.md"
-  "Summary.md"
-  "Reading/Obvious Draft.md"
-  "Lemma.md"
-  "Physics/Rigid Bodies.md"
-)
-
 rm -rf "$destination"
-for note in "${notes[@]}"; do
-  mkdir -p "$destination/$(dirname "$note")"
-  cp "$corpus/$note" "$destination/$note"
-done
+mkdir -p "$destination"
+cp "$sample"/*.md "$destination/"

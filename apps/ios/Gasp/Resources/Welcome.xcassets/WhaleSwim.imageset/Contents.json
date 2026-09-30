@@ -1,0 +1,27 @@
+{
+  "images": [
+    {
+      "idiom": "universal",
+      "filename": "swim-light.png",
+      "scale": "3x"
+    },
+    {
+      "idiom": "universal",
+      "filename": "swim-dark.png",
+      "scale": "3x",
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ]
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "preserves-vector-representation": false
+  }
+}

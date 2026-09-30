@@ -11,20 +11,22 @@ extension Notification.Name {
 enum VaultKind: String {
     /// The notes repository sync cloned into the app.
     case synced
-    /// The sample notes that ship with the app, for when nothing syncs.
-    case sample
+    /// A vault made on this iPhone, in the app's Documents: a new one, or
+    /// the sample notes. It was called the sample before there was a
+    /// choice, and keeps that name in the settings it's stored in.
+    case local = "sample"
     /// A folder picked in Files.
     case picked
 }
 
 /// The open vault: its folder, its notes, the theme and commands it asks
 /// for. The folder is the synced clone of the notes repository once sync
-/// is set up, the bundled sample notes until then, or a folder picked
-/// with "Open another vault".
+/// is set up, a vault made on this iPhone, or a folder picked with "Open
+/// another vault".
 @Observable
 final class VaultLibrary {
     private(set) var vault: VaultFolder?
-    private(set) var kind: VaultKind = .sample
+    private(set) var kind: VaultKind = .local
     private(set) var folder: URL?
     private(set) var notes: [NoteSummary] = []
     private(set) var folders: [String] = []
@@ -43,10 +45,12 @@ final class VaultLibrary {
     /// depend on it redraw.
     private(set) var configGeneration = 0
 
-    init() {
+    /// Opens the vault chosen last, unless `opensVault` is false because
+    /// none has been chosen yet and the welcome tour will ask.
+    init(opensVault: Bool = true) {
         tokens = Tokens.forReader(theme: builtInTheme())
         useDataFolder(path: VaultLocation.supportFolder.path)
-        open(VaultLocation.current())
+        if opensVault { open(VaultLocation.current()) }
         NotificationCenter.default.addObserver(
             forName: UIContentSizeCategory.didChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.readConfig() }
@@ -130,9 +134,20 @@ enum VaultLocation {
     /// The synced clone's path inside `Documents`, which keeps working when
     /// an update moves the app's container.
     private static let syncedKey = "sync.folder"
+    /// The vault made on this iPhone, also inside `Documents`. Before it
+    /// was stored, it was always `Vault`.
+    private static let localKey = "vault.local"
 
-    static var sampleFolder: URL {
-        URL.documentsDirectory.appending(path: "Vault", directoryHint: .isDirectory)
+    /// The sample vault's folder name; a number follows when it's taken.
+    static let sampleVaultName = "Gasp sample"
+    /// The note the sample vault opens on.
+    static let sampleFirstNote = "Start here.md"
+    /// A new vault's folder name.
+    static let newVaultName = "Notes"
+
+    static var localFolder: URL {
+        let relative = UserDefaults.standard.string(forKey: localKey) ?? "Vault"
+        return URL.documentsDirectory.appending(path: relative, directoryHint: .isDirectory)
     }
 
     /// Where the app keeps what never goes in a vault, such as snapshots.
@@ -140,6 +155,15 @@ enum VaultLocation {
         let folder = URL.applicationSupportDirectory
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder
+    }
+
+    /// Whether a vault was ever chosen or made on this iPhone, so launching
+    /// can open it instead of asking.
+    static var isSetUp: Bool {
+        let defaults = UserDefaults.standard
+        return defaults.string(forKey: choiceKey) != nil || syncedFolder != nil
+            || defaults.data(forKey: bookmarkKey) != nil
+            || FileManager.default.fileExists(atPath: localFolder.path)
     }
 
     /// The clone sync set up, if there is one on this phone.
@@ -154,47 +178,82 @@ enum VaultLocation {
         let parent = URL.documentsDirectory.appending(path: "Synced", directoryHint: .isDirectory)
         let last = repository.split(separator: "/").last.map(String.init) ?? "Notes"
         let base = last.hasSuffix(".git") ? String(last.dropLast(4)) : last
-        var folder = parent.appending(path: base, directoryHint: .isDirectory)
+        return unusedFolder(in: parent, named: base)
+    }
+
+    static func rememberSynced(_ folder: URL) {
+        UserDefaults.standard.set(relativeToDocuments(folder), forKey: syncedKey)
+        choice = .synced
+    }
+
+    /// Makes an empty vault in Documents and chooses it.
+    static func makeNewVault() throws -> URL {
+        let folder = unusedFolder(in: URL.documentsDirectory, named: newVaultName)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        chooseLocal(folder)
+        return folder
+    }
+
+    /// Writes the bundled sample notes into a new vault in Documents and
+    /// chooses it.
+    static func makeSampleVault() throws -> URL {
+        let folder = unusedFolder(in: URL.documentsDirectory, named: sampleVaultName)
+        if let sample = Bundle.main.url(forResource: "SampleVault", withExtension: nil) {
+            try FileManager.default.copyItem(at: sample, to: folder)
+        } else {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        }
+        chooseLocal(folder)
+        return folder
+    }
+
+    private static func chooseLocal(_ folder: URL) {
+        UserDefaults.standard.set(relativeToDocuments(folder), forKey: localKey)
+        choice = .local
+    }
+
+    private static func relativeToDocuments(_ folder: URL) -> String {
+        let documents = URL.documentsDirectory.standardizedFileURL.path
+        let path = folder.standardizedFileURL.path
+        return path.hasPrefix(documents) ? String(path.dropFirst(documents.count + 1)) : path
+    }
+
+    /// `parent/name`, or `parent/name 2` and so on when that's taken.
+    static func unusedFolder(in parent: URL, named name: String) -> URL {
+        var folder = parent.appending(path: name, directoryHint: .isDirectory)
         var number = 2
         while FileManager.default.fileExists(atPath: folder.path) {
-            folder = parent.appending(path: "\(base) \(number)", directoryHint: .isDirectory)
+            folder = parent.appending(path: "\(name) \(number)", directoryHint: .isDirectory)
             number += 1
         }
         return folder
     }
 
-    static func rememberSynced(_ folder: URL) {
-        let documents = URL.documentsDirectory.standardizedFileURL.path
-        let path = folder.standardizedFileURL.path
-        let relative = path.hasPrefix(documents) ? String(path.dropFirst(documents.count + 1)) : path
-        UserDefaults.standard.set(relative, forKey: syncedKey)
-        choice = .synced
-    }
-
     /// Which vault opens: the one last chosen, or the synced notes when
-    /// there are some, or a picked folder, or the sample notes.
+    /// there are some, or a picked folder, or the one made on this iPhone.
     static var choice: VaultKind {
         get {
             if let stored = UserDefaults.standard.string(forKey: choiceKey).flatMap(VaultKind.init) {
                 return stored
             }
             if syncedFolder != nil { return .synced }
-            return UserDefaults.standard.data(forKey: bookmarkKey) != nil ? .picked : .sample
+            return UserDefaults.standard.data(forKey: bookmarkKey) != nil ? .picked : .local
         }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: choiceKey) }
     }
 
-    /// The chosen vault if it can still be reached, otherwise the sample notes.
+    /// The chosen vault if it can still be reached, otherwise the one made
+    /// on this iPhone.
     static func current() -> Result<(VaultKind, URL), Error> {
         switch choice {
         case .synced:
             if let folder = syncedFolder { return .success((.synced, folder)) }
         case .picked:
             if let folder = pickedFolder() { return .success((.picked, folder)) }
-        case .sample:
+        case .local:
             break
         }
-        return Result { (.sample, try installSampleIfEmpty()) }
+        return Result { (.local, try existingLocalFolder()) }
     }
 
     static func remember(_ url: URL) {
@@ -215,17 +274,10 @@ enum VaultLocation {
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
-    /// Copies the bundled sample notes into the app's vault folder, unless
-    /// it already exists.
-    private static func installSampleIfEmpty() throws -> URL {
-        let manager = FileManager.default
-        let folder = sampleFolder
-        guard !manager.fileExists(atPath: folder.path) else { return folder }
-        guard let sample = Bundle.main.url(forResource: "SampleVault", withExtension: nil) else {
-            try manager.createDirectory(at: folder, withIntermediateDirectories: true)
-            return folder
-        }
-        try manager.copyItem(at: sample, to: folder)
+    /// The vault made on this iPhone, made again empty if it was deleted.
+    private static func existingLocalFolder() throws -> URL {
+        let folder = localFolder
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder
     }
 }
