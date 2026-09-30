@@ -8,8 +8,7 @@ use std::time::Duration;
 
 use gasp_sync::Token;
 use gasp_sync::github::{
-    self, DeviceCode, DevicePoll, GitHub, GitHubError, HttpClient, HttpRequest, HttpResponse,
-    PollState, Repository,
+    self, GitHub, GitHubError, HttpClient, HttpRequest, HttpResponse, PollState, Repository, SignIn,
 };
 
 /// One header of a request.
@@ -97,11 +96,11 @@ impl From<GitHubError> for GitHubProblem {
     }
 }
 
-/// Whether this build can sign in with GitHub: its OAuth App's client ID
-/// is filled in.
+/// The client ID of this build's GitHub OAuth App, or nothing when it
+/// isn't filled in and GitHub sign-in isn't available.
 #[uniffi::export]
-pub fn github_sign_in_available() -> bool {
-    github::client_id().is_some()
+pub fn github_client_id() -> Option<String> {
+    github::client_id().map(str::to_owned)
 }
 
 /// Where someone without a GitHub account makes one.
@@ -137,51 +136,50 @@ pub enum SignInStep {
 #[derive(uniffi::Object)]
 pub struct GitHubSignIn {
     transport: Transport,
-    code: DeviceCode,
-    poll: Mutex<DevicePoll>,
+    sign_in: Mutex<SignIn>,
 }
 
 impl GitHubSignIn {
-    fn poll_state(&self) -> MutexGuard<'_, DevicePoll> {
-        self.poll.lock().unwrap_or_else(PoisonError::into_inner)
+    fn sign_in(&self) -> MutexGuard<'_, SignIn> {
+        self.sign_in.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
 #[uniffi::export]
 impl GitHubSignIn {
-    /// Asks GitHub for a code.
+    /// Asks GitHub for a code, as the OAuth App `client_id`.
     #[uniffi::constructor]
-    pub fn start(transport: Arc<dyn HttpTransport>) -> Result<Arc<Self>, GitHubProblem> {
+    pub fn start(
+        transport: Arc<dyn HttpTransport>,
+        client_id: String,
+    ) -> Result<Arc<Self>, GitHubProblem> {
         let transport = Transport(transport);
-        let code = github::start_sign_in(&transport)?;
-        let poll = Mutex::new(DevicePoll::new(&code));
+        let sign_in = SignIn::start(&transport, &client_id)?;
         Ok(Arc::new(GitHubSignIn {
             transport,
-            code,
-            poll,
+            sign_in: Mutex::new(sign_in),
         }))
     }
 
     /// The short code the person types on GitHub, such as `WDJB-MJHT`.
     pub fn user_code(&self) -> String {
-        self.code.user_code.clone()
+        self.sign_in().code().user_code.clone()
     }
 
     /// Where they type it.
     pub fn verification_page(&self) -> String {
-        self.code.verification_uri.clone()
+        self.sign_in().code().verification_uri.clone()
     }
 
     /// How long to wait before the first poll.
     pub fn first_wait_seconds(&self) -> f64 {
-        self.code.interval.as_secs_f64()
+        self.sign_in().first_wait().as_secs_f64()
     }
 
     /// Asks GitHub once, `waited_seconds` after the code was handed out.
     pub fn poll(&self, waited_seconds: f64) -> SignInStep {
         let waited = Duration::from_secs_f64(waited_seconds.max(0.));
-        let mut poll = self.poll_state();
-        match github::poll_sign_in(&self.transport, &self.code, &mut poll, waited) {
+        match self.sign_in().poll_once(&self.transport, waited) {
             PollState::Waiting { next_poll } => SignInStep::Waiting {
                 next_poll_seconds: next_poll.as_secs_f64(),
             },
