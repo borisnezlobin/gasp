@@ -1,7 +1,7 @@
 import XCTest
 
-/// Moving notes by tapping a folder and by dragging in the file tree, on a
-/// fresh sample vault the welcome tour makes.
+/// Making a folder and dragging a note into it in the file tree, on a fresh
+/// sample vault the welcome tour makes.
 final class MoveNotesUITests: XCTestCase {
     private let app = XCUIApplication()
 
@@ -9,18 +9,14 @@ final class MoveNotesUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testANoteMovesIntoANewFolderThenAnotherIsDraggedAfterIt() {
+    func testANoteIsDraggedIntoANewFolder() {
         startOnAFreshSampleVault()
 
-        launch("-run", "note.move")
-        app.buttons["New folder"].tap()
+        launch("-run", "file-tree.new-folder")
         let name = app.textFields["Folder name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.typeText("Guides")
-        app.buttons["Move"].tap()
-        XCTAssertTrue(exists("gasp://open?path=Guides/Start%20here.md", title: "Start here"))
-
-        launch("-run", "sidebar.files.show")
+        app.buttons["Make folder"].tap()
         let folder = app.buttons["Guides"]
         let note = app.buttons["Reading list"]
         XCTAssertTrue(folder.waitForExistence(timeout: 5))

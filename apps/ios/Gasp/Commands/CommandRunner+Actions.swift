@@ -80,19 +80,12 @@ extension CommandRunner {
         }
     }
 
-    /// Makes a folder called `name` at the top of the vault and moves
-    /// `entry` into it, ending the move.
-    func moveIntoNewFolder(_ entry: TreeEntry, named name: String) {
+    /// Makes a folder called `name` in `parent` and shows it in the file
+    /// tree, ready for notes to be dragged into it.
+    func makeFolder(named name: String, in parent: String) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty, let folder = createFolder(named: trimmed, in: "") else { return }
-        finishMoving(entry, into: folder)
-    }
-
-    /// Moves `entry` into `folder` from the file tree's move mode, and ends it.
-    func finishMoving(_ entry: TreeEntry, into folder: String) {
-        move(entry, into: folder)
-        workspace.moving = nil
-        Haptics.dropped()
+        guard !trimmed.isEmpty, createFolder(named: trimmed, in: parent) != nil else { return }
+        workspace.openSidebar(.files)
     }
 
     /// Makes a folder called `name` in `parent` and answers its path.

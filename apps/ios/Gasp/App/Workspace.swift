@@ -57,8 +57,8 @@ enum WorkspacePrompt: Identifiable {
     case delete(path: String)
     case export(path: String)
     case pickVault
-    /// A name for a new folder, which what's being moved then goes into.
-    case newFolder(moving: TreeEntry)
+    /// A name for a new folder in `parent`, `""` for the top of the vault.
+    case newFolder(parent: String)
 
     var id: String {
         switch self {
@@ -66,7 +66,7 @@ enum WorkspacePrompt: Identifiable {
         case .delete(let path): "delete \(path)"
         case .export(let path): "export \(path)"
         case .pickVault: "pick vault"
-        case .newFolder(let entry): "new folder for \(entry.path)"
+        case .newFolder(let parent): "new folder in \(parent)"
         }
     }
 }
@@ -76,9 +76,7 @@ enum WorkspacePrompt: Identifiable {
 /// line length.
 @Observable
 final class Workspace {
-    var sidebarOpen = false {
-        didSet { if !sidebarOpen { moving = nil } }
-    }
+    var sidebarOpen = false
     var sidebarSection: SidebarSection = .files
     var searchQuery = ""
     /// Bumped to put the cursor in the sidebar's search field.
@@ -90,9 +88,6 @@ final class Workspace {
     var keyboardShown = false
     /// The note or folder being dragged in the file tree.
     var treeDrag: TreeEntry?
-    /// The note or folder being moved by tapping the folder it goes into,
-    /// while the file tree offers every folder as a place for it.
-    var moving: TreeEntry?
 
     var zoom: Double {
         didSet { UserDefaults.standard.set(zoom, forKey: Self.zoomKey) }
@@ -117,12 +112,12 @@ final class Workspace {
         sidebarOpen = true
     }
 
-    /// Opens the file tree with `entry` picked up, ready to be moved by
-    /// tapping a folder.
-    func startMoving(_ entry: TreeEntry) {
+    /// Opens the file tree on the note at `path`, for dragging it onto a
+    /// folder.
+    func revealForMoving(_ path: String) {
         searchQuery = ""
         openSidebar(.files)
-        moving = entry
+        tell("Hold the note, then drag it onto a folder.")
     }
 
     func openSearch() {

@@ -99,9 +99,9 @@ struct BrowserPrompts: ViewModifier {
                 }
             }
             .alert("New folder", isPresented: showing(\.isNewFolder), presenting: model.workspace.prompt) { prompt in
-                TextField("Name", text: $newName)
-                Button("Make and move") {
-                    if case .newFolder(let entry) = prompt { model.runner.moveIntoNewFolder(entry, named: newName) }
+                TextField("Folder name", text: $newName)
+                Button("Make folder") {
+                    if case .newFolder(let parent) = prompt { model.runner.makeFolder(named: newName, in: parent) }
                 }
                 Button("Cancel", role: .cancel) {}
             }

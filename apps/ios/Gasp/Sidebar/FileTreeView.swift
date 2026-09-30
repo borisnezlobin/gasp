@@ -7,25 +7,13 @@ import UniformTypeIdentifiers
 /// drag a note or a folder onto a folder, or onto the tree's own space for
 /// the top of the vault, to move it there. The folder under the finger
 /// fills in, and a closed one springs open after a moment.
-///
-/// Moving from the menu or the Move note command picks the note up here
-/// instead: it lifts off the tree, and every folder it could go into, the
-/// top of the vault first, offers "Move here".
 struct FileTreeView: View {
     @Environment(AppModel.self) private var model
     let tokens: Tokens
     @State private var hovering = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if let moving = model.workspace.moving {
-                HStack(spacing: 0) {
-                    TreeLabel(title: model.library.name, symbol: "tray.full", depth: 0, tokens: tokens, isCurrent: false)
-                    MoveHere(entry: moving, folder: "", tokens: tokens)
-                }
-            }
-            FolderContents(folder: "", depth: 0, tokens: tokens)
-        }
+        FolderContents(folder: "", depth: 0, tokens: tokens)
             .padding(.bottom, tokens.bodySize * 4)
             .background(DropHighlight(isOn: hovering && model.workspace.canDrop(into: ""), tokens: tokens))
             .onDrop(
@@ -75,23 +63,23 @@ private struct FolderRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 0) {
-                Button { withAnimation(.snappy) { expanded.toggle() } } label: {
-                    TreeLabel(
-                        title: (folder as NSString).lastPathComponent,
-                        symbol: expanded ? "folder.fill" : "folder",
-                        depth: depth,
-                        tokens: tokens,
-                        isCurrent: false
-                    )
-                }
-                .buttonStyle(.plain)
-                .onDrag { model.workspace.pickUp(.folder(folder)) }
-                .accessibilityValue(expanded ? "Open" : "Closed")
-                if let moving = model.workspace.moving {
-                    MoveHere(entry: moving, folder: folder, tokens: tokens)
+            Button { withAnimation(.snappy) { expanded.toggle() } } label: {
+                TreeLabel(
+                    title: (folder as NSString).lastPathComponent,
+                    symbol: expanded ? "folder.fill" : "folder",
+                    depth: depth,
+                    tokens: tokens,
+                    isCurrent: false
+                )
+            }
+            .buttonStyle(.plain)
+            .onDrag { model.workspace.pickUp(.folder(folder)) }
+            .contextMenu {
+                Button("New folder inside", systemImage: "folder.badge.plus") {
+                    model.workspace.prompt = .newFolder(parent: folder)
                 }
             }
+            .accessibilityValue(expanded ? "Open" : "Closed")
             if expanded {
                 FolderContents(folder: folder, depth: depth + 1, tokens: tokens)
             }
@@ -117,12 +105,8 @@ private struct TreeNoteRow: View {
 
     var body: some View {
         let isCurrent = model.tabs.active.path == note.path
-        let lifted = model.workspace.moving == .note(note.path)
         Button { model.runner.show(note.path) } label: {
-            TreeLabel(
-                title: note.title, symbol: "doc.text", depth: depth, tokens: tokens,
-                isCurrent: isCurrent, lifted: lifted
-            )
+            TreeLabel(title: note.title, symbol: "doc.text", depth: depth, tokens: tokens, isCurrent: isCurrent)
         }
         .buttonStyle(.plain)
         .onDrag { model.workspace.pickUp(.note(note.path)) }
@@ -133,9 +117,6 @@ private struct TreeNoteRow: View {
             Button("Rename", systemImage: "character.cursor.ibeam") {
                 model.workspace.prompt = .rename(path: note.path)
             }
-            Button("Move to folder", systemImage: "folder") {
-                withAnimation(.snappy) { model.workspace.startMoving(.note(note.path)) }
-            }
             Button("Move to trash", systemImage: "trash", role: .destructive) {
                 model.workspace.prompt = .delete(path: note.path)
             }
@@ -145,14 +126,13 @@ private struct TreeNoteRow: View {
 }
 
 /// A row of the tree: indented by its depth, filled when it's the note
-/// showing, and lifted off the tree while it's being moved.
+/// showing.
 private struct TreeLabel: View {
     let title: String
     let symbol: String
     let depth: Int
     let tokens: Tokens
     let isCurrent: Bool
-    var lifted = false
 
     var body: some View {
         HStack(spacing: tokens.spacing.md) {
@@ -170,52 +150,9 @@ private struct TreeLabel: View {
         .frame(minHeight: 40)
         .background(
             RoundedRectangle(cornerRadius: CGFloat(tokens.spacing.radiusMd))
-                .fill(backdrop)
-                .shadow(color: .black.opacity(lifted ? 0.3 : 0), radius: 12, y: 4)
+                .fill(isCurrent ? tokens.swiftUIColor(\.fillStrong) : .clear)
         )
-        .scaleEffect(lifted ? 1.02 : 1)
-        .animation(.snappy, value: lifted)
         .contentShape(Rectangle())
-    }
-
-    private var backdrop: Color {
-        if lifted { return tokens.swiftUIColor(\.selection) }
-        return isCurrent ? tokens.swiftUIColor(\.fillStrong) : .clear
-    }
-}
-
-/// What a folder offers while something is being moved: "Move here" when
-/// it could go in, a check where it is now, and nothing for a folder it
-/// can't go into, such as itself.
-private struct MoveHere: View {
-    @Environment(AppModel.self) private var model
-    let entry: TreeEntry
-    let folder: String
-    let tokens: Tokens
-
-    var body: some View {
-        if entry.canMove(into: folder) {
-            Button {
-                withAnimation(.snappy) { model.runner.finishMoving(entry, into: folder) }
-            } label: {
-                Text("Move here")
-                    .font(Font(tokens.uiFont(size: tokens.smallSize, bold: true)))
-                    .foregroundStyle(tokens.swiftUIColor(\.textStrong))
-                    .padding(.horizontal, tokens.spacing.md)
-                    .frame(minHeight: 32)
-                    .background(Capsule().fill(tokens.swiftUIColor(\.fillStrong)))
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Move here, into \(folder.isEmpty ? model.library.name : (folder as NSString).lastPathComponent)")
-        } else if folder == entry.parent {
-            Label("Here now", systemImage: "checkmark")
-                .labelStyle(.titleAndIcon)
-                .font(Font(tokens.uiFont(size: tokens.smallSize)))
-                .foregroundStyle(tokens.swiftUIColor(\.textDetail))
-                .padding(.horizontal, tokens.spacing.md)
-        }
     }
 }
 
@@ -292,7 +229,6 @@ extension Workspace {
     /// Remembers what the drag carries and answers its item for the drag.
     func pickUp(_ entry: TreeEntry) -> NSItemProvider {
         treeDrag = entry
-        moving = nil
         Haptics.pickedUp()
         return NSItemProvider(object: entry.path as NSString)
     }
