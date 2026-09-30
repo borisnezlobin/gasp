@@ -1,13 +1,16 @@
-//! Paints an input's line: the text or placeholder, the selection, the
-//! IME composition underline and the caret, scrolled to keep the caret in
-//! view. It also registers the input for platform text input.
+//! Paints an input's text: the text or placeholder, the selection, the
+//! IME composition underline and the caret. A one-line input scrolls to
+//! keep the caret in view; the title wraps onto as many lines as it needs
+//! instead, as a heading would. It also registers the input for platform
+//! text input.
 
 use std::ops::Range;
 
 use gpui::{
-    App, Bounds, ContentMask, Element, ElementId, ElementInputHandler, Entity, GlobalElementId,
-    InspectorElementId, IntoElement, LayoutId, PaintQuad, Pixels, Point, ShapedLine, SharedString,
-    Style, TextRun, UnderlineStyle, Window, fill, point, relative, size,
+    App, AvailableSpace, Bounds, ContentMask, Element, ElementId, ElementInputHandler, Entity,
+    GlobalElementId, InspectorElementId, IntoElement, LayoutId, PaintQuad, Pixels, Point,
+    ShapedLine, SharedString, Size, Style, TextAlign, TextRun, UnderlineStyle, Window, WrappedLine,
+    fill, point, px, relative, size,
 };
 
 use super::{PaintedLine, TextInput};
@@ -23,12 +26,59 @@ impl TextLine {
 }
 
 pub(super) struct LinePaint {
-    line: ShapedLine,
+    line: ShapedText,
     origin: Point<Pixels>,
     line_height: Pixels,
     is_placeholder: bool,
-    selection: Option<PaintQuad>,
+    selection: Vec<PaintQuad>,
     caret: Option<PaintQuad>,
+}
+
+/// The input's text as shaped: one line, or wrapped onto several.
+#[derive(Clone)]
+pub(super) enum ShapedText {
+    Line(ShapedLine),
+    Wrapped(WrappedLine),
+}
+
+impl ShapedText {
+    /// Where byte `index` is drawn, from the text's origin.
+    pub(super) fn position(&self, index: usize, line_height: Pixels) -> Point<Pixels> {
+        match self {
+            ShapedText::Line(line) => point(line.x_for_index(index), px(0.)),
+            ShapedText::Wrapped(line) => line
+                .position_for_index(index, line_height)
+                .unwrap_or_else(|| point(line.width(), px(0.))),
+        }
+    }
+
+    /// The byte offset nearest `position`, from the text's origin.
+    pub(super) fn closest_index(&self, position: Point<Pixels>, line_height: Pixels) -> usize {
+        match self {
+            ShapedText::Line(line) => line.closest_index_for_x(position.x),
+            ShapedText::Wrapped(line) => {
+                let inside = point(position.x, position.y.max(px(0.)));
+                match line.closest_index_for_position(inside, line_height) {
+                    Ok(index) | Err(index) => index,
+                }
+            }
+        }
+    }
+
+    fn draw(
+        &self,
+        origin: Point<Pixels>,
+        line_height: Pixels,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::Result<()> {
+        match self {
+            ShapedText::Line(line) => line.paint(origin, line_height, window, cx),
+            ShapedText::Wrapped(line) => {
+                line.paint(origin, line_height, TextAlign::Left, None, window, cx)
+            }
+        }
+    }
 }
 
 impl IntoElement for TextLine {
@@ -57,6 +107,80 @@ pub(super) fn scroll_to_show(
     };
     let max_scroll = (line_width - visible).max(Pixels::ZERO);
     scroll.min(max_scroll).max(Pixels::ZERO)
+}
+
+/// The quads that cover `from` to `to` in text wrapped `width` wide with
+/// lines `line_height` tall: part of one line, or the rest of the first,
+/// every line between and the start of the last.
+fn selection_rects(
+    from: Point<Pixels>,
+    to: Point<Pixels>,
+    width: Pixels,
+    line_height: Pixels,
+) -> Vec<Bounds<Pixels>> {
+    let line = |y: Pixels, left: Pixels, right: Pixels| {
+        Bounds::from_corners(point(left, y), point(right, y + line_height))
+    };
+    if from.y == to.y {
+        return vec![line(from.y, from.x, to.x)];
+    }
+    let mut rects = vec![line(from.y, from.x, width)];
+    let mut y = from.y + line_height;
+    while y < to.y {
+        rects.push(line(y, px(0.), width));
+        y += line_height;
+    }
+    rects.push(line(to.y, px(0.), to.x));
+    rects
+}
+
+/// The text the input draws, or its placeholder, and its runs, with the
+/// composition underlined.
+fn shown_runs(input: &TextInput) -> (SharedString, Vec<TextRun>) {
+    let theme = &input.theme;
+    let look = input.look();
+    let is_placeholder = input.state.text().is_empty();
+    let (shown, color): (SharedString, _) = if is_placeholder {
+        (input.placeholder.clone(), theme.placeholder)
+    } else {
+        (input.shown_text().into(), look.text)
+    };
+    let base = TextRun {
+        len: shown.len(),
+        font: look.font.clone(),
+        color,
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let marked = input
+        .state
+        .marked()
+        .filter(|_| !is_placeholder)
+        .map(|range| input.shown_offset(range.start)..input.shown_offset(range.end));
+    let runs = text_runs(base, marked, theme.composition_underline_thickness);
+    (shown, runs)
+}
+
+/// Shapes the text as one line, or wrapped at `width` when `wraps`.
+fn shape(
+    wraps: bool,
+    shown: SharedString,
+    font_size: Pixels,
+    runs: &[TextRun],
+    width: Pixels,
+    window: &mut Window,
+) -> ShapedText {
+    let text_system = window.text_system();
+    if wraps
+        && let Some(line) = text_system
+            .shape_text(shown.clone(), font_size, runs, Some(width), None)
+            .ok()
+            .and_then(|lines| lines.into_iter().next())
+    {
+        return ShapedText::Wrapped(line);
+    }
+    ShapedText::Line(text_system.shape_line(shown, font_size, runs, None))
 }
 
 /// Runs for `len` bytes of text, underlining the composition.
@@ -104,11 +228,33 @@ impl Element for TextLine {
         window: &mut Window,
         cx: &mut App,
     ) -> (LayoutId, ()) {
-        let line_height = self.input.read(cx).look().line_height;
+        let input = self.input.read(cx);
+        let line_height = input.look().line_height;
         let mut style = Style::default();
         style.size.width = relative(1.).into();
-        style.size.height = line_height.into();
-        (window.request_layout(style, [], cx), ())
+        if !input.wraps() {
+            style.size.height = line_height.into();
+            return (window.request_layout(style, [], cx), ());
+        }
+        let (text, runs) = shown_runs(input);
+        let font_size = input.look().font_size;
+        let measure = move |known: Size<Option<Pixels>>,
+                            available: Size<AvailableSpace>,
+                            window: &mut Window,
+                            _: &mut App| {
+            let width = known.width.or(match available.width {
+                AvailableSpace::Definite(width) => Some(width),
+                _ => None,
+            });
+            let lines = window
+                .text_system()
+                .shape_text(text.clone(), font_size, &runs, width, None)
+                .ok()
+                .and_then(|lines| lines.into_iter().next())
+                .map_or(1, |line| line.wrap_boundaries().len() + 1);
+            size(width.unwrap_or_default(), line_height * lines as f32)
+        };
+        (window.request_measured_layout(style, measure), ())
     }
 
     fn prepaint(
@@ -124,30 +270,17 @@ impl Element for TextLine {
         let theme = &input.theme;
         let look = input.look();
         let is_placeholder = input.state.text().is_empty();
-        let (shown, color): (SharedString, _) = if is_placeholder {
-            (input.placeholder.clone(), theme.placeholder)
-        } else {
-            (input.shown_text().into(), look.text)
-        };
-        let base = TextRun {
-            len: shown.len(),
-            font: look.font.clone(),
-            color,
-            background_color: None,
-            underline: None,
-            strikethrough: None,
-        };
+        let (shown, runs) = shown_runs(input);
+        let line = shape(
+            input.wraps(),
+            shown,
+            look.font_size,
+            &runs,
+            bounds.size.width,
+            window,
+        );
         let shown_range =
             |range: Range<usize>| input.shown_offset(range.start)..input.shown_offset(range.end);
-        let marked = input
-            .state
-            .marked()
-            .filter(|_| !is_placeholder)
-            .map(shown_range);
-        let runs = text_runs(base, marked, theme.composition_underline_thickness);
-        let line = window
-            .text_system()
-            .shape_line(shown, look.font_size, &runs, None);
         let (selected, cursor) = if is_placeholder {
             (0..0, 0)
         } else {
@@ -156,26 +289,28 @@ impl Element for TextLine {
                 input.shown_offset(input.state.cursor()),
             )
         };
-        let caret_x = line.x_for_index(cursor);
-        let visible = bounds.size.width - theme.caret_width;
-        let scroll = scroll_to_show(input.scroll_x, caret_x, line.width, visible);
+        let caret_at = line.position(cursor, look.line_height);
+        let scroll = match &line {
+            ShapedText::Line(shaped) => {
+                let visible = bounds.size.width - theme.caret_width;
+                scroll_to_show(input.scroll_x, caret_at.x, shaped.width, visible)
+            }
+            ShapedText::Wrapped(_) => px(0.),
+        };
         let origin = point(bounds.left() - scroll, bounds.top());
-        let x = |offset: usize| origin.x + line.x_for_index(offset);
-        let selection = (!selected.is_empty()).then(|| {
-            fill(
-                Bounds::from_corners(
-                    point(x(selected.start), bounds.top()),
-                    point(x(selected.end), bounds.bottom()),
-                ),
-                theme.selection,
-            )
-        });
+        let selection = if selected.is_empty() {
+            Vec::new()
+        } else {
+            let from = line.position(selected.start, look.line_height);
+            let to = line.position(selected.end, look.line_height);
+            selection_rects(from, to, bounds.size.width, look.line_height)
+                .into_iter()
+                .map(|rect| fill(rect + origin, theme.selection))
+                .collect()
+        };
         let caret = selected.is_empty().then(|| {
             fill(
-                Bounds::new(
-                    point(x(cursor), bounds.top()),
-                    size(theme.caret_width, bounds.size.height),
-                ),
+                Bounds::new(origin + caret_at, size(theme.caret_width, look.line_height)),
                 theme.caret,
             )
         });
@@ -208,12 +343,14 @@ impl Element for TextLine {
         );
         let focused = focus_handle.is_focused(window);
         window.with_content_mask(Some(ContentMask { bounds }), |window| {
-            if let Some(selection) = prepaint.selection.take().filter(|_| focused) {
-                window.paint_quad(selection);
+            if focused {
+                for quad in prepaint.selection.drain(..) {
+                    window.paint_quad(quad);
+                }
             }
             let painted = prepaint
                 .line
-                .paint(prepaint.origin, prepaint.line_height, window, cx);
+                .draw(prepaint.origin, prepaint.line_height, window, cx);
             if let Err(error) = painted {
                 eprintln!("could not paint a text input: {error}");
             }
@@ -224,6 +361,7 @@ impl Element for TextLine {
         let painted = PaintedLine {
             line: (!prepaint.is_placeholder).then(|| prepaint.line.clone()),
             origin: prepaint.origin,
+            line_height: prepaint.line_height,
         };
         self.input
             .update(cx, |input, _| input.painted = Some(painted));
@@ -254,6 +392,37 @@ mod tests {
         assert_eq!(
             scroll_to_show(px(90.), px(120.), px(120.), px(100.)),
             px(20.)
+        );
+    }
+
+    #[test]
+    fn a_selection_across_wrapped_lines_covers_each_line() {
+        let line = px(20.);
+        let one = selection_rects(
+            point(px(10.), px(0.)),
+            point(px(50.), px(0.)),
+            px(100.),
+            line,
+        );
+        assert_eq!(one.len(), 1);
+        assert_eq!((one[0].left(), one[0].right()), (px(10.), px(50.)));
+        let three = selection_rects(
+            point(px(10.), px(0.)),
+            point(px(30.), px(40.)),
+            px(100.),
+            line,
+        );
+        let spans: Vec<_> = three
+            .iter()
+            .map(|r| (r.left(), r.right(), r.top()))
+            .collect();
+        assert_eq!(
+            spans,
+            [
+                (px(10.), px(100.), px(0.)),
+                (px(0.), px(100.), px(20.)),
+                (px(0.), px(30.), px(40.)),
+            ]
         );
     }
 

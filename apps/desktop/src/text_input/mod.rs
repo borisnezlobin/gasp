@@ -21,7 +21,7 @@ use std::ops::Range;
 use gpui::{
     App, ClipboardItem, Context, CursorStyle, EventEmitter, FocusHandle, Focusable, Font,
     FontWeight, Hsla, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point,
-    ShapedLine, SharedString, Subscription, Window, actions, div, font, prelude::*,
+    SharedString, Subscription, Window, actions, div, font, prelude::*,
 };
 
 pub use commands::{InputCommand, bind_keys, handles, input_bindings, input_command};
@@ -101,12 +101,13 @@ impl TextInputStyle {
     }
 }
 
-/// The line as last painted, for mapping the mouse and the IME to offsets.
+/// The text as last painted, for mapping the mouse and the IME to offsets.
 struct PaintedLine {
     /// None while the placeholder shows.
-    line: Option<ShapedLine>,
+    line: Option<element::ShapedText>,
     /// Where offset 0 is drawn, after horizontal scrolling.
     origin: Point<Pixels>,
+    line_height: Pixels,
 }
 
 /// A one-line text input.
@@ -214,6 +215,12 @@ impl TextInput {
 
     pub fn style(&self) -> TextInputStyle {
         self.style
+    }
+
+    /// Whether the text wraps onto more lines rather than scrolling
+    /// sideways: the note's title, which is read as a heading.
+    fn wraps(&self) -> bool {
+        self.style == TextInputStyle::Title
     }
 
     /// What the input draws for its text: the text, or a dot for each of
@@ -434,7 +441,7 @@ impl TextInput {
         let Some(line) = painted.line.as_ref() else {
             return 0;
         };
-        let shown = line.closest_index_for_x(position.x - painted.origin.x);
+        let shown = line.closest_index(position - painted.origin, painted.line_height);
         self.text_offset(shown).min(self.state.text().len())
     }
 }

@@ -641,8 +641,7 @@ pub fn humanize(text: &str) -> String {
 
 /// How one option of a choice reads.
 pub fn choice_label(value: &str) -> String {
-    gasp_config::setting_texts::choice_label(value)
-        .map_or_else(|| humanize(value), str::to_owned)
+    gasp_config::setting_texts::choice_label(value).map_or_else(|| humanize(value), str::to_owned)
 }
 
 // ---- Fonts ----
