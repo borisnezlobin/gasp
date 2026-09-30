@@ -85,6 +85,8 @@ final class Workspace {
     var prompt: WorkspacePrompt?
     private(set) var notice: String?
     var keyboardShown = false
+    /// The note or folder being dragged in the file tree.
+    var treeDrag: TreeEntry?
 
     var zoom: Double {
         didSet { UserDefaults.standard.set(zoom, forKey: Self.zoomKey) }

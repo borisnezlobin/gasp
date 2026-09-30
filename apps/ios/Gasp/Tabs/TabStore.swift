@@ -165,6 +165,20 @@ final class TabStore {
         save()
     }
 
+    /// Follows the notes inside a folder that was moved or renamed.
+    func folderMoved(from old: String, to new: String) {
+        let follow = { (path: String) in VaultPaths.path(path, afterMovingFolder: old, to: new) }
+        tabs = tabs.map { tab in
+            var tab = tab
+            tab.path = tab.path.map(follow)
+            tab.back = tab.back.map(follow)
+            tab.forward = tab.forward.map(follow)
+            return tab
+        }
+        sessions.values.forEach { $0.path = follow($0.path) }
+        save()
+    }
+
     /// Closes every tab showing a note that's gone.
     func removed(_ path: String) {
         tabs.filter { $0.path == path }.forEach { close($0.id) }
