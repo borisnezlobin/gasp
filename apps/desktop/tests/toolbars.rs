@@ -125,9 +125,21 @@ fn the_status_bar_is_the_status_toolbar(cx: &mut TestAppContext) {
     assert!(drawn(cx, "toolbar-status-add"));
 }
 
+/// The selection bar starts off; these tests turn it on.
+const SELECTION_ON: &str = "[toolbar.selection]\nenabled = true\n";
+
+#[gpui::test]
+fn the_selection_bar_waits_to_be_turned_on(cx: &mut TestAppContext) {
+    let dir = vault(None);
+    let (workspace, cx) = open_workspace(cx, dir.path());
+    select(&workspace, cx, 5, 10);
+    assert!(floating(&workspace, cx).is_empty());
+    assert!(!drawn(cx, "floating-toolbar-selection"));
+}
+
 #[gpui::test]
 fn the_selection_bar_shows_with_a_selection_and_presses_into_the_note(cx: &mut TestAppContext) {
-    let dir = vault(None);
+    let dir = vault(Some(SELECTION_ON));
     let (workspace, cx) = open_workspace(cx, dir.path());
     assert!(floating(&workspace, cx).is_empty());
     assert!(!drawn(cx, "floating-toolbar-selection"));
@@ -286,7 +298,7 @@ fn a_hover_bar_hides_when_the_pointer_leaves_from_its_edge(cx: &mut TestAppConte
 
 #[gpui::test]
 fn the_keyboard_moves_through_the_bars(cx: &mut TestAppContext) {
-    let dir = vault(Some(BOTTOM_BAR));
+    let dir = vault(Some(&format!("{BOTTOM_BAR}\n{SELECTION_ON}")));
     let (workspace, cx) = open_workspace(cx, dir.path());
     let focus =
         |cx: &mut VisualTestContext| cx.read(|cx| workspace.read(cx).toolbar_focus().cloned());
@@ -325,6 +337,89 @@ fn the_keyboard_moves_through_the_bars(cx: &mut TestAppContext) {
     assert_eq!(text(&workspace, cx), "- *Some* plain words here.\n");
     cx.simulate_keystrokes("alt-shift-t escape");
     assert_eq!(focus(cx), None);
+}
+
+/// The owner's bar: labelled buttons too long for a 900 point window.
+const LONG_BAR: &str = "\
+[toolbar.top]
+title     = \"Top\"
+place     = \"editor-top\"
+behaviour = \"always\"
+style     = \"icons-and-labels\"
+density   = \"comfortable\"
+items     = [\"note.new\", \"menu:insert\", \"format.bold\", \"format.italic\", \"format.highlight\", \"format.link\", \"format.code\", \"edit.toggle-task\", \"table.insert\"]
+";
+
+#[gpui::test]
+fn a_bar_too_long_for_its_note_puts_the_rest_in_more(cx: &mut TestAppContext) {
+    let dir = vault(Some(LONG_BAR));
+    let (workspace, cx) = open_workspace(cx, dir.path());
+    cx.simulate_resize(gpui::size(gpui::px(900.), gpui::px(600.)));
+    cx.run_until_parked();
+    let surface = cx
+        .debug_bounds("pane-surface")
+        .expect("the note's card draws");
+    let first = cx.debug_bounds("toolbar-top-0").expect("the bar draws");
+    let more = cx.debug_bounds("toolbar-top-more").expect("More shows");
+    assert!(
+        surface.contains(&first.origin) && surface.contains(&more.bottom_right()),
+        "the bar sits on the note's card, under its tab bar"
+    );
+    click(cx, "toolbar-top-more");
+    let labels = cx.read(|cx| {
+        let menu = workspace.read(cx).open_menu(cx).expect("More opens");
+        menu.read(cx).labels()
+    });
+    assert_eq!(labels.last().map(String::as_str), Some("Insert table"));
+    cx.simulate_keystrokes("escape");
+    let focus =
+        |cx: &mut VisualTestContext| cx.read(|cx| workspace.read(cx).toolbar_focus().cloned());
+    cx.simulate_keystrokes("alt-shift-t end");
+    assert_eq!(focus(cx).unwrap().stop, FocusStop::More);
+    cx.simulate_keystrokes("enter");
+    assert!(cx.read(|cx| workspace.read(cx).open_menu(cx).is_some()));
+}
+
+const OVERLAY_BAR: &str = "\
+[toolbar.pill]
+title     = \"Pill\"
+place     = \"editor-bottom\"
+surface   = \"overlay\"
+behaviour = \"hide-while-typing\"
+items     = [\"format.bold\", \"format.italic\"]
+
+[timing]
+typing-pause = \"500ms\"
+";
+
+#[gpui::test]
+fn a_bar_floats_over_the_bottom_of_the_note_without_taking_room(cx: &mut TestAppContext) {
+    let dir = vault(Some(OVERLAY_BAR));
+    let (workspace, cx) = open_workspace(cx, dir.path());
+    let surface = cx.debug_bounds("pane-surface").unwrap();
+    let column = cx.debug_bounds("pane-column").unwrap();
+    let bold = cx.debug_bounds("toolbar-pill-0").expect("the pill draws");
+    assert!(column.contains(&bold.center()), "it floats over the note");
+    assert!(bold.bottom() < surface.bottom());
+    let middle = (surface.left() + surface.right()) / 2.;
+    let italic = cx.debug_bounds("toolbar-pill-1").unwrap();
+    let pill_middle = (bold.left() + italic.right()) / 2.;
+    assert!((pill_middle - middle).abs() < gpui::px(1.), "centred");
+    cx.simulate_input("x");
+    assert!(!docked(&workspace, cx).contains(&"pill".to_owned()));
+    assert_eq!(
+        cx.debug_bounds("pane-column"),
+        Some(column),
+        "nothing moves"
+    );
+    cx.executor().advance_clock(Duration::from_millis(600));
+    assert!(docked(&workspace, cx).contains(&"pill".to_owned()));
+    click(cx, "toolbar-pill-0");
+    assert!(
+        text(&workspace, cx).contains("**"),
+        "{}",
+        text(&workspace, cx)
+    );
 }
 
 // ---- The Toolbars settings page ----
@@ -405,14 +500,16 @@ fn the_page_adds_moves_and_removes_items_from_the_keyboard(cx: &mut TestAppConte
 fn the_page_turns_bars_off_adds_one_and_resets(cx: &mut TestAppContext) {
     let dir = vault(None);
     let (view, cx) = open_settings(cx, dir.path());
-    focus_row(&view, cx, ControlRow::ToolbarHeader("selection".into()));
-    cx.simulate_keystrokes("space");
-    assert!(toolbars_file(dir.path()).contains("enabled = false"));
     let rows = view.read_with(cx, |view, _| view.rows());
     assert!(
         !rows.contains(&ControlRow::ToolbarAdd("selection".into())),
         "an off bar folds away"
     );
+    focus_row(&view, cx, ControlRow::ToolbarHeader("selection".into()));
+    cx.simulate_keystrokes("space");
+    assert!(toolbars_file(dir.path()).contains("enabled = true"));
+    let rows = view.read_with(cx, |view, _| view.rows());
+    assert!(rows.contains(&ControlRow::ToolbarAdd("selection".into())));
     let style = ControlRow::ToolbarField {
         toolbar: "status".into(),
         field: ToolbarField::Style,
@@ -427,6 +524,19 @@ fn the_page_turns_bars_off_adds_one_and_resets(cx: &mut TestAppContext) {
         added.unwrap().place,
         gasp_config::toolbars::Place::EditorTop
     );
+    let surface = |toolbar: &str| ControlRow::ToolbarField {
+        toolbar: toolbar.into(),
+        field: ToolbarField::Surface,
+    };
+    let rows = view.read_with(cx, |view, _| view.rows());
+    assert!(rows.contains(&surface("toolbar")));
+    assert!(
+        !rows.contains(&surface("status")),
+        "the status bar can't float"
+    );
+    focus_row(&view, cx, surface("toolbar"));
+    cx.simulate_keystrokes("right");
+    assert!(toolbars_file(dir.path()).contains("surface = \"overlay\""));
     let place = ControlRow::ToolbarField {
         toolbar: "toolbar".into(),
         field: ToolbarField::Place,
