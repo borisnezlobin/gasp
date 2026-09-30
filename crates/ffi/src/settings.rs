@@ -50,6 +50,9 @@ pub struct SettingItem {
     pub value: SettingValue,
 }
 
+/// The setting that names the branch sync uses.
+const BRANCH_KEY: &str = "sync.branch";
+
 #[uniffi::export]
 impl VaultFolder {
     /// Every setting a control can show, in the schema's order.
@@ -94,9 +97,17 @@ impl VaultFolder {
             .ok_or_else(|| VaultError::Refused {
                 message: format!("There's no setting called {key}."),
             })?;
+        let branch_before = self.config().settings.sync.branch.clone();
         write_setting(&self.root, &key, Some(&json_value(value)), &default)
             .map_err(|message| VaultError::Refused { message })?;
         self.reload_config();
+        if key == BRANCH_KEY {
+            let branch = self.config().settings.sync.branch.clone();
+            gasp_sync::follow_branch(&self.root, crate::sync::REMOTE, &branch_before, &branch)
+                .map_err(|error| VaultError::Refused {
+                    message: format!("Sync stays on {branch_before}: {error}"),
+                })?;
+        }
         Ok(())
     }
 

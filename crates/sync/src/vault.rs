@@ -23,8 +23,10 @@ mod parking;
 
 use parking::Parking;
 
-/// The address commits carry when git has no author configured.
-pub const FALLBACK_AUTHOR_EMAIL: &str = concat!(gasp_config::command_name!(), "@localhost");
+/// The address every sync commit carries. `.invalid` is reserved, so no
+/// GitHub account can ever own it and sync commits never count towards
+/// anyone's contribution graph, on any branch.
+pub const SYNC_AUTHOR_EMAIL: &str = concat!(gasp_config::command_name!(), "@sync.invalid");
 
 /// Who commits on this device.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -469,7 +471,8 @@ impl Vault {
         let mut options = FetchOptions::new();
         options
             .remote_callbacks(remote_callbacks(self.token.as_ref()))
-            .update_fetchhead(false);
+            .update_fetchhead(false)
+            .prune(git2::FetchPrune::On);
         let branches =
             std::iter::once(self.config.branch.as_str()).chain(self.config.active_legacy());
         let refspecs: Vec<String> = branches
@@ -484,10 +487,11 @@ impl Vault {
         remote
             .fetch(&refspecs, Some(&mut options), None)
             .map_err(SyncError::from_transport)?;
-        let local_ref = self.config.local_ref();
-        let advertised = remote.list()?.iter().find(|head| head.name() == local_ref);
-        self.fetched_remote_tip
-            .set(advertised.map(|head| head.oid()));
+        // Pruning drops the tracking branch when the remote no longer has
+        // it, so after the fetch it holds exactly the remote's tip, or
+        // nothing. (Listing the remote's heads instead crashes on a remote
+        // with none: git2 builds a slice from a null pointer.)
+        self.fetched_remote_tip.set(self.tracking_commit());
         if remote.stats().received_objects() > 0 {
             self.tidy_objects();
         }
@@ -877,6 +881,46 @@ pub struct RepoProbe {
     pub remote_url: Option<String>,
     /// `user.name` and `user.email` from git's config, when both are set.
     pub author: Option<Author>,
+}
+
+/// Moves the clone at `path` onto `branch`, when that changes no file: a
+/// branch that doesn't exist yet is made at the commit the clone is on,
+/// and one that points at that commit already is simply taken. Uncommitted
+/// edits stay as they are, and the branch reaches the remote on the next
+/// push. A branch that exists elsewhere is left alone, as switching to it
+/// would rewrite the notes on disk.
+pub fn switch_branch(path: &Path, branch: &str) -> SyncResult<()> {
+    let repo = Repository::open(path)?;
+    let head = repo.head()?;
+    if head.shorthand() == Some(branch) {
+        return Ok(());
+    }
+    let commit = head.peel_to_commit()?;
+    let wrong_branch = || SyncError::WrongBranch {
+        expected: branch.to_owned(),
+        actual: head.shorthand().unwrap_or_default().to_owned(),
+    };
+    match repo.find_branch(branch, git2::BranchType::Local) {
+        Ok(existing) if existing.get().target() == Some(commit.id()) => {}
+        Ok(_) => return Err(wrong_branch()),
+        Err(_) => {
+            repo.branch(branch, &commit, false)?;
+        }
+    }
+    repo.set_head(&format!("refs/heads/{branch}"))?;
+    Ok(())
+}
+
+/// Moves the clone at `path` from the branch sync used, `from`, onto `to`,
+/// after the branch setting changed, but only when it's on `from`: a clone
+/// on some other branch belongs to another tool and is left alone.
+pub fn follow_branch(path: &Path, remote: &str, from: &str, to: &str) -> SyncResult<()> {
+    let on_old_branch =
+        probe(path, remote).is_some_and(|found| found.branch.as_deref() == Some(from.trim()));
+    if !on_old_branch {
+        return Ok(());
+    }
+    switch_branch(path, to.trim())
 }
 
 /// Looks at the clone at `path` (not its parents) without writing to it.

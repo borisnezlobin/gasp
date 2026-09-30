@@ -319,7 +319,7 @@ impl SyncSetup {
                 url: &job.url,
                 config: job.config.clone(),
                 token: job.token.clone(),
-                author: gasp_sync::default_author(&device),
+                author: gasp_sync::sync_author(&device),
                 device: &device,
             });
             (job, result)

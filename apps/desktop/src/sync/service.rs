@@ -270,6 +270,24 @@ impl SyncService {
     // ---- What starts a sync ----
 
     /// `sync.now`: syncs as soon as nothing else is running.
+    /// The branch the sync settings name.
+    pub fn settings_branch(&self) -> &str {
+        self.settings.branch.trim()
+    }
+
+    /// Moves a vault that's on another branch onto the one the settings
+    /// name, then syncs from there. A branch that would change the notes
+    /// on disk is refused, and says so.
+    pub fn switch_to_settings_branch(&mut self, cx: &mut Context<Self>) {
+        match gasp_sync::switch_branch(&self.root, self.settings.branch.trim()) {
+            Ok(()) => self.open(cx),
+            Err(error) => {
+                let message = format!("Sync can’t move to {}: {error}", self.settings_branch());
+                crate::notices::problem(message, cx);
+            }
+        }
+    }
+
     pub fn sync_now(&mut self, cx: &mut Context<Self>) {
         self.scheduler.request_sync();
         self.tick(cx);
@@ -475,6 +493,12 @@ impl SyncService {
     pub fn apply_settings(&mut self, settings: SyncSettings, cx: &mut Context<Self>) {
         if settings == self.settings {
             return;
+        }
+        if settings.branch != self.settings.branch {
+            let (from, to) = (&self.settings.branch, &settings.branch);
+            if let Err(error) = gasp_sync::follow_branch(&self.root, engine::REMOTE, from, to) {
+                eprintln!("could not move sync to branch {to}: {error}");
+            }
         }
         let reopen = settings.branch != self.settings.branch
             || settings.legacy_branch != self.settings.legacy_branch

@@ -201,9 +201,7 @@ fn open_clone(
     let token = store.load(&remote_url).ok().flatten();
     let signed_in = token.is_some();
     vault.set_token(token);
-    let author = probe
-        .author
-        .unwrap_or_else(|| Author::new(device, gasp_sync::FALLBACK_AUTHOR_EMAIL));
+    let author = gasp_sync::sync_author(device);
     Opened::Ready {
         clone: OpenClone { vault, author },
         remote_url,
