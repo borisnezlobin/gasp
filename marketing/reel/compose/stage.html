@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Gasp reel stage</title>
+<style>
+  @font-face { font-family: "Bricolage"; src: url("fonts/BricolageGrotesque.ttf"); font-weight: 200 800; font-stretch: 75% 100%; }
+  @font-face { font-family: "JB Mono"; src: url("fonts/JetBrainsMono.ttf"); font-weight: 100 800; }
+  html, body { margin: 0; padding: 0; background: #000; overflow: hidden; }
+  #stage { position: relative; overflow: hidden; }
+  #stage canvas { position: absolute; left: 0; top: 0; }
+  #type { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+  #grain { mix-blend-mode: multiply; }
+  .t { position: absolute; white-space: pre; font-family: "Bricolage"; font-kerning: normal;
+       font-optical-sizing: auto; font-variant-numeric: tabular-nums lining-nums; line-height: 1; }
+  .mono { font-family: "JB Mono"; font-variant-ligatures: none; }
+  .serif { font-family: "Charter", "Bitstream Charter", serif; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <div id="type"></div>
+  <canvas id="grain"></canvas>
+</div>
+<script src="reel.js"></script>
+</body>
+</html>
