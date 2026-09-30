@@ -1,0 +1,22 @@
+[
+  {
+    "name": "patch_note",
+    "arguments": {
+      "path": "Launch",
+      "operation": "replace",
+      "find": "- [ ] Write the release notes",
+      "content": "- [x] Write the release notes"
+    },
+    "pause": 0.4
+  },
+  {
+    "name": "patch_note",
+    "arguments": {
+      "path": "Launch",
+      "operation": "append",
+      "heading": "Release notes",
+      "content": "Search answers before you finish the word, and math renders as each key lands."
+    },
+    "pause": 0.9
+  }
+]
