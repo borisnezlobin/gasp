@@ -156,7 +156,8 @@ Copy and layout
 ## Releases
 
 - [ ] A better drag-to-install window in the DMG: Gasp on the left, Applications on the right, a designed background with an arrow, no toolbar. *(Built; check the label positions when the next DMG opens.)*
-- [ ] Publish 0.2.0 (drafted, notarized). Publish it as a normal release, not a pre-release, or the updater won't see it.
+- [x] Publish 0.2.0.
+- [ ] Publish 0.2.1 (drafted, notarized): the agent tiles, the vault switcher and the new install window. It's the first release the one-click updater will offer, so check that it updates and relaunches cleanly.
 - [x] Release notes stay short.
 
 ## Website, later rounds
