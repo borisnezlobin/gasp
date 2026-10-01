@@ -11,9 +11,12 @@ import {
 
 export const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 export const DEFAULT_MODEL = "google/gemma-4-26b-a4b-it:free";
+/** The same model, paid: OpenRouter turns to it when the free one is
+    rate-limited, at about $0.0001 a request. */
+export const DEFAULT_FALLBACK_MODEL = "google/gemma-4-26b-a4b-it";
 export const ANSWER_TIMEOUT_MS = 8000;
 
-export type ModelConfig = { baseUrl: string; key: string; model: string };
+export type ModelConfig = { baseUrl: string; key: string; model: string; fallbackModel: string | null };
 
 export function modelConfigFromEnv(): ModelConfig | null {
   const key = process.env.DEMO_AI_KEY;
@@ -22,7 +25,18 @@ export function modelConfigFromEnv(): ModelConfig | null {
     baseUrl: (process.env.DEMO_AI_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, ""),
     key,
     model: process.env.DEMO_AI_MODEL || DEFAULT_MODEL,
+    fallbackModel: fallbackModelFromEnv(),
   };
+}
+
+/** `DEMO_AI_FALLBACK_MODEL`, or the paid Gemma on OpenRouter; set it to
+    `none` to never spend credits. Other providers have no fallback list. */
+function fallbackModelFromEnv(): string | null {
+  const configured = process.env.DEMO_AI_FALLBACK_MODEL;
+  if (configured === "none") return null;
+  if (configured) return configured;
+  const onOpenRouter = !process.env.DEMO_AI_BASE_URL || process.env.DEMO_AI_BASE_URL.includes("openrouter.ai");
+  return onOpenRouter ? DEFAULT_FALLBACK_MODEL : null;
 }
 
 const names = (values: readonly string[]) => values.map((value) => `"${value}"`).join(", ");
@@ -50,6 +64,7 @@ export class ModelError extends Error {
 function requestBody(config: ModelConfig, request: string): string {
   return JSON.stringify({
     model: config.model,
+    ...(config.fallbackModel && { models: [config.model, config.fallbackModel] }),
     temperature: 0,
     max_tokens: 400,
     response_format: { type: "json_object" },

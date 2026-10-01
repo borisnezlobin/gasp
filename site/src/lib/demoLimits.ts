@@ -9,16 +9,16 @@ const DAY: Window = { name: "day", seconds: 60 * 60 * 24 };
 
 type Limit = { scope: "visitor" | "everyone"; window: Window; most: number };
 
-const DEFAULT_DAILY_LIMIT = 900;
+const DEFAULT_DAILY_LIMIT = 3000;
 
-/** OpenRouter lets a free model take 20 requests a minute, and 1,000 a
-    day once the account has bought credits, so everyone together stays
-    under both. One visitor gets a handful a minute and a few dozen a day. */
+/** Past the free model's limits OpenRouter falls back to the paid one, so
+    the daily cap bounds spending: 3,000 requests is about $0.30. One
+    visitor gets a handful a minute and a few dozen a day. */
 export function demoLimits(dailyLimit = dailyLimitFromEnv()): Limit[] {
   return [
     { scope: "visitor", window: MINUTE, most: 6 },
     { scope: "visitor", window: DAY, most: 40 },
-    { scope: "everyone", window: MINUTE, most: 18 },
+    { scope: "everyone", window: MINUTE, most: 60 },
     { scope: "everyone", window: DAY, most: dailyLimit },
   ];
 }
