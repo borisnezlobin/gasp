@@ -229,6 +229,11 @@ pub const SETTING_TEXTS: &[(&str, &str, &str)] = &[
         "Send anonymous usage data",
         "Once a day, Gasp sends its version, system version and chip type so we can count its users. Never your notes or file names.",
     ),
+    (
+        "updates.check",
+        "Check for updates",
+        "Once a day, Gasp asks gaspmd.com for the newest version number. It sends nothing about you.",
+    ),
 ];
 
 /// How each option of a choice reads. Values are unique across settings.
@@ -258,6 +263,10 @@ pub const CHOICE_LABELS: &[(&str, &str)] = &[
 
 /// Settings no app shows, by key prefix.
 pub const HIDDEN: &[&str] = &["mobile."];
+
+/// Settings only the Mac app shows, by key prefix: the iPhone updates
+/// through the App Store.
+pub const DESKTOP_ONLY: &[&str] = &["updates."];
 
 /// The title and description of the setting `key`, if it has them.
 pub fn setting_text(key: &str) -> Option<(&'static str, &'static str)> {

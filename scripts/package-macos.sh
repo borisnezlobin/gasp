@@ -90,6 +90,21 @@ make_dmg() {
   rm -rf "$staging"
 }
 
+# The app gets its own stapled ticket before it goes in the disk image, so
+# macOS accepts it offline: the updater checks the app inside a downloaded
+# image with `spctl` before installing it.
+notarize_app() {
+  if [[ -z "${NOTARY_PROFILE:-}" || -z "${DEVELOPER_ID:-}" ]]; then
+    return 0
+  fi
+  local zip="$OUT_DIR/$APP_NAME-notarize.zip"
+  step "Notarizing the app (this usually takes a few minutes)"
+  ditto -c -k --keepParent "$APP_DIR" "$zip"
+  xcrun notarytool submit "$zip" --keychain-profile "$NOTARY_PROFILE" --wait
+  xcrun stapler staple "$APP_DIR"
+  rm -f "$zip"
+}
+
 notarize() {
   local dmg="$1"
   if [[ -z "${NOTARY_PROFILE:-}" || -z "${DEVELOPER_ID:-}" ]]; then
@@ -114,6 +129,7 @@ main() {
   step "Signing"
   sign "$APP_DIR"
   codesign --verify --strict "$APP_DIR"
+  notarize_app
   step "Packaging $dmg"
   make_dmg "$dmg"
   [[ -n "${DEVELOPER_ID:-}" ]] && sign "$dmg"

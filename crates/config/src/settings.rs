@@ -25,6 +25,7 @@ pub struct Settings {
     pub recovery: RecoverySettings,
     pub mcp: McpSettings,
     pub telemetry: TelemetrySettings,
+    pub updates: UpdateSettings,
     /// Only still read so an older file loads; see [`LegacyMobileSettings`].
     #[schemars(skip)]
     #[serde(skip_serializing_if = "LegacyMobileSettings::is_empty")]
@@ -408,6 +409,22 @@ pub struct TelemetrySettings {
 impl Default for TelemetrySettings {
     fn default() -> Self {
         TelemetrySettings { enabled: true }
+    }
+}
+
+/// The Mac app's daily look at gaspmd.com for a newer version, which
+/// gaspmd.com/privacy describes.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct UpdateSettings {
+    /// Whether the app asks once a day for the newest version number and
+    /// offers it. It sends nothing about the person or the Mac.
+    pub check: bool,
+}
+
+impl Default for UpdateSettings {
+    fn default() -> Self {
+        UpdateSettings { check: true }
     }
 }
 

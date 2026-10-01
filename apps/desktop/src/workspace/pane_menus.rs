@@ -165,9 +165,12 @@ const INSERT_ITEMS: [Command; 3] = [
 
 impl Workspace {
     /// Whether anything runs `id`: the workspace, a feature wired in with
-    /// [`Workspace::on_command`], or the editor.
+    /// [`Workspace::on_command`], the editor, or the app itself.
     pub fn can_run(&self, id: &str) -> bool {
-        self.extra_commands.contains_key(id) || super::handles(id) || crate::commands::handles(id)
+        self.extra_commands.contains_key(id)
+            || super::handles(id)
+            || crate::commands::handles(id)
+            || super::menus::app_handles(id)
     }
 
     /// Makes `pane` active, then runs `id` there: the workspace's own

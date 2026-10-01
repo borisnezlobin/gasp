@@ -184,6 +184,26 @@ const MOVE_NOTE: CommandSpec =
 /// `sync.now`.
 const SET_UP_SYNC: CommandSpec = spec("sync.set-up", "Set up sync", "App").icon("cloud-arrow-up");
 
+/// Asks gaspmd.com for the newest version and says what it found, which
+/// the Mac app does.
+const CHECK_FOR_UPDATES: CommandSpec =
+    spec("app.check-for-updates", "Check for updates", "App").icon("cloud-arrow-down");
+
+/// Downloads, checks and stages the version a check found, or checks
+/// first when none has been found.
+const INSTALL_UPDATE: CommandSpec =
+    spec("app.install-update", "Install the update", "App").icon("arrow-down");
+
+/// Quits, swaps in the staged version and opens it, or checks first when
+/// none is staged.
+const RESTART_TO_UPDATE: CommandSpec =
+    spec("app.restart-to-update", "Restart to update", "App").icon("arrow-clockwise");
+
+/// The release page of the version a check found, or a check first when
+/// none has been found.
+const SHOW_RELEASE_NOTES: CommandSpec =
+    spec("app.release-notes", "Show what’s new in the update", "App").icon("article");
+
 /// Commands only some platforms have. The registry leaves them out
 /// elsewhere, but rules may still name them, as a vault's config goes
 /// from machine to machine.
@@ -197,6 +217,10 @@ pub const PLATFORM_COMMANDS: &[&str] = &[
     TOGGLE_DARK_MODE.id,
     MOVE_NOTE.id,
     SET_UP_SYNC.id,
+    CHECK_FOR_UPDATES.id,
+    INSTALL_UPDATE.id,
+    RESTART_TO_UPDATE.id,
+    SHOW_RELEASE_NOTES.id,
 ];
 
 /// Every built-in command on this platform.
@@ -382,6 +406,14 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     #[cfg(not(target_os = "ios"))]
     SET_UP_SYNC,
     spec("settings.open", "Open settings", "App").icon("gear-six"),
+    #[cfg(target_os = "macos")]
+    CHECK_FOR_UPDATES,
+    #[cfg(target_os = "macos")]
+    INSTALL_UPDATE,
+    #[cfg(target_os = "macos")]
+    RESTART_TO_UPDATE,
+    #[cfg(target_os = "macos")]
+    SHOW_RELEASE_NOTES,
     spec("toolbar.focus", "Focus toolbars", "Tabs and panels").icon("app-window"),
     spec("toolbar.customize", "Customize toolbars", "App").icon("sliders-horizontal"),
     spec("vault.open", "Open another vault", "App").icon("vault"),
@@ -604,7 +636,7 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
 
 /// The commands in [`PLATFORM_COMMANDS`], described on every platform so
 /// a toolbar synced from another machine can still name them.
-const PLATFORM_SPECS: [CommandSpec; 9] = [
+const PLATFORM_SPECS: [CommandSpec; 13] = [
     LOOK_UP,
     HIDE_KEYBOARD,
     TAB_OVERVIEW,
@@ -614,6 +646,10 @@ const PLATFORM_SPECS: [CommandSpec; 9] = [
     TOGGLE_DARK_MODE,
     MOVE_NOTE,
     SET_UP_SYNC,
+    CHECK_FOR_UPDATES,
+    INSTALL_UPDATE,
+    RESTART_TO_UPDATE,
+    SHOW_RELEASE_NOTES,
 ];
 
 /// A built-in command's description by id, on any platform.

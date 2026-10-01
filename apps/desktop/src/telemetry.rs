@@ -8,6 +8,7 @@
 
 use std::time::Duration;
 
+use gasp_config::settings::Settings;
 use gpui::{App, AsyncApp};
 use reqwest::blocking::Client;
 use serde::Serialize;
@@ -92,7 +93,7 @@ pub fn schedule(cx: &mut App) {
 
 async fn send_when_settled(cx: &mut AsyncApp) {
     cx.background_executor().timer(SETTLE_DELAY).await;
-    let allowed = cx.update(every_open_vault_allows).unwrap_or(false);
+    let allowed = cx.update(every_open_vault_allows_pings).unwrap_or(false);
     let Some(state_path) = AppState::default_path() else {
         return;
     };
@@ -109,15 +110,19 @@ async fn send_when_settled(cx: &mut AsyncApp) {
     }
 }
 
-/// Whether no open vault has turned the ping off. The welcome tour, with
-/// no vault open yet, keeps the default.
-fn every_open_vault_allows(cx: &mut App) -> bool {
+fn every_open_vault_allows_pings(cx: &mut App) -> bool {
+    every_open_vault_allows(cx, |settings| settings.telemetry.enabled)
+}
+
+/// Whether no open vault has turned off what `allows` reads. The welcome
+/// tour, with no vault open yet, keeps the default.
+pub fn every_open_vault_allows(cx: &mut App, allows: impl Fn(&Settings) -> bool) -> bool {
     cx.windows()
         .into_iter()
         .filter_map(|handle| handle.downcast::<Workspace>())
         .all(|workspace| {
             workspace
-                .read_with(cx, |workspace, _| workspace.config().settings.telemetry.enabled)
+                .read_with(cx, |workspace, _| allows(&workspace.config().settings))
                 .unwrap_or(true)
         })
 }

@@ -75,6 +75,8 @@ pub mod trace;
 pub mod trashing;
 pub mod typing;
 pub mod ui;
+#[cfg(target_os = "macos")]
+pub mod update;
 pub mod vault_index;
 pub mod vault_search;
 pub mod vault_watch;

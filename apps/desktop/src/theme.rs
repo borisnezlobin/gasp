@@ -2100,6 +2100,8 @@ pub struct UiTheme {
     /// how long one that reports something done stays.
     pub notice_width: Pixels,
     pub notice_duration: std::time::Duration,
+    /// How thick a notice's progress bar is.
+    pub notice_progress_height: Pixels,
     /// The card a grammar flag shows: the widest its message runs, and the
     /// narrowest the card gets so its buttons fit.
     pub flag_card_width: Pixels,
@@ -2459,6 +2461,7 @@ impl UiTheme {
             hover_footnote_width: px(360.),
             notice_width: px(380.),
             notice_duration: std::time::Duration::from_secs(6),
+            notice_progress_height: px(2.),
             flag_card_width: px(320.),
             flag_card_min_width: px(220.),
             flag_card_max_width: px(440.),

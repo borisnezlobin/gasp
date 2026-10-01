@@ -20,6 +20,15 @@ const PAYLOAD = `{
   "arch": "arm64"
 }`;
 
+const VERSION_ANSWER = `{
+  "version": "0.2.0",
+  "url": "https://github.com/borisnezlobin/gasp/releases/download/v0.2.0/Gasp-0.2.0.dmg",
+  "notes": "https://github.com/borisnezlobin/gasp/releases/tag/v0.2.0",
+  "published": "2026-10-01T09:00:00Z",
+  "size": 96746643,
+  "sha256": "51ca523e…"
+}`;
+
 const FIELDS: Fact[] = [
   { term: <span className="code">version</span>, detail: "Which version of Gasp you have." },
   { term: <span className="code">platform</span>, detail: "Mac or iPhone." },
@@ -49,9 +58,9 @@ export default function Privacy() {
       <main className="mx-auto max-w-3xl px-4 pt-12 pb-20 sm:px-8 lg:pt-20">
         <h1 className="heading">Privacy</h1>
         <p className="lede mt-6 text-ink-soft">
-          Your notes live on your devices, and in your iCloud Drive or your own GitHub repository if you sync. We never see them. The
-          one thing Gasp sends us is a tiny message, at most once a day, so we can count how many people use it. This page
-          shows all of it.
+          Your notes live on your devices, and in your iCloud Drive or your own GitHub repository if you sync. We never see them. Gasp
+          sends us one tiny message, at most once a day, so we can count how many people use it, and the Mac app asks us
+          once a day whether a newer version is out. This page shows all of it.
         </p>
 
         <Part title="What the app sends">
@@ -98,6 +107,25 @@ export default function Privacy() {
           <p>
             The switch is saved in your vault as <span className="code">telemetry.enabled</span>, so turning it off
             on one device turns it off on every device that syncs that vault.
+          </p>
+        </Part>
+
+        <Part title="Checking for updates">
+          <p>
+            A little after the Mac app opens, and then once a day while it runs, it asks gaspmd.com/api/version for
+            the newest version. It also asks when you choose Check for updates in the Gasp menu. The request
+            carries nothing about you or your Mac: no version, no ID and nothing from your notes. The answer is the
+            same for everyone:
+          </p>
+          <pre className="code overflow-x-auto rounded-xl bg-fill p-5 leading-relaxed text-ink">{VERSION_ANSWER}</pre>
+          <p>
+            Nothing about these requests is logged or counted. When you choose Update, Gasp downloads the new version
+            from GitHub, and it installs it only after macOS confirms that Gasp&apos;s developer signed it and Apple
+            notarized it.
+          </p>
+          <p>
+            To stop the daily check, turn off Check for updates on the General page of Settings. It&apos;s saved in
+            your vault as <span className="code">updates.check</span>. The menu item still checks when you ask it to.
           </p>
         </Part>
 
