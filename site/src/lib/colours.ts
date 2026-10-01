@@ -1,5 +1,6 @@
 /** Colour values the demo accepts for Gasp's colour tokens: hex, rgb() and
-    rgba(), or a `{color.name}` reference to another token. */
+    rgba(), a common colour name, or a `{color.name}` reference to another
+    token. */
 
 export type Rgba = { r: number; g: number; b: number; a: number };
 
@@ -15,8 +16,20 @@ function hexToRgba(hex: string): Rgba {
   return { r: channel(0), g: channel(1), b: channel(2), a: digits.length === 8 ? channel(3) / 255 : 1 };
 }
 
+/** The CSS values of the colour names a model is likely to answer with. */
+const NAMED: Record<string, string> = {
+  black: "#000000", white: "#ffffff", gray: "#808080", grey: "#808080", silver: "#c0c0c0",
+  red: "#ff0000", crimson: "#dc143c", maroon: "#800000", coral: "#ff7f50", salmon: "#fa8072",
+  orange: "#ffa500", gold: "#ffd700", yellow: "#ffff00", olive: "#808000", lime: "#00ff00",
+  green: "#008000", teal: "#008080", turquoise: "#40e0d0", cyan: "#00ffff", blue: "#0000ff",
+  navy: "#000080", indigo: "#4b0082", purple: "#800080", violet: "#ee82ee", magenta: "#ff00ff",
+  pink: "#ffc0cb", brown: "#a52a2a", tan: "#d2b48c", beige: "#f5f5dc", lavender: "#e6e6fa",
+};
+
 export function parseColour(value: string): Rgba | null {
   const text = value.trim().toLowerCase();
+  const named = NAMED[text.replace(/\s+/g, "")];
+  if (named) return hexToRgba(named);
   if (HEX.test(text)) return hexToRgba(text);
   const match = text.match(RGB);
   if (!match) return null;
