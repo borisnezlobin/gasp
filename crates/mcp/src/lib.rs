@@ -7,6 +7,7 @@
 //! desktop app only supplies a handler.
 
 pub mod bridge;
+pub mod clients;
 pub mod context;
 pub mod frontmatter;
 pub mod patch;

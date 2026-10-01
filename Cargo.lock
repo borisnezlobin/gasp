@@ -3989,6 +3989,7 @@ dependencies = [
  "serde_yaml",
  "tempfile",
  "tokio",
+ "toml_edit 0.22.27",
 ]
 
 [[package]]

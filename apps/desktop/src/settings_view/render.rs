@@ -466,7 +466,7 @@ impl SettingsView {
         if row.is_typing_row() {
             return self.render_typing_row(index, row, focused, window, cx);
         }
-        let text = self.row_text(row);
+        let text = self.row_text(row, cx);
         let inactive = row.item().is_some_and(|item| self.is_inactive(item));
         let control = self
             .row_control(index, row, focused, window, cx)
