@@ -49,6 +49,7 @@ pub mod tab_drag;
 mod tab_moves;
 mod tabs;
 mod toolbars;
+pub mod vault_choices;
 pub mod watcher;
 pub mod window;
 

@@ -73,6 +73,9 @@ impl AppState {
         let Some(path) = AppState::default_path() else {
             return;
         };
+        if super::vault_choices::is_temporary(vault) {
+            return;
+        }
         let mut state = AppState::load(&path);
         state.opened(vault);
         if let Err(error) = state.save(&path) {

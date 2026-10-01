@@ -3,12 +3,15 @@
 //! tools (new note, new folder, sort order, collapse all), and a footer
 //! with the vault switcher, help and settings.
 
+use std::path::Path;
+
 use gpui::{AnyElement, Context, Entity, Pixels, SharedString, Window, div, prelude::*};
 
 use super::Workspace;
 use super::files::folder_name;
 use super::help::ShortcutsHelp;
 use super::state::AppState;
+use super::vault_choices::vault_choices;
 use super::window::open_vault_window;
 use crate::file_tree::{EntryKind, SortOrder};
 use crate::icons::{IconName, icon};
@@ -229,16 +232,19 @@ impl Workspace {
 
     /// Opens the vault switcher: recent vaults, then another one.
     pub fn open_vault_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let mut items: Vec<MenuItem> = AppState::recent_vaults()
+        let recent = AppState::recent_vaults();
+        let home = dirs::home_dir();
+        let mut items: Vec<MenuItem> = vault_choices(&recent, &self.vault, home.as_deref(), Path::is_dir)
             .into_iter()
-            .filter(|vault| *vault != self.vault)
-            .map(|vault| {
-                MenuItem::action(folder_name(&vault), move |_, cx| {
+            .map(|choice| {
+                let vault = choice.path;
+                MenuItem::action(choice.name, move |_, cx| {
                     if let Err(error) = open_vault_window(&vault, None, cx) {
                         crate::notices::open_failed(&vault, error, cx);
                     }
                 })
                 .with_icon(IconName::Folder)
+                .with_detail(choice.location)
             })
             .collect();
         if !items.is_empty() {
