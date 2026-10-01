@@ -14,6 +14,11 @@ unsafe_code = "deny"
 [workspace.lints.clippy]
 cognitive_complexity = "deny"
 
+# Libraries keep only line tables in debug builds: backtraces still name
+# the file and line, and every debug binary is a fraction of the size.
+[profile.dev.package."*"]
+debug = "line-tables-only"
+
 # Builds that go to other people: smaller and faster to run. Thin LTO keeps
 # most of fat LTO's savings at a fraction of the build time.
 [profile.dist]
