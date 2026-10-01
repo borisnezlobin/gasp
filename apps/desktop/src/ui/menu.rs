@@ -44,6 +44,8 @@ pub struct MenuEntry {
     pub label: SharedString,
     pub icon: Option<IconName>,
     pub shortcut: Option<Shortcut>,
+    /// A quieter word after the label, such as where a vault lives.
+    pub detail: Option<SharedString>,
     pub checked: bool,
     pub disabled: bool,
     handler: MenuHandler,
@@ -57,6 +59,7 @@ impl MenuItem {
             label: super::hints::command_title(id),
             icon: None,
             shortcut: super::hints::shortcut(id, cx),
+            detail: None,
             checked: false,
             disabled: false,
             handler: Rc::new(move |window, cx| {
@@ -78,6 +81,7 @@ impl MenuItem {
             label: label.into(),
             icon: None,
             shortcut: None,
+            detail: None,
             checked: false,
             disabled: false,
             handler: Rc::new(handler),
@@ -114,6 +118,13 @@ impl MenuItem {
             MenuItem::Entry(entry) => entry.icon = Some(name),
             MenuItem::Submenu { icon, .. } => *icon = Some(name),
             MenuItem::Separator => {}
+        }
+        self
+    }
+
+    pub fn with_detail(mut self, detail: Option<impl Into<SharedString>>) -> MenuItem {
+        if let MenuItem::Entry(entry) = &mut self {
+            entry.detail = detail.map(Into::into);
         }
         self
     }
@@ -439,7 +450,12 @@ impl DropdownMenu {
                 let keys = theme.keycap.clone().compact().on_text(text);
                 div()
                     .flex_none()
+                    .flex()
+                    .items_center()
+                    .gap(theme.space_sm)
                     .pl(theme.space_lg)
+                    .text_color(text)
+                    .children(entry.detail.clone())
                     .children(entry.shortcut.map(|shortcut| keycap(shortcut, &keys)))
                     .into_any_element()
             }
