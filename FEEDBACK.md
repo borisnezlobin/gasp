@@ -162,6 +162,9 @@ Copy and layout
 
 ## Website, later rounds
 
+- [ ] The whale flickers as it jumps in and out of the water.
+- [ ] The landing page above the fold still isn't right. Rework it together.
+
 - [x] Remove the line under the request field about keeping what's typed. The privacy page says it instead.
 - [x] Remove "Show the settings it wrote", which shifted the page.
 - [x] Replace the live AI demo with real renders of different behaviours, not just colours.
