@@ -83,7 +83,19 @@ Everything the owner has asked for, newest last, ticked off as it lands on maste
 ## Agents and MCP
 
 - [ ] Explain how to set up MCP. Today the app has only the "Agent access" switch and one line in the README. Add setup steps in the app (a button that copies the command for Claude Code or Claude Desktop) and a page on the site.
-- [ ] Make Gasp fully customizable: any change someone asks for should be possible through its settings files. *(An audit of what's still hard-coded is being written.)*
+- [ ] Make Gasp fully customizable: any change someone asks for should be possible through its settings files. The audit of what's still hard-coded, with a suggested key for each:
+  - [ ] `layout.toml` isn't read at all: build the window from its slot tree, which also lets the sidebar move to the right.
+  - [ ] Sizes with tokens nobody reads: `size.sidebar-width`, `tab-height`, `status-height`, `hover-edge-width` (hard-coded in `apps/desktop/src/theme.rs` near line 1331).
+  - [ ] `shadow.*`, `curve.*`, `duration.*` and `animation.*` tokens are unread: use them for popovers and the sidebar reveal.
+  - [ ] Interface text size: `font.scale.ui` is unread (13 and 12 are hard-coded); add `font.scale.ui-small`.
+  - [ ] Headings: `color.heading`, `font.heading.family`, `font.weight.heading` (they use the body colour and font today).
+  - [ ] Editor details: `size.cursor-width`, `size.quote-bar` and `color.quote-bar`, `size.checkbox-border` and `color.checkbox-mark`, `font.scale.bullet`, `size.list-marker`, `editor.tab-width`.
+  - [ ] Superscripts and contrast: `font.scale.script`, `font.script.rise` and `drop`, `contrast.note-colours`.
+  - [ ] Images and link cards: `size.image-height`, `link-card.*`, `link-cards.timeout`.
+  - [ ] Focus ring and keycaps: `opacity.focus-ring`, `size.focus-ring`, `color.keycap`, `color.keycap-text`.
+  - [ ] Pickers, panels and the find bar: `picker.*`, `panel.*`, `find.*`; font fallbacks: `font.fallbacks.*`.
+  - [ ] Behaviour: `editor.reading-speed` (238 words a minute), `stats.idle-seconds` (60), `editor.renumber-delay` (1.2 s), `search.weights.*`, `palette.recent-boost` and `recent-count`, `embed.max-depth` (4), `timing.copied`, `notices.max-shown` (3), the table handle's timings (`table.*`).
+  - [ ] Not settings at all yet: animation speed, custom shadows, background images or custom CSS, vim mode, the app icon.
 
 ## Website (gaspmd.com)
 
