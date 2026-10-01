@@ -1,11 +1,10 @@
 "use client";
 
-import { ArrowCounterClockwise, CaretRight, CircleNotch, Lightning } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, CircleNotch, Lightning } from "@phosphor-icons/react";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { builtinDemo, type BuiltinDemo } from "@/lib/builtins";
 import type { ChangeAnswer, ChangeErrorCode } from "@/lib/changeHandler";
 import { SUGGESTIONS, suggestionFor } from "@/lib/changeSuggestions";
-import { settingsFiles } from "@/lib/configFiles";
 import { hasChanges, mergePatches, type ConfigPatch } from "@/lib/configPatch";
 import { describeChanges } from "@/lib/describeChanges";
 import { COMMANDS } from "@/lib/gaspSchema";
@@ -126,34 +125,20 @@ function Suggestions({ disabled, onPick }: { disabled: boolean; onPick: (request
   );
 }
 
-function WrittenSettings({ patch, onReset }: { patch: ConfigPatch; onReset: () => void }) {
+/** Puts the window back to Gasp's defaults; it keeps its place while
+    hidden, so nothing below it moves when it appears. */
+function ResetWindow({ patch, onReset }: { patch: ConfigPatch; onReset: () => void }) {
   const changed = hasChanges(patch);
   return (
-    <div className={`mt-4 transition-opacity duration-200 ${changed ? "" : "invisible opacity-0"}`}>
-      <div className="flex items-start justify-between gap-4">
-        <details className="group min-w-0 flex-1">
-          <summary className="small flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md text-ink-muted hover:text-ink [&::-webkit-details-marker]:hidden">
-            <CaretRight size={14} weight="bold" aria-hidden className="transition-transform duration-150 group-open:rotate-90" />
-            Show the settings it wrote
-          </summary>
-          <div className="mt-3 grid gap-4 rounded-2xl bg-fill p-5">
-            {settingsFiles(patch).map(({ file, lines }) => (
-              <div key={file}>
-                <p className="small code text-ink-muted">.gasp/{file}</p>
-                <pre className="code mt-1.5 overflow-x-auto leading-relaxed text-ink">{lines}</pre>
-              </div>
-            ))}
-          </div>
-        </details>
-        <button
-          type="button"
-          onClick={onReset}
-          className="small flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md text-ink-muted hover:text-ink"
-        >
-          <ArrowCounterClockwise size={14} weight="bold" aria-hidden />
-          Reset the window
-        </button>
-      </div>
+    <div className={`mt-4 flex justify-end transition-opacity duration-200 ${changed ? "" : "invisible opacity-0"}`}>
+      <button
+        type="button"
+        onClick={onReset}
+        className="small flex cursor-pointer items-center gap-1.5 rounded-md text-ink-muted hover:text-ink"
+      >
+        <ArrowCounterClockwise size={14} weight="bold" aria-hidden />
+        Reset the window
+      </button>
     </div>
   );
 }
@@ -236,15 +221,12 @@ export function AskToChange() {
     <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-12">
       <div className="order-2 lg:order-none">
         <RequestForm value={request} asking={asking} onChange={setRequest} onSubmit={(wanted) => void ask(wanted)} />
-        <p className="small mt-2 text-ink-muted">
-          We keep what you type here, with nothing that identifies you, to see what people want to change.
-        </p>
         <Suggestions disabled={asking} onPick={pick} />
         <StatusLine outcome={outcome} />
       </div>
       <div className="order-1 lg:order-none">
         <GaspMockWindow patch={look.patch} demo={look.demo} notices={look.notices} version={version} corner={<Corner outcome={outcome} />} />
-        <WrittenSettings patch={look.patch} onReset={reset} />
+        <ResetWindow patch={look.patch} onReset={reset} />
       </div>
       <p aria-live="polite" className="sr-only">
         {announcement}
