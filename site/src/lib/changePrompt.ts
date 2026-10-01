@@ -96,6 +96,7 @@ const MAPPING_HINTS = [
   'minimal or distraction-free: "toolbars":{"status":{"enabled":false}}, editor.show-inline-title false, markdown.symbols.mode always-hidden.',
   "bigger text: appearance.base-font-size (default 12). Bigger headings: font.scale.h1..h6. Rounder: radius.*.",
   'A shortcut is keys like "Mod+D" (Mod is Cmd on a Mac) or "Mod+Alt+Shift+K".',
+  "Toolbars are bars of buttons. The file sidebar, the tab bar and the window's layout are not toolbars, and their side and size can't be changed yet: say so in reply.",
 ];
 
 const EXAMPLES = [
