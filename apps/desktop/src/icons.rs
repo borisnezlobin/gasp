@@ -39,6 +39,7 @@ pub enum IconName {
     ChatText,
     Check,
     CheckCircle,
+    CircleNotch,
     CheckSquare,
     Checks,
     Clipboard,
@@ -128,6 +129,7 @@ pub enum IconName {
     Swap,
     Table,
     Tabs,
+    TerminalWindow,
     TextAa,
     TextAlignCenter,
     TextAlignLeft,
@@ -148,7 +150,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 137] = [
+const ICONS: [(IconName, &str, &[u8]); 139] = [
     (
         IconName::AppWindow,
         "app-window",
@@ -298,6 +300,11 @@ const ICONS: [(IconName, &str, &[u8]); 137] = [
         IconName::CheckCircle,
         "check-circle",
         include_bytes!("../assets/icons/check-circle.svg"),
+    ),
+    (
+        IconName::CircleNotch,
+        "circle-notch",
+        include_bytes!("../assets/icons/circle-notch.svg"),
     ),
     (
         IconName::CheckSquare,
@@ -743,6 +750,11 @@ const ICONS: [(IconName, &str, &[u8]); 137] = [
         IconName::Tabs,
         "tabs",
         include_bytes!("../assets/icons/tabs.svg"),
+    ),
+    (
+        IconName::TerminalWindow,
+        "terminal-window",
+        include_bytes!("../assets/icons/terminal-window.svg"),
     ),
     (
         IconName::TextAa,

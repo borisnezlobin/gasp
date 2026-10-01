@@ -466,7 +466,13 @@ impl SettingsView {
         if row.is_typing_row() {
             return self.render_typing_row(index, row, focused, window, cx);
         }
-        let text = self.row_text(row, cx);
+        if *row == ControlRow::AgentApps {
+            let tiles = self.render_agent_apps(focused, cx);
+            return self
+                .focus_on_press(div().w_full().child(tiles), index, cx)
+                .into_any_element();
+        }
+        let text = self.row_text(row);
         let inactive = row.item().is_some_and(|item| self.is_inactive(item));
         let control = self
             .row_control(index, row, focused, window, cx)
@@ -474,17 +480,21 @@ impl SettingsView {
         let page = self
             .current_section()
             .map_or("", |page| PageSpec::get(page).id);
-        two_column_row(&format!("{page}-{index}"), text, control, &self.style)
-            .when(inactive, |row| row.opacity(self.style.inactive_opacity))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |view, _: &MouseDownEvent, window, cx| {
-                    if view.focus != SettingsFocus::Control(index) {
-                        view.set_focus(SettingsFocus::Control(index), window, cx);
-                    }
-                }),
-            )
-            .into_any_element()
+        let row = two_column_row(&format!("{page}-{index}"), text, control, &self.style)
+            .when(inactive, |row| row.opacity(self.style.inactive_opacity));
+        self.focus_on_press(row, index, cx).into_any_element()
+    }
+
+    /// `row`, giving the row at `index` keyboard focus when it's pressed.
+    fn focus_on_press(&self, row: gpui::Div, index: usize, cx: &mut Context<Self>) -> gpui::Div {
+        row.on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |view, _: &MouseDownEvent, window, cx| {
+                if view.focus != SettingsFocus::Control(index) {
+                    view.set_focus(SettingsFocus::Control(index), window, cx);
+                }
+            }),
+        )
     }
 }
 

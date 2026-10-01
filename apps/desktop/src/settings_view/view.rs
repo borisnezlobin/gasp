@@ -10,14 +10,13 @@ use std::rc::Rc;
 use gasp_config::schema::SettingKind;
 use gasp_config::theme::Theme as Tokens;
 use gasp_config::{Config, Platform, RuleSet};
-use gasp_mcp::clients::ClientApp;
 use gpui::{
     App, AppContext, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     ListAlignment, ListOffset, ListState, Subscription, Window, px,
 };
 use serde_json::Value;
 
-use super::agent_apps::{NO_AGENT_APPS, agent_app_description};
+use super::agent_apps::{AGENT_APPS_LINE, AGENT_APPS_TITLE, NO_AGENT_APPS};
 use super::capture::Capture;
 use super::config_files;
 use super::menu::OpenMenu;
@@ -91,8 +90,9 @@ pub enum ControlRow {
     SyncAccount,
     /// Where a vault in iCloud Drive is, with a way to show it in Finder.
     ICloudFolder,
-    /// An AI app on this Mac, with a button that connects it to the vault.
-    AgentApp(ClientApp),
+    /// The AI apps on this Mac, one tile each, which connect them to the
+    /// vault.
+    AgentApps,
     /// The line shown when no AI app Gasp can connect is installed. It has
     /// no control, so focus skips it.
     NoAgentApps,
@@ -201,7 +201,7 @@ impl ControlRow {
             ControlRow::SyncRemote => "Notes repository".to_string(),
             ControlRow::SyncAccount => "GitHub token".to_string(),
             ControlRow::ICloudFolder => "iCloud Drive".to_string(),
-            ControlRow::AgentApp(app) => app.name().to_string(),
+            ControlRow::AgentApps => AGENT_APPS_TITLE.to_string(),
             ControlRow::NoAgentApps => NO_AGENT_APPS.to_string(),
             ControlRow::ListAdd(item) => item.title.clone(),
             ControlRow::ListEntry { value, .. } => value.clone(),
@@ -839,7 +839,7 @@ impl SettingsView {
             }
             RowSpec::SyncRemote if self.in_icloud => ControlRow::ICloudFolder,
             RowSpec::SyncAccount if self.in_icloud => return Vec::new(),
-            RowSpec::AgentApps => return self.matching(self.agent_app_rows(), query),
+            RowSpec::AgentApps => return self.agent_app_rows(query),
             RowSpec::Setting(key) => {
                 return self
                     .item_for(key)
@@ -913,7 +913,7 @@ impl SettingsView {
             ControlRow::Vault => crate::workspace::files::display_path(&self.vault_root),
             ControlRow::IconCredit => ICON_CREDIT.to_string(),
             ControlRow::ObsidianImport => OBSIDIAN_IMPORT_DESCRIPTION.to_string(),
-            ControlRow::AgentApp(app) => agent_app_description(*app).to_string(),
+            ControlRow::AgentApps => AGENT_APPS_LINE.to_string(),
             ControlRow::Shortcut(_) | ControlRow::NoAgentApps => String::new(),
             ControlRow::SnippetsFile => self.snippets_file_description(),
             ControlRow::Snippet(_) | ControlRow::SnippetEditor | ControlRow::Replacement(_) => {

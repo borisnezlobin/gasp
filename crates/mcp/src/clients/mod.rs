@@ -122,9 +122,16 @@ impl ClientHome {
 
     /// Whether an app bundle named `bundle` is installed.
     fn has_app(&self, bundle: &str) -> bool {
+        self.find_app(bundle).is_some()
+    }
+
+    /// Where the app bundle named `bundle` is installed, such as
+    /// `/Applications/Claude.app`.
+    pub fn find_app(&self, bundle: &str) -> Option<PathBuf> {
         self.application_dirs
             .iter()
-            .any(|folder| folder.join(bundle).is_dir())
+            .map(|folder| folder.join(bundle))
+            .find(|path| path.is_dir())
     }
 
     /// Every folder a command line tool is looked for in, home folders first.
@@ -215,6 +222,18 @@ impl ClientApp {
             ClientApp::Cursor => "Cursor",
             ClientApp::Codex => "Codex",
         }
+    }
+
+    /// The app's own bundle, for its icon. Claude Code is only a command,
+    /// so it has none.
+    pub fn app_bundle(self, home: &ClientHome) -> Option<PathBuf> {
+        let bundle = match self {
+            ClientApp::ClaudeDesktop => "Claude.app",
+            ClientApp::Cursor => "Cursor.app",
+            ClientApp::Codex => "Codex.app",
+            ClientApp::ClaudeCode => return None,
+        };
+        home.find_app(bundle)
     }
 
     /// The file Gasp reads to tell whether the app is connected.

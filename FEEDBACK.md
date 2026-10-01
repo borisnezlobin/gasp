@@ -148,14 +148,14 @@ Copy and layout
 ## Mac app (since the website rounds)
 
 - [x] The vault switcher lists each real vault once, skips temporary ones, and says where same-named vaults live ("iCloud Drive", "~/Documents").
-- [ ] Agent access: show each app's logo and make the rows compact instead of one full row per app. *(Being built.)*
+- [x] Agent access: each app's real icon in one compact row of tiles instead of a full row per app.
 - [x] Set up MCP in one click from Settings, never by editing JSON.
 - [x] Each window keeps its own vault's theme.
 - [x] Tell people about new versions and update in one click (checks gaspmd.com/api/version).
 
 ## Releases
 
-- [ ] A better drag-to-install window in the DMG: Gasp on the left, Applications on the right, a designed background with an arrow, no toolbar. *(Being built.)*
+- [ ] A better drag-to-install window in the DMG: Gasp on the left, Applications on the right, a designed background with an arrow, no toolbar. *(Built; check the label positions when the next DMG opens.)*
 - [ ] Publish 0.2.0 (drafted, notarized). Publish it as a normal release, not a pre-release, or the updater won't see it.
 - [x] Release notes stay short.
 
