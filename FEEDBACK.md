@@ -132,10 +132,8 @@ Formatting, screens and features
 
 Change anything
 - [x] The heading is "Change anything"; the intro is "Any part of Gasp can be edited by your AI agent, like ChatGPT or Claude. Just ask."
-- [x] Remove the "Pick a request…" empty text.
-- [x] Make it a live demo with a free model (OpenRouter, the owner's key, with the paid model only past the free tier).
-- [x] Show collapsible headings, which Gasp already has.
-- [ ] Let people ask for any change, and show as many features as possible. *(Being rebuilt on Gasp's full settings files.)*
+- [x] Show it really: the live AI demo is replaced by real renders of one note in five behaviours (Markdown shown, long sentences tinted, buttons on selection, the file list open), each with the request and the settings file behind it.
+- [x] Let people ask for any change, and show as many features as possible. *(Replaced by the showcase of real renders, at the owner's choice.)*
 
 Copy and layout
 - [x] No requirements line under the download button.

@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { ColumnChart } from "@/components/stats/ColumnChart";
 import { publishedReleases, type Release } from "@/lib/releases";
 import { ARCH_NAMES, PLATFORM_NAMES, breakdown, installsOn, type Breakdown } from "@/lib/stats";
-import { recentRequests, type LoggedRequest } from "@/lib/requestLog";
 import { lastDays, readTallies, type DayTally } from "@/lib/tally";
 
 export const dynamic = "force-dynamic";
@@ -125,44 +124,11 @@ function Tallies({ tallies, days }: { tallies: DayTally[]; days: string[] }) {
   );
 }
 
-const REQUESTS_SHOWN = 300;
-
-function RequestLog({ requests }: { requests: LoggedRequest[] }) {
-  return (
-    <section className="rounded-2xl bg-surface p-5 shadow-lifted sm:p-6">
-      <h2 className="subheading">Change anything requests</h2>
-      {requests.length === 0 ? (
-        <p className="small mt-3 text-ink-muted">Nobody has asked for anything yet.</p>
-      ) : (
-        <ol className="mt-4 divide-y divide-rule">
-          {requests.map((entry, index) => (
-            <li key={`${entry.at}-${index}`} className="grid gap-1 py-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
-              <time className="small figure text-ink-muted" dateTime={entry.at}>
-                {entry.at.slice(5, 16).replace("T", " ")}
-              </time>
-              <div className="min-w-0">
-                <p className="font-bold break-words">{entry.request}</p>
-                <p className="small mt-0.5 break-words text-ink-muted">
-                  {entry.outcome} <span className="figure">({(entry.ms / 1000).toFixed(1)} s)</span>
-                </p>
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
-  );
-}
-
 export default async function Stats({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { token } = await searchParams;
   if (!tokenMatches(token)) notFound();
   const days = lastDays(DAYS);
-  const [tallies, releases, requests] = await Promise.all([
-    readTallies(days),
-    publishedReleases(),
-    recentRequests(REQUESTS_SHOWN),
-  ]);
+  const [tallies, releases] = await Promise.all([readTallies(days), publishedReleases()]);
   const githubTotal = releases.reduce((sum, release) => sum + release.downloads, 0);
 
   return (
@@ -176,7 +142,6 @@ export default async function Stats({ searchParams }: { searchParams: Promise<Re
         <Tile label="GitHub downloads, all time" value={githubTotal} detail="Every DMG on every release" />
         <ReleaseTable releases={releases} />
       </div>
-      {requests && <RequestLog requests={requests} />}
     </main>
   );
 }

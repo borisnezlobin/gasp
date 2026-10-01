@@ -1,4 +1,3 @@
-import { AskToChange } from "@/components/AskToChange";
 import { BreachHero } from "@/components/BreachHero";
 import { DownloadButton } from "@/components/DownloadButton";
 import { FeatureGrid } from "@/components/FeatureGrid";
@@ -6,6 +5,7 @@ import { LaunchRace } from "@/components/LaunchRace";
 import { IdleTrace, KeystrokeSpeed } from "@/components/LightFigures";
 import { LineField } from "@/components/LineField";
 import { LiveEditor } from "@/components/LiveEditor";
+import { LookShowcase } from "@/components/LookShowcase";
 import { ScreenshotTabs } from "@/components/ScreenshotTabs";
 import { Section } from "@/components/Section";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -64,9 +64,9 @@ export default function Home() {
         <Section
           id="customization"
           title="Change anything"
-          intro="Any part of Gasp can be edited by your AI agent, like ChatGPT or Claude. Just ask."
+          intro="Ask your AI agent for a change, and it edits the settings files in your vault. Every picture here is Gasp itself, drawn from those files."
         >
-          <AskToChange />
+          <LookShowcase />
         </Section>
 
         <Section id="features" title="Everything else">
