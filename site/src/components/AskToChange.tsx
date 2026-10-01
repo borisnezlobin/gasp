@@ -236,6 +236,9 @@ export function AskToChange() {
     <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-12">
       <div className="order-2 lg:order-none">
         <RequestForm value={request} asking={asking} onChange={setRequest} onSubmit={(wanted) => void ask(wanted)} />
+        <p className="small mt-2 text-ink-muted">
+          We keep what you type here, with nothing that identifies you, to see what people want to change.
+        </p>
         <Suggestions disabled={asking} onPick={pick} />
         <StatusLine outcome={outcome} />
       </div>
