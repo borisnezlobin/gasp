@@ -61,7 +61,7 @@ Everything the owner has asked for, newest last, ticked off as it lands on maste
 ## Releases, website and usage
 
 - [x] Release notes stay short.
-- [x] A website at gaspmd.com, deployed on Vercel. *(Live on Vercel; waiting on two DNS records at Porkbun.)*
+- [x] A website at gaspmd.com, deployed on Vercel. *(Live, with HTTPS.)*
 - [x] Count downloads and daily use, with a plain "send anonymous usage data" setting that's on by default and easy to turn off. *(Needs the Upstash store connected in Vercel to start counting.)*
 
 ## Sync (from friends trying it)
@@ -75,3 +75,62 @@ Everything the owner has asked for, newest last, ticked off as it lands on maste
 
 - [x] Rename a note by editing its title on the Mac (a click on the title now reaches it).
 - [x] A long title wraps instead of being cut off, on the Mac and the iPhone.
+
+## Two windows
+
+- [ ] Two windows on two vaults show the same styles even when the vaults' settings differ. *(Fixed in code: each window keeps its own theme. Not yet tried with two real vaults.)*
+
+## Agents and MCP
+
+- [ ] Explain how to set up MCP. Today the app has only the "Agent access" switch and one line in the README. Add setup steps in the app (a button that copies the command for Claude Code or Claude Desktop) and a page on the site.
+- [ ] Make Gasp fully customizable: any change someone asks for should be possible through its settings files. *(An audit of what's still hard-coded is being written.)*
+
+## Website (gaspmd.com)
+
+Hero whale
+- [x] Use a real breach pose, not the swimming whale tilted up.
+- [x] Keep the top of the whale from being cut off at steep angles.
+- [x] Replace the unnatural click motion: it now rolls onto its back and falls in, and the lines splash.
+- [x] Put the whale beside the wordmark, not over the "p".
+- [x] Don't hang the whale frozen mid-air, and don't lean it at the pointer.
+- [x] Don't leave it floating belly-up ("looks dead"). After the breach it dives and a live whale swims under the lines.
+- [x] Remove the hard cut-off under the water and the dark snout the wash missed.
+- [ ] Keep making the hero feel natural. *(Waiting on the owner's look at the new cycle.)*
+
+Speed
+- [x] "Opens in 300 ms" felt slow. Show real screen recordings of Gasp, Apple Notes and Obsidian opening side by side.
+- [x] Give each app its icon.
+- [x] Remove the dark edge on the Obsidian clip.
+- [x] Move the method text behind an info button.
+- [x] Plain heading: "Ready to edit in under half a second".
+
+Long notes and lightness
+- [x] Make the 48,000-line field really draw 48,000 lines.
+- [x] Replace "One frame at 120 Hz is 8.3 ms" with "no lag, 455 fps".
+- [x] Bring back the CPU trace with no numbers, and make it plain (no red glowing dot).
+
+Formatting, screens and features
+- [x] Formatting intro: "Gasp uses Markdown, an open format. You're never tied to Gasp."
+- [x] Show the screenshot, the switcher and the caption on one screen.
+- [x] Put more math in the math and code screenshot.
+- [x] Rewrite the useless command palette caption.
+- [x] Make "Everything else" quick to scan.
+- [x] "Open the folder you have" becomes "Switch with no hassle"; the AI line becomes "Your AI can edit notes, and even Gasp itself".
+- [x] In "A note to play with", a click puts the cursor where it lands instead of at the end of the line.
+
+Change anything
+- [x] The heading is "Change anything"; the intro is "Any part of Gasp can be edited by your AI agent, like ChatGPT or Claude. Just ask."
+- [x] Remove the "Pick a request…" empty text.
+- [x] Make it a live demo with a free model (OpenRouter, the owner's key, with the paid model only past the free tier).
+- [x] Show collapsible headings, which Gasp already has.
+- [ ] Let people ask for any change, and show as many features as possible. *(Being rebuilt on Gasp's full settings files.)*
+
+Copy and layout
+- [x] No requirements line under the download button.
+- [x] "Ready to edit in…" instead of "Open, with your note on screen, in 300 ms."
+- [x] Delete "A friend who tried it".
+- [x] Move the whale credit to a credits page.
+- [x] The footer closes on the water distortion, not wavy lines. A whale swims under still lines.
+- [x] Remove the whale swimming along the bottom of the window.
+- [x] A link preview image that looks good.
+- [x] The whole page should feel fast and visceral.
