@@ -127,6 +127,8 @@ pub struct Tour {
     /// Where the pointer is, from -1 to 1 across and down the window.
     pointer: Point<f32>,
     ticking: Option<Task<()>>,
+    /// The built-in theme in the system's mode, this window's own.
+    theme: Option<crate::ui::WindowTheme>,
     _notices: Subscription,
     _activation: Subscription,
     _appearance: Subscription,
@@ -158,9 +160,10 @@ impl Tour {
         let focus_handle = cx.focus_handle();
         window.focus(&focus_handle);
         let activation = cx.observe_window_activation(window, |_, _, cx| cx.notify());
-        follow_appearance(window, cx);
+        let mut theme = None;
+        follow_appearance(window, &mut theme, cx);
         let appearance = cx.observe_window_appearance(window, |tour, window, cx| {
-            if follow_appearance(window, cx) {
+            if follow_appearance(window, &mut tour.theme, cx) {
                 tour.restyle(cx);
             }
         });
@@ -181,6 +184,7 @@ impl Tour {
             selected: 0,
             pointer: point(0., 0.),
             ticking: None,
+            theme,
             _notices: crate::notices::observe(cx),
             _activation: activation,
             _appearance: appearance,
@@ -574,12 +578,19 @@ impl Tour {
     }
 }
 
-/// Puts the built-in theme in effect in the system's light or dark, as a
-/// vault with the default settings would. Answers whether it changed.
-fn follow_appearance(window: &Window, cx: &mut App) -> bool {
+/// Builds the built-in theme in the system's light or dark into `theme`,
+/// as a vault with the default settings would have it, and puts it in
+/// effect. Answers whether it changed.
+fn follow_appearance(window: &Window, theme: &mut Option<crate::ui::WindowTheme>, cx: &mut App) -> bool {
     let dark = crate::ui::is_dark_appearance(window.appearance());
     crate::ui::set_system_dark(dark, cx);
-    crate::ui::set_theme(&gasp_config::Config::defaults().theme, dark, cx)
+    let tokens = &gasp_config::Config::defaults().theme;
+    if theme.as_ref().is_some_and(|current| current.matches(tokens, dark)) {
+        return false;
+    }
+    let built = theme.insert(crate::ui::WindowTheme::new(tokens, dark, cx));
+    crate::ui::use_window_theme(built, cx);
+    true
 }
 
 /// A step's heading, in the tour's heading size.
@@ -629,6 +640,9 @@ fn choice_icon(name: IconName, ui: &UiTheme) -> impl IntoElement {
 
 impl Render for Tour {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(theme) = self.theme.as_mut() {
+            crate::ui::use_window_theme(theme, cx);
+        }
         self.decode_art(cx);
         let ui = ui_theme(cx);
         let now = Instant::now();

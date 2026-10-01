@@ -274,7 +274,9 @@ impl Workspace {
             workspace.window_bounds = Some(window.window_bounds());
         });
         let activation = cx.observe_window_activation(window, |workspace, window, cx| {
-            if !window.is_window_active() {
+            if window.is_window_active() {
+                workspace.use_own_theme(cx);
+            } else {
                 workspace.save_all(cx);
             }
         });

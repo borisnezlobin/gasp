@@ -40,19 +40,59 @@ pub use truncated::{Truncated, truncated};
 
 use crate::theme::{InputTheme, Palette, SettingsTheme, UiTheme};
 
-/// The theme in effect: whether it's dark, the tokens for that mode and
-/// the component tokens built from them. It's built once per change of
-/// mode or theme file, so drawing a frame never reads a token.
-struct ThemeGlobal {
+/// A theme: whether it's dark, the tokens for that mode and the component
+/// tokens built from them. It's built once per change of mode, theme file
+/// or installed fonts, so drawing a frame never reads a token.
+struct ThemeState {
     dark: bool,
     tokens: Tokens,
+    /// Built after the installed fonts were listed, so its fonts resolve.
+    fonts_resolved: bool,
     palette: Palette,
     ui: UiTheme,
     input: InputTheme,
     settings: SettingsTheme,
 }
 
+/// The theme in effect for what's drawn and handled now. Each window
+/// keeps its own [`WindowTheme`] and puts it here as it draws, since
+/// two windows can show vaults with different themes.
+struct ThemeGlobal(Arc<ThemeState>);
+
 impl Global for ThemeGlobal {}
+
+/// One window's theme, cheap to clone and to put in effect.
+#[derive(Clone)]
+pub struct WindowTheme(Arc<ThemeState>);
+
+impl WindowTheme {
+    /// The theme for `tokens` (which has both modes) in dark mode when
+    /// `dark` holds.
+    pub fn new(tokens: &Tokens, dark: bool, cx: &mut App) -> WindowTheme {
+        WindowTheme(Arc::new(ThemeState::build(tokens.for_mode(dark), dark, cx)))
+    }
+
+    /// Whether this is already the theme for `tokens` in that mode.
+    pub fn matches(&self, tokens: &Tokens, dark: bool) -> bool {
+        self.0.dark == dark && self.0.tokens == *tokens.for_mode(dark)
+    }
+}
+
+/// Puts a window's `theme` in effect without redrawing anything. A
+/// window's root view calls it first thing as it draws and when the
+/// window comes to the front, so its chrome and the handlers run there
+/// read its own vault's theme. A theme built before the installed fonts
+/// arrived is rebuilt here once they have.
+pub fn use_window_theme(theme: &mut WindowTheme, cx: &mut App) {
+    if !theme.0.fonts_resolved && installed_fonts(cx).is_some() {
+        let (tokens, dark) = (theme.0.tokens.clone(), theme.0.dark);
+        theme.0 = Arc::new(ThemeState::build(&tokens, dark, cx));
+    }
+    let in_effect = cx.try_global::<ThemeGlobal>().is_some_and(|current| Arc::ptr_eq(&current.0, &theme.0));
+    if !in_effect {
+        cx.set_global(ThemeGlobal(theme.0.clone()));
+    }
+}
 
 /// The installed font families, once they've been listed.
 struct FontNames(Arc<[String]>);
@@ -109,9 +149,9 @@ pub fn set_installed_fonts(names: Vec<String>, cx: &mut App) {
     let _span = crate::trace::span("font-names-apply");
     cx.set_global(FontNames(family_names(names).into()));
     if let Some(theme) = cx.try_global::<ThemeGlobal>() {
-        let (tokens, dark) = (theme.tokens.clone(), theme.dark);
-        let theme = ThemeGlobal::build(&tokens, dark, cx);
-        cx.set_global(theme);
+        let (tokens, dark) = (theme.0.tokens.clone(), theme.0.dark);
+        let theme = ThemeState::build(&tokens, dark, cx);
+        cx.set_global(ThemeGlobal(Arc::new(theme)));
     }
     cx.refresh_windows();
 }
@@ -134,10 +174,12 @@ pub fn observe_installed_fonts<V: 'static>(
     cx.observe_global::<FontNames>(f)
 }
 
-impl ThemeGlobal {
+impl ThemeState {
     /// The component tokens for `tokens`, which are already for one mode.
-    fn build(tokens: &Tokens, dark: bool, cx: &mut App) -> ThemeGlobal {
-        let installed = installed_fonts(cx).unwrap_or_default();
+    fn build(tokens: &Tokens, dark: bool, cx: &mut App) -> ThemeState {
+        let fonts = installed_fonts(cx);
+        let fonts_resolved = fonts.is_some();
+        let installed = fonts.unwrap_or_default();
         let palette = Palette::from_tokens(tokens);
         let ui = UiTheme {
             toolbar: crate::theme::ToolbarTheme::from_tokens(tokens),
@@ -152,9 +194,10 @@ impl ThemeGlobal {
             font_family: ui.font_family.clone(),
             ..SettingsTheme::from_tokens(tokens)
         };
-        ThemeGlobal {
+        ThemeState {
             dark,
             tokens: tokens.clone(),
+            fonts_resolved,
             palette,
             ui,
             input,
@@ -163,12 +206,12 @@ impl ThemeGlobal {
     }
 }
 
-fn theme_global(cx: &mut App) -> &ThemeGlobal {
+fn theme_global(cx: &mut App) -> &ThemeState {
     if !cx.has_global::<ThemeGlobal>() {
-        let theme = ThemeGlobal::build(&Config::defaults().theme, false, cx);
-        cx.set_global(theme);
+        let theme = ThemeState::build(&Config::defaults().theme, false, cx);
+        cx.set_global(ThemeGlobal(Arc::new(theme)));
     }
-    cx.global::<ThemeGlobal>()
+    &cx.global::<ThemeGlobal>().0
 }
 
 /// The UI tokens, with the UI font resolved against the installed fonts
@@ -220,17 +263,19 @@ pub fn is_dark_appearance(appearance: WindowAppearance) -> bool {
     )
 }
 
-/// Puts `tokens` in effect, in dark mode when `dark` holds (`tokens` has
-/// both modes). Every window redraws when anything changed; the answer
-/// says whether it did, so views that keep their own theme can rebuild.
+/// Puts `tokens` in effect for the whole app, in dark mode when `dark`
+/// holds (`tokens` has both modes), for a run with a single window such
+/// as a snapshot. Every window redraws when anything changed; the answer
+/// says whether it did. Windows that can sit beside others keep a
+/// [`WindowTheme`] instead.
 pub fn set_theme(tokens: &Tokens, dark: bool, cx: &mut App) -> bool {
     let tokens = tokens.for_mode(dark);
     let current = theme_global(cx);
     if current.dark == dark && current.tokens == *tokens {
         return false;
     }
-    let theme = ThemeGlobal::build(tokens, dark, cx);
-    cx.set_global(theme);
+    let theme = ThemeState::build(tokens, dark, cx);
+    cx.set_global(ThemeGlobal(Arc::new(theme)));
     cx.refresh_windows();
     true
 }
