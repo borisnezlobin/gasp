@@ -193,12 +193,19 @@ function toolbarSpec(value: unknown): ToolbarSpec | null {
   return Object.keys(spec).length ? (spec as ToolbarSpec) : null;
 }
 
+/** A new toolbar needs buttons to be one; without them a model has
+    usually mistaken some other part of the window for a toolbar. */
+function isToolbar(id: string, spec: ToolbarSpec | null): spec is ToolbarSpec {
+  if (!spec) return false;
+  return Object.hasOwn(TOOLBARS.builtIn, id) || (spec.items?.length ?? 0) > 0;
+}
+
 function parseToolbars(value: unknown): Record<string, ToolbarSpec> | undefined {
   if (!isRecord(value)) return undefined;
   const toolbars = Object.entries(value)
     .filter(([id]) => TOOLBAR_ID.test(id))
     .map(([id, spec]) => [id, toolbarSpec(spec)] as const)
-    .filter((entry): entry is readonly [string, ToolbarSpec] => entry[1] !== null)
+    .filter((entry): entry is readonly [string, ToolbarSpec] => isToolbar(entry[0], entry[1]))
     .slice(0, MOST_TOOLBARS);
   return toolbars.length ? Object.fromEntries(toolbars) : undefined;
 }
