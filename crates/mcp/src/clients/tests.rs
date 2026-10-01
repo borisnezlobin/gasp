@@ -242,6 +242,17 @@ mod apps {
     }
 
     #[test]
+    fn only_apps_with_a_bundle_have_one() {
+        let (dir, home) = home();
+        fs::create_dir_all(dir.path().join(".cursor")).unwrap();
+        assert_eq!(ClientApp::Cursor.app_bundle(&home), None);
+        let claude = dir.path().join("Applications/Claude.app");
+        fs::create_dir_all(&claude).unwrap();
+        assert_eq!(ClientApp::ClaudeDesktop.app_bundle(&home), Some(claude));
+        assert_eq!(ClientApp::ClaudeCode.app_bundle(&home), None);
+    }
+
+    #[test]
     fn a_tool_on_the_login_path_is_found() {
         let (dir, mut home) = home();
         write(&dir.path().join("elsewhere/codex"), "");

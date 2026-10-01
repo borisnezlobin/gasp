@@ -4,8 +4,8 @@ use std::ops::Range;
 
 use gasp_config::schema::SettingKind;
 use gpui::{
-    AnyElement, App, ClickEvent, Context, Div, Focusable, MouseButton, Pixels, SharedString,
-    Stateful, Window, div, prelude::*, uniform_list,
+    AnyElement, ClickEvent, Context, Div, Focusable, MouseButton, Pixels, SharedString, Stateful,
+    Window, div, prelude::*, uniform_list,
 };
 use serde_json::Value;
 
@@ -27,7 +27,7 @@ use crate::ui::{Tooltip, keycap};
 
 impl SettingsView {
     /// Title, description and notes for a row.
-    pub(super) fn row_text(&self, row: &ControlRow, cx: &App) -> AnyElement {
+    pub(super) fn row_text(&self, row: &ControlRow) -> AnyElement {
         if row.is_toolbar_row() {
             return self.toolbar_row_text(row);
         }
@@ -41,13 +41,7 @@ impl SettingsView {
                 (!description.is_empty()).then(|| div().child(description).into_any_element())
             }
         };
-        row_text(
-            row.title(),
-            description,
-            self.row_notes(row, cx),
-            &self.style,
-        )
-        .into_any_element()
+        row_text(row.title(), description, self.row_notes(row), &self.style).into_any_element()
     }
 
     /// A row that's only a muted line, such as when no AI app is installed.
@@ -73,7 +67,7 @@ impl SettingsView {
             ControlRow::Font(slot) => Some(theme_key(slot.token())),
             ControlRow::Accent => Some(theme_key(self.accent_token())),
             ControlRow::Shortcut(shortcut) => Some(shortcut.id.clone()),
-            ControlRow::AgentApp(app) => Some(super::agent_apps::error_key(*app)),
+            ControlRow::AgentApps => Some(super::agent_apps::AGENT_APPS_ERROR_KEY.to_string()),
             _ if row.is_toolbar_row() => Some(self.toolbar_row_error_key(row)),
             _ => None,
         }
@@ -97,10 +91,9 @@ impl SettingsView {
 
     /// Lasting warnings under a row's description: a shortcut another
     /// command also uses, or a font that isn't installed.
-    fn row_notes(&self, row: &ControlRow, cx: &App) -> Vec<AnyElement> {
+    fn row_notes(&self, row: &ControlRow) -> Vec<AnyElement> {
         match row {
             ControlRow::Shortcut(shortcut) => self.shortcut_notes(shortcut),
-            ControlRow::AgentApp(app) => self.agent_app_notes(*app, cx),
             ControlRow::Font(slot) => self
                 .font_note(*slot)
                 .map(|note| {
@@ -198,7 +191,6 @@ impl SettingsView {
             ControlRow::SyncRemote => return self.remote_control(row, focused, cx),
             ControlRow::SyncAccount => self.account_control(focused, cx),
             ControlRow::ICloudFolder => self.icloud_control(focused, cx),
-            ControlRow::AgentApp(app) => self.agent_app_control(*app, focused, cx),
             ControlRow::ListAdd(item) => self.list_add_control(item, row, focused, cx),
             ControlRow::ListEntry { list, value } => {
                 self.list_entry_control(list, value, focused, cx)
@@ -212,7 +204,7 @@ impl SettingsView {
 
     /// A row's control with the error from its last write hung under it,
     /// rather than pushing the rows below down.
-    fn with_error_note(&self, row: &ControlRow, control: AnyElement) -> AnyElement {
+    pub(super) fn with_error_note(&self, row: &ControlRow, control: AnyElement) -> AnyElement {
         let note = self
             .row_error(row)
             .map(|message| control_note(message, &self.style));

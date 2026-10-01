@@ -5,6 +5,7 @@ pub mod actions;
 #[cfg(target_os = "macos")]
 pub mod allocator;
 pub mod app;
+pub mod app_icons;
 pub mod appearance_toggle;
 pub mod atlas;
 pub mod bench;

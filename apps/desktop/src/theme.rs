@@ -2918,6 +2918,12 @@ pub struct SettingsTheme {
     pub slot_height: Pixels,
     pub slot_border: Pixels,
     pub slot_fill: Hsla,
+    /// The square another app's icon is drawn in, such as on an AI app
+    /// tile.
+    pub app_icon_size: Pixels,
+    /// The round mark on an app icon's corner, such as the check on a
+    /// connected AI app.
+    pub app_badge_size: Pixels,
 }
 
 impl Default for SettingsTheme {
@@ -3029,6 +3035,8 @@ impl SettingsTheme {
             slot_height: px(15.),
             slot_border: px(1.),
             slot_fill: p.accent.opacity(0.12),
+            app_icon_size: px(32.),
+            app_badge_size: px(14.),
         }
     }
 
