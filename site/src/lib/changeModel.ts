@@ -1,20 +1,11 @@
-import {
-  ACCENT_COLOURS,
-  FONTS,
-  FONT_SIZE,
-  HIGHLIGHT_COLOURS,
-  STATUS_WIDGETS,
-  TOOLBAR_ITEMS,
-  TOOLBAR_PLACES,
-  TOOLBAR_SURFACES,
-} from "./lookChanges";
+import { INSTRUCTIONS } from "./changePrompt";
 
 export const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 export const DEFAULT_MODEL = "google/gemma-4-26b-a4b-it:free";
 /** The same model, paid: OpenRouter turns to it when the free one is
     rate-limited, at about $0.0001 a request. */
 export const DEFAULT_FALLBACK_MODEL = "google/gemma-4-26b-a4b-it";
-export const ANSWER_TIMEOUT_MS = 8000;
+export const ANSWER_TIMEOUT_MS = 10000;
 
 export type ModelConfig = { baseUrl: string; key: string; model: string; fallbackModel: string | null };
 
@@ -39,23 +30,6 @@ function fallbackModelFromEnv(): string | null {
   return onOpenRouter ? DEFAULT_FALLBACK_MODEL : null;
 }
 
-const names = (values: readonly string[]) => values.map((value) => `"${value}"`).join(", ");
-
-export const INSTRUCTIONS = `You turn a request about how the Gasp notes app looks into settings.
-Reply with one JSON object and nothing else. Include only the keys the request asks for:
-- "accent": the accent colour, which the cursor, checked tasks and links use. One of ${names(Object.keys(ACCENT_COLOURS))}, or a "#rrggbb" hex.
-- "link": the colour of links alone. Same values as "accent".
-- "highlight": the colour behind highlighted text. One of ${names(Object.keys(HIGHLIGHT_COLOURS))}, or a "#rrggbb" hex.
-- "font": the font notes are set in. One of ${names(Object.keys(FONTS))}. Pick the closest: sans-serif is "Helvetica Neue", rounded or geometric is "Avenir Next", monospace is "Menlo", serif is "Charter".
-- "fontSize": the base text size in points, a whole number from ${FONT_SIZE.min} to ${FONT_SIZE.max}. The default is ${FONT_SIZE.default}; "bigger" means about 14, "much bigger" about 16.
-- "appearance": one of ${names(["light", "dark", "match-system"])}.
-- "toolbar": a formatting toolbar, as {"place": one of ${names(TOOLBAR_PLACES)}, "surface": one of ${names(TOOLBAR_SURFACES)}, "items": a list from ${names(TOOLBAR_ITEMS)}}. "overlay" floats over the note; "strip" gives the bar its own row. Use false to remove the toolbar.
-- "statusWidgets": what the status bar at the bottom shows, as a list from ${names(STATUS_WIDGETS)}.
-- "statusBar": "hidden" or "shown".
-- "foldHeadings": true when the request asks for headings or sections that collapse, fold or hide. Gasp already does this, so don't add a "reply" for it.
-- "reply": only when part of the request is something these settings can't do, one short plain sentence saying what Gasp can't do, such as "Gasp can't play music." Leave it out otherwise.
-Example: "dark mode with a green accent and a toolbar at the top" gives {"appearance":"dark","accent":"green","toolbar":{"place":"editor-top","surface":"overlay","items":["format.bold","format.italic","format.highlight","format.link"]}}.`;
-
 export class ModelError extends Error {
   constructor(readonly code: "provider-busy" | "provider-failed" | "timeout") {
     super(code);
@@ -67,7 +41,7 @@ function requestBody(config: ModelConfig, request: string): string {
     model: config.model,
     ...(config.fallbackModel && { models: [config.model, config.fallbackModel] }),
     temperature: 0,
-    max_tokens: 400,
+    max_tokens: 900,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: INSTRUCTIONS },

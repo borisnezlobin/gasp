@@ -1,337 +1,190 @@
 "use client";
 
-import {
-  CaretDown,
-  CheckSquare,
-  CloudCheck,
-  Code,
-  Highlighter,
-  LinkSimple,
-  ListBullets,
-  ListNumbers,
-  TextB,
-  TextItalic,
-  TextStrikethrough,
-  TextUnderline,
-  type Icon,
-} from "@phosphor-icons/react";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import {
-  ACCENT_COLOURS,
-  FONTS,
-  FONT_SIZE,
-  HIGHLIGHT_COLOURS,
-  STATUS_WIDGETS,
-  colourPair,
-  type ColourPair,
-  type LookChanges,
-  type StatusWidget,
-  type Toolbar,
-  type ToolbarItem,
-} from "@/lib/lookChanges";
+import type { BuiltinDemo } from "@/lib/builtins";
+import type { ConfigPatch } from "@/lib/configPatch";
+import { mockStyle, pixels, realPixels, showsInText, token } from "@/lib/mockConfig";
+import { AppIcon } from "./mock/AppIcon";
+import { MockContext, mockState, useMock, useToolbarsAt } from "./mock/mockContext";
+import { MockNote } from "./mock/MockNote";
+import { DemoOverlay, Notices } from "./mock/MockOverlays";
+import { DockedBar, ToolbarItems } from "./mock/MockToolbar";
 
-type Palette = {
-  window: string;
-  page: string;
-  text: string;
-  strong: string;
-  muted: string;
-  fill: string;
-  rule: string;
-  accent: string;
-  "on-accent": string;
-  link: string;
-  underline: string;
-  highlight: string;
-  popover: string;
-};
-
-/** Gasp's own light and dark tokens, from `crates/config/defaults/theme.toml`. */
-const GASP_PALETTES: Record<"light" | "dark", Palette> = {
-  light: {
-    window: "#f6f6f7",
-    page: "#ffffff",
-    text: "#27272a",
-    strong: "#18181b",
-    muted: "#71717a",
-    fill: "rgba(0, 0, 0, 0.05)",
-    rule: "#e4e4e7",
-    accent: "#000000",
-    "on-accent": "#ffffff",
-    link: "#000000",
-    underline: "rgba(0, 0, 0, 0.3)",
-    highlight: "#fff59d",
-    popover: "#ffffff",
-  },
-  dark: {
-    window: "#151412",
-    page: "#1c1b19",
-    text: "#e2ded7",
-    strong: "#f7f5f1",
-    muted: "#958f86",
-    fill: "rgba(255, 255, 255, 0.055)",
-    rule: "#312f2c",
-    accent: "#ebe7e0",
-    "on-accent": "#1c1b19",
-    link: "#ebe7e0",
-    underline: "rgba(235, 231, 224, 0.4)",
-    highlight: "#4f4418",
-    popover: "#262522",
-  },
-};
-
-/** Each token resolves to its light or dark value by the visitor's system,
-    the way Gasp's "match-system" appearance does. */
-const TOKEN_VARIABLES =
-  "[--mock-window:var(--light-window)] dark:[--mock-window:var(--dark-window)] " +
-  "[--mock-page:var(--light-page)] dark:[--mock-page:var(--dark-page)] " +
-  "[--mock-text:var(--light-text)] dark:[--mock-text:var(--dark-text)] " +
-  "[--mock-strong:var(--light-strong)] dark:[--mock-strong:var(--dark-strong)] " +
-  "[--mock-muted:var(--light-muted)] dark:[--mock-muted:var(--dark-muted)] " +
-  "[--mock-fill:var(--light-fill)] dark:[--mock-fill:var(--dark-fill)] " +
-  "[--mock-rule:var(--light-rule)] dark:[--mock-rule:var(--dark-rule)] " +
-  "[--mock-accent:var(--light-accent)] dark:[--mock-accent:var(--dark-accent)] " +
-  "[--mock-on-accent:var(--light-on-accent)] dark:[--mock-on-accent:var(--dark-on-accent)] " +
-  "[--mock-link:var(--light-link)] dark:[--mock-link:var(--dark-link)] " +
-  "[--mock-underline:var(--light-underline)] dark:[--mock-underline:var(--dark-underline)] " +
-  "[--mock-highlight:var(--light-highlight)] dark:[--mock-highlight:var(--dark-highlight)] " +
-  "[--mock-popover:var(--light-popover)] dark:[--mock-popover:var(--dark-popover)]";
-
-const BODY_PIXELS = 17;
 const COLOUR_EASE = "transition-colors duration-300 ease-out-soft";
+const UI_TEXT: CSSProperties = { fontFamily: token("font.ui"), fontSize: realPixels(13) };
 
-function withColours(base: Palette, look: LookChanges, mode: keyof ColourPair): Palette {
-  const pick = (palette: Record<string, ColourPair>, colour: string | undefined) =>
-    colour ? colourPair(palette, colour)[mode] : undefined;
-  const accent = pick(ACCENT_COLOURS, look.accent) ?? base.accent;
-  return {
-    ...base,
-    accent,
-    link: pick(ACCENT_COLOURS, look.link) ?? accent,
-    highlight: pick(HIGHLIGHT_COLOURS, look.highlight) ?? base.highlight,
-  };
-}
-
-/** Which of Gasp's palettes the light and dark slots hold: both the same
-    when the look forces one appearance. */
-function paletteModes(look: LookChanges): { light: "light" | "dark"; dark: "light" | "dark" } {
-  if (look.appearance === "light") return { light: "light", dark: "light" };
-  if (look.appearance === "dark") return { light: "dark", dark: "dark" };
-  return { light: "light", dark: "dark" };
-}
-
-function paletteStyle(look: LookChanges): CSSProperties {
-  const modes = paletteModes(look);
-  const style: Record<string, string> = {};
-  for (const slot of ["light", "dark"] as const) {
-    const mode = modes[slot];
-    const palette = withColours(GASP_PALETTES[mode], look, mode);
-    for (const [token, value] of Object.entries(palette)) style[`--${slot}-${token}`] = value;
-  }
-  return style;
-}
-
-function noteStyle(look: LookChanges): CSSProperties {
-  const scale = (look.fontSize ?? FONT_SIZE.default) / FONT_SIZE.default;
-  return {
-    fontFamily: look.font ? FONTS[look.font] : undefined,
-    fontSize: `${BODY_PIXELS * scale}px`,
-  };
-}
-
-const TOOLBAR_ICONS: Record<Exclude<ToolbarItem, "separator">, Icon> = {
-  "format.bold": TextB,
-  "format.italic": TextItalic,
-  "format.underline": TextUnderline,
-  "format.strikethrough": TextStrikethrough,
-  "format.highlight": Highlighter,
-  "format.code": Code,
-  "format.link": LinkSimple,
-  "format.bullet-list": ListBullets,
-  "format.numbered-list": ListNumbers,
-  "edit.toggle-task": CheckSquare,
-};
-
-const APPEAR = "transition-[opacity,translate] duration-300 ease-out-soft starting:opacity-0 motion-safe:starting:translate-y-1";
-
-function ToolbarButtons({ items }: { items: ToolbarItem[] }) {
-  return items.map((item, index) => {
-    if (item === "separator") return <span key={`separator-${index}`} className="mx-1 h-5 w-px bg-(--mock-rule)" />;
-    const Icon = TOOLBAR_ICONS[item];
+function IconButton({ name, label, onClick }: { name: string; label?: string; onClick?: () => void }) {
+  const className = "grid shrink-0 place-items-center rounded-md text-(--g-color-icon) hover:bg-(--g-color-fill-strong)";
+  const style = { width: realPixels(28), height: realPixels(28) };
+  if (!onClick) {
     return (
-      <span key={item} className="grid size-8 place-items-center rounded-md text-(--mock-text)">
-        <Icon size={17} aria-hidden />
+      <span aria-hidden className={className} style={style}>
+        <AppIcon name={name} size={realPixels(16)} />
       </span>
     );
-  });
+  }
+  return (
+    <button type="button" onClick={onClick} aria-label={label} className={`${className} cursor-pointer`} style={style}>
+      <AppIcon name={name} size={realPixels(16)} />
+    </button>
+  );
 }
 
-const BAR_POSITIONS = {
-  overlay: {
-    "editor-top": "top-2.5 left-1/2 -translate-x-1/2 rounded-full",
-    "editor-bottom": "bottom-2.5 left-1/2 -translate-x-1/2 rounded-full",
-  },
-  strip: {
-    "editor-top": "inset-x-0 top-0 shadow-[0_1px_0_var(--mock-rule)]",
-    "editor-bottom": "inset-x-0 bottom-0 shadow-[0_-1px_0_var(--mock-rule)]",
-  },
-};
-
-const BAR_SURFACES = {
-  overlay: "gap-0.5 bg-(--mock-popover) p-1 shadow-lifted",
-  strip: "h-11 gap-1 bg-(--mock-window) px-4 sm:px-8",
-};
-
-/** The formatting bar, in the band the note keeps free for it, so the
-    text never moves when it appears. */
-function FormattingBar({ toolbar }: { toolbar: Toolbar }) {
-  const position = BAR_POSITIONS[toolbar.surface][toolbar.place];
+function TabBar({ corner, onToggleSidebar }: { corner?: ReactNode; onToggleSidebar: () => void }) {
   return (
-    <div
-      key={`${toolbar.place}-${toolbar.surface}`}
-      aria-hidden
-      className={`absolute z-10 flex items-center ${position} ${BAR_SURFACES[toolbar.surface]} ${COLOUR_EASE} ${APPEAR}`}
-    >
-      <ToolbarButtons items={toolbar.items} />
+    <div className="flex shrink-0 items-center gap-[calc(8*var(--px))] px-[calc(14*var(--px))]" style={{ height: realPixels(44), ...UI_TEXT }}>
+      {["bg-[#ff5f57]", "bg-[#febc2e]", "bg-[#28c840]"].map((light) => (
+        <span key={light} aria-hidden className={`size-[calc(12*var(--px))] shrink-0 rounded-full ${light}`} />
+      ))}
+      <span className="w-[calc(12*var(--px))]" />
+      <IconButton name="sidebar-simple" label="Show or hide the file sidebar" onClick={onToggleSidebar} />
+      <span
+        className={`flex min-w-0 items-center justify-between bg-(--g-color-background) text-(--g-color-text) ${COLOUR_EASE}`}
+        style={{
+          width: realPixels(200),
+          height: realPixels(32),
+          paddingInline: realPixels(12),
+          borderRadius: pixels("radius.md"),
+          boxShadow: `0 1px 2px ${token("color.tab-shadow")}, 0 0 0 1px ${token("color.ring")}`,
+        }}
+      >
+        <span className="truncate">Trip to Lisbon</span>
+        <AppIcon name="x" size={realPixels(12)} className="text-(--g-color-icon)" />
+      </span>
+      <span className="figure ml-auto truncate text-(--g-color-text-detail)">{corner}</span>
+      <IconButton name="plus" />
+      <IconButton name="caret-down" />
+      <IconButton name="sidebar-simple-right" />
     </div>
   );
 }
 
-const WIDGET_TEXT: Record<Exclude<StatusWidget, "sync">, string> = {
-  "word-count": "64 words",
-  "character-count": "351 characters",
-  "reading-time": "1 min read",
-  "edit-time": "4 min editing",
-  "cursor-position": "5:38",
-};
+const FILES = [
+  { name: "Travel", folder: true, depth: 0 },
+  { name: "Food", depth: 1 },
+  { name: "Packing", depth: 1 },
+  { name: "Trip to Lisbon", depth: 1, active: true },
+  { name: "Field notes", folder: true, depth: 0 },
+  { name: "Recipes", folder: true, depth: 0 },
+];
 
-function Widget({ widget }: { widget: StatusWidget }) {
-  if (widget === "sync") return <CloudCheck size={15} aria-hidden className={APPEAR} />;
-  return <span className={APPEAR}>{WIDGET_TEXT[widget]}</span>;
+function FileTree() {
+  return (
+    <ul className="grid" style={{ padding: pixels("space.md"), gap: realPixels(2), ...UI_TEXT }}>
+      {FILES.map(({ name, folder, depth, active }) => (
+        <li
+          key={name}
+          className={`flex items-center gap-[0.5em] truncate ${active ? "bg-(--g-color-fill-strong) text-(--g-color-text-strong)" : "text-(--g-color-text)"}`}
+          style={{ paddingLeft: `calc((${depth} * 14 + 8) * var(--px))`, height: realPixels(28), borderRadius: pixels("radius.md") }}
+        >
+          <AppIcon name={folder ? "folder-simple" : "file-text"} size={realPixels(15)} className="text-(--g-color-icon)" />
+          {name}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
-function StatusBar({ look }: { look: LookChanges }) {
-  const widgets = look.statusWidgets ?? STATUS_WIDGETS;
-  const hidden = look.statusBar === "hidden";
+type SidebarProps = { open: boolean; mode: string; onLeave: () => void };
+
+/** The file sidebar. Always-shown and pushing sidebars take room; an
+    overlay one slides over the note with a shadow. */
+function FileSidebar({ open, mode, onLeave }: SidebarProps) {
+  const overlay = mode === "overlay";
+  const width = realPixels(210);
+  const place = overlay ? "absolute inset-y-0 left-0 z-30 shadow-[2px_0_12px_var(--g-color-shadow)]" : "relative shrink-0";
+  return (
+    <div
+      onPointerLeave={onLeave}
+      className={`${place} overflow-hidden bg-(--g-color-sidebar) transition-[width,translate,opacity] duration-200 ease-out-soft ${COLOUR_EASE}`}
+      style={{ width: open || overlay ? width : 0, translate: overlay && !open ? "-100% 0" : undefined, opacity: overlay && !open ? 0 : 1 }}
+    >
+      <div style={{ width }}>
+        <FileTree />
+      </div>
+    </div>
+  );
+}
+
+const HIDE_DELAY_MS = 300;
+
+/** The sidebar's reveal setting, as the built-in hover rules run it: the
+    window's left edge shows it and leaving it hides it after 300ms. */
+function useSidebar() {
+  const { setting } = useMock();
+  const reveal = String(setting("sidebar.files.reveal"));
+  const [toggled, setToggled] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const hideTimer = useRef<number | undefined>(undefined);
+  const open = reveal === "always" ? !toggled : toggled || hovered;
+  const showOnHover = () => {
+    window.clearTimeout(hideTimer.current);
+    if (reveal === "hover") setHovered(true);
+  };
+  const hideAfterLeaving = () => {
+    hideTimer.current = window.setTimeout(() => setHovered(false), HIDE_DELAY_MS);
+  };
+  return { open, mode: reveal === "always" ? "push" : String(setting("sidebar.files.mode")), showOnHover, hideAfterLeaving, toggle: () => setToggled((current) => !current) };
+}
+
+function StatusBar() {
+  const bars = useToolbarsAt("status-bar");
   return (
     <div
       aria-hidden
-      className={`small figure flex h-9 items-center justify-end gap-4 px-5 text-(--mock-muted) transition-opacity duration-300 ${hidden ? "opacity-0" : ""}`}
+      className={`flex shrink-0 items-center gap-[calc(12*var(--px))] px-[calc(16*var(--px))] text-(--g-color-text-faint) ${COLOUR_EASE}`}
+      style={{ height: realPixels(30), fontFamily: token("font.ui"), fontSize: realPixels(12) }}
     >
-      {widgets.map((widget) => (
-        <Widget key={widget} widget={widget} />
+      {bars.map((toolbar) => (
+        <span key={toolbar.id} className="contents">
+          <ToolbarItems toolbar={toolbar} />
+        </span>
       ))}
     </div>
   );
 }
 
-function Link({ children }: { children: ReactNode }) {
+function Breadcrumbs() {
   return (
-    <span className={`text-(--mock-link) underline decoration-(--mock-underline) underline-offset-4 ${COLOUR_EASE}`}>
-      {children}
-    </span>
-  );
-}
-
-function Task({ done, children }: { done: boolean; children: ReactNode }) {
-  return (
-    <li className="flex items-baseline gap-[0.5em]">
-      <span
-        className={`grid size-[0.85em] shrink-0 translate-y-[0.1em] place-items-center rounded-[0.2em] ${COLOUR_EASE} ${done ? "bg-(--mock-accent) text-(--mock-on-accent)" : "shadow-[inset_0_0_0_1.5px_var(--mock-muted)]"}`}
-      >
-        {done && (
-          <svg viewBox="0 0 12 12" className="size-[0.65em]" aria-hidden>
-            <path d="M2.5 6.2 5 8.6l4.5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
+    <div className="flex shrink-0 items-center" style={{ height: realPixels(40), paddingInline: realPixels(12), ...UI_TEXT }}>
+      <span className="flex text-(--g-color-icon-disabled)">
+        <AppIcon name="arrow-left" size={realPixels(16)} />
+        <AppIcon name="arrow-right" size={realPixels(16)} className="ml-[calc(12*var(--px))]" />
       </span>
-      <span className={done ? "text-(--mock-muted) line-through decoration-(--mock-muted)" : ""}>{children}</span>
-    </li>
-  );
-}
-
-function AccentCaret() {
-  return (
-    <span
-      aria-hidden
-      className={`ml-[0.08em] inline-block h-[1.05em] w-[2px] translate-y-[0.16em] bg-(--mock-accent) animate-blink ${COLOUR_EASE}`}
-    />
-  );
-}
-
-type FoldableSectionProps = { title: string; lines: number; folded: boolean; onToggle: () => void; children: ReactNode };
-
-/** A heading and what's under it, folded as Gasp folds it: the chevron in
-    the margin shows while the pointer is on the heading and stays once
-    it's folded, and a folded heading shows how many lines it hides. */
-function FoldableSection({ title, lines, folded, onToggle, children }: FoldableSectionProps) {
-  return (
-    <section className="mt-[0.8em]">
-      <div className="group/heading relative">
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={!folded}
-          aria-label={`${folded ? "Unfold" : "Fold"} ${title}`}
-          className={`absolute top-1/2 -left-[1.5em] grid size-[1.3em] -translate-y-1/2 cursor-pointer place-items-center rounded-md text-(--mock-muted) transition-opacity duration-150 focus-visible:opacity-100 ${folded ? "opacity-100" : "opacity-0 group-hover/heading:opacity-100"}`}
-        >
-          <CaretDown aria-hidden className={`size-[0.8em] transition-transform duration-200 ease-out-soft ${folded ? "-rotate-90" : ""}`} />
-        </button>
-        <p className={`text-[1.12em] font-bold text-(--mock-strong) ${COLOUR_EASE}`}>
-          {title}
-          {folded && (
-            <span className="small ml-2 rounded-md bg-(--mock-rule) px-1.5 py-0.5 align-middle font-normal text-(--mock-muted)">
-              {lines === 1 ? "1 line" : `${lines} lines`}
-            </span>
-          )}
-        </p>
-      </div>
-      {!folded && <div className="mt-[0.3em]">{children}</div>}
-    </section>
-  );
-}
-
-type SectionName = "plans" | "to-do";
-
-function useFolds(foldOnArrival: boolean) {
-  const [folded, setFolded] = useState<Set<SectionName>>(() => new Set(foldOnArrival ? ["plans"] : []));
-  const toggle = (name: SectionName) =>
-    setFolded((current) => {
-      const next = new Set(current);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-  return { isFolded: (name: SectionName) => folded.has(name), toggle };
-}
-
-/** Remounted with each new look, so a request to fold headings folds the
-    first section the moment it arrives. */
-function Note({ look }: { look: LookChanges }) {
-  const { isFolded, toggle } = useFolds(look.foldHeadings === true);
-  return (
-    <div style={noteStyle(look)} className="leading-[1.6] transition-[font-size] duration-300 ease-out-soft">
-      <p className={`text-[1.45em] leading-tight font-bold text-(--mock-strong) ${COLOUR_EASE}`}>Trip to Lisbon</p>
-      <FoldableSection title="Plans" lines={2} folded={isFolded("plans")} onToggle={() => toggle("plans")}>
-        <p>
-          Flights are booked for the 14th. Ana sent a list of places to eat, which I copied into <Link>Food</Link>.{" "}
-          <mark className={`rounded-[0.15em] bg-(--mock-highlight) px-[0.1em] text-inherit ${COLOUR_EASE}`}>
-            Take the tram up to the castle early
-          </mark>
-          , before the queue.
-        </p>
-      </FoldableSection>
-      <FoldableSection title="To do" lines={2} folded={isFolded("to-do")} onToggle={() => toggle("to-do")}>
-        <ul className="grid gap-[0.25em]">
-          <Task done>Book flights</Task>
-          <Task done={false}>
-            Pack light, and check <Link>Packing</Link>
-            <AccentCaret />
-          </Task>
-        </ul>
-      </FoldableSection>
+      <span className="flex-1 truncate text-center">
+        <span className="text-(--g-color-text-detail)">Travel</span>
+        <span className="text-(--g-color-text-faint)"> / </span>
+        <span className="text-(--g-color-text-strong)">Trip to Lisbon</span>
+      </span>
+      <span className="flex gap-[calc(12*var(--px))] text-(--g-color-icon)">
+        <AppIcon name="book-open" size={realPixels(16)} />
+        <AppIcon name="dots-three" size={realPixels(16)} />
+      </span>
     </div>
   );
+}
+
+const DOCK_EDGES = { "editor-top": "top", "editor-bottom": "bottom", "window-left": "left", "window-right": "right" } as const;
+type DockPlace = keyof typeof DOCK_EDGES;
+
+function useDocked(place: DockPlace, floating: boolean) {
+  return useToolbarsAt(place).filter((toolbar) => {
+    const floats = toolbar.surface === "overlay" || toolbar.behaviour === "on-hover";
+    return showsInText(toolbar) && floats === floating;
+  });
+}
+
+function Strips({ place }: { place: DockPlace }) {
+  return useDocked(place, false).map((toolbar) => <DockedBar key={toolbar.id} toolbar={toolbar} edge={DOCK_EDGES[place]} />);
+}
+
+function FloatingDocks() {
+  const places = Object.keys(DOCK_EDGES) as DockPlace[];
+  return places.map((place) => <FloatingDock key={place} place={place} />);
+}
+
+function FloatingDock({ place }: { place: DockPlace }) {
+  return useDocked(place, true).map((toolbar) => <DockedBar key={toolbar.id} toolbar={toolbar} edge={DOCK_EDGES[place]} />);
 }
 
 /** Fades the note back in each time the look changes, so the change reads
@@ -350,34 +203,86 @@ function usePulseOn(version: number) {
   return target;
 }
 
-type MockWindowProps = { look: LookChanges; version: number; corner?: ReactNode };
-
-/** A small Gasp window drawn from the same keys the app reads. Its size
-    never changes: bands for toolbars and the status bar are always kept. */
-export function GaspMockWindow({ look, version, corner }: MockWindowProps) {
+function NoteCard({ version, notices }: { version: number; notices: ReactNode[] }) {
+  const { demo } = useMock();
   const note = usePulseOn(version);
   return (
     <div
-      style={paletteStyle(look)}
-      className={`${TOKEN_VARIABLES} overflow-hidden rounded-2xl bg-(--mock-window) text-(--mock-text) shadow-lifted ${COLOUR_EASE}`}
+      className={`group/note relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--g-color-background) ${COLOUR_EASE}`}
+      style={{ borderRadius: pixels("radius.lg"), boxShadow: `0 0 0 1px ${token("color.ring")}` }}
     >
-      <div className="flex h-10 items-center gap-2 px-4">
-        {["bg-[#ff5f57]", "bg-[#febc2e]", "bg-[#28c840]"].map((light) => (
-          <span key={light} aria-hidden className={`size-3 rounded-full ${light}`} />
-        ))}
-        <span className={`small ml-3 text-(--mock-muted) ${COLOUR_EASE}`}>Trip to Lisbon</span>
-        <span className="small figure ml-auto text-(--mock-muted)">{corner}</span>
-      </div>
-      <div className={`relative h-72 overflow-hidden bg-(--mock-page) ${COLOUR_EASE}`}>
-        {look.toolbar && <FormattingBar toolbar={look.toolbar} />}
+      <Strips place="editor-top" />
+      <Breadcrumbs />
+      <div ref={note} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-width:thin]">
         <div
-          ref={note}
-          className="h-full overflow-hidden px-6 py-14 [mask-image:linear-gradient(to_bottom,black_80%,transparent_94%)] sm:px-10"
+          className="mx-auto"
+          style={{ maxWidth: `calc(${token("size.editor-max-width")} * var(--px) + 2 * ${pixels("space.xxl")})`, padding: `${pixels("space.md")} ${pixels("space.xxl")} ${pixels("space.xxl", 3)}` }}
         >
-          <Note key={version} look={look} />
+          <MockNote key={version} />
         </div>
       </div>
-      <StatusBar look={look} />
+      <Strips place="editor-bottom" />
+      <FloatingDocks />
+      <DemoOverlay key={`demo-${version}`} demo={demo} />
+      <Notices key={`notices-${version}`} notices={notices} />
     </div>
+  );
+}
+
+type Sidebar = ReturnType<typeof useSidebar>;
+
+function WindowBody({ sidebar, version, notices }: { sidebar: Sidebar; version: number; notices: ReactNode[] }) {
+  return (
+    <div className="relative flex min-h-0 flex-1" style={{ paddingInline: realPixels(10), gap: realPixels(6) }}>
+      <span aria-hidden className="absolute inset-y-0 left-0 z-20 w-[calc(10*var(--px))]" onPointerEnter={sidebar.showOnHover} />
+      <Strips place="window-left" />
+      <FileSidebar open={sidebar.open} mode={sidebar.mode} onLeave={sidebar.hideAfterLeaving} />
+      <NoteCard version={version} notices={notices} />
+      <Strips place="window-right" />
+    </div>
+  );
+}
+
+function SyncPulse() {
+  if (useMock().demo !== "sync") return null;
+  return (
+    <span
+      aria-hidden
+      className="absolute right-[calc(14*var(--px))] bottom-[calc(4*var(--px))] size-[calc(22*var(--px))] rounded-full ring-2 ring-(--g-color-accent) motion-safe:animate-ping"
+    />
+  );
+}
+
+type FrameProps = { version: number; notices: ReactNode[]; corner?: ReactNode };
+
+function WindowFrame({ version, notices, corner }: FrameProps) {
+  const sidebar = useSidebar();
+  return (
+    <>
+      <TabBar corner={corner} onToggleSidebar={sidebar.toggle} />
+      <WindowBody sidebar={sidebar} version={version} notices={notices} />
+      <div className="relative">
+        <SyncPulse />
+        <StatusBar />
+      </div>
+    </>
+  );
+}
+
+type MockWindowProps = Omit<FrameProps, "notices"> & { patch: ConfigPatch; demo?: BuiltinDemo; notices?: ReactNode[] };
+
+/** A small Gasp window drawn from the same keys the app reads: every theme
+    token is a CSS variable here, and settings and toolbars resolve as in
+    `crates/config`. Its size never changes. */
+export function GaspMockWindow({ patch, demo, notices = [], version, corner }: MockWindowProps) {
+  return (
+    <MockContext value={mockState(patch, demo)}>
+      <div
+        style={mockStyle(patch)}
+        className={`relative flex h-[30rem] flex-col overflow-hidden rounded-2xl bg-(--g-color-app-background) text-(--g-color-text) shadow-lifted [--px:0.62px] sm:h-[34rem] sm:[--px:0.78px] ${COLOUR_EASE}`}
+      >
+        <WindowFrame version={version} notices={notices} corner={corner} />
+      </div>
+    </MockContext>
   );
 }

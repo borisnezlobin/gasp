@@ -1,31 +1,21 @@
-import type { LookChanges } from "./lookChanges";
+import type { ConfigPatch } from "./configPatch";
+import { COMMANDS } from "./gaspSchema";
+import { macChord } from "./keyChords";
 
-type Describers = { [Key in keyof LookChanges]-?: (value: NonNullable<LookChanges[Key]>) => string };
+const words = (key: string) => key.replaceAll(".", " ").replaceAll("-", " ");
 
-const PLACES = { "editor-top": "at the top", "editor-bottom": "at the bottom" };
+type Describer = (patch: ConfigPatch) => string[];
 
-const DESCRIBERS: Describers = {
-  accent: (colour) => `${colour} accent`,
-  link: (colour) => `${colour} links`,
-  highlight: (colour) => `${colour} highlights`,
-  font: (family) => `text in ${family}`,
-  fontSize: (size) => `${size} point text`,
-  appearance: (appearance) => (appearance === "match-system" ? "appearance that follows the system" : `${appearance} appearance`),
-  toolbar: (toolbar) => `a formatting bar ${PLACES[toolbar.place]}`,
-  statusWidgets: (widgets) => `status bar showing ${widgets.length ? widgets.join(", ").replaceAll("-", " ") : "nothing"}`,
-  statusBar: (state) => `status bar ${state}`,
-  foldHeadings: () => "a heading folded",
-};
+const DESCRIBERS: Describer[] = [
+  ({ theme }) => Object.entries(theme ?? {}).filter(([key]) => !key.startsWith("dark.")).map(([key, value]) => `${words(key)} ${value}`),
+  ({ settings }) => Object.entries(settings ?? {}).map(([key, value]) => `${words(key)} ${value}`),
+  ({ toolbars }) => Object.entries(toolbars ?? {}).map(([id, spec]) => (spec.enabled === false ? `no ${id} bar` : `a ${id} bar${spec.place ? ` at ${words(spec.place)}` : ""}`)),
+  ({ keys }) => (keys ?? []).map(({ keys: chord, command }) => `${macChord(chord)} runs ${COMMANDS.get(command)?.title ?? command}`),
+  ({ replacements }) => (replacements ?? []).map(({ from, to }) => `typing ${from} gives ${to}`),
+];
 
-/** The changes in words, for screen readers, such as "dark appearance,
-    green accent". */
-export function describeChanges(changes: LookChanges): string {
-  return Object.entries(changes)
-    .map(([key, value]) => {
-      if (value === null) return key === "toolbar" ? "no formatting bar" : "";
-      const describe = DESCRIBERS[key as keyof LookChanges] as (input: unknown) => string;
-      return describe(value);
-    })
-    .filter(Boolean)
-    .join(", ");
+/** The changes in words, for screen readers, such as "color accent
+    #2f8f5b, appearance theme dark". */
+export function describeChanges(patch: ConfigPatch): string {
+  return DESCRIBERS.flatMap((describe) => describe(patch)).join(", ");
 }

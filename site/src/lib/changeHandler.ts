@@ -1,7 +1,6 @@
 import { askModel, ModelError, modelConfigFromEnv, type ModelConfig } from "./changeModel";
 import { memoryCounter, overLimit, visitorId, type Counter } from "./demoLimits";
-import { hasChanges, parseChanges, parseReply, type LookChanges } from "./lookChanges";
-import { settingsFiles, type SettingsFile } from "./lookFiles";
+import { answerFrom } from "./changeAnswer";
 
 export const MAX_REQUEST_LENGTH = 200;
 const MAX_BODY_BYTES = 2000;
@@ -15,7 +14,7 @@ export type ChangeErrorCode =
   | "provider-failed"
   | "timeout";
 
-export type ChangeAnswer = { changes: LookChanges; files: SettingsFile[]; reply?: string };
+export type { ChangeAnswer } from "./changeAnswer";
 
 const STATUS: Record<ChangeErrorCode, number> = {
   "bad-request": 400,
@@ -26,9 +25,6 @@ const STATUS: Record<ChangeErrorCode, number> = {
   "provider-failed": 502,
   timeout: 504,
 };
-
-const NOTHING_TO_CHANGE = "Gasp's settings can't change that.";
-const HEADINGS_ALREADY_FOLD = "Headings already fold in Gasp: click the arrow beside one, or press ⌘⌥[.";
 
 const failure = (error: ChangeErrorCode) => Response.json({ error }, { status: STATUS[error] });
 
@@ -60,16 +56,6 @@ async function limited(request: Request, counter: Counter | undefined): Promise<
   } catch {
     return overLimit(visitor, { counter: memoryCounter() });
   }
-}
-
-/** Builds the answer from the model's JSON: only what the schema allows,
-    and files derived from that alone. */
-export function answerFrom(modelJson: unknown): ChangeAnswer {
-  const changes = parseChanges(modelJson);
-  const reply = parseReply((modelJson as { reply?: unknown })?.reply);
-  const answer: ChangeAnswer = { changes, files: settingsFiles(changes) };
-  const said = changes.foldHeadings ? HEADINGS_ALREADY_FOLD : (reply ?? (hasChanges(changes) ? undefined : NOTHING_TO_CHANGE));
-  return said ? { ...answer, reply: said } : answer;
 }
 
 /** Turns a visitor's plain-words request into changes to the demo window.
