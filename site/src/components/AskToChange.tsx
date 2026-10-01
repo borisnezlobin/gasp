@@ -1,13 +1,16 @@
 "use client";
 
 import { ArrowCounterClockwise, CaretRight, CircleNotch, Lightning } from "@phosphor-icons/react";
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { builtinDemo, type BuiltinDemo } from "@/lib/builtins";
 import type { ChangeAnswer, ChangeErrorCode } from "@/lib/changeHandler";
 import { SUGGESTIONS, suggestionFor } from "@/lib/changeSuggestions";
+import { settingsFiles } from "@/lib/configFiles";
+import { hasChanges, mergePatches, type ConfigPatch } from "@/lib/configPatch";
 import { describeChanges } from "@/lib/describeChanges";
-import { hasChanges, mergeChanges, type LookChanges } from "@/lib/lookChanges";
-import { settingsFiles } from "@/lib/lookFiles";
+import { COMMANDS } from "@/lib/gaspSchema";
 import { GaspMockWindow } from "./GaspMockWindow";
+import { Keycap } from "./mock/MockOverlays";
 
 const MAX_REQUEST_LENGTH = 200;
 
@@ -15,7 +18,7 @@ type Outcome =
   | { kind: "idle" }
   | { kind: "asking" }
   | { kind: "answered"; seconds: number; reply?: string }
-  | { kind: "example" }
+  | { kind: "example"; reply?: string }
   | { kind: "resting" };
 
 type LiveResult = { answer: ChangeAnswer } | { error: ChangeErrorCode | "offline" };
@@ -51,7 +54,7 @@ const RESTING = "The live demo is resting right now, so try one of the examples.
 
 function statusText(outcome: Outcome): string | undefined {
   if (outcome.kind === "resting") return RESTING;
-  if (outcome.kind === "answered") return outcome.reply;
+  if (outcome.kind === "answered" || outcome.kind === "example") return outcome.reply;
   return undefined;
 }
 
@@ -123,8 +126,8 @@ function Suggestions({ disabled, onPick }: { disabled: boolean; onPick: (request
   );
 }
 
-function WrittenSettings({ look, onReset }: { look: LookChanges; onReset: () => void }) {
-  const changed = hasChanges(look);
+function WrittenSettings({ patch, onReset }: { patch: ConfigPatch; onReset: () => void }) {
+  const changed = hasChanges(patch);
   return (
     <div className={`mt-4 transition-opacity duration-200 ${changed ? "" : "invisible opacity-0"}`}>
       <div className="flex items-start justify-between gap-4">
@@ -134,7 +137,7 @@ function WrittenSettings({ look, onReset }: { look: LookChanges; onReset: () => 
             Show the settings it wrote
           </summary>
           <div className="mt-3 grid gap-4 rounded-2xl bg-fill p-5">
-            {settingsFiles(look).map(({ file, lines }) => (
+            {settingsFiles(patch).map(({ file, lines }) => (
               <div key={file}>
                 <p className="small code text-ink-muted">.gasp/{file}</p>
                 <pre className="code mt-1.5 overflow-x-auto leading-relaxed text-ink">{lines}</pre>
@@ -155,20 +158,37 @@ function WrittenSettings({ look, onReset }: { look: LookChanges; onReset: () => 
   );
 }
 
+/** The notices an answer brings: each new shortcut and replacement. */
+function noticesFor(patch: ConfigPatch): ReactNode[] {
+  const keys = (patch.keys ?? []).map(({ keys: chord, command }) => (
+    <>
+      <Keycap chord={chord} />
+      {COMMANDS.get(command)?.title ?? command}
+    </>
+  ));
+  const replacements = (patch.replacements ?? []).map(({ from, to }) => `Typing ${from} now gives ${to}`);
+  return [...keys, ...replacements];
+}
+
+type Look = { patch: ConfigPatch; demo?: BuiltinDemo; notices: ReactNode[] };
+
+const DEFAULT_LOOK: Look = { patch: {}, notices: [] };
+
 /** Asks for changes in plain words. Each answer applies on top of the
     last, and the window follows it the moment it arrives. */
 function useLook() {
-  const [look, setLook] = useState<LookChanges>({});
+  const [look, setLook] = useState<Look>(DEFAULT_LOOK);
   const [version, setVersion] = useState(0);
   const [announcement, setAnnouncement] = useState("");
-  const apply = (changes: LookChanges) => {
-    if (!hasChanges(changes)) return;
-    setLook((current) => mergeChanges(current, changes));
+  const apply = (answer: ChangeAnswer) => {
+    const demo = answer.builtin ? builtinDemo(answer.builtin) : undefined;
+    if (!hasChanges(answer.patch) && !demo) return;
+    setLook((current) => ({ patch: mergePatches(current.patch, answer.patch), demo, notices: noticesFor(answer.patch) }));
     setVersion((current) => current + 1);
-    setAnnouncement(`Changed the window: ${describeChanges(changes)}.`);
+    if (hasChanges(answer.patch)) setAnnouncement(`Changed the window: ${describeChanges(answer.patch)}.`);
   };
   const reset = () => {
-    setLook({});
+    setLook(DEFAULT_LOOK);
     setVersion((current) => current + 1);
     setAnnouncement("Reset the window to Gasp's default look.");
   };
@@ -184,8 +204,8 @@ export function AskToChange() {
   const showExampleOrRest = (wanted: string) => {
     const example = suggestionFor(wanted);
     if (example) {
-      apply(example.changes);
-      return setOutcome({ kind: "example" });
+      apply(example.answer);
+      return setOutcome({ kind: "example", reply: example.answer.reply });
     }
     setOutcome({ kind: "resting" });
     setAnnouncement(RESTING);
@@ -201,7 +221,7 @@ export function AskToChange() {
       if (result.error === "no-key") liveUnavailable.current = true;
       return showExampleOrRest(wanted);
     }
-    apply(result.answer.changes);
+    apply(result.answer);
     setOutcome({ kind: "answered", seconds: (performance.now() - started) / 1000, reply: result.answer.reply });
     if (result.answer.reply) setAnnouncement(result.answer.reply);
   };
@@ -213,15 +233,15 @@ export function AskToChange() {
 
   const asking = outcome.kind === "asking";
   return (
-    <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:items-start lg:gap-12">
+    <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-12">
       <div className="order-2 lg:order-none">
         <RequestForm value={request} asking={asking} onChange={setRequest} onSubmit={(wanted) => void ask(wanted)} />
         <Suggestions disabled={asking} onPick={pick} />
         <StatusLine outcome={outcome} />
       </div>
       <div className="order-1 lg:order-none">
-        <GaspMockWindow look={look} version={version} corner={<Corner outcome={outcome} />} />
-        <WrittenSettings look={look} onReset={reset} />
+        <GaspMockWindow patch={look.patch} demo={look.demo} notices={look.notices} version={version} corner={<Corner outcome={outcome} />} />
+        <WrittenSettings patch={look.patch} onReset={reset} />
       </div>
       <p aria-live="polite" className="sr-only">
         {announcement}
