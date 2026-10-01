@@ -129,15 +129,6 @@ export default function Privacy() {
           </p>
         </Part>
 
-        <Part title="The Change anything demo">
-          <p>
-            When you type a request into the demo on the home page, the site sends it to an AI model through
-            OpenRouter to work out the settings, and keeps a copy of what you typed and how the demo answered. That
-            copy has no address, cookie or ID with it, and only the newest 5,000 requests are kept. We read them to
-            see what people want to change in Gasp.
-          </p>
-        </Part>
-
         <Part title="Everything else the app connects to">
           <p>
             Sync goes through your own iCloud Drive, or straight to GitHub with your own account, and the writing check runs on your device. When a note

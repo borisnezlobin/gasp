@@ -20,6 +20,7 @@
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --grain: 0.05;
+  --image-outline: oklch(0 0 0 / 0.1);
   color-scheme: light;
 }
 
@@ -41,6 +42,7 @@
     --series-1: #3987e5;
     --series-2: #d95926;
     --grain: 0.04;
+    --image-outline: oklch(1 0 0 / 0.1);
     color-scheme: dark;
   }
 }
@@ -58,6 +60,7 @@
   --color-caret: var(--caret);
   --color-button: var(--button);
   --color-on-button: var(--on-button);
+  --color-image-outline: var(--image-outline);
   --shadow-lifted: var(--shadow);
   --font-text: Charter, "Bitstream Charter", var(--font-charis), Georgia, serif;
   --font-code: ui-monospace, "SF Mono", Menlo, monospace;
@@ -120,6 +123,12 @@
     font-weight: 700;
     line-height: 1.25;
     font-size: 1.25rem;
+  }
+  .request {
+    font-weight: 700;
+    line-height: 1.2;
+    text-wrap: balance;
+    font-size: clamp(1.5rem, 2.6vw, 2.25rem);
   }
   .lede {
     font-size: 1.25rem;

@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint .",
-    "schema": "node scripts/build-gasp-schema.mjs"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
