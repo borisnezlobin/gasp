@@ -178,6 +178,9 @@ pub struct Workspace {
     deleted: Vec<deleted::DeletedNote>,
     /// The notice saying the last typed title couldn't be the note's name.
     rename_notice: Option<u64>,
+    /// This window's theme, from its own vault: other windows may show
+    /// vaults with different ones.
+    window_theme: Option<crate::ui::WindowTheme>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -274,6 +277,7 @@ impl Workspace {
             toolbar_to_add_to: None,
             deleted,
             rename_notice: None,
+            window_theme: None,
             _subscriptions: Vec::new(),
         };
         workspace.scan_vault_index(cx);
@@ -491,12 +495,27 @@ impl Workspace {
         self._subscriptions.push(observe);
     }
 
-    /// Puts the light or dark theme the settings ask for in effect.
-    /// Answers whether it changed.
+    /// Builds this window's light or dark theme as the settings ask and
+    /// puts it in effect, redrawing only this window. Answers whether it
+    /// changed.
     fn apply_theme(&mut self, cx: &mut Context<Self>) -> bool {
         let choice = self.config.settings.appearance.theme;
         let dark = choice.is_dark(crate::ui::system_dark(cx));
-        crate::ui::set_theme(&self.config.theme, dark, cx)
+        if self.window_theme.as_ref().is_some_and(|theme| theme.matches(&self.config.theme, dark)) {
+            return false;
+        }
+        self.window_theme = Some(crate::ui::WindowTheme::new(&self.config.theme, dark, cx));
+        self.use_own_theme(cx);
+        cx.notify();
+        true
+    }
+
+    /// Puts this window's theme in effect for what's drawn or handled
+    /// next, as it draws and when it comes to the front.
+    pub(crate) fn use_own_theme(&mut self, cx: &mut App) {
+        if let Some(theme) = self.window_theme.as_mut() {
+            crate::ui::use_window_theme(theme, cx);
+        }
     }
 
     /// Gives every open note the current config and theme.

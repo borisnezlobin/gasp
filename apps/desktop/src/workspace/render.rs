@@ -444,6 +444,7 @@ impl Workspace {
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _span = crate::trace::span("workspace-render");
+        self.use_own_theme(cx);
         self.update_window_title(window, cx);
         self.sync_sidebar_toggle(window, cx);
         self.sync_right_sidebar_toggle(cx);
