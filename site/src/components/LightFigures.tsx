@@ -23,12 +23,12 @@ export function IdleTrace() {
       <div aria-hidden className="relative h-16 min-w-0 flex-1 overflow-hidden rounded-lg bg-fill">
         <div className="absolute inset-0 flex">
           {Array.from({ length: GRID_LINES }, (_, line) => (
-            <span key={line} className="h-full flex-1 border-l border-ink/8 first:border-l-0" />
+            <span key={line} className="h-full flex-1 border-l border-ink/5 first:border-l-0" />
           ))}
         </div>
         <div className="absolute bottom-2 left-0 h-0.5 w-full rounded-full bg-ink/15" />
         <div className="absolute bottom-2 left-0 h-0.5 w-full rounded-full bg-ink motion-safe:animate-sweep">
-          <span className="absolute -top-[3px] right-0 size-2 translate-x-1/2 rounded-full bg-caret shadow-[0_0_10px_2px_var(--caret)] motion-reduce:hidden" />
+          <span className="absolute -top-0.5 right-0 size-1.5 translate-x-1/2 rounded-full bg-ink motion-reduce:hidden" />
         </div>
       </div>
       <p className="shrink-0 pb-1 text-ink-soft">

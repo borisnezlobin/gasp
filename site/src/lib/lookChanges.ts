@@ -94,6 +94,9 @@ export type LookChanges = {
   toolbar?: Toolbar | null;
   statusWidgets?: StatusWidget[];
   statusBar?: "shown" | "hidden";
+  /** Gasp already folds headings, so this writes no setting: the demo
+      window folds one to show it. */
+  foldHeadings?: true;
 };
 
 export const DEFAULT_TOOLBAR_ITEMS: ToolbarItem[] = ["format.bold", "format.italic", "format.highlight", "format.link"];
@@ -168,6 +171,7 @@ const READERS: { [Key in keyof LookChanges]-?: (value: unknown) => LookChanges[K
   toolbar,
   statusWidgets: (value) => listOf(STATUS_WIDGETS, value, STATUS_WIDGETS.length),
   statusBar,
+  foldHeadings: (value) => (value === true ? true : undefined),
 };
 
 /** Keeps only what the schema allows: unknown keys and invalid values are

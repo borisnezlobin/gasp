@@ -14,6 +14,7 @@ const DESCRIBERS: Describers = {
   toolbar: (toolbar) => `a formatting bar ${PLACES[toolbar.place]}`,
   statusWidgets: (widgets) => `status bar showing ${widgets.length ? widgets.join(", ").replaceAll("-", " ") : "nothing"}`,
   statusBar: (state) => `status bar ${state}`,
+  foldHeadings: () => "a heading folded",
 };
 
 /** The changes in words, for screen readers, such as "dark appearance,

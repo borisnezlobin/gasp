@@ -28,6 +28,7 @@ const STATUS: Record<ChangeErrorCode, number> = {
 };
 
 const NOTHING_TO_CHANGE = "Gasp's settings can't change that.";
+const HEADINGS_ALREADY_FOLD = "Headings already fold in Gasp: click the arrow beside one, or press ⌘⌥[.";
 
 const failure = (error: ChangeErrorCode) => Response.json({ error }, { status: STATUS[error] });
 
@@ -67,7 +68,7 @@ export function answerFrom(modelJson: unknown): ChangeAnswer {
   const changes = parseChanges(modelJson);
   const reply = parseReply((modelJson as { reply?: unknown })?.reply);
   const answer: ChangeAnswer = { changes, files: settingsFiles(changes) };
-  const said = reply ?? (hasChanges(changes) ? undefined : NOTHING_TO_CHANGE);
+  const said = changes.foldHeadings ? HEADINGS_ALREADY_FOLD : (reply ?? (hasChanges(changes) ? undefined : NOTHING_TO_CHANGE));
   return said ? { ...answer, reply: said } : answer;
 }
 

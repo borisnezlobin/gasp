@@ -52,6 +52,7 @@ Reply with one JSON object and nothing else. Include only the keys the request a
 - "toolbar": a formatting toolbar, as {"place": one of ${names(TOOLBAR_PLACES)}, "surface": one of ${names(TOOLBAR_SURFACES)}, "items": a list from ${names(TOOLBAR_ITEMS)}}. "overlay" floats over the note; "strip" gives the bar its own row. Use false to remove the toolbar.
 - "statusWidgets": what the status bar at the bottom shows, as a list from ${names(STATUS_WIDGETS)}.
 - "statusBar": "hidden" or "shown".
+- "foldHeadings": true when the request asks for headings or sections that collapse, fold or hide. Gasp already does this, so don't add a "reply" for it.
 - "reply": only when part of the request is something these settings can't do, one short plain sentence saying what Gasp can't do, such as "Gasp can't play music." Leave it out otherwise.
 Example: "dark mode with a green accent and a toolbar at the top" gives {"appearance":"dark","accent":"green","toolbar":{"place":"editor-top","surface":"overlay","items":["format.bold","format.italic","format.highlight","format.link"]}}.`;
 

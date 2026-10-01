@@ -2,6 +2,7 @@
 
 import { Check } from "@phosphor-icons/react";
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { sourceOffsetAt } from "@/lib/caretFromPoint";
 import { parseBlock, parseInline, toggleTask, type Block, type BlockKind, type Inline } from "@/lib/markdown";
 
 const START = [
@@ -33,12 +34,19 @@ const INLINE_STYLES: Record<Inline["kind"], string> = {
   link: "underline decoration-ink-muted underline-offset-4",
 };
 
-function Formatted({ text }: { text: string }) {
-  return parseInline(text).map((inline, index) => (
-    <span key={index} className={INLINE_STYLES[inline.kind]}>
-      {inline.text}
-    </span>
-  ));
+/** The body formatted, each run marked with where its text starts in the
+    source line (`from` is the length of the block's marker). */
+function Formatted({ text, from }: { text: string; from: number }) {
+  let consumed = from;
+  return parseInline(text).map((inline, index) => {
+    const source = consumed + inline.open.length;
+    consumed += inline.open.length + inline.text.length + inline.close.length;
+    return (
+      <span key={index} data-source={source} className={INLINE_STYLES[inline.kind]}>
+        {inline.text}
+      </span>
+    );
+  });
 }
 
 function RawMarks({ text }: { text: string }) {
@@ -115,7 +123,9 @@ function EditingLine({ line, caret, onChange, onKeyDown, onBlur }: EditingLinePr
   );
 }
 
-function Line({ line, children, onToggle, onActivate }: { line: string; children?: ReactNode; onToggle: () => void; onActivate: () => void }) {
+type LineProps = { line: string; children?: ReactNode; onToggle: () => void; onActivate: (at: number) => void };
+
+function Line({ line, children, onToggle, onActivate }: LineProps) {
   const block = parseBlock(line);
   const editing = children !== undefined;
   return (
@@ -126,10 +136,10 @@ function Line({ line, children, onToggle, onActivate }: { line: string; children
       ) : (
         <button
           type="button"
-          onClick={onActivate}
+          onClick={(event) => onActivate(sourceOffsetAt(event.currentTarget, event.clientX, event.clientY) ?? line.length)}
           className={`min-w-0 flex-1 cursor-text text-left ${block.done ? "text-ink-muted line-through" : ""}`}
         >
-          <Formatted text={block.body} />
+          <Formatted text={block.body} from={block.marker.length} />
           {block.body === "" && "​"}
         </button>
       )}
@@ -223,7 +233,7 @@ export function LiveEditor() {
             key={index}
             line={line}
             onToggle={() => note.setLine(index, toggleTask(line))}
-            onActivate={() => note.moveTo(index, line.length)}
+            onActivate={(at) => note.moveTo(index, at)}
           >
             {cursor?.line === index ? (
               <EditingLine

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CaretDown,
   CheckSquare,
   CloudCheck,
   Code,
@@ -14,7 +15,7 @@ import {
   TextUnderline,
   type Icon,
 } from "@phosphor-icons/react";
-import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   ACCENT_COLOURS,
   FONTS,
@@ -258,24 +259,77 @@ function AccentCaret() {
   );
 }
 
+type FoldableSectionProps = { title: string; lines: number; folded: boolean; onToggle: () => void; children: ReactNode };
+
+/** A heading and what's under it, folded as Gasp folds it: the chevron in
+    the margin shows while the pointer is on the heading and stays once
+    it's folded, and a folded heading shows how many lines it hides. */
+function FoldableSection({ title, lines, folded, onToggle, children }: FoldableSectionProps) {
+  return (
+    <section className="mt-[0.8em]">
+      <div className="group/heading relative">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={!folded}
+          aria-label={`${folded ? "Unfold" : "Fold"} ${title}`}
+          className={`absolute top-1/2 -left-[1.5em] grid size-[1.3em] -translate-y-1/2 cursor-pointer place-items-center rounded-md text-(--mock-muted) transition-opacity duration-150 focus-visible:opacity-100 ${folded ? "opacity-100" : "opacity-0 group-hover/heading:opacity-100"}`}
+        >
+          <CaretDown aria-hidden className={`size-[0.8em] transition-transform duration-200 ease-out-soft ${folded ? "-rotate-90" : ""}`} />
+        </button>
+        <p className={`text-[1.12em] font-bold text-(--mock-strong) ${COLOUR_EASE}`}>
+          {title}
+          {folded && (
+            <span className="small ml-2 rounded-md bg-(--mock-rule) px-1.5 py-0.5 align-middle font-normal text-(--mock-muted)">
+              {lines === 1 ? "1 line" : `${lines} lines`}
+            </span>
+          )}
+        </p>
+      </div>
+      {!folded && <div className="mt-[0.3em]">{children}</div>}
+    </section>
+  );
+}
+
+type SectionName = "plans" | "to-do";
+
+function useFolds(foldOnArrival: boolean) {
+  const [folded, setFolded] = useState<Set<SectionName>>(() => new Set(foldOnArrival ? ["plans"] : []));
+  const toggle = (name: SectionName) =>
+    setFolded((current) => {
+      const next = new Set(current);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  return { isFolded: (name: SectionName) => folded.has(name), toggle };
+}
+
+/** Remounted with each new look, so a request to fold headings folds the
+    first section the moment it arrives. */
 function Note({ look }: { look: LookChanges }) {
+  const { isFolded, toggle } = useFolds(look.foldHeadings === true);
   return (
     <div style={noteStyle(look)} className="leading-[1.6] transition-[font-size] duration-300 ease-out-soft">
       <p className={`text-[1.45em] leading-tight font-bold text-(--mock-strong) ${COLOUR_EASE}`}>Trip to Lisbon</p>
-      <p className="mt-[0.7em]">
-        Flights are booked for the 14th. Ana sent a list of places to eat, which I copied into <Link>Food</Link>.{" "}
-        <mark className={`rounded-[0.15em] bg-(--mock-highlight) px-[0.1em] text-inherit ${COLOUR_EASE}`}>
-          Take the tram up to the castle early
-        </mark>
-        , before the queue.
-      </p>
-      <ul className="mt-[0.7em] grid gap-[0.25em]">
-        <Task done>Book flights</Task>
-        <Task done={false}>
-          Pack light, and check <Link>Packing</Link>
-          <AccentCaret />
-        </Task>
-      </ul>
+      <FoldableSection title="Plans" lines={2} folded={isFolded("plans")} onToggle={() => toggle("plans")}>
+        <p>
+          Flights are booked for the 14th. Ana sent a list of places to eat, which I copied into <Link>Food</Link>.{" "}
+          <mark className={`rounded-[0.15em] bg-(--mock-highlight) px-[0.1em] text-inherit ${COLOUR_EASE}`}>
+            Take the tram up to the castle early
+          </mark>
+          , before the queue.
+        </p>
+      </FoldableSection>
+      <FoldableSection title="To do" lines={2} folded={isFolded("to-do")} onToggle={() => toggle("to-do")}>
+        <ul className="grid gap-[0.25em]">
+          <Task done>Book flights</Task>
+          <Task done={false}>
+            Pack light, and check <Link>Packing</Link>
+            <AccentCaret />
+          </Task>
+        </ul>
+      </FoldableSection>
     </div>
   );
 }
@@ -320,7 +374,7 @@ export function GaspMockWindow({ look, version, corner }: MockWindowProps) {
           ref={note}
           className="h-full overflow-hidden px-6 py-14 [mask-image:linear-gradient(to_bottom,black_80%,transparent_94%)] sm:px-10"
         >
-          <Note look={look} />
+          <Note key={version} look={look} />
         </div>
       </div>
       <StatusBar look={look} />
