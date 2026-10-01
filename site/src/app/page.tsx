@@ -3,7 +3,7 @@ import { BreachHero } from "@/components/BreachHero";
 import { DownloadButton } from "@/components/DownloadButton";
 import { FeatureGrid } from "@/components/FeatureGrid";
 import { LaunchRace } from "@/components/LaunchRace";
-import { IdleFigures, KeystrokeFrame } from "@/components/LightFigures";
+import { IdleTrace, KeystrokeSpeed } from "@/components/LightFigures";
 import { LineField } from "@/components/LineField";
 import { LiveEditor } from "@/components/LiveEditor";
 import { ScreenshotTabs } from "@/components/ScreenshotTabs";
@@ -41,10 +41,10 @@ export default function Home() {
         <Section id="light" title="Quick in huge notes">
           <LineField />
           <div className="mt-8">
-            <KeystrokeFrame />
+            <KeystrokeSpeed />
           </div>
           <div className="mt-16">
-            <IdleFigures />
+            <IdleTrace />
           </div>
         </Section>
 
@@ -63,8 +63,8 @@ export default function Home() {
 
         <Section
           id="customization"
-          title="Change it by asking"
-          intro="Tell Claude Code what you'd like. It edits Gasp's settings files, and the app updates the moment they're saved."
+          title="Change anything"
+          intro="Ask in plain words, and a model rewrites Gasp's settings while the window below changes to match."
         >
           <AskToChange />
         </Section>

@@ -33,8 +33,8 @@ const SHOTS: Shot[] = [
   {
     id: "math",
     label: "Math and code",
-    caption: "LaTeX between dollar signs renders as you type, and code blocks are coloured by language.",
-    alt: "The same note further down, with a rendered power-law equation, ticked tasks and a Python code block.",
+    caption: "Every equation is plain LaTeX between dollar signs in a normal Markdown file, so the same note opens in any other Markdown editor.",
+    alt: "Fourier series study notes in Gasp: Parseval's identity worked down to π²/8, the discrete Fourier transform and its inverse, the 4×4 DFT matrix, and a short NumPy check.",
     light: mathLight,
     dark: mathDark,
   },
@@ -49,7 +49,7 @@ const SHOTS: Shot[] = [
   {
     id: "commands",
     label: "Commands",
-    caption: "⌘P finds any command by a few of its letters, with its shortcut beside it.",
+    caption: "Letters only need to come in order, so “snw” finds Sync now. Commands you ran recently rise to the top.",
     alt: "The command palette filtered to sync, with Sync now and its shortcut at the top.",
     light: paletteLight,
     dark: paletteDark,

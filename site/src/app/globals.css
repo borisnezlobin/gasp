@@ -149,26 +149,38 @@
   50%, 100% { opacity: 0; }
 }
 
-@keyframes rise {
-  from { transform: translateY(22%); }
-  to { transform: none; }
+@keyframes sweep {
+  from { width: 0; }
+  to { width: 100%; }
 }
 
+/* Steps through the 22 frames of the leap and holds the last, which lies
+   under the surface. */
 @keyframes leap-frames {
   from { transform: none; }
-  to { transform: translateX(-100%); }
+  to { transform: translateX(calc(-100% * 21 / 22)); }
+}
+
+/* Out of the water along the body's own line, which leans 64 degrees. */
+@keyframes emerge {
+  from { transform: translate(-29%, 48%); }
+  to { transform: none; }
 }
 
 @utility animate-blink {
   animation: blink 1.06s step-end infinite;
 }
 
-@utility animate-rise {
-  animation: rise 1.1s var(--ease-out-soft) both;
+@utility animate-leap-frames {
+  animation: leap-frames 1.4s steps(21) forwards;
 }
 
-@utility animate-leap-frames {
-  animation: leap-frames 1.1s steps(22) forwards;
+@utility animate-sweep {
+  animation: sweep 6s linear infinite;
+}
+
+@utility animate-emerge {
+  animation: emerge 0.45s cubic-bezier(0.3, 0.7, 0.5, 1) 0.25s both;
 }
 
 @media (prefers-reduced-motion: reduce) {

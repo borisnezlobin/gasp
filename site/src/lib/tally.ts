@@ -1,4 +1,4 @@
-import { Redis } from "@upstash/redis";
+import { redisFromEnv } from "./redis";
 import { fieldPing, pingField, type Ping } from "./ping";
 
 /** Days a day's tally is kept before Redis drops it. */
@@ -7,14 +7,7 @@ const KEEP_SECONDS = 60 * 60 * 24 * 400;
 const pingsKey = (day: string) => `pings:${day}`;
 const downloadsKey = (day: string) => `downloads:${day}`;
 
-/** Redis from Vercel's Upstash integration, under either of the names it
-    sets, or null when no store is connected. */
-function store(): Redis | null {
-  const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  return new Redis({ url, token });
-}
+const store = redisFromEnv;
 
 export function hasStore(): boolean {
   return store() !== null;
