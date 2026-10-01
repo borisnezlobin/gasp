@@ -149,6 +149,12 @@
   50%, 100% { opacity: 0; }
 }
 
+/* The footer's whale drifting a little way along under the lines. */
+@keyframes glide {
+  from { transform: translateX(-4%); }
+  to { transform: translateX(4%); }
+}
+
 @keyframes sweep {
   from { width: 0; }
   to { width: 100%; }
@@ -173,6 +179,10 @@
 
 @utility animate-leap-frames {
   animation: leap-frames 1.4s steps(21) forwards;
+}
+
+@utility animate-glide {
+  animation: glide 14s ease-in-out infinite alternate;
 }
 
 @utility animate-sweep {

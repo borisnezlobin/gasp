@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Charis_SIL } from "next/font/google";
+import { WaterFilter } from "@/components/WaterFilter";
 import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
@@ -34,7 +35,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={charis.variable}>
-      <body className="min-h-dvh overflow-x-clip">{children}</body>
+      <body className="min-h-dvh overflow-x-clip">
+        <WaterFilter />
+        {children}
+      </body>
     </html>
   );
 }
