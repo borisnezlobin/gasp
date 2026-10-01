@@ -144,6 +144,8 @@ pub enum RowSpec {
     SyncRemote,
     /// Signing in to it with a token.
     SyncAccount,
+    /// The AI apps on this Mac, each with a button that connects it.
+    AgentApps,
 }
 
 const fn setting(key: &'static str) -> RowSpec {
@@ -174,7 +176,7 @@ pub const PAGES: &[PageSpec] = &[
         cards: &[
             &[RowSpec::Vault, RowSpec::Version],
             &[RowSpec::ObsidianImport],
-            &[setting("mcp.enabled")],
+            &[setting("mcp.enabled"), RowSpec::AgentApps],
             &[setting("telemetry.enabled")],
             &[RowSpec::IconCredit],
         ],

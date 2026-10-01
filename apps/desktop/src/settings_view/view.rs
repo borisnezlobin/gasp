@@ -10,12 +10,14 @@ use std::rc::Rc;
 use gasp_config::schema::SettingKind;
 use gasp_config::theme::Theme as Tokens;
 use gasp_config::{Config, Platform, RuleSet};
+use gasp_mcp::clients::ClientApp;
 use gpui::{
     App, AppContext, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     ListAlignment, ListOffset, ListState, Subscription, Window, px,
 };
 use serde_json::Value;
 
+use super::agent_apps::{NO_AGENT_APPS, agent_app_description};
 use super::capture::Capture;
 use super::config_files;
 use super::menu::OpenMenu;
@@ -89,6 +91,11 @@ pub enum ControlRow {
     SyncAccount,
     /// Where a vault in iCloud Drive is, with a way to show it in Finder.
     ICloudFolder,
+    /// An AI app on this Mac, with a button that connects it to the vault.
+    AgentApp(ClientApp),
+    /// The line shown when no AI app Gasp can connect is installed. It has
+    /// no control, so focus skips it.
+    NoAgentApps,
     /// The field that adds an entry to a list setting.
     ListAdd(SettingItem),
     /// One entry of a list setting, such as a device-only pattern.
@@ -146,7 +153,7 @@ impl ControlRow {
 
     /// Whether keyboard focus can land on the row.
     pub fn is_focusable(&self) -> bool {
-        *self != ControlRow::Version
+        !matches!(self, ControlRow::Version | ControlRow::NoAgentApps)
     }
 
     /// Whether the row is on the Snippets page's lists.
@@ -194,6 +201,8 @@ impl ControlRow {
             ControlRow::SyncRemote => "Notes repository".to_string(),
             ControlRow::SyncAccount => "GitHub token".to_string(),
             ControlRow::ICloudFolder => "iCloud Drive".to_string(),
+            ControlRow::AgentApp(app) => app.name().to_string(),
+            ControlRow::NoAgentApps => NO_AGENT_APPS.to_string(),
             ControlRow::ListAdd(item) => item.title.clone(),
             ControlRow::ListEntry { value, .. } => value.clone(),
             _ => self.page_list_title(),
@@ -290,6 +299,9 @@ pub struct SettingsView {
     /// The page, search and item count the list was last given.
     pub(super) list_shows: RefCell<Option<ListShows>>,
     pub(super) layouts: RefCell<Option<Rc<Layouts>>>,
+    /// The AI apps the General page can connect, once the host has said
+    /// where to look for them.
+    pub(super) agent_apps: Option<super::agent_apps::AgentApps>,
     /// The vault's sync, for the Sync page.
     pub(super) sync: Option<Entity<crate::sync::SyncService>>,
     pub(super) remote_cache: Option<String>,
@@ -403,6 +415,7 @@ impl SettingsView {
             list: ListState::new(0, ListAlignment::Top, px(LIST_OVERDRAW)),
             list_shows: RefCell::default(),
             layouts: RefCell::default(),
+            agent_apps: None,
             sync: None,
             remote_cache: None,
             signed_in_cache: false,
@@ -826,6 +839,7 @@ impl SettingsView {
             }
             RowSpec::SyncRemote if self.in_icloud => ControlRow::ICloudFolder,
             RowSpec::SyncAccount if self.in_icloud => return Vec::new(),
+            RowSpec::AgentApps => return self.matching(self.agent_app_rows(), query),
             RowSpec::Setting(key) => {
                 return self
                     .item_for(key)
@@ -843,12 +857,17 @@ impl SettingsView {
             RowSpec::SyncAccount if !self.remote_takes_token() => return Vec::new(),
             RowSpec::SyncAccount => ControlRow::SyncAccount,
         };
-        let haystack = format!("{} {}", row.title(), self.row_description(&row));
-        if words_match(&haystack, query) {
-            vec![row]
-        } else {
-            Vec::new()
-        }
+        self.matching(vec![row], query)
+    }
+
+    /// The rows whose title or description match `query`.
+    fn matching(&self, rows: Vec<ControlRow>, query: &str) -> Vec<ControlRow> {
+        rows.into_iter()
+            .filter(|row| {
+                let haystack = format!("{} {}", row.title(), self.row_description(row));
+                words_match(&haystack, query)
+            })
+            .collect()
     }
 
     fn rows_for_item(&self, item: &SettingItem) -> Vec<ControlRow> {
@@ -894,7 +913,8 @@ impl SettingsView {
             ControlRow::Vault => crate::workspace::files::display_path(&self.vault_root),
             ControlRow::IconCredit => ICON_CREDIT.to_string(),
             ControlRow::ObsidianImport => OBSIDIAN_IMPORT_DESCRIPTION.to_string(),
-            ControlRow::Shortcut(_) => String::new(),
+            ControlRow::AgentApp(app) => agent_app_description(*app).to_string(),
+            ControlRow::Shortcut(_) | ControlRow::NoAgentApps => String::new(),
             ControlRow::SnippetsFile => self.snippets_file_description(),
             ControlRow::Snippet(_) | ControlRow::SnippetEditor | ControlRow::Replacement(_) => {
                 String::new()

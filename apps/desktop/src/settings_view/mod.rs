@@ -10,6 +10,7 @@
 //! host to run commands, such as opening another vault, with
 //! [`SettingsRequest`]. Escape and the close button emit `DismissEvent`.
 
+pub mod agent_apps;
 mod capture;
 pub mod controls;
 mod edit;

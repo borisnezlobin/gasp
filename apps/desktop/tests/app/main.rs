@@ -1,6 +1,7 @@
 //! The desktop app's integration tests, built as one program: each file
 //! here used to be its own test binary, and every one linked the whole app.
 
+mod agent_apps;
 mod edit_time;
 mod editor_view;
 mod embeds;

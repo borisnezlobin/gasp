@@ -82,7 +82,7 @@ Everything the owner has asked for, newest last, ticked off as it lands on maste
 
 ## Agents and MCP
 
-- [ ] Explain how to set up MCP. Today the app has only the "Agent access" switch and one line in the README. Add setup steps in the app (a button that copies the command for Claude Code or Claude Desktop) and a page on the site.
+- [ ] Set up MCP without editing files: Settings → General lists Claude, Claude Code, Cursor and Codex with Connect buttons that write each app's settings. *(Built and tested in temporary folders; still needs a try against the real apps.)*
 - [ ] Make Gasp fully customizable: any change someone asks for should be possible through its settings files. The audit of what's still hard-coded, with a suggested key for each:
   - [ ] `layout.toml` isn't read at all: build the window from its slot tree, which also lets the sidebar move to the right.
   - [ ] Sizes with tokens nobody reads: `size.sidebar-width`, `tab-height`, `status-height`, `hover-edge-width` (hard-coded in `apps/desktop/src/theme.rs` near line 1331).

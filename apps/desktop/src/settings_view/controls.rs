@@ -817,6 +817,24 @@ pub fn widest_of(
     div().flex().flex_col().child(sizer).child(shown)
 }
 
+/// `shown`, as wide as the widest of `alternatives`, such as a button
+/// that turns into a check: the alternatives are laid out with no height
+/// and never drawn, so a change of state moves nothing beside it.
+pub fn widest_element_of(
+    shown: impl IntoElement,
+    alternatives: impl IntoIterator<Item = AnyElement>,
+) -> Div {
+    let sizer = div()
+        .h_0()
+        .overflow_hidden()
+        .invisible()
+        .flex()
+        .flex_col()
+        .items_end()
+        .children(alternatives);
+    div().flex().flex_col().child(sizer).child(shown)
+}
+
 /// A popover panel hung under the right edge of whatever comes before it
 /// in a relative container, or over it when there isn't room below,
 /// drawn above everything else. Its height is capped to the room on the

@@ -821,6 +821,7 @@ fn open_settings(
     if let Some(sync) = workspace.sync().cloned() {
         settings.update(cx, |settings, cx| settings.set_sync(sync, cx));
     }
+    offer_agent_apps(&settings, cx);
     let changed = cx.subscribe(&settings, |workspace, _, event: &SettingsEvent, cx| {
         let SettingsEvent::Changed(key) = event;
         on_setting_changed(workspace, key, cx);
@@ -836,6 +837,22 @@ fn open_settings(
     let state = features(cx);
     state.subscriptions.push(changed);
     state.subscriptions.push(requests);
+}
+
+/// Lists the AI apps on this Mac on the General page, set up to start this
+/// copy of the app. A snapshot run leaves them out: it never reaches
+/// outside its own folders.
+fn offer_agent_apps(settings: &gpui::Entity<SettingsView>, cx: &mut gpui::Context<Workspace>) {
+    if !crate::sandbox::reaches_outside() {
+        return;
+    }
+    let (Some(home), Ok(binary)) = (
+        gasp_mcp::clients::ClientHome::current(),
+        std::env::current_exe(),
+    ) else {
+        return;
+    };
+    settings.update(cx, |settings, cx| settings.set_agent_apps(home, binary, cx));
 }
 
 /// Applies a settings change everywhere it shows: every open note gets the

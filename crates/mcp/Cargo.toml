@@ -18,7 +18,11 @@ rmcp = { version = "3.5", default-features = false, features = ["server", "trans
 tokio = { version = "1", features = ["rt", "io-std", "time"] }
 schemars = { version = "1", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# Key order kept, so an AI app's config is rewritten in the order it was.
+serde_json = { version = "1", features = ["preserve_order"] }
+# An AI app's TOML config, edited with its comments and layout intact.
+# The config crate already builds this version.
+toml_edit = "0.22"
 # Frontmatter, as notes write it. Typst already builds it.
 serde_yaml = "0.9"
 globset = { version = "0.4", default-features = false }
