@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import breachDark from "@/assets/breach-dark.png";
 import breachLight from "@/assets/breach-light.png";
+import swimDark from "@/assets/whale-swim-dark.png";
+import swimLight from "@/assets/whale-swim-light.png";
 import { Caret } from "./Caret";
 import { InkImage } from "./InkImage";
 import { RippleLines, type RippleLinesHandle } from "./RippleLines";
@@ -26,8 +28,10 @@ const SPLASHES: Splash[] = [
   { at: frameAt(16), x: 0.8, strength: 1.5 },
 ];
 const EXIT_SPLASH = { x: 0.28, strength: 0.8 };
-/** How long the shape under the water takes to fade before the next breach. */
-const SINK_MS = 350;
+/** How long the fallen whale takes to dive out of sight, and how long the
+    swimming one takes to fade before the next breach. */
+const DIVE_MS = 900;
+const LEAVE_MS = 350;
 
 /** In the 900 by 1104 drawing the sea is at 54.4% of the height, the body
     crosses it 27.9% of the way in, and the top of the whale is at 10.6%. */
@@ -41,11 +45,12 @@ const stageGeometry = {
 } as CSSProperties;
 
 /** `emerging`: the resting drawing rises out along the body's line.
-    `leaping`: the frames play. `under`: the last frame, on its back below
-    the surface, sinks slowly. `sinking`: it fades before the next breach.
-    With reduced motion `emerging` never animates, so the resting drawing
-    simply stays. */
-type Phase = "emerging" | "leaping" | "under" | "sinking";
+    `leaping`: the frames play. `diving`: the fallen whale sinks out of
+    sight. `swimming`: a whale glides under the lines until it's asked to
+    breach. `leaving`: the swimmer fades before the next breach. With
+    reduced motion `emerging` never animates, so the resting drawing simply
+    stays. */
+type Phase = "emerging" | "leaping" | "diving" | "swimming" | "leaving";
 
 /** Runs the breach: the whale leaves the water, leaps, falls in with two
     splashes and settles under the surface until it's asked to breach
@@ -65,15 +70,16 @@ function useBreach(splash: (xShare: number, strength: number) => void) {
   const onEmerged = () => {
     setPhase("leaping");
     SPLASHES.forEach((each) => after(each.at, () => splash(each.x, each.strength)));
-    after(LEAP_MS, () => setPhase("under"));
+    after(LEAP_MS, () => setPhase("diving"));
+    after(LEAP_MS + DIVE_MS, () => setPhase("swimming"));
   };
 
   const onEmergeStart = () => splash(EXIT_SPLASH.x, EXIT_SPLASH.strength);
 
   const breachAgain = () => {
-    if (phase !== "under") return;
-    setPhase("sinking");
-    after(SINK_MS, () => {
+    if (phase !== "swimming") return;
+    setPhase("leaving");
+    after(LEAVE_MS, () => {
       setBreaches((count) => count + 1);
       setPhase("emerging");
     });
@@ -123,9 +129,24 @@ function LeapStrip() {
 
 const AFTER_LEAP_STYLE: Partial<Record<Phase, string>> = {
   leaping: "",
-  under: "translate-y-[3%] opacity-60 transition-[translate,opacity] duration-[2500ms] ease-out-soft",
-  sinking: "translate-y-[3%] opacity-0 transition-opacity duration-300",
+  diving: "translate-y-[10%] opacity-0 transition-[translate,opacity] duration-[900ms] ease-in",
 };
+
+/** A whale swimming under the lines between breaches, seen only through
+    the water. */
+function Swimmer({ phase }: { phase: Phase }) {
+  const shown = phase === "swimming";
+  return (
+    <div
+      aria-hidden
+      className={`absolute top-[calc(var(--whale-h)*0.06)] left-[calc(var(--cross)-var(--whale-w)*0.5)] w-[calc(var(--whale-w)*0.95)] transition-opacity ease-out-soft ${shown ? "opacity-100 duration-1000" : "opacity-0 duration-300"}`}
+    >
+      <div className="motion-safe:animate-glide">
+        <InkImage light={swimLight} dark={swimDark} alt="" sizes="40vw" className="h-auto w-full" />
+      </div>
+    </div>
+  );
+}
 
 type WhaleProps = {
   phase: Phase;
@@ -166,8 +187,9 @@ function Whale({ phase, priority, onEmergeStart, onEmerged }: WhaleProps) {
 
 /** The app icon made into a page: the name set huge beside the lines of a
     note, which a humpback breaches out of as the page opens. It rolls onto
-    its back, falls in and ripples the lines, then waits under the surface;
-    touching the water, or coming back to the top, brings it up again. */
+    its back, falls in and ripples the lines, dives, and swims on under the
+    surface; touching the water, or coming back to the top, brings it up
+    again. */
 export function BreachHero({ children }: { children: ReactNode }) {
   const stage = useRef<HTMLDivElement>(null);
   const sea = useRef<RippleLinesHandle>(null);
@@ -219,15 +241,19 @@ export function BreachHero({ children }: { children: ReactNode }) {
             type="button"
             aria-label="Make the whale breach"
             onClick={breachAgain}
-            className={`relative z-10 block min-h-[calc(var(--whale-h)*var(--under)*0.7)] w-full text-left ${phase === "under" ? "cursor-pointer" : "cursor-default"}`}
+            className={`relative z-10 block min-h-[calc(var(--whale-h)*var(--under)*0.7)] w-full text-left ${phase === "swimming" ? "cursor-pointer" : "cursor-default"}`}
           >
             <RippleLines ref={sea} lengths={SEA_LENGTHS} playful />
           </button>
 
-          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -bottom-8 [clip-path:inset(0_-50vw_0_-50vw)]">
-            <div className="absolute inset-x-0 -top-6 bottom-0 [filter:url(#water)]">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -inset-x-[50vw] top-0 h-[calc(var(--whale-h)*var(--under)+2rem)] overflow-hidden [mask-image:linear-gradient(to_bottom,black_45%,transparent)]"
+          >
+            <div className="absolute inset-x-[50vw] -top-6 bottom-0 [filter:url(#water)]">
               <div className="absolute inset-x-0 top-6 h-0">
                 <Whale key={breaches} phase={phase} />
+                <Swimmer phase={phase} />
               </div>
             </div>
             <div className="absolute inset-0 bg-paper/65" />

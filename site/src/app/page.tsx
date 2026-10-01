@@ -64,7 +64,7 @@ export default function Home() {
         <Section
           id="customization"
           title="Change anything"
-          intro="Ask in plain words, and a model rewrites Gasp's settings while the window below changes to match."
+          intro="Any part of Gasp can be edited by your AI agent, like ChatGPT or Claude. Just ask."
         >
           <AskToChange />
         </Section>

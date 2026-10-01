@@ -18,8 +18,8 @@ const FEATURES: Feature[] = [
   { icon: Sigma, name: "Math", detail: "LaTeX renders in place" },
   { icon: TextAa, name: "Spelling and grammar", detail: "Checked offline, on your Mac" },
   { icon: ArrowsClockwise, name: "Sync", detail: "Free, through iCloud or GitHub" },
-  { icon: FolderOpen, name: "Obsidian vaults", detail: "Open the folder you have" },
-  { icon: Robot, name: "AI agents", detail: "Claude can read and edit notes" },
+  { icon: FolderOpen, name: "Obsidian vaults", detail: "Switch with no hassle" },
+  { icon: Robot, name: "AI agents", detail: "Your AI can edit notes, and even Gasp itself" },
   { icon: Export, name: "HTML export", detail: "Any note as a web page" },
 ];
 
