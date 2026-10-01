@@ -1,10 +1,15 @@
 "use client";
 
-import { ArrowCounterClockwise } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, Info } from "@phosphor-icons/react";
+import Image, { type StaticImageData } from "next/image";
 import { useEffect, useRef, useState } from "react";
+import gaspIcon from "@/app/icon.png";
+import notesIcon from "@/assets/icon-notes.png";
+import obsidianIcon from "@/assets/icon-obsidian.png";
 
 type Racer = {
   name: string;
+  icon: StaticImageData;
   video: string;
   /** Seconds from the launch to the window's first frame on screen. */
   appears: number;
@@ -15,9 +20,9 @@ type Racer = {
 /** Measured frame by frame from screen recordings on a MacBook Pro (M2 Pro),
     each app quit first and then opened, timed from the launch command. */
 const RACERS: Racer[] = [
-  { name: "Gasp", video: "/race/gasp.mp4", appears: 0.417, ready: 0.42 },
-  { name: "Apple Notes", video: "/race/notes.mp4", appears: 0.767, ready: 1.53 },
-  { name: "Obsidian", video: "/race/obsidian.mp4", appears: 0.864, ready: 4.66 },
+  { name: "Gasp", icon: gaspIcon, video: "/race/gasp.mp4", appears: 0.417, ready: 0.42 },
+  { name: "Apple Notes", icon: notesIcon, video: "/race/notes.mp4", appears: 0.767, ready: 1.53 },
+  { name: "Obsidian", icon: obsidianIcon, video: "/race/obsidian.mp4", appears: 0.864, ready: 4.66 },
 ];
 
 const RACE_SECONDS = Math.max(...RACERS.map((racer) => racer.ready)) + 0.4;
@@ -110,8 +115,11 @@ function Lane({ racer, elapsed, video }: { racer: Racer; elapsed: number | null;
           className={`absolute inset-0 h-full w-full object-cover object-left-top ${windowUp ? "" : "invisible"}`}
         />
       </div>
-      <p className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3">
-        <span className="font-bold">{racer.name}</span>
+      <p className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <span className="flex items-center gap-2 font-bold">
+          <Image src={racer.icon} alt="" width={28} height={28} className="size-7" />
+          <span className="max-sm:sr-only">{racer.name}</span>
+        </span>
         <span className={`figure text-2xl font-bold sm:text-3xl ${done ? "text-ink" : "text-ink-muted"}`}>
           {shown.toFixed(2)} s
         </span>
@@ -121,6 +129,30 @@ function Lane({ racer, elapsed, video }: { racer: Racer; elapsed: number | null;
 }
 
 type Ref = (element: HTMLVideoElement | null) => void;
+
+/** The method, one tap away instead of under every race. */
+function HowItWasMeasured() {
+  return (
+    <>
+      <button
+        type="button"
+        popoverTarget="race-method"
+        aria-label="How this was measured"
+        className="grid size-10 cursor-pointer place-items-center rounded-lg text-ink-muted transition-colors duration-150 hover:bg-fill hover:text-ink"
+      >
+        <Info size={20} aria-hidden />
+      </button>
+      <div
+        id="race-method"
+        popover="auto"
+        className="small m-auto max-w-sm rounded-xl bg-surface p-5 text-ink-soft shadow-lifted backdrop:bg-ink/10"
+      >
+        Screen recordings from a MacBook Pro with M2 Pro, each app opened after quitting it. The clock stops when a note
+        is on screen. Notes and Obsidian show real notes, blurred.
+      </div>
+    </>
+  );
+}
 
 /** Gasp, Apple Notes and Obsidian opened side by side, replayed from
     screen recordings at their real speed, each with a clock that stops
@@ -146,11 +178,8 @@ export function LaunchRace() {
           />
         ))}
       </ol>
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-        <p className="small max-w-2xl text-ink-muted">
-          Recorded on a MacBook Pro with M2 Pro. Each app was quit, then opened, and timed from launch to a
-          note on screen. Notes and Obsidian show real notes, blurred.
-        </p>
+      <div className="mt-6 flex items-center justify-end gap-1">
+        <HowItWasMeasured />
         <button
           type="button"
           onClick={start}

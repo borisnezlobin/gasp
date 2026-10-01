@@ -1,174 +1,231 @@
 "use client";
 
-import { Check, FileText, Highlighter, LinkSimple, TextB, TextItalic } from "@phosphor-icons/react";
-import { useState } from "react";
+import { ArrowCounterClockwise, CaretRight, CircleNotch, Lightning } from "@phosphor-icons/react";
+import { useRef, useState, type FormEvent } from "react";
+import type { ChangeAnswer, ChangeErrorCode } from "@/lib/changeHandler";
+import { SUGGESTIONS, suggestionFor } from "@/lib/changeSuggestions";
+import { describeChanges } from "@/lib/describeChanges";
+import { hasChanges, mergeChanges, type LookChanges } from "@/lib/lookChanges";
+import { settingsFiles } from "@/lib/lookFiles";
+import { GaspMockWindow } from "./GaspMockWindow";
 
-type ChangeId = "links" | "font" | "toolbar" | "status";
+const MAX_REQUEST_LENGTH = 200;
 
-type Change = {
-  id: ChangeId;
-  request: string;
-  file: string;
-  lines: string;
-};
+type Outcome =
+  | { kind: "idle" }
+  | { kind: "asking" }
+  | { kind: "answered"; seconds: number; reply?: string }
+  | { kind: "example" }
+  | { kind: "resting" };
 
-/** Each request, and what an agent writes into the vault's `.gasp` folder
-    for it. Keys and values follow `crates/config/defaults/`. */
-const CHANGES: Change[] = [
-  {
-    id: "links",
-    request: "Make my links green",
-    file: "theme.toml",
-    lines: `[color]
-link = "#1f7a4d"`,
-  },
-  {
-    id: "font",
-    request: "Set my notes in a sans-serif font",
-    file: "theme.toml",
-    lines: `[font]
-text = "Helvetica Neue"`,
-  },
-  {
-    id: "toolbar",
-    request: "Float a formatting bar over my notes",
-    file: "toolbars.toml",
-    lines: `[toolbar.formatting]
-place   = "editor-top"
-surface = "overlay"
-items   = ["format.bold", "format.italic",
-           "format.highlight", "format.link"]`,
-  },
-  {
-    id: "status",
-    request: "Keep only the word count at the bottom",
-    file: "toolbars.toml",
-    lines: `[toolbar.status]
-items = ["spacer", "word-count"]`,
-  },
-];
+type LiveResult = { answer: ChangeAnswer } | { error: ChangeErrorCode | "offline" };
 
-const FORMAT_ICONS = [TextB, TextItalic, Highlighter, LinkSimple];
-
-function FormattingBar() {
-  return (
-    <div className="absolute top-3 left-1/2 flex -translate-x-1/2 gap-1 rounded-full bg-surface p-1 shadow-lifted">
-      {FORMAT_ICONS.map((Icon, index) => (
-        <span key={index} className="grid size-8 place-items-center rounded-full text-ink-soft">
-          <Icon size={17} aria-hidden />
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function StatusBar({ onlyWords }: { onlyWords: boolean }) {
-  const widgets = onlyWords ? ["58 words"] : ["58 words", "312 characters", "1 min read", "4:12"];
-  return (
-    <div className="small figure flex h-9 items-center justify-end gap-5 px-5 text-ink-muted">
-      {widgets.map((widget) => (
-        <span key={widget}>{widget}</span>
-      ))}
-    </div>
-  );
-}
-
-/** A small Gasp window whose look follows the changes switched on. */
-function MockWindow({ on }: { on: Set<ChangeId> }) {
-  const link = on.has("links") ? "text-[#1f7a4d] dark:text-[#5cc393]" : "text-ink";
-  const font = on.has("font") ? "font-['Helvetica_Neue',Helvetica,Arial,sans-serif]" : "";
-  return (
-    <div className="overflow-hidden rounded-2xl bg-surface shadow-lifted">
-      <div className="flex h-10 items-center gap-2 px-4">
-        {["bg-[#ff5f57]", "bg-[#febc2e]", "bg-[#28c840]"].map((light) => (
-          <span key={light} aria-hidden className={`size-3 rounded-full ${light}`} />
-        ))}
-        <span className="small ml-3 text-ink-muted">Trip to Lisbon</span>
-      </div>
-      <div className={`relative px-6 pt-14 pb-6 sm:px-10 ${font}`}>
-        {on.has("toolbar") && <FormattingBar />}
-        <p className="text-2xl font-bold">Trip to Lisbon</p>
-        <p className="body mt-3 text-ink-soft">
-          Flights are booked for the 14th. Ana sent a list of places to eat, which I copied into{" "}
-          <span className={`underline decoration-current/40 underline-offset-4 ${link}`}>Food</span>. The tram up to
-          the castle is the one to take early, before the queue.
-        </p>
-        <p className="body mt-3 text-ink-soft">
-          Pack light: the flat has a washing machine, and{" "}
-          <span className={`underline decoration-current/40 underline-offset-4 ${link}`}>Packing</span> has the rest.
-        </p>
-      </div>
-      <StatusBar onlyWords={on.has("status")} />
-    </div>
-  );
-}
-
-/** What the agent wrote, on its own surface so it reads as the reply. */
-function AgentReply({ change }: { change: Change | undefined }) {
-  return (
-    <div className="mt-4 min-h-40 rounded-2xl bg-fill p-5">
-      {change ? (
-        <>
-          <p className="small flex items-center gap-2 text-ink-muted">
-            <FileText size={16} aria-hidden />
-            <span>
-              Changed <span className="code text-ink">.gasp/{change.file}</span>
-            </span>
-          </p>
-          <pre className="code mt-3 overflow-x-auto leading-relaxed text-ink">{change.lines}</pre>
-        </>
-      ) : (
-        <p className="small text-ink-muted">Pick a request, and the lines it adds to Gasp&apos;s settings show here.</p>
-      )}
-    </div>
-  );
-}
-
-function RequestButton({ change, on, onToggle }: { change: Change; on: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      onClick={onToggle}
-      className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl px-4 py-3 text-left font-bold transition-[background-color,color,scale] duration-150 active:scale-[0.96] ${on ? "bg-button text-on-button" : "bg-fill text-ink hover:bg-sea"}`}
-    >
-      {change.request}
-      <Check size={18} weight="bold" aria-hidden className={`shrink-0 transition-opacity duration-150 ${on ? "" : "opacity-0"}`} />
-    </button>
-  );
-}
-
-/** Requests someone might type to an agent, each switching on the change
-    it would make, so the window beside them updates the instant one is
-    picked, as the app does when its files are saved. */
-export function AskToChange() {
-  const [on, setOn] = useState<Set<ChangeId>>(new Set());
-  const [latest, setLatest] = useState<ChangeId | null>(null);
-
-  const toggle = (id: ChangeId) => {
-    const turningOn = !on.has(id);
-    setOn((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+async function askLive(request: string): Promise<LiveResult> {
+  try {
+    const response = await fetch("/api/change", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ request }),
     });
-    setLatest(turningOn ? id : null);
+    const body = await response.json();
+    return response.ok ? { answer: body as ChangeAnswer } : { error: body.error ?? "provider-failed" };
+  } catch {
+    return { error: "offline" };
+  }
+}
+
+function Corner({ outcome }: { outcome: Outcome }) {
+  if (outcome.kind === "answered") {
+    return (
+      <span className="flex items-center gap-1">
+        <Lightning size={13} weight="fill" aria-hidden />
+        {outcome.seconds.toFixed(2)} s
+      </span>
+    );
+  }
+  if (outcome.kind === "example") return "Saved example";
+  return null;
+}
+
+const RESTING = "The live demo is resting right now, so try one of the examples.";
+
+function statusText(outcome: Outcome): string | undefined {
+  if (outcome.kind === "resting") return RESTING;
+  if (outcome.kind === "answered") return outcome.reply;
+  return undefined;
+}
+
+function StatusLine({ outcome }: { outcome: Outcome }) {
+  return <p className="small mt-4 min-h-[3em] text-ink-muted">{statusText(outcome)}</p>;
+}
+
+function RequestForm({
+  value,
+  asking,
+  onChange,
+  onSubmit,
+}: {
+  value: string;
+  asking: boolean;
+  onChange: (value: string) => void;
+  onSubmit: (request: string) => void;
+}) {
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    onSubmit(value);
+  };
+  return (
+    <form onSubmit={submit} aria-busy={asking} className="flex gap-2">
+      <label htmlFor="change-request" className="sr-only">
+        Tell Gasp what to change
+      </label>
+      <input
+        id="change-request"
+        value={value}
+        maxLength={MAX_REQUEST_LENGTH}
+        autoComplete="off"
+        placeholder="Make my links blue"
+        onChange={(event) => onChange(event.target.value)}
+        className="body h-12 min-w-0 flex-1 rounded-xl border border-rule bg-surface px-4 text-ink placeholder:text-ink-muted focus-visible:border-ink focus-visible:ring-1 focus-visible:ring-ink focus-visible:outline-none"
+      />
+      <button
+        type="submit"
+        disabled={asking}
+        className="relative h-12 shrink-0 cursor-pointer rounded-xl bg-button px-4 font-bold text-on-button shadow-lifted transition duration-150 ease-out-soft hover:opacity-90 active:scale-[0.98] disabled:cursor-wait"
+      >
+        <span className={asking ? "invisible" : ""}>Change it</span>
+        {asking && (
+          <span className="absolute inset-0 grid place-items-center">
+            <CircleNotch size={20} weight="bold" className="animate-spin" aria-label="Asking" />
+          </span>
+        )}
+      </button>
+    </form>
+  );
+}
+
+function Suggestions({ disabled, onPick }: { disabled: boolean; onPick: (request: string) => void }) {
+  return (
+    <ul className="mt-4 flex flex-wrap gap-2">
+      {SUGGESTIONS.map(({ request }) => (
+        <li key={request}>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onPick(request)}
+            className="small cursor-pointer rounded-full bg-fill px-3.5 py-1.5 text-left text-ink transition-[background-color,scale] duration-150 hover:bg-sea active:scale-[0.97] disabled:cursor-wait"
+          >
+            {request}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function WrittenSettings({ look, onReset }: { look: LookChanges; onReset: () => void }) {
+  const changed = hasChanges(look);
+  return (
+    <div className={`mt-4 transition-opacity duration-200 ${changed ? "" : "invisible opacity-0"}`}>
+      <div className="flex items-start justify-between gap-4">
+        <details className="group min-w-0 flex-1">
+          <summary className="small flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md text-ink-muted hover:text-ink [&::-webkit-details-marker]:hidden">
+            <CaretRight size={14} weight="bold" aria-hidden className="transition-transform duration-150 group-open:rotate-90" />
+            Show the settings it wrote
+          </summary>
+          <div className="mt-3 grid gap-4 rounded-2xl bg-fill p-5">
+            {settingsFiles(look).map(({ file, lines }) => (
+              <div key={file}>
+                <p className="small code text-ink-muted">.gasp/{file}</p>
+                <pre className="code mt-1.5 overflow-x-auto leading-relaxed text-ink">{lines}</pre>
+              </div>
+            ))}
+          </div>
+        </details>
+        <button
+          type="button"
+          onClick={onReset}
+          className="small flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md text-ink-muted hover:text-ink"
+        >
+          <ArrowCounterClockwise size={14} weight="bold" aria-hidden />
+          Reset the window
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Asks for changes in plain words. Each answer applies on top of the
+    last, and the window follows it the moment it arrives. */
+function useLook() {
+  const [look, setLook] = useState<LookChanges>({});
+  const [version, setVersion] = useState(0);
+  const [announcement, setAnnouncement] = useState("");
+  const apply = (changes: LookChanges) => {
+    if (!hasChanges(changes)) return;
+    setLook((current) => mergeChanges(current, changes));
+    setVersion((current) => current + 1);
+    setAnnouncement(`Changed the window: ${describeChanges(changes)}.`);
+  };
+  const reset = () => {
+    setLook({});
+    setVersion((current) => current + 1);
+    setAnnouncement("Reset the window to Gasp's default look.");
+  };
+  return { look, version, announcement, setAnnouncement, apply, reset };
+}
+
+export function AskToChange() {
+  const { look, version, announcement, setAnnouncement, apply, reset } = useLook();
+  const [request, setRequest] = useState("");
+  const [outcome, setOutcome] = useState<Outcome>({ kind: "idle" });
+  const liveUnavailable = useRef(false);
+
+  const showExampleOrRest = (wanted: string) => {
+    const example = suggestionFor(wanted);
+    if (example) {
+      apply(example.changes);
+      return setOutcome({ kind: "example" });
+    }
+    setOutcome({ kind: "resting" });
+    setAnnouncement(RESTING);
   };
 
+  const ask = async (wanted: string) => {
+    if (!wanted.trim() || outcome.kind === "asking") return;
+    if (liveUnavailable.current) return showExampleOrRest(wanted);
+    setOutcome({ kind: "asking" });
+    const started = performance.now();
+    const result = await askLive(wanted.trim());
+    if ("error" in result) {
+      if (result.error === "no-key") liveUnavailable.current = true;
+      return showExampleOrRest(wanted);
+    }
+    apply(result.answer.changes);
+    setOutcome({ kind: "answered", seconds: (performance.now() - started) / 1000, reply: result.answer.reply });
+    if (result.answer.reply) setAnnouncement(result.answer.reply);
+  };
+
+  const pick = (suggestion: string) => {
+    setRequest(suggestion);
+    void ask(suggestion);
+  };
+
+  const asking = outcome.kind === "asking";
   return (
-    <div className="lg:grid lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start lg:gap-12">
-      <ul className="grid gap-2">
-        {CHANGES.map((change) => (
-          <li key={change.id}>
-            <RequestButton change={change} on={on.has(change.id)} onToggle={() => toggle(change.id)} />
-          </li>
-        ))}
-      </ul>
-      <div className="mt-8 lg:mt-0">
-        <MockWindow on={on} />
-        <AgentReply change={CHANGES.find((change) => change.id === latest)} />
+    <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:items-start lg:gap-12">
+      <div className="order-2 lg:order-none">
+        <RequestForm value={request} asking={asking} onChange={setRequest} onSubmit={(wanted) => void ask(wanted)} />
+        <Suggestions disabled={asking} onPick={pick} />
+        <StatusLine outcome={outcome} />
       </div>
+      <div className="order-1 lg:order-none">
+        <GaspMockWindow look={look} version={version} corner={<Corner outcome={outcome} />} />
+        <WrittenSettings look={look} onReset={reset} />
+      </div>
+      <p aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
     </div>
   );
 }
