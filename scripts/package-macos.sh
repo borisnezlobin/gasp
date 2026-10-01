@@ -16,10 +16,12 @@ BUNDLE_ID="com.borisnezlobin.gasp"
 EXECUTABLE="gasp"
 MINIMUM_MACOS="12.0"
 TARGETS=(aarch64-apple-darwin x86_64-apple-darwin)
+DMGBUILD_VERSION="1.6.7"
 
 REPO_ROOT="${0:A:h:h}"
 OUT_DIR="$REPO_ROOT/target/package"
 APP_DIR="$OUT_DIR/$APP_NAME.app"
+DMGBUILD_VENV="$REPO_ROOT/target/dmgbuild-venv"
 
 step() { print -P "%B==> $1%b"; }
 
@@ -80,14 +82,27 @@ sign() {
   fi
 }
 
+# dmgbuild writes the window layout (.DS_Store) itself, so building the image needs
+# no Finder scripting. scripts/dmg-background.py redraws the background art.
+install_dmgbuild() {
+  local installed
+  installed=$("$DMGBUILD_VENV/bin/python" -c 'import importlib.metadata as m; print(m.version("dmgbuild"))' 2>/dev/null || true)
+  if [[ "$installed" == "$DMGBUILD_VERSION" ]]; then
+    return 0
+  fi
+  python3 -m venv "$DMGBUILD_VENV"
+  "$DMGBUILD_VENV/bin/pip" install --quiet "dmgbuild==$DMGBUILD_VERSION"
+}
+
 make_dmg() {
-  local dmg="$1" staging="$OUT_DIR/dmg-staging"
-  rm -rf "$staging" "$dmg"
-  mkdir -p "$staging"
-  cp -R "$APP_DIR" "$staging/"
-  ln -s /Applications "$staging/Applications"
-  hdiutil create -quiet -volname "$APP_NAME" -srcfolder "$staging" -format UDZO "$dmg"
-  rm -rf "$staging"
+  local dmg="$1"
+  rm -f "$dmg"
+  install_dmgbuild
+  "$DMGBUILD_VENV/bin/dmgbuild" \
+    -s "$REPO_ROOT/scripts/dmg-settings.py" \
+    -D app="$APP_DIR" \
+    -D background="$REPO_ROOT/apps/desktop/assets/dmg/background.tiff" \
+    "$APP_NAME" "$dmg"
 }
 
 # The app gets its own stapled ticket before it goes in the disk image, so

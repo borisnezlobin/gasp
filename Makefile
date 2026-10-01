@@ -13,7 +13,7 @@ BUNDLE_ID := com.borisnezlobin.gasp
 # the paid account, but its installs stop opening after 7 days.
 IOS_TEAM ?= K2MB68Z582
 
-.PHONY: help build run dmg dmg-local notarize icon ios-core ios-project ios-sim ios-phone snapshot
+.PHONY: help build run dmg dmg-local dmg-background notarize icon ios-core ios-project ios-sim ios-phone snapshot
 
 help:
 	@echo "make build       Build the desktop app, signed so the Keychain remembers it"
@@ -24,6 +24,7 @@ help:
 	@echo "make dmg-local   Unsigned Gasp.dmg that only runs on this Mac"
 	@echo "make notarize    Notarize the Gasp.dmg already built (needs the Mac unlocked)"
 	@echo "make icon        Rebuild AppIcon.icns from the whale render"
+	@echo "make dmg-background  Redraw the install window's background art"
 	@echo "make ios-sim     Build the iPhone app and run it in the simulator (no window)"
 	@echo "make ios-phone   Build the iPhone app and install it on the plugged-in iPhone"
 
@@ -54,6 +55,9 @@ notarize:
 
 dmg-local:
 	DEVELOPER_ID= NOTARY_PROFILE= scripts/package-macos.sh
+
+dmg-background:
+	"$(ICON_PYTHON)" scripts/dmg-background.py
 
 icon:
 	PYTHON="$(ICON_PYTHON)" apps/desktop/assets/icon/build_icon.sh
