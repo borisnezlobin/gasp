@@ -23,6 +23,7 @@ export const metadata: Metadata = {
   title: { default: "Gasp, a fast Markdown editor", template: "%s | Gasp" },
   description,
   openGraph: { title: "Gasp", description, url: SITE_URL, siteName: "Gasp", type: "website" },
+  twitter: { card: "summary_large_image", title: "Gasp", description },
 };
 
 export const viewport: Viewport = {
