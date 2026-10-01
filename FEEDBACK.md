@@ -164,6 +164,7 @@ Copy and layout
 
 - [ ] The whale flickers as it jumps in and out of the water.
 - [ ] The landing page above the fold still isn't right. Rework it together.
+  - The four abstract sketches (Surface, Breath, Instant, Spout) were generic SaaS with no tie to the product. Keep what the old hero had: the note lines (the product) and the whale (the motif). No "big text left, picture right" layout.
 
 - [x] Remove the line under the request field about keeping what's typed. The privacy page says it instead.
 - [x] Remove "Show the settings it wrote", which shifted the page.
