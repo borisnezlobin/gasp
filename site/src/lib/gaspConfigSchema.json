@@ -1407,6 +1407,12 @@
    "type": "boolean",
    "default": true,
    "note": "Whether the app sends its version, platform, system version and chip type once a day. Never notes, file names or an identifier."
+  },
+  {
+   "key": "updates.check",
+   "type": "boolean",
+   "default": true,
+   "note": "Whether the app asks once a day for the newest version number and offers it. It sends nothing about the person or the Mac."
   }
  ],
  "toolbars": {
@@ -1636,6 +1642,34 @@
    "title": "Set up sync",
    "category": "App",
    "icon": "cloud-arrow-up",
+   "palette": true
+  },
+  {
+   "id": "app.check-for-updates",
+   "title": "Check for updates",
+   "category": "App",
+   "icon": "cloud-arrow-down",
+   "palette": true
+  },
+  {
+   "id": "app.install-update",
+   "title": "Install the update",
+   "category": "App",
+   "icon": "arrow-down",
+   "palette": true
+  },
+  {
+   "id": "app.restart-to-update",
+   "title": "Restart to update",
+   "category": "App",
+   "icon": "arrow-clockwise",
+   "palette": true
+  },
+  {
+   "id": "app.release-notes",
+   "title": "Show what’s new in the update",
+   "category": "App",
+   "icon": "article",
    "palette": true
   },
   {

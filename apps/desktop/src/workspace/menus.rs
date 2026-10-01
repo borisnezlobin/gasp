@@ -28,6 +28,9 @@ enum Entry {
 
 use Entry::{Command, Separator};
 
+/// Commands at the top of the app menu.
+const APP_ITEMS: [&str; 2] = ["app.check-for-updates", "settings.open"];
+
 const FILE: &[Entry] = &[
     Command("note.new"),
     Command("daily.open"),
@@ -138,9 +141,23 @@ pub fn set_app_menus(cx: &mut App, is_available: &dyn Fn(&str) -> bool) {
 }
 
 /// Whether a command has a handler in this build: the editor's, the
-/// workspace's, or one in `extra`.
+/// workspace's, the app's, or one in `extra`.
 pub fn built_in_available<'a>(extra: &'a [&'a str]) -> impl Fn(&str) -> bool + 'a {
-    move |id| crate::commands::handles(id) || super::handles(id) || extra.contains(&id)
+    move |id| {
+        crate::commands::handles(id) || super::handles(id) || app_handles(id) || extra.contains(&id)
+    }
+}
+
+/// Whether the app runs `id` whatever window is open, as it does the
+/// update commands.
+#[cfg(target_os = "macos")]
+pub fn app_handles(id: &str) -> bool {
+    crate::update::handles(id)
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn app_handles(_: &str) -> bool {
+    false
 }
 
 /// The menus, in menu-bar order.
@@ -156,9 +173,12 @@ pub fn app_menus(is_available: &dyn Fn(&str) -> bool) -> Vec<Menu> {
 }
 
 fn app_menu(is_available: &dyn Fn(&str) -> bool) -> Menu {
-    let mut items = Vec::new();
-    if is_available("settings.open") {
-        items.push(command_item("settings.open"));
+    let mut items: Vec<MenuItem> = APP_ITEMS
+        .iter()
+        .filter(|id| is_available(id))
+        .map(|id| command_item(id))
+        .collect();
+    if !items.is_empty() {
         items.push(MenuItem::separator());
     }
     items.extend([
@@ -276,6 +296,14 @@ mod tests {
         assert_ne!(file.last().map(String::as_str), Some("-"));
         let with_sync = app_menus(&built_in_available(&["sync.now"]));
         assert!(item_names(&with_sync[1]).contains(&"Sync now".to_owned()));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn the_app_menu_checks_for_updates() {
+        let menus = app_menus(&built_in_available(&["settings.open"]));
+        let app = item_names(&menus[0]);
+        assert_eq!(app[..3], ["Check for updates", "Open settings", "-"]);
     }
 
     #[test]

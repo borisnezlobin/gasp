@@ -3,7 +3,7 @@
 //! `.gasp/settings.toml` the way the desktop's settings screen does.
 
 use gasp_config::schema::{SettingKind, setting_descriptors};
-use gasp_config::setting_texts::{HIDDEN, setting_text};
+use gasp_config::setting_texts::{DESKTOP_ONLY, HIDDEN, setting_text};
 use gasp_config::settings::SettingsIndex;
 use gasp_config::store::write_setting;
 use serde_json::Value as Json;
@@ -63,6 +63,7 @@ impl VaultFolder {
             .filter(|descriptor| {
                 !HIDDEN
                     .iter()
+                    .chain(DESKTOP_ONLY)
                     .any(|prefix| descriptor.key.starts_with(prefix))
             })
             .filter_map(|descriptor| {

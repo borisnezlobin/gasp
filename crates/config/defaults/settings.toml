@@ -63,6 +63,9 @@ enabled = true   # the running app answers `gasp mcp` about its tabs, cursor and
 [telemetry]
 enabled = true   # once a day: the app's version, platform, system version and chip type, nothing else
 
+[updates]
+check = true   # once a day the Mac app asks gaspmd.com for the newest version number, and sends nothing
+
 [appearance]
 base-font-size = 12
 theme          = "match-system"   # "light" | "dark" | "match-system"

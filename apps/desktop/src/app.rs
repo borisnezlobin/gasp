@@ -60,6 +60,8 @@ pub fn launch(target: LaunchTarget) {
         // it's made off the main thread once the window is up.
         crate::ui::load_installed_fonts(cx);
         crate::telemetry::schedule(cx);
+        #[cfg(target_os = "macos")]
+        crate::update::install(cx);
         cx.on_window_closed(|cx| {
             if cx.windows().is_empty() {
                 cx.quit();

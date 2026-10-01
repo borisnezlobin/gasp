@@ -6,9 +6,14 @@
 //! `UiTheme::notice_duration`; one about a problem, or one offering
 //! something, stays until it's dismissed, so a failed save can't slip by. A notice can carry one
 //! follow-up, which is a command, so the keyboard reaches it through the
-//! palette too. Anything with an `App` can post one.
+//! palette too, and a quieter second one beside it, such as a link. A
+//! notice about work under way can show how far along it is, and
+//! [`replace`] changes it in place as the work goes on. Anything with an
+//! `App` can post one.
 
-use gpui::{AnyElement, AnyWindowHandle, App, Global, SharedString, Window, div, prelude::*};
+use gpui::{
+    AnyElement, AnyWindowHandle, App, Global, SharedString, Window, div, prelude::*, relative,
+};
 
 use crate::icons::{IconName, icon};
 use crate::keymap::RunCommand;
@@ -40,6 +45,10 @@ pub struct Notice {
     pub kind: NoticeKind,
     pub message: SharedString,
     pub action: Option<NoticeAction>,
+    /// A quieter follow-up shown before the action.
+    pub link: Option<NoticeAction>,
+    /// How far along the work it describes is, in percent.
+    pub progress: Option<u8>,
 }
 
 impl Notice {
@@ -48,6 +57,8 @@ impl Notice {
             kind: NoticeKind::Done,
             message: message.into(),
             action: None,
+            link: None,
+            progress: None,
         }
     }
 
@@ -56,6 +67,8 @@ impl Notice {
             kind: NoticeKind::Problem,
             message: message.into(),
             action: None,
+            link: None,
+            progress: None,
         }
     }
 
@@ -64,6 +77,8 @@ impl Notice {
             kind: NoticeKind::Offer,
             message: message.into(),
             action: None,
+            link: None,
+            progress: None,
         }
     }
 
@@ -77,6 +92,26 @@ impl Notice {
             label: label.into(),
             command: command.into(),
         });
+        self
+    }
+
+    /// Offers `command` on a quiet button labelled `label`, before the
+    /// action.
+    pub fn with_link(
+        mut self,
+        label: impl Into<SharedString>,
+        command: impl Into<SharedString>,
+    ) -> Notice {
+        self.link = Some(NoticeAction {
+            label: label.into(),
+            command: command.into(),
+        });
+        self
+    }
+
+    /// Shows a bar `percent` of the way along.
+    pub fn with_progress(mut self, percent: u8) -> Notice {
+        self.progress = Some(percent.min(100));
         self
     }
 }
@@ -123,13 +158,46 @@ fn post(notice: Notice, window: Option<AnyWindowHandle>, cx: &mut App) -> u64 {
         notices.shown.remove(0);
     }
     if expires {
-        cx.spawn(async move |cx| {
-            cx.background_executor().timer(duration).await;
-            cx.update(|cx| dismiss(id, cx)).ok();
-        })
-        .detach();
+        dismiss_after(id, duration, cx);
     }
     id
+}
+
+fn dismiss_after(id: u64, duration: std::time::Duration, cx: &mut App) {
+    cx.spawn(async move |cx| {
+        cx.background_executor().timer(duration).await;
+        cx.update(|cx| dismiss(id, cx)).ok();
+    })
+    .detach();
+}
+
+/// Puts `notice` where notice `id` is, keeping its place and its window,
+/// or shows it in every window when `id` is gone or `None`. Returns the
+/// id it's shown under.
+pub fn replace(id: Option<u64>, notice: Notice, cx: &mut App) -> u64 {
+    let Some(id) = id.filter(|id| is_shown(*id, cx)) else {
+        return show(notice, cx);
+    };
+    let expires = notice.kind == NoticeKind::Done;
+    if let Some(shown) = cx
+        .global_mut::<Notices>()
+        .shown
+        .iter_mut()
+        .find(|shown| shown.id == id)
+    {
+        shown.notice = notice;
+    }
+    if expires {
+        let duration = crate::ui::ui_theme(cx).notice_duration;
+        dismiss_after(id, duration, cx);
+    }
+    id
+}
+
+/// Whether notice `id` is still shown.
+pub fn is_shown(id: u64, cx: &App) -> bool {
+    cx.try_global::<Notices>()
+        .is_some_and(|notices| notices.shown.iter().any(|shown| shown.id == id))
 }
 
 /// Shows a problem in every window.
@@ -215,18 +283,12 @@ fn render_card(id: u64, notice: Notice, ui: &UiTheme) -> AnyElement {
         NoticeKind::Problem => "problem",
         NoticeKind::Offer => "offer",
     };
-    let action = notice.action.map(|action| {
-        let command = action.command.clone();
-        Button::new(("notice-action", id as usize), action.label).on_click(move |_, window, cx| {
-            dismiss(id, cx);
-            window.dispatch_action(
-                Box::new(RunCommand {
-                    id: command.clone(),
-                }),
-                cx,
-            );
-        })
-    });
+    let action = notice
+        .action
+        .map(|action| command_button(("notice-action", id as usize), id, action, false));
+    let link = notice
+        .link
+        .map(|link| command_button(("notice-link", id as usize), id, link, true));
     crate::ui::popover(ui)
         .id(("notice", id as usize))
         .selector(move || format!("notice-{kind}"))
@@ -237,15 +299,61 @@ fn render_card(id: u64, notice: Notice, ui: &UiTheme) -> AnyElement {
         .py(ui.space_sm)
         .pl(ui.space_md)
         .pr(ui.space_sm)
+        .relative()
         .occlude()
         .child(icon(glyph).flex_none().size(ui.icon_size).text_color(tint))
         .child(div().flex_1().min_w_0().child(notice.message))
+        .children(link)
         .children(action)
         .child(
             IconButton::new(format!("notice-dismiss-{id}"), IconName::X)
                 .small()
                 .tooltip("Dismiss")
                 .on_click(move |_, _, cx| dismiss(id, cx)),
+        )
+        .children(notice.progress.map(|percent| render_progress(percent, ui)))
+        .into_any_element()
+}
+
+/// A button that takes the notice away and runs `action`'s command; the
+/// link shows quietly, the action on a fill.
+fn command_button(
+    element_id: (&'static str, usize),
+    id: u64,
+    action: NoticeAction,
+    quiet: bool,
+) -> Button {
+    let command = action.command;
+    let button = Button::new(element_id, action.label);
+    let button = if quiet { button.quiet() } else { button };
+    button.on_click(move |_, window, cx| {
+        dismiss(id, cx);
+        window.dispatch_action(
+            Box::new(RunCommand {
+                id: command.clone(),
+            }),
+            cx,
+        );
+    })
+}
+
+/// A thin bar along the card's bottom edge, inside its padding and clear
+/// of its rounded corners, so the card keeps its size as the bar fills.
+fn render_progress(percent: u8, ui: &UiTheme) -> AnyElement {
+    div()
+        .absolute()
+        .left(ui.menu_radius)
+        .right(ui.menu_radius)
+        .bottom(ui.space_xs)
+        .h(ui.notice_progress_height)
+        .rounded_full()
+        .bg(ui.menu_separator)
+        .child(
+            div()
+                .h_full()
+                .w(relative(f32::from(percent) / 100.))
+                .rounded_full()
+                .bg(ui.accent),
         )
         .into_any_element()
 }
@@ -269,6 +377,28 @@ mod tests {
                 .map(|shown| shown.notice.message.as_ref())
                 .collect();
             assert_eq!(messages, vec!["problem 2", "problem 1", "problem 9"]);
+        });
+    }
+
+    #[gpui::test]
+    fn replacing_a_notice_keeps_its_place(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            let first = show(Notice::offer("Downloading").with_progress(10), cx);
+            show(Notice::problem("Something else"), cx);
+            let same = replace(
+                Some(first),
+                Notice::offer("Downloading").with_progress(60),
+                cx,
+            );
+            assert_eq!(same, first);
+            let notices = cx.global::<Notices>();
+            assert_eq!(notices.shown.len(), 2);
+            assert_eq!(notices.shown[0].notice.progress, Some(60));
+            dismiss(first, cx);
+            assert!(!is_shown(first, cx));
+            let again = replace(Some(first), Notice::offer("Ready"), cx);
+            assert_ne!(again, first);
+            assert!(is_shown(again, cx));
         });
     }
 }

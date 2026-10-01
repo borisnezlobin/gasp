@@ -31,6 +31,7 @@ mod table_editor;
 mod theme;
 mod toolbars;
 mod typing;
+mod updates;
 mod usability;
 mod vault_search;
 mod workspace;

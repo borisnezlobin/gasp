@@ -69,6 +69,12 @@ raw-window-handle = "0.6"
 objc = "0.2"
 # Reading back a frame for `--snapshot`. GPUI already builds this version.
 metal = "0.29"
+# Updates: comparing versions, checking the download's SHA-256 and
+# reading `hdiutil`'s and the new app's property lists. All three are
+# already in the build.
+semver = "1"
+sha2 = "0.10"
+plist = "1"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 x11rb = "0.13"
