@@ -165,6 +165,8 @@ Copy and layout
 - [ ] The whale flickers as it jumps in and out of the water.
 - [ ] The landing page above the fold still isn't right. Rework it together.
   - The four abstract sketches (Surface, Breath, Instant, Spout) were generic SaaS with no tie to the product. Keep what the old hero had: the note lines (the product) and the whale (the motif). No "big text left, picture right" layout.
+  - The next three (ruled page, the icon life-size, the whale parting the text) were the old hero rearranged, and not interesting. The background should be interesting, interactive and novel, like lusion.co.
+  - *(Built: a 3D sea of word-capsules on simulated water with the real humpback under it, ripples from the pointer, and a breach where you click. It's on a preview link, waiting for the owner's look.)*
 
 - [x] Remove the line under the request field about keeping what's typed. The privacy page says it instead.
 - [x] Remove "Show the settings it wrote", which shifted the page.
