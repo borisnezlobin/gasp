@@ -1,6 +1,7 @@
 import { askModel, ModelError, modelConfigFromEnv, type ModelConfig } from "./changeModel";
 import { memoryCounter, overLimit, visitorId, type Counter } from "./demoLimits";
 import { answerFrom } from "./changeAnswer";
+import { logRequest, outcomeOfAnswer, type LoggedRequest } from "./requestLog";
 
 export const MAX_REQUEST_LENGTH = 200;
 const MAX_BODY_BYTES = 2000;
@@ -28,7 +29,12 @@ const STATUS: Record<ChangeErrorCode, number> = {
 
 const failure = (error: ChangeErrorCode) => Response.json({ error }, { status: STATUS[error] });
 
-type Deps = { config?: ModelConfig | null; fetcher?: typeof fetch; counter?: Counter };
+type Deps = {
+  config?: ModelConfig | null;
+  fetcher?: typeof fetch;
+  counter?: Counter;
+  log?: (entry: LoggedRequest) => Promise<void>;
+};
 
 type ReadRequest = { wanted: string } | { error: ChangeErrorCode };
 
@@ -59,17 +65,24 @@ async function limited(request: Request, counter: Counter | undefined): Promise<
 }
 
 /** Turns a visitor's plain-words request into changes to the demo window.
-    The request's text is never logged or stored. */
+    Each request is logged with its outcome, and nothing about who sent
+    it, so the owner can see what people ask for. */
 export async function handleChange(request: Request, deps: Deps = {}): Promise<Response> {
   const read = await readRequest(request);
   if ("error" in read) return failure(read.error);
+  const began = Date.now();
+  const log = (outcome: string) =>
+    (deps.log ?? logRequest)({ at: new Date(began).toISOString(), request: read.wanted, outcome, ms: Date.now() - began });
   const config = deps.config === undefined ? modelConfigFromEnv() : deps.config;
   if (!config) return failure("no-key");
   if (await limited(request, deps.counter)) return failure("rate-limited");
   try {
-    const modelJson = await askModel(config, read.wanted, deps.fetcher);
-    return Response.json(answerFrom(modelJson));
+    const answer = answerFrom(await askModel(config, read.wanted, deps.fetcher));
+    await log(outcomeOfAnswer(answer));
+    return Response.json(answer);
   } catch (error) {
-    return failure(error instanceof ModelError ? error.code : "provider-failed");
+    const code = error instanceof ModelError ? error.code : "provider-failed";
+    await log(`error ${code}`);
+    return failure(code);
   }
 }

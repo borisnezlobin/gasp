@@ -12,7 +12,7 @@ export const BUILTINS = {
   fold: {
     asks: "collapsible, folding or hiding headings and sections",
     command: "fold.toggle",
-    answer: "Headings already fold in Gasp: click the arrow beside one, or press {key}.",
+    answer: "Headings already fold in Gasp. Click the arrow beside Plans in the window, or press {key} in the app.",
     demo: "fold",
   },
   palette: {
