@@ -144,3 +144,27 @@ Copy and layout
 - [x] Remove the whale swimming along the bottom of the window.
 - [x] A link preview image that looks good.
 - [x] The whole page should feel fast and visceral.
+
+## Mac app (since the website rounds)
+
+- [x] The vault switcher lists each real vault once, skips temporary ones, and says where same-named vaults live ("iCloud Drive", "~/Documents").
+- [ ] Agent access: show each app's logo and make the rows compact instead of one full row per app. *(Being built.)*
+- [x] Set up MCP in one click from Settings, never by editing JSON.
+- [x] Each window keeps its own vault's theme.
+- [x] Tell people about new versions and update in one click (checks gaspmd.com/api/version).
+
+## Releases
+
+- [ ] A better drag-to-install window in the DMG: Gasp on the left, Applications on the right, a designed background with an arrow, no toolbar. *(Being built.)*
+- [ ] Publish 0.2.0 (drafted, notarized). Publish it as a normal release, not a pre-release, or the updater won't see it.
+- [x] Release notes stay short.
+
+## Website, later rounds
+
+- [x] Remove the line under the request field about keeping what's typed. The privacy page says it instead.
+- [x] Remove "Show the settings it wrote", which shifted the page.
+- [x] Replace the live AI demo with real renders of different behaviours, not just colours.
+- [x] Log what people asked the demo, viewable on the stats page. *(Retired with the demo.)*
+- [x] Folding: say how to fold in the demo window, not only with a shortcut the site can't use.
+- [x] Accept colour names like "orange".
+
