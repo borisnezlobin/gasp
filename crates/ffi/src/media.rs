@@ -2,7 +2,6 @@
 //! a footnote's text for its popover, and colour tokens the palette
 //! doesn't carry, such as the grammar underlines'.
 
-use std::path::Path;
 
 use gasp_config::loader::CONFIG_DIR;
 use gasp_core::footnotes::{find_def, parse_footnotes};
@@ -22,19 +21,19 @@ pub struct ThemedColor {
 #[uniffi::export]
 impl VaultFolder {
     /// The file an image in the note at `note_path` shows, as a full path:
-    /// `target` beside the note, in its `images` folder, or anywhere in
-    /// the vault by its name, as Obsidian finds `![[name.png]]`. `None`
-    /// for a web address or a file that isn't there.
+    /// `target` beside the note, else the file the vault index resolves it
+    /// to, as Obsidian finds `![[name.png]]` (the note's folder first, then
+    /// the shortest path), the same answer the desktop and link updates
+    /// give. `None` for a web address or a file that isn't there.
     pub fn image_file(&self, note_path: String, target: String) -> Option<String> {
         if target.contains("://") {
             return None;
         }
         let target = percent_decoded(target.split('#').next().unwrap_or_default());
         let folder = self.root.join(parent_dir(&note_path));
-        let file_name = Path::new(&target).file_name()?;
-        let nearby = [folder.join(&target), folder.join("images").join(file_name)];
-        if let Some(found) = nearby.into_iter().find(|path| path.is_file()) {
-            return Some(found.to_string_lossy().into_owned());
+        let beside = folder.join(&target);
+        if beside.is_file() {
+            return Some(beside.to_string_lossy().into_owned());
         }
         let found = self
             .built_index()
@@ -134,6 +133,15 @@ mod tests {
                 .ends_with("Elsewhere/figure.png")
         );
         assert_eq!(find("missing.png"), None);
+        // Two files of one name: the shortest path wins over the note's
+        // images folder, as Obsidian and link updates have it.
+        std::fs::write(dir.path().join("Maths/images/figure.png"), "png").unwrap();
+        vault.forget_index();
+        assert!(
+            find("figure.png")
+                .unwrap()
+                .ends_with("Elsewhere/figure.png")
+        );
         assert_eq!(find("https://a.org/x.png"), None);
     }
 

@@ -22,8 +22,11 @@ pub struct ImageStore {
     /// Targets not found next to the note, drawn as the placeholder until
     /// the vault index finds them.
     missing: HashSet<String>,
-    /// Missing targets still to look up in the vault index.
+    /// Targets still to look up in the vault index: missing ones, and
+    /// ones found by a shortcut the index might disagree with.
     vault_lookups: Vec<String>,
+    /// The file each target found on disk is drawn from.
+    shown: HashMap<String, PathBuf>,
     placeholder: Arc<RenderImage>,
     /// Web images by URL: `None` while downloading or after failing.
     remote: HashMap<String, Option<Arc<RenderImage>>>,
@@ -39,13 +42,17 @@ pub struct RemoteImage {
 }
 
 impl ImageStore {
-    /// Looks for images in each directory and its `images` folder.
+    /// Looks for images in each directory and its `images` folder. Only
+    /// a file right beside the note (the first directory) is sure to be
+    /// the one Obsidian means; anything else found this way is checked
+    /// against the vault index, which has the final say.
     pub fn new(search_dirs: Vec<PathBuf>) -> Self {
         Self {
             search_dirs,
             by_target: HashMap::new(),
             missing: HashSet::new(),
             vault_lookups: Vec::new(),
+            shown: HashMap::new(),
             placeholder: Arc::new(render_image(placeholder_pixels())),
             remote: HashMap::new(),
             remote_requests: Vec::new(),
@@ -80,7 +87,14 @@ impl ImageStore {
             return image.clone();
         }
         let image = match self.find(target) {
-            Some(path) => decode(&path).map(Arc::new),
+            Some(path) => {
+                if !self.beside_note(target, &path) {
+                    self.vault_lookups.push(target.to_owned());
+                }
+                let image = decode(&path).map(Arc::new);
+                self.shown.insert(target.to_owned(), path);
+                image
+            }
             None => {
                 self.missing.insert(target.to_owned());
                 self.vault_lookups.push(target.to_owned());
@@ -106,12 +120,22 @@ impl ImageStore {
     /// Shows the file the vault index found for `target`. False when it
     /// can't be decoded, which leaves the placeholder.
     pub fn found_in_vault(&mut self, target: &str, path: &Path) -> bool {
+        if self.shown.get(target).is_some_and(|shown| shown == path) {
+            return false;
+        }
         let Some(image) = decode(path) else {
             return false;
         };
         self.missing.remove(target);
         self.by_target.insert(target.to_owned(), Arc::new(image));
+        self.shown.insert(target.to_owned(), path.to_path_buf());
         true
+    }
+
+    /// Whether `path` is `target` right beside the note, which every
+    /// resolver agrees on.
+    fn beside_note(&self, target: &str, path: &Path) -> bool {
+        self.note_dir().is_some_and(|dir| dir.join(target) == path)
     }
 
     /// Forgets which images were missing so the next layout looks for them
@@ -217,6 +241,36 @@ mod tests {
             ["gone.png"],
             "a retry looks it up again"
         );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_shortcut_find_defers_to_the_vault_index() {
+        let dir = std::env::temp_dir().join(format!("editor-images-short-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("notes/images")).unwrap();
+        std::fs::create_dir_all(dir.join("assets")).unwrap();
+        RgbaImage::new(3, 2)
+            .save(dir.join("notes/images/dup.png"))
+            .unwrap();
+        RgbaImage::new(5, 2)
+            .save(dir.join("assets/dup.png"))
+            .unwrap();
+        RgbaImage::new(7, 2)
+            .save(dir.join("notes/beside.png"))
+            .unwrap();
+        let mut store = ImageStore::new(vec![dir.join("notes")]);
+
+        // Beside the note: drawn at once, nothing to check.
+        assert_eq!(store.image("beside.png").size(0).width.0, 7);
+        // In the note's images folder: drawn at once, then checked.
+        assert_eq!(store.image("dup.png").size(0).width.0, 3);
+        assert_eq!(store.take_vault_lookups(), ["dup.png"]);
+        assert!(
+            !store.found_in_vault("dup.png", &dir.join("notes/images/dup.png")),
+            "the index agrees: nothing to redraw"
+        );
+        assert!(store.found_in_vault("dup.png", &dir.join("assets/dup.png")));
+        assert_eq!(store.image("dup.png").size(0).width.0, 5, "the index wins");
         std::fs::remove_dir_all(dir).unwrap();
     }
 

@@ -92,7 +92,26 @@ impl LinkUpdater {
                 edits.push((dest, new));
             }
         }
+        for src in find_html_sources(text)
+            .into_iter()
+            .filter(|s| !in_code(s.start))
+        {
+            if let Some(new) = self.new_html_source(context, &text[src.clone()]) {
+                edits.push((src, new));
+            }
+        }
         edits
+    }
+
+    /// The new `src` of an HTML image, video or audio tag, which resolves
+    /// as a Markdown destination does. A path written with plain spaces
+    /// keeps them, as HTML allows.
+    fn new_html_source(&self, context: &NoteContext, raw: &str) -> Option<String> {
+        let new = self.new_markdown_destination(context, raw)?;
+        if raw.contains(' ') {
+            return Some(new.replace("%20", " "));
+        }
+        Some(new)
     }
 
     /// The new text of a wikilink's target (the part before `#` or `|`).
@@ -505,6 +524,50 @@ pub fn find_markdown_destinations(text: &str) -> Vec<Range<usize>> {
     found
 }
 
+/// The tags whose `src` names a file in the vault.
+const SOURCE_TAGS: [&str; 4] = ["img", "video", "audio", "source"];
+
+/// Byte ranges of the quoted `src` values of HTML media tags, such as the
+/// `images/chart.png` in `<img src="images/chart.png" width="300">`.
+pub fn find_html_sources(text: &str) -> Vec<Range<usize>> {
+    let lower = text.to_ascii_lowercase();
+    let mut found = Vec::new();
+    let mut from = 0;
+    while let Some(at) = lower[from..].find('<').map(|at| at + from) {
+        from = at + 1;
+        let Some(tag_end) = lower[at..].find(['>', '\n']).map(|end| at + end) else {
+            break;
+        };
+        if is_source_tag(&lower[at + 1..tag_end]) {
+            found.extend(src_value(&lower, at, tag_end));
+        }
+    }
+    found
+}
+
+/// Whether a tag's text (after `<`) starts with a media tag's name.
+fn is_source_tag(tag: &str) -> bool {
+    SOURCE_TAGS.iter().any(|name| {
+        tag.strip_prefix(name)
+            .is_some_and(|rest| rest.starts_with(|c: char| c.is_whitespace()))
+    })
+}
+
+/// The range of the quoted value of `src=` in the tag at `start..end`.
+fn src_value(lower: &str, start: usize, end: usize) -> Option<Range<usize>> {
+    let tag = &lower[start..end];
+    let attribute = tag
+        .match_indices("src")
+        .map(|(at, _)| at)
+        .find(|at| tag[..*at].ends_with(|c: char| c.is_whitespace()))?;
+    let rest = tag[attribute + 3..].trim_start();
+    let rest = rest.strip_prefix('=')?.trim_start();
+    let quote = rest.chars().next().filter(|q| *q == '"' || *q == '\'')?;
+    let value_start = end - rest.len() + 1;
+    let value_len = lower[value_start..end].find(quote)?;
+    (value_len > 0).then_some(value_start..value_start + value_len)
+}
+
 /// The length of a link destination at the start of `rest`: `<…>`, or up
 /// to whitespace or the closing parenthesis, keeping balanced parentheses.
 fn destination_len(rest: &str) -> Option<usize> {
@@ -646,6 +709,10 @@ mod tests {
 
     fn files() -> Vec<String> {
         VAULT.iter().map(|s| s.to_string()).collect()
+    }
+
+    fn paths(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
     }
 
     fn rename(from: &str, to: &str) -> LinkUpdater {
@@ -826,6 +893,50 @@ mod tests {
         assert_eq!(
             rewritten(&updater, "Plan.md", "[c](Reading/Caf%C3%A9.md)"),
             "[c](Reading/Caf%C3%A9%20cr%C3%A8me.md)"
+        );
+    }
+
+    #[test]
+    fn html_media_sources_follow_moves() {
+        let updater = LinkUpdater::new(
+            &paths(&[
+                "Notes/A.md",
+                "Notes/images/pic.png",
+                "Notes/images/my pic.png",
+            ]),
+            &[
+                ("Notes/images/pic.png".into(), "Assets/pic.png".into()),
+                ("Notes/images/my pic.png".into(), "Assets/my pic.png".into()),
+            ],
+        );
+        let text = "<img src=\"images/pic.png\" width=\"200\">\n\
+                    <IMG alt='x' SRC='images/pic.png'>\n\
+                    <img src=\"images/my pic.png\">\n\
+                    <img src=\"https://example.com/pic.png\">\n\
+                    <imgx src=\"images/pic.png\">\n\
+                    `<img src=\"images/pic.png\">`\n";
+        assert_eq!(
+            updater.rewrite("Notes/A.md", text).unwrap(),
+            "<img src=\"../Assets/pic.png\" width=\"200\">\n\
+             <IMG alt='x' SRC='../Assets/pic.png'>\n\
+             <img src=\"../Assets/my pic.png\">\n\
+             <img src=\"https://example.com/pic.png\">\n\
+             <imgx src=\"images/pic.png\">\n\
+             `<img src=\"images/pic.png\">`\n"
+        );
+    }
+
+    #[test]
+    fn a_moved_note_fixes_its_html_images() {
+        let updater = LinkUpdater::new(
+            &paths(&["Notes/A.md", "Notes/images/pic.png"]),
+            &[("Notes/A.md".into(), "Other/Deep/A.md".into())],
+        );
+        assert_eq!(
+            updater
+                .rewrite("Notes/A.md", "<video src=\"images/pic.png\" controls>")
+                .unwrap(),
+            "<video src=\"../../Notes/images/pic.png\" controls>"
         );
     }
 
