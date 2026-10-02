@@ -177,6 +177,7 @@ Copy and layout
   - Chosen: the wordmark and section headings are live glyphs, and a light drift of loose glyphs rises between sections. Body text stays still.
   - Chosen: glyphs lean toward the cursor from a distance and part around it up close.
   - Chosen: soft and wobbly, squishing and jiggling like jelly when pushed.
+  - *(Built: the breach is gone and the whale only swims. Headings and the wordmark are soft glyphs, and Markdown marks rise through every page. It's on a preview link, waiting for the owner's look.)*
 
 - [x] Remove the line under the request field about keeping what's typed. The privacy page says it instead.
 - [x] Remove "Show the settings it wrote", which shifted the page.
