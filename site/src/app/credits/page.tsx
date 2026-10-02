@@ -20,7 +20,9 @@ export default function Credits() {
           <LiveText text="Credits" />
         </h1>
         <section className="mt-12">
-          <h2 className="subheading text-2xl">The humpback</h2>
+          <h2 className="subheading text-2xl">
+            <LiveText text="The humpback" />
+          </h2>
           <div className="body mt-4 space-y-4 text-ink-soft">
             <p>
               The whale is drawn from a{" "}
@@ -47,7 +49,9 @@ export default function Credits() {
           </div>
         </section>
         <section className="mt-12">
-          <h2 className="subheading text-2xl">Type and icons</h2>
+          <h2 className="subheading text-2xl">
+            <LiveText text="Type and icons" />
+          </h2>
           <div className="body mt-4 space-y-4 text-ink-soft">
             <p>
               Text is set in Charter, which comes with every Mac and iPhone. Elsewhere the page falls back to Charis

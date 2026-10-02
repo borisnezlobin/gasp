@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { subscribeGlyphs } from "./glyphEngine";
 import { createBody, farOf, restlessness, stepBody, transformOf, type GlyphBody, type Pointer } from "./glyphPhysics";
 import { RippleFilter, filterIdOf } from "./RippleFilter";
@@ -44,6 +44,7 @@ function useSoftGlyphs(
   root: React.RefObject<HTMLElement | null>,
   ripple: React.RefObject<SVGFilterElement | null>,
   filterId: string,
+  text: string,
 ) {
   useEffect(() => {
     const element = root.current;
@@ -85,17 +86,18 @@ function useSoftGlyphs(
       resizing.disconnect();
       seeing.disconnect();
     };
-  }, [root, ripple, filterId]);
+  }, [root, ripple, filterId, text]);
 }
 
 /** Display text made of soft glyphs that lean towards the pointer, part
     around it up close and wobble back, seen through moving water. Screen
-    readers get the plain text. Use it as the only content of a heading. */
-export function LiveText({ text }: { text: string }) {
+    readers get the plain text. Use it as the only content of a text
+    element; `trailing` sits after the last word without breaking from it. */
+export function LiveText({ text, trailing }: { text: string; trailing?: ReactNode }) {
   const root = useRef<HTMLSpanElement>(null);
   const ripple = useRef<SVGFilterElement>(null);
   const filterId = filterIdOf(useId());
-  useSoftGlyphs(root, ripple, filterId);
+  useSoftGlyphs(root, ripple, filterId, text);
   const words = text.split(" ");
   return (
     <>
@@ -111,6 +113,7 @@ export function LiveText({ text }: { text: string }) {
                   {glyph}
                 </span>
               ))}
+              {wordIndex === words.length - 1 && trailing}
             </span>
           </span>
         ))}

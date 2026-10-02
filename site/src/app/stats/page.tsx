@@ -34,7 +34,9 @@ function BreakdownTable({ title, rows, latestLabel }: { title: string; rows: Bre
   const most = Math.max(1, ...rows.map((row) => row.total));
   return (
     <section className="rounded-2xl bg-surface p-5 shadow-lifted sm:p-6">
-      <h2 className="subheading">{title}</h2>
+      <h2 className="subheading">
+        <LiveText text={title} />
+      </h2>
       <table className="small figure mt-4 w-full text-left">
         <thead className="text-ink-muted">
           <tr>
@@ -66,7 +68,9 @@ function BreakdownTable({ title, rows, latestLabel }: { title: string; rows: Bre
 function ReleaseTable({ releases }: { releases: Release[] }) {
   return (
     <section className="rounded-2xl bg-surface p-5 shadow-lifted sm:p-6">
-      <h2 className="subheading">GitHub downloads by release</h2>
+      <h2 className="subheading">
+        <LiveText text="GitHub downloads by release" />
+      </h2>
       <table className="small figure mt-4 w-full text-left">
         <tbody>
           {releases.map((release) => (

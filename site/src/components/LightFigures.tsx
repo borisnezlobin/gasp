@@ -1,3 +1,5 @@
+import { LiveText } from "./glyphs/LiveText";
+
 /** From PLAN.md's performance tables, measured on an M2 Pro: a keystroke in
     a 48,000-line note reaches the screen in 2.2 ms. */
 const KEYSTROKE_MS = 2.2;
@@ -6,7 +8,9 @@ const FRAMES_PER_SECOND = Math.round(1000 / KEYSTROKE_MS);
 export function KeystrokeSpeed() {
   return (
     <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-      <span className="figure text-2xl font-bold sm:text-3xl">{FRAMES_PER_SECOND} fps</span>
+      <span className="figure text-2xl font-bold sm:text-3xl">
+        <LiveText text={`${FRAMES_PER_SECOND} fps`} />
+      </span>
       <span className="text-ink-soft">Typing never lags. Gasp keeps up at that rate even in a note this long.</span>
     </p>
   );
