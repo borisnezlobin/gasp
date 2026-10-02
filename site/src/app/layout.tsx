@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Charis_SIL } from "next/font/google";
+import { GlyphDrift } from "@/components/glyphs/GlyphDrift";
 import { WaterFilter } from "@/components/WaterFilter";
 import { SITE_URL } from "@/lib/site";
 import "./globals.css";
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={charis.variable}>
       <body className="min-h-dvh overflow-x-clip">
         <WaterFilter />
+        <GlyphDrift />
         {children}
       </body>
     </html>

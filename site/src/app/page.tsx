@@ -1,6 +1,7 @@
-import { BreachHero } from "@/components/BreachHero";
+import { SwimHero } from "@/components/SwimHero";
 import { DownloadButton } from "@/components/DownloadButton";
 import { FeatureGrid } from "@/components/FeatureGrid";
+import { LiveText } from "@/components/glyphs/LiveText";
 import { LaunchRace } from "@/components/LaunchRace";
 import { IdleTrace, KeystrokeSpeed } from "@/components/LightFigures";
 import { LineField } from "@/components/LineField";
@@ -30,9 +31,9 @@ export default function Home() {
     <>
       <SiteHeader />
       <main>
-        <BreachHero>
+        <SwimHero>
           <DownloadButton size="large" />
-        </BreachHero>
+        </SwimHero>
 
         <Section id="speed" title="Ready to edit in under half a second">
           <LaunchRace />
@@ -77,7 +78,7 @@ export default function Home() {
 
         <section aria-labelledby="try-title" className="mx-auto max-w-7xl px-4 pt-12 sm:px-8">
           <h2 id="try-title" className="heading">
-            Try Gasp
+            <LiveText text="Try Gasp" />
           </h2>
           <div className="mt-8">
             <DownloadButton size="large" />

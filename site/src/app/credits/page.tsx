@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { WHALE_CREDIT } from "@/lib/site";
+import { LiveText } from "@/components/glyphs/LiveText";
 
 export const metadata: Metadata = {
   title: "Credits",
@@ -15,7 +16,9 @@ export default function Credits() {
     <>
       <SiteHeader />
       <main className="mx-auto max-w-3xl px-4 pt-12 pb-20 sm:px-8 lg:pt-20">
-        <h1 className="heading">Credits</h1>
+        <h1 className="heading">
+          <LiveText text="Credits" />
+        </h1>
         <section className="mt-12">
           <h2 className="subheading text-2xl">The humpback</h2>
           <div className="body mt-4 space-y-4 text-ink-soft">

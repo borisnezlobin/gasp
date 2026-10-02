@@ -5,6 +5,7 @@ import { ColumnChart } from "@/components/stats/ColumnChart";
 import { publishedReleases, type Release } from "@/lib/releases";
 import { ARCH_NAMES, PLATFORM_NAMES, breakdown, installsOn, type Breakdown } from "@/lib/stats";
 import { lastDays, readTallies, type DayTally } from "@/lib/tally";
+import { LiveText } from "@/components/glyphs/LiveText";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Stats", robots: { index: false, follow: false } };
@@ -134,7 +135,9 @@ export default async function Stats({ searchParams }: { searchParams: Promise<Re
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-12 sm:px-8">
       <div>
-        <h1 className="heading">Gasp stats</h1>
+        <h1 className="heading">
+          <LiveText text="Gasp stats" />
+        </h1>
         <p className="small mt-2 text-ink-muted">Days are UTC. An active install is one app that pinged that day.</p>
       </div>
       {tallies ? <Tallies tallies={tallies} days={days} /> : <NoStore />}
