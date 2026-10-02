@@ -73,7 +73,7 @@ The launch is the exception: one real-time take, recorded unpaced, with the coun
 
 ## The numbers
 
-All measured here, on the machine above, and printed in the end card's footnote:
+All measured here, on the machine above. The end card's footnote names the machine, the vault, the pacing and the median launch time in two lines a phone can read; the method for each number is here:
 
 - **Launch, 420 ms**: the recorded take, from `exec` to the first recorded frame showing the note. The app's own trace (`EDITOR_TRACE_STARTUP`) put the first frame at 384 ms after `main` in that run. Ten unrecorded runs (`measure.py`) had a median of 438 ms and a minimum of 354 ms.
 - **Keystroke, 2.1 ms**: `gasp --bench-layout fixtures/corpus --keystrokes 300`, the median input-to-paint time over 300 keys typed into the corpus joined into one 5,026-line note. It's the app's work from the key event to a painted frame; it doesn't include the display's own latency.
