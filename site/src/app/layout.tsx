@@ -37,7 +37,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={charis.variable}>
-      <body className="min-h-dvh overflow-x-clip">
+      <body className="relative min-h-dvh overflow-x-clip">
         <WaterFilter />
         <GlyphDrift />
         {children}

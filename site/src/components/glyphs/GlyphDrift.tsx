@@ -6,8 +6,10 @@ import { createBody, stepBody, transformOf, type GlyphBody, type Pointer } from 
 import { RippleFilter, filterIdOf } from "./RippleFilter";
 
 /** Markdown's own marks, rising through the page like the whale's breath.
-    Each one sways as it climbs, grows a little the way a bubble does, and
-    shies from the pointer like the headings. */
+    They belong to the page, so they scroll with it. Each one is born
+    somewhere on screen, fades in, sways as it climbs a short way, grows a
+    little the way a bubble does and fades out again, shying from the
+    pointer like the headings. */
 
 const MARKS = ["#", "**", "*", "_", ">", "-", "[ ]", "`", "1.", "~~", "[[", "]]", "##", "a", "g", "s", "p", "=="];
 const MOST = 18;
@@ -17,12 +19,16 @@ type Bubble = {
   span: HTMLElement;
   body: GlyphBody;
   x: number;
-  y: number;
+  startY: number;
+  risen: number;
+  climb: number;
   speed: number;
   sway: number;
   swayRate: number;
   opacity: number;
 };
+
+const FADE_SHARE = 0.25;
 
 function seeded(seed: number): () => number {
   let state = seed;
@@ -32,36 +38,49 @@ function seeded(seed: number): () => number {
   };
 }
 
-/** Starts `bubble` again at a new place, below the screen or, on the first
-    pass, anywhere on it. */
-function respawn(bubble: Bubble, random: () => number, anywhere: boolean) {
+/** Starts `bubble` again somewhere in the part of the page on screen, in
+    page coordinates, leaning towards the lower half so it rises into view. */
+function respawn(bubble: Bubble, random: () => number) {
   const size = 16 + random() ** 2 * 44;
   bubble.span.textContent = MARKS[Math.floor(random() * MARKS.length)];
   bubble.span.style.fontSize = `${size}px`;
   bubble.body = createBody(size, random() * 10);
   bubble.x = random();
-  bubble.y = anywhere ? random() * window.innerHeight : window.innerHeight + size;
+  bubble.startY = window.scrollY + window.innerHeight * (0.15 + Math.sqrt(random()) * 0.95);
+  bubble.risen = 0;
+  bubble.climb = 260 + random() * 520;
   bubble.speed = 16 + random() * 26;
   bubble.sway = 6 + random() * 18;
   bubble.swayRate = 0.8 + random() * 1.2;
   bubble.opacity = 0.22 + random() * 0.3;
 }
 
-/** Fades a bubble in as it rises from the bottom and out near the top. */
-function visibilityAt(y: number, height: number) {
-  const share = y / height;
-  return Math.min(1, Math.max(0, (1 - share) / 0.12), Math.max(0, (share - 0.04) / 0.22));
+/** How far through its climb the bubble is, 0 to 1. */
+const progressOf = (bubble: Bubble) => bubble.risen / bubble.climb;
+
+/** Fades a bubble in as its climb starts and out as it ends. */
+function visibilityOf(progress: number) {
+  return Math.min(1, progress / FADE_SHARE, (1 - progress) / FADE_SHARE);
+}
+
+/** Whether the page has scrolled the bubble well out of sight. */
+function scrolledAway(y: number) {
+  const margin = window.innerHeight * 0.5;
+  return y < window.scrollY - margin || y > window.scrollY + window.innerHeight + margin;
 }
 
 function stepBubble(bubble: Bubble, dt: number, time: number, pointer: Pointer, random: () => number) {
-  const { innerWidth: width, innerHeight: height } = window;
-  bubble.y -= bubble.speed * dt;
-  if (bubble.y < -bubble.body.size * 2) respawn(bubble, random, false);
-  const homeX = bubble.x * width + bubble.sway * Math.sin(time * bubble.swayRate + bubble.body.phase);
-  stepBody(bubble.body, homeX, bubble.y, pointer, dt);
-  const grow = 0.8 + 0.35 * (1 - bubble.y / height);
-  bubble.span.style.transform = transformOf(bubble.body, time, homeX, bubble.y, grow);
-  bubble.span.style.opacity = (bubble.opacity * visibilityAt(bubble.y, height)).toFixed(3);
+  bubble.risen += bubble.speed * dt;
+  const y = bubble.startY - bubble.risen;
+  if (progressOf(bubble) >= 1 || scrolledAway(y)) {
+    respawn(bubble, random);
+    return;
+  }
+  const homeX = bubble.x * window.innerWidth + bubble.sway * Math.sin(time * bubble.swayRate + bubble.body.phase);
+  stepBody(bubble.body, homeX, y - window.scrollY, pointer, dt);
+  const progress = progressOf(bubble);
+  bubble.span.style.transform = transformOf(bubble.body, time, homeX, y, 0.85 + 0.3 * progress);
+  bubble.span.style.opacity = (bubble.opacity * visibilityOf(progress)).toFixed(3);
 }
 
 const markCount = () => Math.min(MOST, Math.max(6, Math.round((window.innerWidth * window.innerHeight) / AREA_PER_MARK)));
@@ -76,7 +95,8 @@ export function GlyphDrift() {
     const spans = Array.from(element.querySelectorAll<HTMLElement>("[data-mark]"));
     const bubbles: Bubble[] = spans.map((span) => {
       const bubble = { span } as Bubble;
-      respawn(bubble, random, true);
+      respawn(bubble, random);
+      bubble.risen = random() * bubble.climb;
       return bubble;
     });
     return subscribeGlyphs((dt, time, pointer) => {
@@ -88,7 +108,7 @@ export function GlyphDrift() {
     });
   }, []);
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden motion-reduce:hidden">
+    <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden motion-reduce:hidden">
       <RippleFilter id={filterId} scale={4} softness={0.5} />
       <div ref={layer} className="absolute inset-0 text-ink-muted">
         {Array.from({ length: MOST }, (_, index) => (
