@@ -170,6 +170,7 @@ Copy and layout
   - The site needs more wow-factor, like landonorris.com's helmet. Idea floated: a maximalist animation below the fold that says "it will make you gasp". Unsure whether an assault on the senses is right.
   - [ ] Build the scroll sequence to lusion.co's standard: dive under the words, the whale swims toward you, breaches through, and the words land as the letters of "Gasp" under "It will make you". *(Agreed 2026-10-02.)*
   - [ ] Use shaders and pointer-driven interaction throughout. The text itself should feel liquid.
+  - *(Built: the scroll story and a pointer-stirred liquid layer that bends the scene and the display type. It's on a preview link, waiting for the owner's look.)*
 
 - [x] Remove the line under the request field about keeping what's typed. The privacy page says it instead.
 - [x] Remove "Show the settings it wrote", which shifted the page.
