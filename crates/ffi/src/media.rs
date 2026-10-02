@@ -2,7 +2,6 @@
 //! a footnote's text for its popover, and colour tokens the palette
 //! doesn't carry, such as the grammar underlines'.
 
-
 use gasp_config::loader::CONFIG_DIR;
 use gasp_core::footnotes::{find_def, parse_footnotes};
 use gasp_vault::link_update::parent_dir;
