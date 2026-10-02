@@ -9,6 +9,7 @@ import {
   TextAa,
 } from "@phosphor-icons/react/dist/ssr";
 import type { Icon } from "@phosphor-icons/react";
+import { LiveText } from "./glyphs/LiveText";
 
 type Feature = { icon: Icon; name: string; detail: string };
 
@@ -29,7 +30,9 @@ export function FeatureGrid() {
       {FEATURES.map(({ icon: FeatureIcon, name, detail }) => (
         <li key={name}>
           <FeatureIcon size={28} className="text-ink" aria-hidden />
-          <p className="mt-3 font-bold">{name}</p>
+          <p className="mt-3 font-bold">
+            <LiveText text={name} />
+          </p>
           <p className="small mt-0.5 text-ink-muted">{detail}</p>
         </li>
       ))}

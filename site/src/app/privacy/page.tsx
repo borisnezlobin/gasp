@@ -46,7 +46,9 @@ const NEVER = [
 function Part({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-16">
-      <h2 className="subheading text-2xl">{title}</h2>
+      <h2 className="subheading text-2xl">
+        <LiveText text={title} />
+      </h2>
       <div className="body mt-4 space-y-4 text-ink-soft">{children}</div>
     </section>
   );

@@ -17,8 +17,12 @@ function FriendQuote() {
     <figure className="mx-auto max-w-7xl px-4 py-24 sm:px-8 lg:py-36">
       <blockquote>
         <p className="text-[clamp(3rem,11vw,9rem)] leading-[0.95] font-bold">
-          “It’s crazy fast.”
-          <span aria-hidden className="ml-[0.06em] inline-block h-[0.8em] w-[0.06em] translate-y-[0.08em] rounded-full bg-caret" />
+          <LiveText
+            text="“It’s crazy fast.”"
+            trailing={
+              <span aria-hidden className="ml-[0.06em] inline-block h-[0.8em] w-[0.06em] translate-y-[0.08em] rounded-full bg-caret" />
+            }
+          />
         </p>
         <p className="lede mt-8 text-ink-soft">“Works very well, very smooth, very cool.”</p>
       </blockquote>
