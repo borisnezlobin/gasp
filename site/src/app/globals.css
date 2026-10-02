@@ -113,6 +113,12 @@
     line-height: 0.86;
     font-size: var(--wordmark-size);
   }
+  .story-line {
+    font-weight: 700;
+    line-height: 1;
+    text-wrap: balance;
+    font-size: clamp(2rem, 5.5vw, 4.75rem);
+  }
   .heading {
     font-weight: 700;
     line-height: 1.1;
