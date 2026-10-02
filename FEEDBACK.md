@@ -168,6 +168,7 @@ Copy and layout
   - The next three (ruled page, the icon life-size, the whale parting the text) were the old hero rearranged, and not interesting. The background should be interesting, interactive and novel, like lusion.co.
   - *(Built: a 3D sea of word-capsules on simulated water with the real humpback under it, ripples from the pointer, and a breach where you click. It's on a preview link, waiting for the owner's look.)*
   - The site needs more wow-factor, like landonorris.com's helmet. Idea floated: a maximalist animation below the fold that says "it will make you gasp". Unsure whether an assault on the senses is right.
+  - [ ] Build the scroll sequence to lusion.co's standard: dive under the words, the whale swims toward you, breaches through, and the words land as the letters of "Gasp" under "It will make you". *(Agreed 2026-10-02.)*
 
 - [x] Remove the line under the request field about keeping what's typed. The privacy page says it instead.
 - [x] Remove "Show the settings it wrote", which shifted the page.
