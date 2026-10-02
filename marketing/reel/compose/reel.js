@@ -836,12 +836,27 @@ function endCard(t0, t1, o = {}) {
         text("gasp.app", { x: nameX + (HERO ? 6 : 0), y: lineY + (HERO ? 70 : 76), size: HERO ? 44 : 46, weight: 600,
           color: C.red, opacity: easeOut(clamp((after - 0.55) / 0.4, 0, 1)), align: HERO ? undefined : "center" });
         const f = easeOut(clamp((after - 0.8) / 0.5, 0, 1));
-        const foot = o.footnote;
-        text(foot, { x: HERO ? 120 : 80, y: HERO ? H - 118 : 1300, size: HERO ? 19 : 22, weight: 400,
-          color: C.inkSoft, opacity: f, width: HERO ? 1300 : W - 160, lineHeight: 1.4 });
-        text("Whale after a model by Gutarra Díaz, Stubbs, Moon, Palmer and Benton, CC BY 4.0.",
-          { x: HERO ? 120 : 80, y: HERO ? H - 56 : 1420, size: HERO ? 16 : 19, weight: 400, color: C.inkFaint,
-            opacity: f, width: HERO ? 1300 : W - 160 });
+        // The footnote and the credit in one column, laid out by the
+        // browser, so a longer footnote pushes the credit down instead of
+        // running into it. The column hangs from a fixed bottom edge.
+        const column = document.createElement("div");
+        const cs = column.style;
+        cs.position = "absolute";
+        cs.left = `${HERO ? 120 : 80}px`;
+        cs.width = `${HERO ? 1680 : W - 160}px`;
+        cs.bottom = `${HERO ? 44 : 440}px`;
+        cs.opacity = f;
+        TYPE().appendChild(column);
+        const note = text(o.footnote, { x: 0, y: 0, size: HERO ? 26 : 30, weight: 420, color: C.inkSoft,
+          lineHeight: 1.35, parent: column });
+        const credit = text("Whale after a model by Gutarra Díaz, Stubbs, Moon, Palmer and Benton, CC BY 4.0.",
+          { x: 0, y: 0, size: HERO ? 19 : 23, weight: 420, color: C.inkFaint, lineHeight: 1.3, parent: column });
+        for (const el of [note, credit]) {
+          el.style.position = "relative";
+          el.style.whiteSpace = "normal";
+          el.style.transform = "none";
+        }
+        credit.style.marginTop = `${HERO ? 12 : 16}px`;
       }
     },
   };
@@ -1020,7 +1035,7 @@ function verticalTimeline() {
     },
   }));
   cues.music.push([b(24), b(26.5), "pulse"]);
-  shots.push(endCard(b(26.5), 15.0, { footnote: m.footnote_short }));
+  shots.push(endCard(b(26.5), 15.0, { footnote: m.footnote }));
   cues.whoosh.push([b(26.5) + 0.03, 0.4]);
   cues.splash.push(b(26.5) + BREACH.land * 0.3);
   cues.hits.push(b(26.5) + BREACH.land);

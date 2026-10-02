@@ -123,17 +123,12 @@ def numbers(frames: Path, data: dict) -> dict:
         "keystroke_ms": f"{keystroke:.1f}",
         "search_ms": f"{search:.0f}",
         "notes": f"{notes:,}",
+        # Short enough for two lines at a size a phone can read; the
+        # README has the full method.
         "footnote": (
-            f"Measured on Linux in a 4-core cloud VM with software rendering (no GPU), on a vault of {notes:,} "
-            f"synthetic notes. Launch: one recorded take; the median of {len(measure['cold_start_runs'])} runs "
-            f"is {measure['cold_start_median_ms']:.0f} ms. Keystroke: median input to painted frame over 300 keys "
-            f"in a {lines:,}-line note. Search: the app's own timing of the full query. Software rendering draws "
-            "about three frames a second here, so the other shots were recorded one key per frame and play back "
-            "at typing speed."
-        ),
-        "footnote_short": (
-            f"Linux, 4-core cloud VM, software rendering, {notes:,}-note vault. Launch is one real-time take. "
-            "Other shots recorded one key per frame, played at typing speed."
+            f"Measured on a 4-core Linux VM with software rendering, {notes:,} notes. Launch shot in real time; "
+            f"other shots recorded one key per frame. Median of {len(measure['cold_start_runs'])} launches: "
+            f"{measure['cold_start_median_ms']:.0f} ms."
         ),
     }
 
