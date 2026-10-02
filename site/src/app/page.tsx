@@ -1,4 +1,4 @@
-import { SeaStory } from "@/components/hero/SeaStory";
+import { BreachHero } from "@/components/BreachHero";
 import { DownloadButton } from "@/components/DownloadButton";
 import { FeatureGrid } from "@/components/FeatureGrid";
 import { LaunchRace } from "@/components/LaunchRace";
@@ -30,9 +30,9 @@ export default function Home() {
     <>
       <SiteHeader />
       <main>
-        <SeaStory>
+        <BreachHero>
           <DownloadButton size="large" />
-        </SeaStory>
+        </BreachHero>
 
         <Section id="speed" title="Ready to edit in under half a second">
           <LaunchRace />
