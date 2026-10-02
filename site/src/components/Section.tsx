@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { LiveText } from "./glyphs/LiveText";
 
 type SectionProps = {
   id: string;
@@ -26,7 +27,7 @@ export function Section({ id, title, intro, children, layout = "stacked" }: Sect
       <div className={style.grid}>
         <div className={style.heading}>
           <h2 id={`${id}-title`} className="heading">
-            {title}
+            <LiveText text={title} />
           </h2>
           {intro && <div className="lede mt-4 text-ink-soft">{intro}</div>}
         </div>

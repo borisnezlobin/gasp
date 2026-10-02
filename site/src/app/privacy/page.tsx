@@ -7,6 +7,7 @@ import { InkImage } from "@/components/InkImage";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { REPO_URL } from "@/lib/site";
+import { LiveText } from "@/components/glyphs/LiveText";
 
 export const metadata: Metadata = {
   title: "Privacy",
@@ -56,7 +57,9 @@ export default function Privacy() {
     <>
       <SiteHeader />
       <main className="mx-auto max-w-3xl px-4 pt-12 pb-20 sm:px-8 lg:pt-20">
-        <h1 className="heading">Privacy</h1>
+        <h1 className="heading">
+          <LiveText text="Privacy" />
+        </h1>
         <p className="lede mt-6 text-ink-soft">
           Your notes live on your devices, and in your iCloud Drive or your own GitHub repository if you sync. We never see them. Gasp
           sends us one tiny message, at most once a day, so we can count how many people use it, and the Mac app asks us
