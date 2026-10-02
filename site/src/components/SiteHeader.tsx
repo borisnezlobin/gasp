@@ -7,7 +7,7 @@ import { DownloadButton } from "./DownloadButton";
 
 export function SiteHeader() {
   return (
-    <header className="mx-auto flex h-18 max-w-7xl items-center gap-2 px-4 sm:px-8">
+    <header className="relative z-10 mx-auto flex h-18 max-w-7xl items-center gap-2 px-4 sm:px-8">
       <Link href="/" className="-ml-1 flex items-center gap-2.5 rounded-lg p-1 text-xl font-bold">
         <Image src={icon} alt="" width={32} height={32} className="size-8" priority />
         Gasp

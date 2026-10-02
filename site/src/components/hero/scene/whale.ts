@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { ScenePalette } from "./palette";
+import type { WhalePose } from "./story";
 
 /** The humpback (`public/whale.glb`, 14 m, forward +x, up +y): shaded like
     the site's ink drawings, with a dark back and a pale belly and flippers,
@@ -44,17 +45,34 @@ function inkColours(geometry: THREE.BufferGeometry, palette: ScenePalette) {
   geometry.setAttribute("color", new THREE.BufferAttribute(colours, 3));
 }
 
-/** Mixes the whale into the paper the deeper below the surface it is. */
-function waterFade(material: THREE.MeshStandardMaterial, paper: THREE.Color) {
+/** The ink look: an edge drawn where the body turns away from the eye,
+    like the contour of a pen drawing, and, seen from above the water, the
+    whale mixed into the paper the deeper it swims. Under the water the
+    haze does that instead, so `uAbove` turns the fade off. */
+function inkShading(material: THREE.MeshStandardMaterial, palette: ScenePalette) {
+  const uniforms = {
+    uPaper: { value: new THREE.Color(palette.paper) },
+    uInk: { value: new THREE.Color(palette.whaleBack) },
+    uAbove: { value: 1 },
+  };
   material.onBeforeCompile = (shader) => {
-    shader.uniforms.uPaper = { value: paper };
+    Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nvarying float vSeaY;")
       .replace("#include <skinning_vertex>", "#include <skinning_vertex>\nvSeaY = (modelMatrix * vec4(transformed, 1.0)).y;");
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying float vSeaY;\nuniform vec3 uPaper;")
-      .replace("#include <dithering_fragment>", "gl_FragColor.rgb = mix(gl_FragColor.rgb, uPaper, smoothstep(0.3, -6.0, vSeaY) * 0.82);\n#include <dithering_fragment>");
+      .replace("#include <common>", "#include <common>\nvarying float vSeaY;\nuniform vec3 uPaper;\nuniform vec3 uInk;\nuniform float uAbove;")
+      .replace(
+        "#include <dithering_fragment>",
+        [
+          "float edge = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.6);",
+          "gl_FragColor.rgb = mix(gl_FragColor.rgb, uInk, edge * 0.65);",
+          "gl_FragColor.rgb = mix(gl_FragColor.rgb, uPaper, smoothstep(0.3, -6.0, vSeaY) * 0.82 * uAbove);",
+          "#include <dithering_fragment>",
+        ].join("\n"),
+      );
   };
+  return uniforms;
 }
 
 export class Whale {
@@ -67,7 +85,12 @@ export class Whale {
   private readonly position = new THREE.Vector3(18, SWIM_DEPTH, -14);
   private wander = 0;
 
-  private constructor(model: THREE.Object3D, clips: THREE.AnimationClip[], private readonly onSplash: SplashHandler) {
+  private constructor(
+    model: THREE.Object3D,
+    clips: THREE.AnimationClip[],
+    private readonly shading: ReturnType<typeof inkShading>,
+    private readonly onSplash: SplashHandler,
+  ) {
     this.root.add(model);
     this.mixer = new THREE.AnimationMixer(model);
     for (const clip of clips) this.actions.set(clip.name, this.mixer.clipAction(clip));
@@ -77,7 +100,7 @@ export class Whale {
   static async load(url: string, palette: ScenePalette, onSplash: SplashHandler): Promise<Whale> {
     const gltf = await new GLTFLoader().loadAsync(url);
     const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0 });
-    waterFade(material, new THREE.Color(palette.paper));
+    const shading = inkShading(material, palette);
     gltf.scene.traverse((part) => {
       if (!(part instanceof THREE.SkinnedMesh)) return;
       inkColours(part.geometry, palette);
@@ -85,7 +108,7 @@ export class Whale {
       part.castShadow = true;
       part.frustumCulled = false;
     });
-    return new Whale(gltf.scene, gltf.animations, onSplash);
+    return new Whale(gltf.scene, gltf.animations, shading, onSplash);
   }
 
   get isSwimming(): boolean {
@@ -95,6 +118,22 @@ export class Whale {
   /** Where the whale's back is, for the water above it to rise. */
   get back(): THREE.Vector3 {
     return this.position;
+  }
+
+  /** 1 while the camera is above the water, 0 once it's under. */
+  set aboveWater(amount: number) {
+    this.shading.uAbove.value = amount;
+  }
+
+  /** Puts the whale where the scroll story says, its tail beating as the
+      story's clock says; the free hero takes over again from there. */
+  follow(pose: WhalePose, clock: number) {
+    this.play("fast_swim_loop", 0);
+    this.mixer.setTime(clock);
+    this.position.copy(pose.position);
+    this.heading = pose.heading;
+    this.phase = { kind: "swimming" };
+    this.pose(pose.pitch, pose.roll);
   }
 
   /** Swims to (x, z) fast and breaches there. */
@@ -124,12 +163,12 @@ export class Whale {
     else this.recover(phase, dt);
   }
 
-  private play(name: string) {
+  private play(name: string, fade = 0.4) {
     if (name === this.playing) return;
     const next = this.actions.get(name);
     if (!next) return;
-    next.reset().fadeIn(0.4).play();
-    this.actions.get(this.playing)?.fadeOut(0.4);
+    next.reset().fadeIn(fade).play();
+    this.actions.get(this.playing)?.fadeOut(fade);
     this.playing = name;
   }
 
