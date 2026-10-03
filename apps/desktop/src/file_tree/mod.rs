@@ -9,6 +9,7 @@ mod keys;
 mod menu;
 mod model;
 mod render;
+mod selection;
 mod view;
 mod watch;
 
@@ -18,9 +19,10 @@ use gasp_vault::entries;
 pub use gasp_vault::ops;
 
 pub use entries::{Entry, EntryKind, SortOrder, display_name, natural_cmp};
-pub use keys::KEY_HINTS;
+pub use keys::{KEY_HINTS, key_hints};
 pub use menu::MenuItem;
 pub use model::{Row, TreeModel};
+pub use render::DraggedEntry;
 pub use view::{FileTree, FileTreeOptions};
 
 /// What the tree tells the workspace. Paths are absolute.

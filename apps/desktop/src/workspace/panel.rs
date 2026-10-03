@@ -124,7 +124,7 @@ impl Workspace {
             .any(|key| self.menu.is_open_at(key));
         let tree = self.file_tree.as_ref().is_some_and(|tree| {
             let tree = tree.read(cx);
-            tree.context_menu_items().is_some() || tree.pending_trash().is_some()
+            tree.context_menu_items().is_some() || !tree.pending_trash().is_empty()
         });
         own || tree
     }

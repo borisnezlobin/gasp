@@ -189,8 +189,18 @@ fn family_keys(members: &[&str; 4], cx: &App) -> Option<Vec<Glyph>> {
 /// The groups the sheet shows for `area`.
 /// Only commands `runs` accepts are listed.
 pub fn sheet_groups(area: FocusArea, runs: impl Fn(&str) -> bool, cx: &App) -> Vec<SheetGroup> {
-    let own: Vec<SheetRow> = area
-        .own_keys()
+    sheet_groups_with_own_keys(area, area.own_keys(), runs, cx)
+}
+
+/// The groups the sheet shows for `area`, with `own_keys` for the area's
+/// own keys, such as the file tree's as its settings word them.
+fn sheet_groups_with_own_keys(
+    area: FocusArea,
+    own_keys: &'static [(&'static str, &'static str)],
+    runs: impl Fn(&str) -> bool,
+    cx: &App,
+) -> Vec<SheetGroup> {
+    let own: Vec<SheetRow> = own_keys
         .iter()
         .filter_map(|(keys, title)| {
             Some(SheetRow {
@@ -362,7 +372,11 @@ impl Workspace {
     ) -> Option<AnyElement> {
         let area = self.sheet.shown?;
         let ui = ui_theme(cx);
-        let groups = sheet_groups(area, |id| self.can_run(id), cx);
+        let own_keys = match (area, self.file_tree()) {
+            (FocusArea::FileTree, Some(tree)) => tree.read(cx).key_hints(),
+            _ => area.own_keys(),
+        };
+        let groups = sheet_groups_with_own_keys(area, own_keys, |id| self.can_run(id), cx);
         // As many columns as fit the window; what doesn't fit its height
         // scrolls.
         let room = window.viewport_size().width - ui.space_xl * 4.;
