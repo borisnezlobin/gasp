@@ -152,10 +152,10 @@ Copy and layout
 - [x] Set up MCP in one click from Settings, never by editing JSON.
 - [x] Each window keeps its own vault's theme.
 - [x] Tell people about new versions and update in one click (checks gaspmd.com/api/version).
-- [ ] Cmd-click an item in the sidebar to move it.
-  - Chosen: Cmd-click selects several items, like Finder, and dragging or cutting moves the whole group.
+- [x] Cmd-click an item in the sidebar to move it.
+  - Chosen: Cmd-click selects several items, like Finder, and dragging or cutting moves the whole group. *(Shift-click picks a range; Escape clears it; trash works on the group too.)*
 - [x] A setting to open notes in new tabs, so Cmd-O opens a tab. *(Files and links → Open notes in new tabs. It covers the file list, Cmd-O and search; Cmd-Enter opens the other way.)*
-- [ ] Drag notes out of the sidebar the same way as dragging a note's title in the editor.
+- [x] Drag notes out of the sidebar the same way as dragging a note's title in the editor. *(Drop on the tab bar to open a tab there, on the note to open it next to the current tab, or on an edge to split.)*
 - [x] Checkmarks (connecting Claude and the like) shouldn't use the theme colour. *(They're green now, from a new `color.connected` token.)*
 - [x] Show whether iCloud is syncing; the owner on 0.2.1 can't tell.
   - The owner's vault syncs through GitHub, not iCloud (it's a git clone in ~/Documents). The sync popover now names the repository, like "borisnezlobin/notes on GitHub".
