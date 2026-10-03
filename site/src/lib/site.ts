@@ -5,6 +5,7 @@ export const RELEASES_URL = `${REPO_URL}/releases`;
 export const DOWNLOAD_PATH = "/download";
 export const PRIVACY_PATH = "/privacy";
 export const CREDITS_PATH = "/credits";
+export const CHANGELOG_PATH = "/changelog";
 
 export const WHALE_CREDIT = {
   authors: "Susana Gutarra Díaz, Thomas L. Stubbs, Benjamin C. Moon, Colin Palmer and Michael J. Benton",

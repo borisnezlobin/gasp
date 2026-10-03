@@ -1,7 +1,7 @@
 import Link from "next/link";
 import whaleDark from "@/assets/whale-swim-dark.png";
 import whaleLight from "@/assets/whale-swim-light.png";
-import { CREDITS_PATH, PRIVACY_PATH, REPO_URL } from "@/lib/site";
+import { CHANGELOG_PATH, CREDITS_PATH, PRIVACY_PATH, REPO_URL } from "@/lib/site";
 import { InkImage } from "./InkImage";
 import { RippleLines } from "./RippleLines";
 
@@ -34,6 +34,9 @@ export function SiteFooter() {
       <nav aria-label="More" className="small relative z-10 mt-14 flex flex-wrap gap-x-6 gap-y-2 text-ink-soft">
         <Link href={PRIVACY_PATH} className={linkStyle}>
           Privacy
+        </Link>
+        <Link href={CHANGELOG_PATH} className={linkStyle}>
+          Changelog
         </Link>
         <Link href={CREDITS_PATH} className={linkStyle}>
           Credits
