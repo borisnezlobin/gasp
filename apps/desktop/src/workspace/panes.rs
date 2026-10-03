@@ -47,11 +47,7 @@ impl Workspace {
             PaneEvent::OpenMenu(kind, anchor) => {
                 self.open_pane_menu(pane, *kind, anchor.clone(), window, cx)
             }
-            PaneEvent::DropTab {
-                from,
-                index,
-                target,
-            } => self.drop_tab(from, *index, pane, *target, window, cx),
+            PaneEvent::Drop { item, target } => self.drop_on_pane(item, pane, *target, window, cx),
         }
     }
 
