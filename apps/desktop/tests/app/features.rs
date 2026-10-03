@@ -98,6 +98,21 @@ fn quick_switcher_opens_a_note_by_typing(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn typing_on_a_new_tab_starts_a_search(cx: &mut TestAppContext) {
+    let vault = vault_with(&[("Alpha.md", "alpha text"), ("Beta.md", "beta text")]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "Alpha.md");
+    press(cx, "tab.new");
+    cx.simulate_keystrokes("b");
+    cx.run_until_parked();
+    assert!(has_modal::<QuickSwitcher>(&workspace, cx));
+    cx.simulate_input("eta");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(active_text(&workspace, cx).as_deref(), Some("beta text"));
+}
+
+#[gpui::test]
 fn quick_switcher_creates_a_missing_note(cx: &mut TestAppContext) {
     let vault = vault_with(&[("Alpha.md", "alpha")]);
     let (workspace, cx) = open_workspace(cx, vault.path());

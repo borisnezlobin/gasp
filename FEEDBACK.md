@@ -157,6 +157,7 @@ Copy and layout
 - [x] A setting to open notes in new tabs, so Cmd-O opens a tab. *(Files and links → Open notes in new tabs. It covers the file list, Cmd-O and search; Cmd-Enter opens the other way.)*
 - [x] Drag notes out of the sidebar the same way as dragging a note's title in the editor. *(Drop on the tab bar to open a tab there, on the note to open it next to the current tab, or on an edge to split.)*
 - [x] Checkmarks (connecting Claude and the like) shouldn't use the theme colour. *(They're green now, from a new `color.connected` token.)*
+- [x] On the new tab page, typing goes straight into the search. *(The first letter opens the note switcher with it already typed.)*
 - [x] Show whether iCloud is syncing; the owner on 0.2.1 can't tell.
   - The owner's vault syncs through GitHub, not iCloud (it's a git clone in ~/Documents). The sync popover now names the repository, like "borisnezlobin/notes on GitHub".
 
@@ -165,6 +166,7 @@ Copy and layout
 - [ ] A better drag-to-install window in the DMG: Gasp on the left, Applications on the right, a designed background with an arrow, no toolbar. *(Built; check the label positions when the next DMG opens.)*
 - [x] Publish 0.2.0.
 - [ ] Publish 0.2.1 (drafted, notarized): the agent tiles, the vault switcher and the new install window. It's the first release the one-click updater will offer, so check that it updates and relaunches cleanly.
+- [ ] Draft 0.2.2 on GitHub releases.
 - [x] Release notes stay short.
 
 ## Website, later rounds
