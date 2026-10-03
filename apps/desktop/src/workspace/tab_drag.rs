@@ -1,18 +1,22 @@
 //! Dragging tabs, on the pane's side: the tab that follows the pointer,
 //! the bar between tabs where it would go, and the highlight over the
-//! half of a note it would split off. The workspace moves the tab when
-//! it's dropped (see `tab_moves.rs`).
+//! half of a note it would split off. Notes dragged from the file tree
+//! land the same way. The workspace moves the tab or opens the notes when
+//! they're dropped (see `tab_moves.rs`).
 //!
 //! Every pane hears every move of a drag, so each handler redraws its
 //! pane only when the landing place changes.
+
+use std::path::Path;
 
 use gpui::{
     Animation, AnimationExt, AnyElement, Bounds, Context, DragMoveEvent, ElementId, Entity,
     MouseDownEvent, Pixels, Point, SharedString, Window, div, ease_out_quint, prelude::*, relative,
 };
 
-use super::pane::{DropState, Pane, PaneEvent, PaneMenu, TabTarget};
+use super::pane::{DropState, DroppedItem, Pane, PaneEvent, PaneMenu, TabTarget};
 use super::pane_tree::{DropZone, Rect};
+use crate::file_tree::DraggedEntry;
 use crate::ui::Selectable;
 use crate::ui::{MenuAnchor, popover, ui_theme};
 
@@ -25,6 +29,50 @@ pub struct DraggedTab {
     pub dirty: bool,
     /// The tab's width, so the stand-in matches it.
     pub width: Pixels,
+}
+
+/// Something a pane takes when it's dropped on its tab strip or note.
+pub(super) trait PaneDrop: 'static {
+    /// The dragged tab's index, when it's one of `pane`'s own.
+    fn own_tab(&self, _pane: &Entity<Pane>) -> Option<usize> {
+        None
+    }
+
+    /// What lands in the pane, or nothing when it takes none of it.
+    fn dropped_item(&self) -> Option<DroppedItem>;
+
+    /// Whether the pane takes anything from it, asked on every move.
+    fn droppable(&self) -> bool;
+}
+
+impl PaneDrop for DraggedTab {
+    fn own_tab(&self, pane: &Entity<Pane>) -> Option<usize> {
+        (self.pane == *pane).then_some(self.index)
+    }
+
+    fn dropped_item(&self) -> Option<DroppedItem> {
+        Some(DroppedItem::Tab {
+            from: self.pane.clone(),
+            index: self.index,
+        })
+    }
+
+    fn droppable(&self) -> bool {
+        true
+    }
+}
+
+/// Entries from the file tree: their notes open as tabs, and folders and
+/// other files are left out.
+impl PaneDrop for DraggedEntry {
+    fn dropped_item(&self) -> Option<DroppedItem> {
+        let notes: Vec<_> = self.notes().map(Path::to_path_buf).collect();
+        (!notes.is_empty()).then_some(DroppedItem::Notes(notes))
+    }
+
+    fn droppable(&self) -> bool {
+        self.notes().next().is_some()
+    }
 }
 
 /// The tab's stand-in: a lifted copy of the tab, hanging just below and
@@ -133,19 +181,36 @@ impl Pane {
         self.drop.slot.filter(|_| cx.has_active_drag())
     }
 
-    /// Follows a dragged tab over the tab bar.
-    pub(super) fn on_drag_over_tabs(
+    /// Lets the tab bar take dragged tabs and notes.
+    pub(super) fn catch_drops_on_tabs<E: InteractiveElement>(bar: E, cx: &mut Context<Self>) -> E {
+        bar.on_drag_move(cx.listener(Self::on_drag_over_tabs::<DraggedTab>))
+            .on_drag_move(cx.listener(Self::on_drag_over_tabs::<DraggedEntry>))
+            .on_drop(cx.listener(Self::on_drop_on_tabs::<DraggedTab>))
+            .on_drop(cx.listener(Self::on_drop_on_tabs::<DraggedEntry>))
+    }
+
+    /// Lets the note show where dragged tabs and notes would land.
+    pub(super) fn follow_drags_over_note<E: InteractiveElement>(
+        surface: E,
+        cx: &mut Context<Self>,
+    ) -> E {
+        surface
+            .on_drag_move(cx.listener(Self::on_drag_over_note::<DraggedTab>))
+            .on_drag_move(cx.listener(Self::on_drag_over_note::<DraggedEntry>))
+    }
+
+    /// Follows a dragged tab or note over the tab bar.
+    fn on_drag_over_tabs<D: PaneDrop>(
         &mut self,
-        event: &DragMoveEvent<DraggedTab>,
+        event: &DragMoveEvent<D>,
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let position = event.event.position;
         let dragged = event.drag(cx);
-        let own = (dragged.pane == cx.entity()).then_some(dragged.index);
-        let slot = event
-            .bounds
-            .contains(&position)
+        let own = dragged.own_tab(&cx.entity());
+        let over = dragged.droppable() && event.bounds.contains(&position);
+        let slot = over
             .then(|| self.slot_at(position.x))
             .filter(|slot| !moves_nowhere(own, *slot));
         if self.drop.slot != slot {
@@ -166,30 +231,32 @@ impl Pane {
             .unwrap_or(self.len())
     }
 
-    /// A tab dropped on the tab bar.
-    pub(super) fn on_drop_on_tabs(
+    /// A tab or note dropped on the tab bar.
+    fn on_drop_on_tabs<D: PaneDrop>(
         &mut self,
-        dragged: &DraggedTab,
+        dragged: &D,
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let own = (dragged.pane == cx.entity()).then_some(dragged.index);
+        let own = dragged.own_tab(&cx.entity());
         let slot = self.drop.slot.unwrap_or(self.len());
         if !moves_nowhere(own, slot) {
-            self.drop_tab(dragged, TabTarget::Slot(slot), cx);
+            self.drop_item(dragged, TabTarget::Slot(slot), cx);
         }
     }
 
-    /// Follows a dragged tab over the note.
-    pub(super) fn on_drag_over_note(
+    /// Follows a dragged tab or note over the note.
+    fn on_drag_over_note<D: PaneDrop>(
         &mut self,
-        event: &DragMoveEvent<DraggedTab>,
+        event: &DragMoveEvent<D>,
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let own = event.drag(cx).pane == cx.entity();
-        let zone =
-            zone_at(event.bounds, event.event.position).filter(|zone| self.takes_zone(*zone, own));
+        let dragged = event.drag(cx);
+        let own = dragged.own_tab(&cx.entity()).is_some();
+        let droppable = dragged.droppable();
+        let zone = zone_at(event.bounds, event.event.position)
+            .filter(|zone| droppable && self.takes_zone(*zone, own));
         if self.drop.zone != zone {
             self.drop.previous_zone = self.drop.zone;
             self.drop.zone = zone;
@@ -203,12 +270,10 @@ impl Pane {
         !own || (zone != DropZone::Centre && self.len() > 1)
     }
 
-    fn drop_tab(&mut self, dragged: &DraggedTab, target: TabTarget, cx: &mut Context<Self>) {
-        cx.emit(PaneEvent::DropTab {
-            from: dragged.pane.clone(),
-            index: dragged.index,
-            target,
-        });
+    fn drop_item<D: PaneDrop>(&mut self, dragged: &D, target: TabTarget, cx: &mut Context<Self>) {
+        if let Some(item) = dragged.dropped_item() {
+            cx.emit(PaneEvent::Drop { item, target });
+        }
     }
 
     /// The highlight over where a tab dropped on the note would land. It
@@ -243,9 +308,8 @@ impl Pane {
             .absolute()
             .inset_0()
             .p(ui.space_sm)
-            .on_drop(cx.listener(move |pane, dragged: &DraggedTab, _, cx| {
-                pane.drop_tab(dragged, TabTarget::Zone(zone), cx)
-            }))
+            .on_drop(cx.listener(drop_in_zone::<DraggedTab>(zone)))
+            .on_drop(cx.listener(drop_in_zone::<DraggedEntry>(zone)))
             .child(div().relative().size_full().child(highlight));
         Some(catcher.into_any_element())
     }
@@ -263,6 +327,13 @@ impl Pane {
             ));
         }
     }
+}
+
+/// What a drop on the highlighted `zone` of a note does.
+fn drop_in_zone<D: PaneDrop>(
+    zone: DropZone,
+) -> impl Fn(&mut Pane, &D, &mut Window, &mut Context<Pane>) {
+    move |pane, dragged, _, cx| pane.drop_item(dragged, TabTarget::Zone(zone), cx)
 }
 
 /// Whether putting a pane's own tab `own` at `slot` leaves it where it is.

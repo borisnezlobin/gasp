@@ -57,6 +57,39 @@ impl Workspace {
         Ok(())
     }
 
+    /// Opens `path` as a new tab of `pane` before the tab at `slot` (or
+    /// last), recording where the pane was for Back. A note the pane
+    /// already shows gets its tab shown instead. Returns whether a tab
+    /// was added.
+    pub(crate) fn open_in_pane_at(
+        &mut self,
+        pane: &Entity<Pane>,
+        path: &Path,
+        slot: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> io::Result<bool> {
+        let from = self.pane_location(pane, cx);
+        let existing = pane.read(cx).index_of_path(path, cx);
+        let added = match existing {
+            Some(index) => {
+                pane.update(cx, |pane, cx| pane.activate(index, cx));
+                false
+            }
+            None => {
+                let tab = self.note_tab(path, window, cx)?;
+                pane.update(cx, |pane, cx| pane.insert_tab(slot, tab, cx));
+                true
+            }
+        };
+        if let Some(from) = from.filter(|from| from.path != path) {
+            pane.update(cx, |pane, _| pane.history.push(from));
+        }
+        self.touch_recent(path);
+        self.activate_pane(pane, window, cx);
+        Ok(added)
+    }
+
     /// Shows `path` in `pane` without touching its history.
     pub(crate) fn show_path_in_pane(
         &mut self,

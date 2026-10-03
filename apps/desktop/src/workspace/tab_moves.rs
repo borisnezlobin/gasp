@@ -1,13 +1,94 @@
 //! Moving tabs between panes: dropping a dragged tab on a tab bar or a
-//! note, the move-tab commands, and closing tabs in bulk.
+//! note, opening notes dropped there from the file tree, the move-tab
+//! commands, and closing tabs in bulk.
+
+use std::path::PathBuf;
 
 use gpui::{Context, Entity, Window};
 
 use super::Workspace;
-use super::pane::{Pane, Tab, TabTarget};
+use super::pane::{DroppedItem, Pane, Tab, TabTarget};
 use super::pane_tree::{Direction, DropZone};
 
 impl Workspace {
+    /// A tab or notes were dropped on `target`.
+    pub(crate) fn drop_on_pane(
+        &mut self,
+        item: &DroppedItem,
+        target: &Entity<Pane>,
+        place: TabTarget,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match item {
+            DroppedItem::Tab { from, index } => {
+                self.drop_tab(from, *index, target, place, window, cx)
+            }
+            DroppedItem::Notes(paths) => self.drop_notes(paths, target, place, window, cx),
+        }
+    }
+
+    /// Notes from the file tree were dropped on `target`: they open as
+    /// tabs where a tab dropped there would go.
+    fn drop_notes(
+        &mut self,
+        paths: &[PathBuf],
+        target: &Entity<Pane>,
+        place: TabTarget,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.clear_tab_drops(cx);
+        let landing = match place {
+            TabTarget::Slot(slot) => Some((target.clone(), slot)),
+            TabTarget::Zone(DropZone::Centre) => Some((target.clone(), after_active(target, cx))),
+            TabTarget::Zone(DropZone::Side(side)) => self.split_for_notes(target, side, window, cx),
+        };
+        let Some((pane, slot)) = landing else {
+            return;
+        };
+        self.open_notes_at(&pane, paths, slot, window, cx);
+        if pane.read(cx).is_empty() {
+            self.handle_empty_pane(&pane, window, cx);
+        }
+        self.refresh_status(cx);
+        cx.notify();
+    }
+
+    /// A new, empty pane beside `target` toward `side`, and its first slot.
+    fn split_for_notes(
+        &mut self,
+        target: &Entity<Pane>,
+        side: Direction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<(Entity<Pane>, usize)> {
+        let pane = self.new_pane(window, cx);
+        self.panes.split_toward(target, pane.clone(), side)?;
+        Some((pane, 0))
+    }
+
+    /// Opens each note as a tab of `pane`, from `slot` on, in order.
+    fn open_notes_at(
+        &mut self,
+        pane: &Entity<Pane>,
+        paths: &[PathBuf],
+        mut slot: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        for path in paths {
+            let path = self.resolve(path);
+            match self.open_in_pane_at(pane, &path, slot, window, cx) {
+                Ok(true) => slot += 1,
+                Ok(false) => {}
+                Err(error) => {
+                    crate::notices::open_failed(&path, error, cx);
+                }
+            }
+        }
+    }
+
     /// A tab from `from` was dropped on `target`.
     pub(crate) fn drop_tab(
         &mut self,

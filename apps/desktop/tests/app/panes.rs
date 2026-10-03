@@ -5,12 +5,14 @@
 use std::path::Path;
 
 use gasp_config::device::{PaneLayout, SplitAxis};
+use gasp_config::settings::TrashMode;
 use gasp_desktop::actions::bind_keys;
+use gasp_desktop::file_tree::{FileTree, FileTreeOptions};
 use gasp_desktop::workspace::pane_tree::Direction;
 use gasp_desktop::workspace::{OpenIn, Pane, Workspace};
 use gpui::{
-    Bounds, Entity, Modifiers, MouseButton, MouseDownEvent, Pixels, Point, TestAppContext,
-    VisualTestContext, point, px,
+    AppContext, Bounds, Entity, Modifiers, MouseButton, MouseDownEvent, Pixels, Point,
+    TestAppContext, VisualTestContext, point, px,
 };
 use tempfile::TempDir;
 
@@ -416,4 +418,84 @@ fn a_split_starts_below_the_frontmatter(cx: &mut TestAppContext) {
         let cursor = cx.read(|cx| pane.read(cx).active_editor().unwrap().read(cx).cursor());
         assert_eq!(cursor, body, "the frontmatter shows as properties");
     }
+}
+
+/// A workspace with the file tree showing in the left panel.
+fn open_workspace_with_tree<'a>(
+    cx: &'a mut TestAppContext,
+    vault: &Path,
+) -> (Entity<Workspace>, &'a mut VisualTestContext) {
+    let root = vault.to_path_buf();
+    let (workspace, cx) = open_workspace(cx, vault);
+    cx.update(|window, cx| {
+        let options = FileTreeOptions {
+            trash: TrashMode::Vault,
+            watch: false,
+        };
+        let tree = cx.new(|cx| FileTree::with_options(root, options, window, cx));
+        workspace.update(cx, |workspace, cx| workspace.set_file_tree(tree, cx));
+    });
+    run(&workspace, cx, "sidebar.files.show");
+    (workspace, cx)
+}
+
+#[gpui::test]
+fn tree_drop_a_note_on_the_tab_strip_opens_it_at_that_slot(cx: &mut TestAppContext) {
+    let vault = vault_with(&["a.md", "b.md", "c.md"]);
+    let (workspace, cx) = open_workspace_with_tree(cx, vault.path());
+    open_tabs(&workspace, cx, &["a.md", "c.md"]);
+    let row = bounds(cx, "tree-row-b");
+    let c = bounds(cx, "tab-c");
+    drag(cx, row.center(), point(c.left() + px(4.), c.center().y));
+    assert_eq!(layout(&workspace, cx), vec![vec!["a", "b", "c"]]);
+    assert_eq!(active_title(&workspace, cx), "b");
+    // A note the pane already shows gets its tab shown, not a second one.
+    let row = bounds(cx, "tree-row-a");
+    let strip = bounds(cx, "tab-c");
+    drag(
+        cx,
+        row.center(),
+        point(strip.right() - px(4.), strip.center().y),
+    );
+    assert_eq!(layout(&workspace, cx), vec![vec!["a", "b", "c"]]);
+    assert_eq!(active_title(&workspace, cx), "a");
+}
+
+#[gpui::test]
+fn tree_drop_a_note_on_an_edge_of_the_note_splits_the_pane(cx: &mut TestAppContext) {
+    let vault = vault_with(&["a.md", "b.md"]);
+    let (workspace, cx) = open_workspace_with_tree(cx, vault.path());
+    open_tabs(&workspace, cx, &["a.md"]);
+    let surface = bounds(cx, "pane-surface");
+    let row = bounds(cx, "tree-row-b");
+    drag(
+        cx,
+        row.center(),
+        point(surface.right() - px(20.), surface.center().y),
+    );
+    assert_eq!(layout(&workspace, cx), vec![vec!["a"], vec!["b"]]);
+    assert_eq!(active_title(&workspace, cx), "b");
+}
+
+#[gpui::test]
+fn tree_drop_a_selection_opens_its_notes_and_skips_folders(cx: &mut TestAppContext) {
+    let vault = vault_with(&["a.md", "b.md", "c.md"]);
+    std::fs::create_dir(vault.path().join("Folder")).unwrap();
+    let (workspace, cx) = open_workspace_with_tree(cx, vault.path());
+    open_tabs(&workspace, cx, &["a.md"]);
+    let surface = bounds(cx, "pane-surface");
+    let middle = surface.center();
+    // A folder on its own lands nowhere.
+    let folder = bounds(cx, "tree-row-Folder");
+    drag(cx, folder.center(), middle);
+    assert_eq!(layout(&workspace, cx), vec![vec!["a"]]);
+    assert!(vault.path().join("Folder").is_dir());
+    for row in ["tree-row-Folder", "tree-row-b", "tree-row-c"] {
+        let row = bounds(cx, row);
+        cx.simulate_click(row.center(), Modifiers::secondary_key());
+    }
+    let row = bounds(cx, "tree-row-c");
+    drag(cx, row.center(), middle);
+    assert_eq!(layout(&workspace, cx), vec![vec!["a", "b", "c"]]);
+    assert!(vault.path().join("b.md").is_file(), "the notes stay put");
 }
