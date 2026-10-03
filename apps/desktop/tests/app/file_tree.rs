@@ -597,8 +597,8 @@ fn multi_select_cmd_click_picks_notes_that_drag_together(cx: &mut TestAppContext
     assert_eq!(
         picked(&tree, root, cx),
         [
-            PathBuf::from("Daily/Note 10.md"),
-            PathBuf::from("Daily/Note 2.md")
+            PathBuf::from("Daily/Note 2.md"),
+            PathBuf::from("Daily/Note 10.md")
         ]
     );
     click_row(cx, "tree-row-chart.png", Modifiers::none());
