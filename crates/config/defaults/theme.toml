@@ -31,6 +31,8 @@ focus-ring  = "{color.accent}"
 shadow      = "rgba(0, 0, 0, 0.12)"
 syncing     = "{color.gray-600}"
 conflict    = "#c62828"
+# A link to another app that works, such as an agent connected to the vault.
+connected   = "#1f8a4c"
 # The red caret in the app icon, which the welcome tour uses as its mark:
 # small marks only, never a fill.
 caret-mark  = "#c8283c"
@@ -185,6 +187,7 @@ selection   = "#3d3a35"
 hover       = "#262522"
 shadow      = "rgba(0, 0, 0, 0.45)"
 conflict    = "#ec6a5e"
+connected   = "#4cc27a"
 caret-mark  = "#f0616f"
 highlight   = "#4f4418"
 link-underline = "rgba(235, 231, 224, 0.4)"

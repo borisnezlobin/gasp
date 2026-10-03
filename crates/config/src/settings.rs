@@ -224,6 +224,9 @@ pub struct FileSettings {
     pub update_links_on_rename: bool,
     /// Where deleted files go.
     pub trash: TrashMode,
+    /// Whether a note opened from the file list, the switcher or search
+    /// gets a tab of its own instead of replacing the active tab's note.
+    pub open_in_new_tab: bool,
 }
 
 impl Default for FileSettings {
@@ -232,6 +235,7 @@ impl Default for FileSettings {
             attachments_folder: "./images".to_string(),
             update_links_on_rename: true,
             trash: TrashMode::System,
+            open_in_new_tab: false,
         }
     }
 }

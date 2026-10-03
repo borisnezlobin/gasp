@@ -40,6 +40,25 @@ impl Workspace {
         opened
     }
 
+    /// Where a note opened from the file list, the switcher or search goes.
+    /// `files.open-in-new-tab` picks a new tab or the active one, and
+    /// `flip` asks for the other. A blank tab is filled either way.
+    pub fn open_in_for(&self, flip: bool, cx: &gpui::App) -> OpenIn {
+        let new_tab = self.config().settings.files.open_in_new_tab != flip;
+        if new_tab && !self.active_tab_is_blank(cx) {
+            OpenIn::NewTab
+        } else {
+            OpenIn::ActiveTab
+        }
+    }
+
+    pub(crate) fn active_tab_is_blank(&self, cx: &gpui::App) -> bool {
+        self.active_pane
+            .read(cx)
+            .active_tab()
+            .is_some_and(|tab| tab.note().is_none())
+    }
+
     /// Opens `path` in `pane`, recording where the pane was for Back.
     pub(crate) fn open_in_pane(
         &mut self,

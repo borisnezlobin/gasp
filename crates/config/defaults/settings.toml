@@ -25,6 +25,7 @@ english  = "american"   # "american" | "british" | "canadian" | "australian"
 attachments-folder     = "./images"
 update-links-on-rename = true
 trash                  = "system"   # "system" | "vault" | "delete"
+open-in-new-tab        = false      # notes opened from the file list, Mod+O or search get their own tab
 
 [editor]
 show-inline-title  = true

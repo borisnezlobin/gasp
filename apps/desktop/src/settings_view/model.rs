@@ -274,6 +274,7 @@ pub const PAGES: &[PageSpec] = &[
         icon: IconName::Folder,
         group: "Writing",
         cards: &[
+            &[setting("files.open-in-new-tab")],
             &[
                 setting("files.attachments-folder"),
                 setting("files.update-links-on-rename"),

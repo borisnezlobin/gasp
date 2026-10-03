@@ -134,6 +134,7 @@ palette! {
     shadow = "color.shadow",
     syncing = "color.syncing",
     conflict = "color.conflict",
+    connected = "color.connected",
     /// The app icon's red caret: the welcome tour's mark.
     caret_mark = "color.caret-mark",
     highlight = "color.highlight",
@@ -2891,6 +2892,8 @@ pub struct SettingsTheme {
     pub knob: Hsla,
     pub focus_ring: Hsla,
     pub warning: Hsla,
+    /// The badge on an app that's connected to the vault.
+    pub connected: Hsla,
     /// The fill behind a control that asks once more before it removes.
     pub warning_fill: Hsla,
     pub shadow: Hsla,
@@ -3020,6 +3023,7 @@ impl SettingsTheme {
             knob: p.knob,
             focus_ring: p.focus(),
             warning: p.conflict,
+            connected: p.connected,
             warning_fill: p.conflict.opacity(0.12),
             shadow: p.shadow,
             accent_hover: over(p.accent.opacity(0.85), p.popover),

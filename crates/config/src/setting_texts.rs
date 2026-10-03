@@ -81,6 +81,11 @@ pub const SETTING_TEXTS: &[(&str, &str, &str)] = &[
         "Links to a note follow it when you rename or move it.",
     ),
     (
+        "files.open-in-new-tab",
+        "Open notes in new tabs",
+        "Notes you open from the file list, Mod+O or search get a tab of their own. Mod+Enter opens one in the current tab instead.",
+    ),
+    (
         "files.trash",
         "Deleted notes",
         "Where a note goes when you delete it.",
