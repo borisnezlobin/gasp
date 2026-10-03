@@ -182,7 +182,12 @@ fn install_file_tree(
     let _span = crate::trace::span("file-tree");
     let vault = workspace.vault().to_path_buf();
     let options = FileTreeOptions::from_settings(&workspace.config().settings.files);
-    let tree = cx.new(|cx| FileTree::with_options(vault, options, window, cx));
+    let opens_in_new_tab = workspace.config().settings.files.open_in_new_tab;
+    let tree = cx.new(|cx| {
+        let mut tree = FileTree::with_options(vault, options, window, cx);
+        tree.set_opens_in_new_tab(opens_in_new_tab, cx);
+        tree
+    });
     workspace.set_file_tree(tree.clone(), cx);
     let subscription = cx.subscribe_in(&tree, window, on_tree_event);
     features(cx).subscriptions.push(subscription);
@@ -876,7 +881,11 @@ fn on_setting_changed(workspace: &mut Workspace, key: &str, cx: &mut gpui::Conte
     let vault = workspace.vault().to_path_buf();
     if let Some(tree) = workspace.file_tree().cloned() {
         let options = crate::file_tree::FileTreeOptions::for_vault(&vault);
-        tree.update(cx, |tree, _| tree.set_options(options));
+        let opens_in_new_tab = workspace.config().settings.files.open_in_new_tab;
+        tree.update(cx, |tree, cx| {
+            tree.set_options(options);
+            tree.set_opens_in_new_tab(opens_in_new_tab, cx);
+        });
     }
 }
 
