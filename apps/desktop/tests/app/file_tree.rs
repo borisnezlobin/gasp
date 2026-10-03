@@ -318,9 +318,9 @@ fn delete_asks_first_then_trashes(cx: &mut TestAppContext) {
     select(&tree, root, "Note 10.md", cx);
     cx.simulate_keystrokes("delete");
     let pending = tree.read_with(cx, |tree, _| tree.pending_trash());
-    assert_eq!(pending, Some(root.join("Note 10.md")));
+    assert_eq!(pending, [root.join("Note 10.md")]);
     cx.simulate_keystrokes("escape");
-    assert!(tree.read_with(cx, |tree, _| tree.pending_trash().is_none()));
+    assert!(tree.read_with(cx, |tree, _| tree.pending_trash().is_empty()));
     assert!(root.join("Note 10.md").exists());
     cx.simulate_keystrokes("backspace enter");
     assert!(!root.join("Note 10.md").exists());
@@ -353,7 +353,7 @@ fn the_context_menu_works_from_the_keyboard(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("shift-f10 up enter");
     assert_eq!(
         tree.read_with(cx, |tree, _| tree.pending_trash()),
-        Some(root.join("Note 2.md"))
+        [root.join("Note 2.md")]
     );
 }
 
@@ -557,4 +557,118 @@ fn dragging_near_an_edge_scrolls_the_tree_until_the_drop(cx: &mut TestAppContext
     cx.simulate_mouse_move(bottom - point(px(0.), px(1.)), None, none);
     hold(cx);
     assert_eq!(row_top(cx, first), settled);
+}
+
+fn click_row(cx: &mut VisualTestContext, row: &'static str, modifiers: Modifiers) {
+    let bounds = cx.debug_bounds(row).expect("row is drawn");
+    cx.simulate_click(bounds.center(), modifiers);
+}
+
+fn picked(tree: &Entity<FileTree>, root: &Path, cx: &mut VisualTestContext) -> Vec<PathBuf> {
+    tree.read_with(cx, |tree, _| tree.multi_selected_paths())
+        .into_iter()
+        .map(|path| path.strip_prefix(root).unwrap().to_path_buf())
+        .collect()
+}
+
+#[gpui::test]
+fn multi_select_cmd_click_picks_notes_that_drag_together(cx: &mut TestAppContext) {
+    let dir = vault();
+    let root = dir.path();
+    let (tree, cx, events) = open(cx, root, false);
+    click_row(cx, "tree-row-Note 2", Modifiers::none());
+    events.borrow_mut().clear();
+    click_row(cx, "tree-row-Note 10", Modifiers::secondary_key());
+    assert!(events.borrow().is_empty(), "Cmd-click opens nothing");
+    assert_eq!(
+        picked(&tree, root, cx),
+        [PathBuf::from("Note 2.md"), PathBuf::from("Note 10.md")]
+    );
+    let from = cx.debug_bounds("tree-row-Note 10").unwrap().center();
+    let to = cx.debug_bounds("tree-row-Daily").unwrap().center();
+    let (none, left) = (Modifiers::none(), MouseButton::Left);
+    cx.simulate_mouse_down(from, left, none);
+    cx.simulate_mouse_move(from + point(px(0.), px(10.)), left, none);
+    cx.simulate_mouse_move(to, left, none);
+    cx.simulate_mouse_up(to, left, none);
+    cx.run_until_parked();
+    assert!(root.join("Daily/Note 2.md").is_file());
+    assert!(root.join("Daily/Note 10.md").is_file());
+    assert_eq!(
+        picked(&tree, root, cx),
+        [
+            PathBuf::from("Daily/Note 2.md"),
+            PathBuf::from("Daily/Note 10.md")
+        ]
+    );
+    click_row(cx, "tree-row-chart.png", Modifiers::none());
+    assert!(
+        picked(&tree, root, cx).is_empty(),
+        "a plain click clears it"
+    );
+}
+
+#[gpui::test]
+fn multi_select_shift_click_cuts_trashes_and_escape_clears(cx: &mut TestAppContext) {
+    let dir = vault();
+    let root = dir.path();
+    let (tree, cx, events) = open(cx, root, false);
+    click_row(cx, "tree-row-chart.png", Modifiers::none());
+    click_row(cx, "tree-row-Note 10", Modifiers::shift());
+    assert_eq!(
+        picked(&tree, root, cx),
+        ["chart.png", "Note 2.md", "Note 10.md"].map(PathBuf::from)
+    );
+    cx.simulate_keystrokes("secondary-x");
+    select(&tree, root, "Projects", cx);
+    cx.simulate_keystrokes("secondary-v");
+    for moved in [
+        "Projects/chart.png",
+        "Projects/Note 2.md",
+        "Projects/Note 10.md",
+    ] {
+        assert!(root.join(moved).is_file(), "{moved}");
+    }
+    cx.simulate_keystrokes("delete");
+    assert_eq!(tree.read_with(cx, |tree, _| tree.pending_trash()).len(), 3);
+    cx.simulate_keystrokes("enter");
+    assert!(!root.join("Projects/Note 2.md").exists());
+    assert!(root.join(".trash/Note 2.md").exists());
+    assert!(picked(&tree, root, cx).is_empty());
+
+    click_row(cx, "tree-row-Daily", Modifiers::none());
+    click_row(cx, "tree-row-Projects", Modifiers::secondary_key());
+    assert_eq!(picked(&tree, root, cx).len(), 2);
+    events.borrow_mut().clear();
+    cx.simulate_keystrokes("escape");
+    assert!(picked(&tree, root, cx).is_empty());
+    assert!(!events.borrow().contains(&FileTreeEvent::Dismissed));
+    cx.simulate_keystrokes("escape");
+    assert!(events.borrow().contains(&FileTreeEvent::Dismissed));
+}
+
+#[gpui::test]
+fn multi_select_survives_a_right_click_inside_it(cx: &mut TestAppContext) {
+    let dir = vault();
+    let root = dir.path();
+    let (tree, cx, _) = open(cx, root, false);
+    click_row(cx, "tree-row-Note 2", Modifiers::secondary_key());
+    click_row(cx, "tree-row-Note 10", Modifiers::secondary_key());
+    let right_click = |cx: &mut VisualTestContext, row: &'static str| {
+        let position = cx.debug_bounds(row).unwrap().center();
+        cx.simulate_event(gpui::MouseDownEvent {
+            position,
+            button: MouseButton::Right,
+            modifiers: Modifiers::default(),
+            click_count: 1,
+            first_mouse: false,
+        });
+        cx.run_until_parked();
+    };
+    right_click(cx, "tree-row-Note 2");
+    assert_eq!(picked(&tree, root, cx).len(), 2);
+    cx.simulate_keystrokes("escape");
+    right_click(cx, "tree-row-chart.png");
+    assert!(picked(&tree, root, cx).is_empty());
+    assert_eq!(selected(&tree, root, cx), Some("chart.png".into()));
 }

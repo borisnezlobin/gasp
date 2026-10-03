@@ -138,6 +138,15 @@ pub enum TabTarget {
     Zone(DropZone),
 }
 
+/// What lands on a pane when something is dropped on it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DroppedItem {
+    /// The tab at `index` of `from`.
+    Tab { from: Entity<Pane>, index: usize },
+    /// Notes from the file tree, relative to the vault, in order.
+    Notes(Vec<PathBuf>),
+}
+
 /// What the pane's own controls ask the workspace to do.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PaneEvent {
@@ -149,10 +158,9 @@ pub enum PaneEvent {
     /// Show this folder in the file tree.
     Reveal(PathBuf),
     OpenMenu(PaneMenu, MenuAnchor),
-    /// A tab from `from` was dropped on this pane.
-    DropTab {
-        from: Entity<Pane>,
-        index: usize,
+    /// A tab or notes were dropped on this pane.
+    Drop {
+        item: DroppedItem,
         target: TabTarget,
     },
 }
@@ -684,7 +692,7 @@ impl Render for Pane {
             .child(self.render_note_header(cx))
             .child(note_area)
             .children(bars.bottom)
-            .on_drag_move(cx.listener(Self::on_drag_over_note))
+            .map(|surface| Self::follow_drags_over_note(surface, cx))
             .children(self.render_drop_zone(cx));
         div()
             .id("pane")
