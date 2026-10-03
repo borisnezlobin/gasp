@@ -197,11 +197,7 @@ fn on_tree_event(
 ) {
     match event {
         FileTreeEvent::Open { path, new_tab } => {
-            let open_in = if *new_tab {
-                OpenIn::NewTab
-            } else {
-                OpenIn::ActiveTab
-            };
+            let open_in = workspace.open_in_for(*new_tab, cx);
             open_note(workspace, path, open_in, window, cx);
             tree.update(cx, |tree, cx| tree.set_active_path(Some(path), cx));
         }
@@ -629,11 +625,7 @@ fn on_switcher_event(
     let vault = workspace.vault().to_path_buf();
     match event {
         SwitcherEvent::Open { path, new_tab } => {
-            let open_in = if *new_tab {
-                OpenIn::NewTab
-            } else {
-                OpenIn::ActiveTab
-            };
+            let open_in = workspace.open_in_for(*new_tab, cx);
             open_note(workspace, &vault.join(path), open_in, window, cx);
         }
         SwitcherEvent::Create(name) => create_note(workspace, &vault, name, window, cx),
@@ -794,7 +786,8 @@ fn on_search_event(
     };
     let (path, offset) = (path.clone(), *offset);
     cx.defer_in(window, move |workspace, window, cx| {
-        open_note(workspace, &path, OpenIn::ActiveTab, window, cx);
+        let open_in = workspace.open_in_for(false, cx);
+        open_note(workspace, &path, open_in, window, cx);
         if let Some(editor) = workspace.active_editor(cx) {
             editor.update(cx, |editor, cx| editor.select(offset, offset, cx));
         }

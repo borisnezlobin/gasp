@@ -258,6 +258,9 @@ impl SyncIndicator {
                     .font_weight(self.style.strong_weight)
                     .child(headline),
             );
+        let destination = service
+            .remote_url()
+            .map(|url| render_destination(&Destination::of(url), ui));
         div()
             .id("sync-popover")
             .selector(|| "sync-popover".to_owned())
@@ -280,7 +283,14 @@ impl SyncIndicator {
             .font_family(ui.font_family.clone())
             .text_size(ui.small_font_size)
             .text_color(ui.text_muted)
-            .child(title)
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(ui.space_xs)
+                    .child(title)
+                    .children(destination),
+            )
             .children(explanation.map(|text| div().child(text)))
             .when(!runs.is_empty(), |panel| {
                 panel.child(div().flex().flex_col().gap(ui.space_md).children(runs))
@@ -369,6 +379,56 @@ fn render_run(
         .into_any_element()
 }
 
+/// Where the vault syncs to, so a git vault never reads as an iCloud one.
+#[derive(Debug, PartialEq, Eq)]
+enum Destination {
+    /// A GitHub repository, as `you/notes`.
+    GitHub(String),
+    /// Any other remote, by its address.
+    Elsewhere(String),
+}
+
+impl Destination {
+    fn of(url: &str) -> Self {
+        let trimmed = url.trim().trim_end_matches('/');
+        let trimmed = trimmed.strip_suffix(".git").unwrap_or(trimmed);
+        let github_path = [
+            "https://github.com/",
+            "http://github.com/",
+            "git@github.com:",
+            "ssh://git@github.com/",
+        ]
+        .iter()
+        .find_map(|prefix| trimmed.strip_prefix(prefix));
+        match github_path {
+            Some(path) => Destination::GitHub(path.to_owned()),
+            None => Destination::Elsewhere(trimmed.to_owned()),
+        }
+    }
+}
+
+fn render_destination(destination: &Destination, ui: &UiTheme) -> AnyElement {
+    let (glyph, text) = match destination {
+        Destination::GitHub(repository) => {
+            (IconName::GithubLogo, format!("{repository} on GitHub"))
+        }
+        Destination::Elsewhere(address) => (IconName::GitMerge, address.clone()),
+    };
+    div()
+        .flex()
+        .items_center()
+        .gap(ui.space_sm)
+        .min_w_0()
+        .child(
+            icon(glyph)
+                .flex_none()
+                .size(ui.small_icon_size)
+                .text_color(ui.text_muted),
+        )
+        .child(div().truncate().child(text))
+        .into_any_element()
+}
+
 /// "Received Wave Packets, Notes and 2 more."
 pub fn sentence(verb: &str, names: &[String], more: usize) -> SharedString {
     let mut parts: Vec<String> = names.to_vec();
@@ -412,6 +472,24 @@ impl Render for SyncIndicator {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_github_remote_is_named_by_its_repository() {
+        for url in [
+            "https://github.com/you/notes.git",
+            "https://github.com/you/notes/",
+            "git@github.com:you/notes.git",
+        ] {
+            assert_eq!(
+                Destination::of(url),
+                Destination::GitHub("you/notes".into())
+            );
+        }
+        assert_eq!(
+            Destination::of("https://git.example.com/notes.git"),
+            Destination::Elsewhere("https://git.example.com/notes".into())
+        );
+    }
 
     #[test]
     fn sentences_list_names_plainly() {

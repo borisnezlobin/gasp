@@ -165,7 +165,7 @@ fn stand_in_logo(app: ClientApp, style: &SettingsTheme) -> AnyElement {
 fn logo_badge(state: TileState, style: &SettingsTheme) -> Option<Div> {
     let (glyph, fill) = match state {
         TileState::Unreadable => (IconName::Warning, style.warning),
-        _ if state.is_connected() => (IconName::Check, style.accent),
+        _ if state.is_connected() => (IconName::Check, style.connected),
         _ => return None,
     };
     let offset = -style.gap_xs;

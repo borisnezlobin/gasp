@@ -177,12 +177,7 @@ impl Workspace {
     pub fn new_note(&mut self, window: &mut Window, cx: &mut Context<Self>) -> io::Result<PathBuf> {
         let path = unique_untitled(&self.vault);
         atomic_write(&path, "")?;
-        let empty_tab = self
-            .active_pane
-            .read(cx)
-            .active_tab()
-            .is_some_and(|tab| tab.note().is_none());
-        let open_in = if empty_tab {
+        let open_in = if self.active_tab_is_blank(cx) {
             OpenIn::ActiveTab
         } else {
             OpenIn::NewTab
