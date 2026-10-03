@@ -105,7 +105,7 @@ impl Workspace {
             .mcp
             .endpoint
             .clone()
-            .or_else(|| Endpoint::for_vault(&vault))?;
+            .or_else(|| bridge_endpoint(&vault))?;
         let (sender, mut jobs) = unbounded::<Job>();
         let listener = match BridgeListener::start(endpoint, move |request| ask(&sender, request)) {
             Ok(listener) => listener,
@@ -324,5 +324,14 @@ fn cursor_state(editor: &Entity<EditorView>, cx: &App) -> CursorState {
             + 1,
         anchor,
         selection: text.get(selected).unwrap_or_default().to_string(),
+    }
+}
+
+/// Where the bridge listens for `vault`: the user's folders, or the
+/// tests' own while they keep the app's folders aside.
+fn bridge_endpoint(vault: &Path) -> Option<Endpoint> {
+    match crate::sandbox::kept_app_folder("mcp") {
+        Some(dir) => Some(Endpoint::in_dir(&dir, vault)),
+        None => Endpoint::for_vault(vault),
     }
 }

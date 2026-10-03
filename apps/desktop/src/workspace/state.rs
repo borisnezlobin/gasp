@@ -84,9 +84,11 @@ impl AppState {
     }
 
     /// Puts `vault` first in the recent list and makes it the last one.
+    /// Temporary vaults that older versions remembered drop out.
     pub fn opened(&mut self, vault: &Path) {
         self.last_vault = Some(vault.to_path_buf());
-        self.recent_vaults.retain(|recent| recent != vault);
+        self.recent_vaults
+            .retain(|recent| recent != vault && !super::vault_choices::is_temporary(recent));
         self.recent_vaults.insert(0, vault.to_path_buf());
         self.recent_vaults.truncate(MAX_RECENT_VAULTS);
     }
@@ -202,6 +204,29 @@ mod tests {
         assert_eq!(state.last_vault, Some(PathBuf::from("a")));
         let old: AppState = toml::from_str("last-vault = \"x\"\n").unwrap();
         assert!(old.recent_vaults.is_empty());
+    }
+
+    #[test]
+    fn opening_a_vault_forgets_temporary_ones() {
+        let throwaway = std::env::temp_dir().join("stand-in-icloud/Gasp");
+        let mut state = AppState {
+            recent_vaults: vec![throwaway, PathBuf::from("/Users/you/Notes")],
+            ..AppState::default()
+        };
+        state.opened(Path::new("/Users/you/Work"));
+        assert_eq!(
+            state.recent_vaults,
+            [
+                PathBuf::from("/Users/you/Work"),
+                PathBuf::from("/Users/you/Notes")
+            ]
+        );
+    }
+
+    #[test]
+    fn tests_keep_the_state_file_out_of_the_persons_folders() {
+        let path = AppState::default_path().unwrap();
+        assert!(path.starts_with(std::env::temp_dir()), "{path:?}");
     }
 
     #[test]

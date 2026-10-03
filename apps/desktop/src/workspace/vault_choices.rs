@@ -21,11 +21,17 @@ const ICLOUD_DRIVE: &str = "Library/Mobile Documents/com~apple~CloudDocs";
 /// test or a scratch run left it rather than someone choosing it.
 pub fn is_temporary(path: &Path) -> bool {
     let temp = std::env::temp_dir();
-    let canonical_temp = temp.canonicalize().unwrap_or(temp);
+    let canonical_temp = temp.canonicalize().unwrap_or_else(|_| temp.clone());
     let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-    [canonical_temp.as_path(), Path::new("/private/var/folders"), Path::new("/private/tmp"), Path::new("/tmp")]
-        .iter()
-        .any(|folder| canonical.starts_with(folder) || path.starts_with(folder))
+    [
+        temp.as_path(),
+        canonical_temp.as_path(),
+        Path::new("/private/var/folders"),
+        Path::new("/private/tmp"),
+        Path::new("/tmp"),
+    ]
+    .iter()
+    .any(|folder| canonical.starts_with(folder) || path.starts_with(folder))
 }
 
 /// The switcher's vaults from `recent` (most recent first), leaving out
@@ -70,7 +76,10 @@ fn same_folder(path: &Path) -> PathBuf {
 fn location_of(vault: &Path, home: Option<&Path>) -> String {
     let parent = vault.parent().unwrap_or(vault);
     let icloud = home.map(|home| home.join(ICLOUD_DRIVE));
-    if let Some(rest) = icloud.as_deref().and_then(|drive| parent.strip_prefix(drive).ok()) {
+    if let Some(rest) = icloud
+        .as_deref()
+        .and_then(|drive| parent.strip_prefix(drive).ok())
+    {
         return match rest.as_os_str().is_empty() {
             true => "iCloud Drive".to_owned(),
             false => format!("iCloud Drive/{}", rest.display()),
@@ -106,14 +115,25 @@ mod tests {
             .collect();
         assert_eq!(
             shown,
-            [("Gasp", Some("iCloud Drive")), ("Gasp", Some("~/Documents")), ("Vault", None)]
+            [
+                ("Gasp", Some("iCloud Drive")),
+                ("Gasp", Some("~/Documents")),
+                ("Vault", None)
+            ]
         );
     }
 
     #[test]
     fn the_open_vault_gone_folders_and_repeats_are_left_out() {
-        let recent = paths(&["/Users/ana/Notes", "/Users/ana/Old", "/Users/ana/Work", "/Users/ana/Work"]);
-        let choices = vault_choices(&recent, Path::new("/Users/ana/Notes"), None, |path| !path.ends_with("Old"));
+        let recent = paths(&[
+            "/Users/ana/Notes",
+            "/Users/ana/Old",
+            "/Users/ana/Work",
+            "/Users/ana/Work",
+        ]);
+        let choices = vault_choices(&recent, Path::new("/Users/ana/Notes"), None, |path| {
+            !path.ends_with("Old")
+        });
         let names: Vec<&str> = choices.iter().map(|choice| choice.name.as_str()).collect();
         assert_eq!(names, ["Work"]);
     }
@@ -124,7 +144,9 @@ mod tests {
         let vault = scratch.path().join("Gasp");
         std::fs::create_dir(&vault).unwrap();
         assert!(is_temporary(&vault));
-        assert!(is_temporary(Path::new("/private/var/folders/xy/abc/T/Gasp")));
+        assert!(is_temporary(Path::new(
+            "/private/var/folders/xy/abc/T/Gasp"
+        )));
         assert!(!is_temporary(Path::new("/Users/ana/Documents/Gasp")));
         let choices = vault_choices(&[vault], Path::new("/Users/ana/Notes"), None, |_| true);
         assert!(choices.is_empty());

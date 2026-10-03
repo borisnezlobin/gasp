@@ -85,6 +85,7 @@ x11rb = "0.13"
 rustix = { version = "1", default-features = false, features = ["std", "system", "time", "mm"] }
 
 [dev-dependencies]
+ctor = "0.4"
 gpui = { version = "=0.2.2", features = ["test-support"] }
 tempfile = "3"
 

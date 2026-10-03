@@ -4,7 +4,6 @@
 
 use gasp_config::CONFIG_DIR;
 use std::path::Path;
-use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use gasp_config::Platform;
@@ -16,23 +15,10 @@ use gasp_desktop::hover::PreviewContent;
 use gasp_desktop::keymap::all_bindings;
 use gasp_desktop::prose::CHECK_DELAY;
 use gasp_desktop::recovery::dialog::RecoveryDialog;
-use gasp_desktop::recovery::store::use_data_dir;
 use gasp_desktop::workspace::{OpenIn, Workspace};
 use gasp_prose::{FlagKind, Length};
 use gpui::{Entity, Modifiers, TestAppContext, VisualTestContext};
 use tempfile::TempDir;
-
-/// Snapshots from these tests go to a folder of their own, never the
-/// real data folder.
-fn data_dir() -> &'static Path {
-    static DIR: OnceLock<TempDir> = OnceLock::new();
-    DIR.get_or_init(|| {
-        let dir = tempfile::tempdir().unwrap();
-        use_data_dir(dir.path().to_path_buf());
-        dir
-    })
-    .path()
-}
 
 fn vault_with(text: &str) -> TempDir {
     let vault = tempfile::tempdir().unwrap();
@@ -58,7 +44,6 @@ fn open_workspace<'a>(
     cx: &'a mut TestAppContext,
     vault: &Path,
 ) -> (Entity<Workspace>, &'a mut VisualTestContext) {
-    data_dir();
     cx.update(|cx| {
         bind_keys(cx);
         features::bind_view_keys(cx);

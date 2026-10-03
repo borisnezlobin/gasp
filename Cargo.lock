@@ -3864,6 +3864,7 @@ name = "gasp-desktop"
 version = "0.2.1"
 dependencies = [
  "anyhow",
+ "ctor",
  "dirs 5.0.1",
  "emojis",
  "env_logger",
