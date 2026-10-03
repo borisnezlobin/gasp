@@ -34,12 +34,35 @@ pub struct Sandbox {
 }
 
 static SANDBOX: OnceLock<Sandbox> = OnceLock::new();
+static APP_FOLDERS_ROOT: OnceLock<PathBuf> = OnceLock::new();
 
 /// Puts the app in `sandbox` for the rest of the process. Only the first
 /// call counts.
 pub fn enter(sandbox: Sandbox) {
     gasp_vault::recovery::use_data_dir(sandbox.data_root.join("data"));
     SANDBOX.get_or_init(|| sandbox);
+}
+
+/// Keeps the app's own folders (the state file, caches and recovery
+/// snapshots) under `root` for the rest of the process, so tests never
+/// read or write the person's. Unlike [`enter`], nothing else changes.
+pub fn keep_app_folders_in(root: PathBuf) {
+    gasp_vault::recovery::use_data_dir(root.join("data"));
+    APP_FOLDERS_ROOT.get_or_init(|| root);
+}
+
+/// Where test runs keep the app's own folders: one shared folder in the
+/// system's temp folder, like the recovery store's throwaway data.
+pub fn keep_app_folders_for_tests() {
+    let root =
+        std::env::temp_dir().join(concat!(gasp_config::command_name!(), "-test-app-folders"));
+    keep_app_folders_in(root);
+}
+
+/// The app's folder named `name` while tests keep the app's folders
+/// aside, for folders another crate would otherwise find on its own.
+pub fn kept_app_folder(name: &str) -> Option<PathBuf> {
+    APP_FOLDERS_ROOT.get().map(|root| root.join(name))
 }
 
 /// Whether this is a snapshot run.
@@ -86,8 +109,12 @@ pub fn folder(name: &str) -> Option<PathBuf> {
 }
 
 fn app_folder(kind: &str, system: fn() -> Option<PathBuf>) -> Option<PathBuf> {
-    match SANDBOX.get() {
-        Some(sandbox) => Some(sandbox.data_root.join(kind)),
+    let kept_root = SANDBOX
+        .get()
+        .map(|sandbox| &sandbox.data_root)
+        .or_else(|| APP_FOLDERS_ROOT.get());
+    match kept_root {
+        Some(root) => Some(root.join(kind)),
         None => system().map(|base| base.join(APP_FOLDER)),
     }
 }

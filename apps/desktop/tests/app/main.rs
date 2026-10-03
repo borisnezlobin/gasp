@@ -1,6 +1,14 @@
 //! The desktop app's integration tests, built as one program: each file
 //! here used to be its own test binary, and every one linked the whole app.
 
+/// Before any test runs, the app's own folders move to a temporary one,
+/// so no test reads or writes the person's state file, caches or
+/// recovery snapshots.
+#[ctor::ctor]
+fn keep_app_folders_out_of_the_way() {
+    gasp_desktop::sandbox::keep_app_folders_for_tests();
+}
+
 mod agent_apps;
 mod edit_time;
 mod editor_view;

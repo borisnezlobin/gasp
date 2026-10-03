@@ -87,3 +87,11 @@ pub mod workspace;
 mod x11_wake;
 
 pub use editor::{EditorEvent, EditorView, HighlightKind};
+
+/// Unit tests keep the app's own folders out of the person's, as the
+/// integration tests do.
+#[cfg(test)]
+#[ctor::ctor]
+fn keep_app_folders_out_of_the_way() {
+    sandbox::keep_app_folders_for_tests();
+}

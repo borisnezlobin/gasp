@@ -4,7 +4,6 @@
 //! bar says it.
 
 use std::path::Path;
-use std::sync::OnceLock;
 use std::time::Duration;
 
 use gasp_desktop::actions::bind_keys;
@@ -15,22 +14,10 @@ use gpui::{Entity, TestAppContext, VisualTestContext};
 
 const NOTE: &str = "---\ntitle: Waves\nedited_seconds: 600\n---\n# Waves\n\nText.\n";
 
-/// Snapshots from these tests go to a folder of their own, never the
-/// real data folder.
-fn data_dir() {
-    static DIR: OnceLock<tempfile::TempDir> = OnceLock::new();
-    DIR.get_or_init(|| {
-        let dir = tempfile::tempdir().unwrap();
-        gasp_desktop::recovery::store::use_data_dir(dir.path().to_path_buf());
-        dir
-    });
-}
-
 fn open_workspace<'a>(
     cx: &'a mut TestAppContext,
     vault: &Path,
 ) -> (Entity<Workspace>, &'a mut VisualTestContext) {
-    data_dir();
     cx.update(|cx| {
         bind_keys(cx);
         features::bind_view_keys(cx);

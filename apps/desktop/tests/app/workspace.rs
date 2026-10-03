@@ -702,3 +702,9 @@ fn modals_close_on_escape_and_click_outside_and_give_focus_back(cx: &mut TestApp
     assert!(!modal_open(cx));
     let _ = MouseButton::Left;
 }
+
+#[test]
+fn tests_keep_the_state_file_out_of_the_persons_folders() {
+    let path = gasp_desktop::workspace::state::AppState::default_path().unwrap();
+    assert!(path.starts_with(std::env::temp_dir()), "{path:?}");
+}
