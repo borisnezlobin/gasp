@@ -197,4 +197,4 @@ Copy and layout
 - [x] Log what people asked the demo, viewable on the stats page. *(Retired with the demo.)*
 - [x] Folding: say how to fold in the demo window, not only with a shortcut the site can't use.
 - [x] Accept colour names like "orange".
-- [ ] A changelog page on gaspmd.com that shows every GitHub release's notes. *(Built at /changelog and linked from the footer. It's on a preview link, waiting for the owner's look.)*
+- [x] A changelog page on gaspmd.com that shows every GitHub release's notes. *(Live at gaspmd.com/changelog since 2026-10-03, linked from the footer.)*
