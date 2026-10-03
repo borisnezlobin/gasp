@@ -166,7 +166,8 @@ Copy and layout
 - [ ] A better drag-to-install window in the DMG: Gasp on the left, Applications on the right, a designed background with an arrow, no toolbar. *(Built; check the label positions when the next DMG opens.)*
 - [x] Publish 0.2.0.
 - [ ] Publish 0.2.1 (drafted, notarized): the agent tiles, the vault switcher and the new install window. It's the first release the one-click updater will offer, so check that it updates and relaunches cleanly.
-- [ ] Draft 0.2.2 on GitHub releases. *(Drafted with notes; the notarized DMG goes up once the Mac is unlocked, since notarizing can't read the keychain while the screen is locked.)*
+- [x] Draft 0.2.2 on GitHub releases. *(Drafted with notes and a notarized, stapled DMG.)*
+- [ ] Publish 0.2.2.
 - [x] Release notes stay short.
 
 ## Website, later rounds
