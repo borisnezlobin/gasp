@@ -2,7 +2,7 @@
 //! one, over the notes opened most recently as cards. Each card is drawn
 //! from its note's opening lines (see [`super::note_shape`]), so notes
 //! tell apart by their layout. The arrows move between cards and Enter
-//! opens one.
+//! opens one. Typing a letter starts a search, as if in the find field.
 //!
 //! The cards start with this session's notes and fill up with the
 //! vault's most recently changed ones, which are found off the main
@@ -47,6 +47,11 @@ const SHAPE_LINES: usize = 8;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpenRecent(pub PathBuf);
 
+/// The launcher asks for the quick switcher, already holding what was
+/// typed on it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SearchFrom(pub String);
+
 pub struct Launcher {
     focus_handle: FocusHandle,
     vault: PathBuf,
@@ -62,6 +67,7 @@ pub struct Launcher {
 }
 
 impl EventEmitter<OpenRecent> for Launcher {}
+impl EventEmitter<SearchFrom> for Launcher {}
 
 impl Focusable for Launcher {
     fn focus_handle(&self, _: &App) -> FocusHandle {
@@ -192,6 +198,11 @@ impl Launcher {
 
     fn on_key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         let keystroke = &event.keystroke;
+        if let Some(typed) = typed_text(keystroke) {
+            cx.emit(SearchFrom(typed.to_owned()));
+            cx.stop_propagation();
+            return;
+        }
         if keystroke.modifiers.modified() {
             return;
         }
@@ -363,6 +374,21 @@ fn bar(width: Pixels, height: Pixels, color: gpui::Hsla) -> gpui::Div {
         .h(height)
         .rounded_full()
         .bg(color)
+}
+
+/// The text a keystroke types, when it types any: a letter, digit or mark,
+/// with Shift at most. Space and Enter stay keys.
+fn typed_text(keystroke: &gpui::Keystroke) -> Option<&str> {
+    let modifiers = &keystroke.modifiers;
+    if modifiers.control || modifiers.alt || modifiers.platform || modifiers.function {
+        return None;
+    }
+    keystroke.key_char.as_deref().filter(|text| {
+        !text.is_empty()
+            && text
+                .chars()
+                .all(|ch| !ch.is_whitespace() && !ch.is_control())
+    })
 }
 
 /// The field that opens the quick switcher, drawn as the search field it

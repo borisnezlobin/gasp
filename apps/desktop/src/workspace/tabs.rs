@@ -7,7 +7,7 @@ use gpui::{AppContext, Context, Entity, PromptLevel, Window};
 
 use super::files::note_title;
 use super::history::Location;
-use super::launcher::{Launcher, MAX_RECENT, OpenRecent};
+use super::launcher::{Launcher, MAX_RECENT, OpenRecent, SearchFrom};
 use super::note_doc::NoteDoc;
 use super::pane::{NoteTab, Pane, Tab, TabContent};
 use super::{MAX_CLOSED_TABS, OpenIn, Workspace};
@@ -255,8 +255,11 @@ impl Workspace {
             Some(found) => Launcher::with_found(&vault, recent, found, cx),
             None => Launcher::new(&vault, recent, cx),
         });
-        let subscription = cx.subscribe_in(&launcher, window, Self::on_open_recent);
-        let tab = Tab::new(TabContent::Launcher(launcher), vec![subscription]);
+        let subscriptions = vec![
+            cx.subscribe_in(&launcher, window, Self::on_open_recent),
+            cx.subscribe_in(&launcher, window, Self::on_search_from_launcher),
+        ];
+        let tab = Tab::new(TabContent::Launcher(launcher), subscriptions);
         pane.update(cx, |pane, cx| pane.add_tab(tab, cx));
         self.activate_pane(pane, window, cx);
     }
@@ -282,6 +285,23 @@ impl Workspace {
             let tab = pane.update(cx, |pane, cx| pane.remove_tab(index, cx));
             drop(tab);
             self.focus_active(window, cx);
+        }
+    }
+
+    /// Opens the quick switcher with what was typed on a launcher in it.
+    fn on_search_from_launcher(
+        &mut self,
+        _: &Entity<Launcher>,
+        event: &SearchFrom,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.run_command("switcher.open", window, cx) {
+            return;
+        }
+        if let Some(switcher) = self.active_modal::<crate::switcher::QuickSwitcher>() {
+            let picker = switcher.read(cx).picker().clone();
+            picker.update(cx, |picker, cx| picker.set_query(&event.0, cx));
         }
     }
 
