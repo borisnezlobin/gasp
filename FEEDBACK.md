@@ -172,12 +172,12 @@ Copy and layout
   - [ ] Use shaders and pointer-driven interaction throughout. The text itself should feel liquid.
   - *(Built: the scroll story and a pointer-stirred liquid layer that bends the scene and the display type. It's on a preview link, waiting for the owner's look.)*
   - The scroll story and the 3D sea missed. *(Reverted to what's live on 2026-10-02.)*
-- [ ] Remove the breach from the hero, which reads as sloppy. The whale keeps swimming under the lines.
-- [ ] Make "bubbly" glyphs the site's motif. They should be fluid and dynamic, with the whale's ripple shader, and react to the cursor up close.
+- [x] Remove the breach from the hero, which reads as sloppy. The whale keeps swimming under the lines.
+- [x] Make "bubbly" glyphs the site's motif. They should be fluid and dynamic, with the whale's ripple shader, and react to the cursor up close.
   - Chosen: the wordmark and section headings are live glyphs, and a light drift of loose glyphs rises between sections. Body text stays still.
   - Chosen: glyphs lean toward the cursor from a distance and part around it up close.
   - Chosen: soft and wobbly, squishing and jiggling like jelly when pushed.
-  - *(Built: the breach is gone and the whale only swims. Headings and the wordmark are soft glyphs, and Markdown marks rise through every page. It's on a preview link, waiting for the owner's look.)*
+  - *(Built: the breach is gone and the whale only swims. Headings and the wordmark are soft glyphs, and Markdown marks rise through every page. Live on gaspmd.com since 2026-10-02.)*
   - [x] The rising marks should scroll with the page, not float in a fixed layer.
   - [x] Put the marks throughout the whole page, and use the soft-glyph blobbing on more of the page's text.
 
