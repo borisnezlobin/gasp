@@ -18,6 +18,7 @@ use super::keys::TypeAhead;
 use super::menu::{ContextMenu, MenuItem};
 use super::model::{Row, TreeModel};
 use super::ops::{self, validate_name};
+use super::selection::{MultiSelection, RowClick, moved_path, outermost, planned_moves};
 use super::watch::{self, VaultWatcher};
 use crate::text_input::{TextInput, TextInputEvent, TextInputStyle};
 
@@ -75,16 +76,20 @@ pub struct FileTree {
     pub(super) focus_handle: FocusHandle,
     pub(super) model: TreeModel,
     pub(super) selected: Option<PathBuf>,
+    /// Rows picked together with Cmd- and Shift-click.
+    pub(super) multi: MultiSelection,
     pub(super) active: Option<PathBuf>,
     pub(super) scroll: UniformListScrollHandle,
     /// Scrolling toward the edge a drag is held at.
     pub(super) autoscroll: Option<Task<()>>,
     pub(super) edit: Option<InlineEdit>,
-    pub(super) pending_trash: Option<PathBuf>,
+    pub(super) pending_trash: Vec<PathBuf>,
     pub(super) menu: Option<ContextMenu>,
-    pub(super) cut: Option<PathBuf>,
+    pub(super) cut: Vec<PathBuf>,
     pub(super) type_ahead: TypeAhead,
     pub(super) options: FileTreeOptions,
+    /// Whether a plain open goes to a new tab, which flips what Mod+Enter does.
+    opens_in_new_tab: bool,
     _watcher: Option<VaultWatcher>,
     _watch_task: Option<Task<()>>,
 }
@@ -125,15 +130,17 @@ impl FileTree {
                 TreeModel::new(vault_root)
             },
             selected: None,
+            multi: MultiSelection::default(),
             active: None,
             scroll: UniformListScrollHandle::new(),
             autoscroll: None,
             edit: None,
-            pending_trash: None,
+            pending_trash: Vec::new(),
             menu: None,
-            cut: None,
+            cut: Vec::new(),
             type_ahead: TypeAhead::default(),
             options,
+            opens_in_new_tab: false,
             _watcher: None,
             _watch_task: None,
         };
@@ -250,6 +257,27 @@ impl FileTree {
         };
     }
 
+    /// Follows the `files.open-in-new-tab` setting, which decides what
+    /// Mod+Enter is shown to do.
+    pub fn set_opens_in_new_tab(&mut self, on: bool, cx: &mut Context<Self>) {
+        self.opens_in_new_tab = on;
+        cx.notify();
+    }
+
+    /// What the tree's own keys do, for the shortcut sheet.
+    pub fn key_hints(&self) -> &'static [(&'static str, &'static str)] {
+        super::keys::key_hints(self.opens_in_new_tab)
+    }
+
+    /// The absolute paths of the rows picked together, in tree order.
+    pub fn multi_selected_paths(&self) -> Vec<PathBuf> {
+        self.multi
+            .entries_in_tree_order(self.model.rows())
+            .iter()
+            .map(|entry| self.absolute(&entry.path))
+            .collect()
+    }
+
     /// The inline name field, while renaming or creating.
     pub fn editing_field(&self) -> Option<Entity<TextInput>> {
         self.edit.as_ref().map(|edit| edit.field.clone())
@@ -264,9 +292,12 @@ impl FileTree {
         self.menu.as_ref().map(|menu| menu.items.clone())
     }
 
-    /// The entry waiting for the user to confirm it goes to the trash.
-    pub fn pending_trash(&self) -> Option<PathBuf> {
-        self.pending_trash.as_ref().map(|path| self.absolute(path))
+    /// The entries waiting for the user to confirm they go to the trash.
+    pub fn pending_trash(&self) -> Vec<PathBuf> {
+        self.pending_trash
+            .iter()
+            .map(|path| self.absolute(path))
+            .collect()
     }
 
     // ---- Paths ----
@@ -354,6 +385,7 @@ impl FileTree {
         if count == 0 {
             return;
         }
+        self.multi.clear();
         let target = match self.selected_index() {
             Some(index) => (index as isize + delta).clamp(0, count as isize - 1) as usize,
             None if delta < 0 => count - 1,
@@ -431,18 +463,73 @@ impl FileTree {
         }
     }
 
-    /// A click on a row: selects it, then opens a file or toggles a folder.
+    /// A click on a row. A plain click selects it, then opens a file or
+    /// toggles a folder; Cmd and Shift pick rows without opening them.
     pub(super) fn click_row(
         &mut self,
         index: usize,
-        new_tab: bool,
+        click: RowClick,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         window.focus(&self.focus_handle);
         self.menu = None;
-        self.select_index(index, cx);
-        self.activate(new_tab, cx);
+        let Some(entry) = self.model.row(index).map(|row| row.entry.clone()) else {
+            return;
+        };
+        match click {
+            RowClick::Plain => {
+                self.multi.clear();
+                self.multi.set_anchor(&entry.path);
+                self.select_index(index, cx);
+                self.activate(false, cx);
+            }
+            RowClick::Toggle => {
+                let current = self.selected_entry();
+                self.multi.toggle(&entry, current.as_ref());
+                self.select_index(index, cx);
+            }
+            RowClick::Extend => {
+                let current = self.selected_index();
+                self.multi.extend(self.model.rows(), index, current);
+                self.select_index(index, cx);
+            }
+        }
+    }
+
+    /// The entries an action on the selection applies to: the rows picked
+    /// together, or else the selected row.
+    pub(super) fn acted_on_entries(&self) -> Vec<Entry> {
+        if self.multi.is_empty() {
+            return self.selected_entry().into_iter().collect();
+        }
+        self.multi.entries_in_tree_order(self.model.rows())
+    }
+
+    fn acted_on_paths(&self) -> Vec<PathBuf> {
+        self.acted_on_entries()
+            .into_iter()
+            .map(|entry| entry.path)
+            .collect()
+    }
+
+    /// The entries dragging `entry` carries: every picked row when it's
+    /// one of them, or else just it.
+    pub(super) fn dragged_entries(&self, entry: &Entry) -> Vec<Entry> {
+        if self.multi.contains(&entry.path) {
+            return self.multi.entries_in_tree_order(self.model.rows());
+        }
+        vec![entry.clone()]
+    }
+
+    /// Escape: forgets the picked rows and the cut. Returns whether there
+    /// was anything to forget.
+    pub(super) fn clear_marks(&mut self, cx: &mut Context<Self>) -> bool {
+        let had_picked = self.multi.clear();
+        let had_cut = !self.cut.is_empty();
+        self.cut.clear();
+        cx.notify();
+        had_picked || had_cut
     }
 
     // ---- Inline rename and create ----
@@ -608,6 +695,7 @@ impl FileTree {
         ops::rename(&root, from, to, false).map_err(|error| error.to_string())?;
         self.model.follow_move(from, to);
         self.model.expand_ancestors(to);
+        self.multi.follow_move(from, to);
         self.active = self
             .active
             .take()
@@ -625,32 +713,39 @@ impl FileTree {
         let (Some(from), Some(folder)) = (self.relative(from), self.relative(folder)) else {
             return;
         };
-        let Some(name) = from.file_name() else {
-            return;
-        };
-        let to = folder.join(name);
-        if to == from {
-            return;
-        }
-        if let Err(message) = self.rename_entry(&from, &to, cx) {
-            cx.emit(FileTreeEvent::Failed { message });
+        self.move_all_into(&[from], &folder, cx);
+    }
+
+    /// Moves entries (relative) into a folder (relative). Those already
+    /// there, and folders that would go inside themselves, stay put.
+    pub(super) fn move_all_into(
+        &mut self,
+        paths: &[PathBuf],
+        folder: &Path,
+        cx: &mut Context<Self>,
+    ) {
+        for (from, to) in planned_moves(paths, folder) {
+            if let Err(message) = self.rename_entry(&from, &to, cx) {
+                cx.emit(FileTreeEvent::Failed { message });
+            }
         }
         cx.notify();
     }
 
     /// Mod+X: marks the selection to move with the next paste.
     pub(super) fn cut_selected(&mut self, cx: &mut Context<Self>) {
-        self.cut = self.selected.clone();
+        self.cut = self.acted_on_paths();
         cx.notify();
     }
 
-    /// Mod+V: moves the cut entry into the selected folder.
+    /// Mod+V: moves the cut entries into the selected folder.
     pub(super) fn paste(&mut self, cx: &mut Context<Self>) {
-        let Some(cut) = self.cut.take() else {
+        let cut = std::mem::take(&mut self.cut);
+        if cut.is_empty() {
             return;
-        };
+        }
         let folder = self.target_folder();
-        self.move_into(&cut, &folder, cx);
+        self.move_all_into(&cut, &folder, cx);
     }
 
     // ---- Trash ----
@@ -658,36 +753,43 @@ impl FileTree {
     /// Asks to confirm moving the selection to the trash.
     pub fn request_trash(&mut self, cx: &mut Context<Self>) {
         self.menu = None;
-        self.pending_trash = self.selected.clone();
+        self.pending_trash = outermost(&self.acted_on_paths());
         cx.notify();
     }
 
     pub fn cancel_trash(&mut self, cx: &mut Context<Self>) {
-        self.pending_trash = None;
+        self.pending_trash.clear();
         cx.notify();
     }
 
     pub fn confirm_trash(&mut self, cx: &mut Context<Self>) {
-        let Some(path) = self.pending_trash.take() else {
+        let paths = std::mem::take(&mut self.pending_trash);
+        if paths.is_empty() {
             return;
-        };
+        }
         let next = self.selected_index();
-        let text = std::fs::read_to_string(self.absolute(&path)).ok();
-        match crate::trashing::move_to_trash(self.model.root(), &path, self.options.trash) {
-            Ok(trashed_to) => {
-                self.model.refresh();
-                self.reselect_near(next, cx);
-                cx.emit(FileTreeEvent::Trashed {
-                    path: self.absolute(&path),
-                    text,
-                    trashed_to,
-                });
-            }
+        for path in &paths {
+            self.trash_entry(path, cx);
+        }
+        self.model.refresh();
+        self.multi.retain_existing(self.model.root());
+        self.reselect_near(next, cx);
+        cx.notify();
+    }
+
+    /// Moves one entry (relative) to the trash and tells the workspace.
+    fn trash_entry(&mut self, path: &Path, cx: &mut Context<Self>) {
+        let text = std::fs::read_to_string(self.absolute(path)).ok();
+        match crate::trashing::move_to_trash(self.model.root(), path, self.options.trash) {
+            Ok(trashed_to) => cx.emit(FileTreeEvent::Trashed {
+                path: self.absolute(path),
+                text,
+                trashed_to,
+            }),
             Err(error) => cx.emit(FileTreeEvent::Failed {
                 message: format!("Couldn’t move it to the trash: {error}"),
             }),
         }
-        cx.notify();
     }
 
     fn reselect_near(&mut self, index: Option<usize>, cx: &mut Context<Self>) {
@@ -708,6 +810,9 @@ impl FileTree {
         cx: &mut Context<Self>,
     ) {
         if let Some(path) = &target {
+            if !self.multi.contains(path) {
+                self.multi.clear();
+            }
             self.select_path(path, cx);
         }
         self.menu = Some(ContextMenu::new(target, position));
@@ -763,14 +868,5 @@ impl FileTree {
         if let Some(index) = super::keys::next_match(&labels, from, &prefix) {
             self.select_index(index, cx);
         }
-    }
-}
-
-/// Where `path` is after `from` moved to `to`.
-fn moved_path(path: &Path, from: &Path, to: &Path) -> PathBuf {
-    match path.strip_prefix(from) {
-        Ok(rest) if rest.as_os_str().is_empty() => to.to_path_buf(),
-        Ok(rest) => to.join(rest),
-        Err(_) => path.to_path_buf(),
     }
 }

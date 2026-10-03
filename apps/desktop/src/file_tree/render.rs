@@ -12,6 +12,7 @@ use gpui::{
 use super::entries::{Entry, EntryKind};
 use super::menu::ContextMenu;
 use super::model::Row;
+use super::selection::RowClick;
 use super::view::{DisplayRow, EditTarget, FileTree};
 use crate::icons::{IconName, icon};
 use crate::theme::UiTheme;
@@ -19,11 +20,40 @@ use crate::ui::Selectable;
 use crate::ui::menu::{menu_icon, menu_row};
 use crate::ui::{Button, popover, ui_theme};
 
-/// What's being dragged: an entry's path relative to the vault.
+/// What's being dragged: the row under the pointer, or every picked row
+/// when it's one of them. Paths are relative to the vault.
 #[derive(Clone, Debug)]
 pub struct DraggedEntry {
-    pub path: PathBuf,
+    pub entries: Vec<Entry>,
     pub label: SharedString,
+}
+
+impl DraggedEntry {
+    pub fn new(entries: Vec<Entry>) -> DraggedEntry {
+        let label = match entries.as_slice() {
+            [entry] => entry.label().to_string(),
+            _ => format!("{} items", entries.len()),
+        };
+        DraggedEntry {
+            entries,
+            label: label.into(),
+        }
+    }
+
+    pub fn paths(&self) -> Vec<PathBuf> {
+        self.entries
+            .iter()
+            .map(|entry| entry.path.clone())
+            .collect()
+    }
+
+    /// The dragged notes, in order, leaving out folders and other files.
+    pub fn notes(&self) -> impl Iterator<Item = &Path> {
+        self.entries
+            .iter()
+            .filter(|entry| entry.kind == EntryKind::Note)
+            .map(|entry| entry.path.as_path())
+    }
 }
 
 /// The label that follows the pointer while dragging.
@@ -54,10 +84,11 @@ fn kind_icon(entry: &Entry, expanded: bool) -> IconName {
 /// How a row should look.
 #[derive(Clone, Copy, Default)]
 struct RowState {
-    selected: bool,
-    focused: bool,
-    /// Whether the keyboard is driving, so the focused row shows its ring.
-    keyboard: bool,
+    /// Chosen: the row the keys act on while the tree has focus, or one
+    /// of the rows picked together.
+    filled: bool,
+    /// The row the keys act on, while the keyboard is driving.
+    ringed: bool,
     active: bool,
     cut: bool,
 }
@@ -118,8 +149,7 @@ impl FileTree {
                 move |style, _, _, _| style.bg(drop)
             })
             .on_drop(cx.listener(|tree, dragged: &DraggedEntry, _, cx| {
-                let root = tree.root().to_path_buf();
-                tree.move_into(&dragged.path, &root, cx);
+                tree.move_all_into(&dragged.paths(), Path::new(""), cx);
             }))
             .child(rows)
     }
@@ -163,22 +193,25 @@ impl FileTree {
     }
 
     fn row_state(&self, path: &Path, window: &Window, cx: &gpui::App) -> RowState {
+        // The row the keys act on keeps a fill whichever way it was
+        // reached, unless rows are picked together and it isn't one.
+        let current =
+            self.selected.as_deref() == Some(path) && self.focus_handle.is_focused(window);
+        let filled = match self.multi.is_empty() {
+            true => current,
+            false => self.multi.contains(path),
+        };
         RowState {
-            selected: self.selected.as_deref() == Some(path),
-            focused: self.focus_handle.is_focused(window),
-            keyboard: crate::ui::focus_visible::keyboard_driving(cx),
+            filled,
+            ringed: current && crate::ui::focus_visible::keyboard_driving(cx),
             active: self.active.as_deref() == Some(path),
-            cut: self.cut.as_deref() == Some(path),
+            cut: self.cut.iter().any(|cut| cut == path),
         }
     }
 
     fn row_shell(&self, depth: usize, state: RowState, ui: &UiTheme) -> gpui::Div {
-        // The row the keys act on keeps a fill whichever way it was
-        // reached; the ring shows only while the keyboard is driving.
-        let current = state.selected && state.focused;
-        let ringed = current && state.keyboard;
         // Opaque under the ring, which would otherwise darken the fill.
-        let background = match (current, state.active) {
+        let background = match (state.filled, state.active) {
             (true, _) => Some(crate::theme::over(
                 ui.tree_active_background,
                 ui.app_background,
@@ -201,7 +234,7 @@ impl FileTree {
             .when(background.is_none(), |row| {
                 row.hover(move |style| style.bg(hover))
             })
-            .when(ringed, |row| row.shadow(vec![ui.focus()]));
+            .when(state.ringed, |row| row.shadow(vec![ui.focus()]));
         if state.cut {
             shell = shell.opacity(ui.cut_opacity);
         }
@@ -228,10 +261,7 @@ impl FileTree {
         } else {
             row.entry.parent().to_path_buf()
         };
-        let dragged = DraggedEntry {
-            path: row.entry.path.clone(),
-            label: row.entry.label().to_string().into(),
-        };
+        let dragged = DraggedEntry::new(self.dragged_entries(&row.entry));
         let selector = format!("tree-row-{}", row.entry.label());
         self.row_shell(row.depth, state, ui)
             .id(("file-tree-row", index))
@@ -239,8 +269,8 @@ impl FileTree {
             .children(content)
             .children(menu)
             .on_click(cx.listener(move |tree, event: &ClickEvent, window, cx| {
-                let new_tab = event.modifiers().secondary();
-                tree.click_row(index, new_tab, window, cx);
+                let click = RowClick::from_modifiers(&event.modifiers());
+                tree.click_row(index, click, window, cx);
             }))
             .on_mouse_down(
                 MouseButton::Right,
@@ -261,9 +291,7 @@ impl FileTree {
             })
             .on_drop(cx.listener(move |tree, dragged: &DraggedEntry, _, cx| {
                 cx.stop_propagation();
-                let folder = tree.absolute(&drop_folder);
-                let from = tree.absolute(&dragged.path);
-                tree.move_into(&from, &folder, cx);
+                tree.move_all_into(&dragged.paths(), &drop_folder, cx);
             }))
             .into_any_element()
     }
@@ -337,8 +365,7 @@ impl FileTree {
             .size(ui.icon_size)
             .text_color(ui.icon);
         let state = RowState {
-            selected: true,
-            focused: true,
+            filled: true,
             ..RowState::default()
         };
         self.row_shell(depth, state, ui)
@@ -389,25 +416,36 @@ impl FileTree {
         }
     }
 
+    /// What the trash prompt asks, while entries wait to go.
+    fn trash_question(&self) -> Option<String> {
+        match self.pending_trash.as_slice() {
+            [] => None,
+            [path] => {
+                let name = self
+                    .model
+                    .index_of(path)
+                    .and_then(|index| self.model.row(index))
+                    .map_or_else(
+                        || path.to_string_lossy().into_owned(),
+                        |row| row.entry.label().to_string(),
+                    );
+                Some(format!("Move “{name}” to the trash?"))
+            }
+            paths => Some(format!("Move {} items to the trash?", paths.len())),
+        }
+    }
+
     /// Asks before moving an entry to the trash. Enter confirms and Escape
     /// cancels, so the tree keeps the keyboard.
     fn render_trash_prompt(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let path = self.pending_trash.as_ref()?;
+        let question = self.trash_question()?;
         let ui = ui_theme(cx);
-        let name = self
-            .model
-            .index_of(path)
-            .and_then(|index| self.model.row(index))
-            .map_or_else(
-                || path.to_string_lossy().into_owned(),
-                |row| row.entry.label().to_string(),
-            );
         let prompt =
             popover(&ui)
                 .m(ui.space_md)
                 .p(ui.space_lg)
                 .gap(ui.space_lg)
-                .child(format!("Move “{name}” to the trash?"))
+                .child(question)
                 .child(
                     div()
                         .flex()

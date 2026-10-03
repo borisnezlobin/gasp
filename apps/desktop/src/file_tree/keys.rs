@@ -65,6 +65,23 @@ pub const KEY_HINTS: [(&str, &str); 10] = [
     ("Escape", "Back to the editor"),
 ];
 
+/// The hints when a plain open already goes to a new tab, so Mod+Enter
+/// opens in the current one.
+const KEY_HINTS_OPENING_IN_NEW_TAB: [(&str, &str); 10] = {
+    let mut hints = KEY_HINTS;
+    hints[1] = ("Mod+Enter", "Open in the current tab");
+    hints
+};
+
+/// The tree's key hints, for whether a plain open goes to a new tab.
+pub fn key_hints(opens_in_new_tab: bool) -> &'static [(&'static str, &'static str)] {
+    if opens_in_new_tab {
+        &KEY_HINTS_OPENING_IN_NEW_TAB
+    } else {
+        &KEY_HINTS
+    }
+}
+
 /// Commands from the keymap the tree runs while it has focus.
 const COMMANDS: [(&str, KeyHandler); 4] = [
     ("link.follow", |tree, _, cx| tree.activate(true, cx)),
@@ -91,7 +108,7 @@ impl FileTree {
         let keystroke = &event.keystroke;
         let handled = if self.menu.is_some() {
             self.menu_key(keystroke, window, cx)
-        } else if self.pending_trash.is_some() {
+        } else if !self.pending_trash.is_empty() {
             self.trash_prompt_key(keystroke, cx)
         } else {
             self.tree_key(keystroke, window, cx)
@@ -162,9 +179,7 @@ impl FileTree {
     }
 
     fn escape(&mut self, cx: &mut Context<Self>) {
-        if self.cut.take().is_some() {
-            cx.notify();
-        } else {
+        if !self.clear_marks(cx) {
             cx.emit(FileTreeEvent::Dismissed);
         }
     }
@@ -261,7 +276,7 @@ mod tests {
     /// Every hint names a key the tree really handles.
     #[test]
     fn hints_are_keys_the_tree_handles() {
-        for (text, label) in KEY_HINTS {
+        for (text, label) in KEY_HINTS.into_iter().chain(KEY_HINTS_OPENING_IN_NEW_TAB) {
             let chord = KeyChord::parse(text).unwrap();
             let key = match chord.key {
                 Key::Char(ch) => ch.to_ascii_lowercase().to_string(),
@@ -278,6 +293,18 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn mod_enter_is_hinted_as_the_opposite_of_a_plain_open() {
+        let hint = |opens_in_new_tab| {
+            key_hints(opens_in_new_tab)
+                .iter()
+                .find(|(keys, _)| *keys == "Mod+Enter")
+                .map(|(_, label)| *label)
+        };
+        assert_eq!(hint(false), Some("Open in a new tab"));
+        assert_eq!(hint(true), Some("Open in the current tab"));
+    }
 
     const LABELS: [&str; 5] = ["Daily", "Projects", "Notes", "Note 2", "plan"];
 
