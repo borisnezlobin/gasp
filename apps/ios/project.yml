@@ -51,7 +51,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.borisnezlobin.gasp
         PRODUCT_NAME: Gasp
         TARGETED_DEVICE_FAMILY: "1"
-        MARKETING_VERSION: "0.2.1"
+        MARKETING_VERSION: "0.2.2"
         CURRENT_PROJECT_VERSION: "1"
         # The welcome tour's whales are in an asset catalog; the app has no icon set yet.
         ASSETCATALOG_COMPILER_APPICON_NAME: ""
