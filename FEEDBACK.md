@@ -152,6 +152,11 @@ Copy and layout
 - [x] Set up MCP in one click from Settings, never by editing JSON.
 - [x] Each window keeps its own vault's theme.
 - [x] Tell people about new versions and update in one click (checks gaspmd.com/api/version).
+- [ ] Cmd-click an item in the sidebar to move it.
+- [ ] A setting to open notes in new tabs, so Cmd-O opens a tab.
+- [ ] Drag notes out of the sidebar the same way as dragging a note's title in the editor.
+- [ ] Checkmarks (connecting Claude and the like) shouldn't use the theme colour.
+- [ ] Show whether iCloud is syncing; the owner on 0.2.1 can't tell.
 
 ## Releases
 
@@ -187,4 +192,4 @@ Copy and layout
 - [x] Log what people asked the demo, viewable on the stats page. *(Retired with the demo.)*
 - [x] Folding: say how to fold in the demo window, not only with a shortcut the site can't use.
 - [x] Accept colour names like "orange".
-
+- [ ] A changelog page on gaspmd.com that shows every GitHub release's notes.

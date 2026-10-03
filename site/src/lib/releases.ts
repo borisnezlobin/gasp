@@ -15,6 +15,7 @@ type GitHubAsset = {
 export type GitHubRelease = {
   tag_name: string;
   html_url: string;
+  body?: string | null;
   draft: boolean;
   prerelease: boolean;
   published_at: string | null;
@@ -114,4 +115,27 @@ export function newestStableVersion(releases: GitHubRelease[]): NewestVersion | 
     if (dmg) return toNewestVersion(release, dmg);
   }
   return null;
+}
+
+export type ChangelogEntry = {
+  version: string;
+  publishedAt: string;
+  notes: string | null;
+  url: string;
+  prerelease: boolean;
+};
+
+/** Every published release, newest first, with its notes as written on
+    GitHub. */
+export function changelogEntries(releases: GitHubRelease[]): ChangelogEntry[] {
+  return releases
+    .filter((release) => !release.draft && release.published_at !== null)
+    .sort(newestFirst)
+    .map((release) => ({
+      version: release.tag_name.replace(/^v/, ""),
+      publishedAt: release.published_at ?? "",
+      notes: release.body ?? null,
+      url: release.html_url,
+      prerelease: release.prerelease,
+    }));
 }
