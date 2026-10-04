@@ -381,10 +381,10 @@ impl Workspace {
                 continue;
             }
             let replace = opened.is_empty();
-            if self
-                .show_path_in_pane(&pane, &path, replace, window, cx)
-                .is_ok()
-            {
+            if matches!(
+                self.show_path_in_pane(&pane, &path, replace, window, cx),
+                Ok(true)
+            ) {
                 opened.push(path);
             }
         }

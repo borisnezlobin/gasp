@@ -16,9 +16,11 @@
 mod commands;
 pub mod deleted;
 mod edit_tracking;
+pub mod file_opening;
 pub mod files;
 pub mod help;
 pub mod history;
+pub mod image_tab;
 pub mod launcher;
 mod layout;
 pub mod links;
