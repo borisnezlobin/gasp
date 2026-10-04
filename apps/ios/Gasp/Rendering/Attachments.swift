@@ -82,7 +82,8 @@ final class ImageAttachment: NSTextAttachment {
         if decoded == nil { media?.drawnWithout(file, pixels: pixels) }
         let fill = placeholderColor.resolvedColor(with: .current)
         let key = decoded == nil
-            ? "placeholder \(size) \(cornerRadius) \(fill)" : "\(file.path) \(size) \(cornerRadius)"
+            ? "placeholder \(size) \(cornerRadius) \(fill)"
+            : "\(file.path) \(VaultImages.version(of: file) ?? "") \(size) \(cornerRadius)"
         return DrawnPictures.shared.picture(key as NSString) {
             ImageDrawing.rounded(decoded, size: size, fill: fill, cornerRadius: cornerRadius)
         }
