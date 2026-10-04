@@ -2119,6 +2119,8 @@ pub struct UiTheme {
     pub hover_preview_grace: std::time::Duration,
     /// The longest side of an image previewed from the file list.
     pub image_preview_size: Pixels,
+    /// The room kept around an image shown in its own tab.
+    pub image_tab_margin: Pixels,
     /// The thumb that shows where a scrolling list is, and how much of it
     /// shows.
     pub scroll_thumb: Hsla,
@@ -2472,6 +2474,7 @@ impl UiTheme {
             hover_preview_delay: std::time::Duration::from_millis(350),
             hover_preview_grace: std::time::Duration::from_millis(250),
             image_preview_size: px(280.),
+            image_tab_margin: px(32.),
             scroll_thumb: p.divider_active,
             scroll_thumb_width: px(3.),
             tab_bar_height: px(40.),

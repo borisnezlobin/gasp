@@ -15,6 +15,7 @@ use gpui::{
 
 use super::files::note_title;
 use super::history::NavHistory;
+use super::image_tab::ImageView;
 use super::launcher::Launcher;
 use super::note_doc::{Conflict, NoteDoc};
 use super::pane_tree::DropZone;
@@ -73,6 +74,7 @@ pub struct NoteTab {
 #[derive(Clone)]
 pub enum TabContent {
     Note(NoteTab),
+    Image(Entity<ImageView>),
     Launcher(Entity<Launcher>),
 }
 
@@ -93,12 +95,29 @@ impl Tab {
     pub fn note(&self) -> Option<&NoteTab> {
         match &self.content {
             TabContent::Note(note) => Some(note),
-            TabContent::Launcher(_) => None,
+            TabContent::Image(_) | TabContent::Launcher(_) => None,
         }
     }
 
+    pub fn image(&self) -> Option<&Entity<ImageView>> {
+        match &self.content {
+            TabContent::Image(image) => Some(image),
+            TabContent::Note(_) | TabContent::Launcher(_) => None,
+        }
+    }
+
+    /// Whether the tab shows no file, as a launcher doesn't.
+    pub fn is_blank(&self) -> bool {
+        matches!(self.content, TabContent::Launcher(_))
+    }
+
+    /// The file the tab shows: its note or image.
     pub fn path<'a>(&self, cx: &'a App) -> Option<&'a Path> {
-        self.note().map(|note| note.doc.read(cx).path())
+        match &self.content {
+            TabContent::Note(note) => Some(note.doc.read(cx).path()),
+            TabContent::Image(image) => Some(image.read(cx).path()),
+            TabContent::Launcher(_) => None,
+        }
     }
 
     pub fn title(&self, cx: &App) -> String {
@@ -110,6 +129,7 @@ impl Tab {
     pub fn focus_handle(&self, cx: &App) -> FocusHandle {
         match &self.content {
             TabContent::Note(note) => note.editor.focus_handle(cx),
+            TabContent::Image(image) => image.focus_handle(cx),
             TabContent::Launcher(launcher) => launcher.focus_handle(cx),
         }
     }
@@ -437,9 +457,13 @@ impl Pane {
             .enumerate()
             .filter_map(|(index, tab)| Some((tab.note()?.editor.clone(), index != self.active)))
             .collect();
+        let shown_image = self.active_tab().and_then(Tab::image).cloned();
         cx.defer(move |cx| {
             for (editor, hidden) in editors {
                 editor.update(cx, |editor, cx| editor.set_hidden(hidden, cx));
+            }
+            if let Some(image) = shown_image {
+                image.update(cx, |image, cx| image.refresh(cx));
             }
         });
     }
@@ -481,6 +505,11 @@ impl Pane {
                 .flex_1()
                 .min_h_0()
                 .child(launcher.clone())
+                .into_any_element(),
+            TabContent::Image(image) => div()
+                .flex_1()
+                .min_h_0()
+                .child(image.clone())
                 .into_any_element(),
             TabContent::Note(note) => self.render_note(note, cx),
         }

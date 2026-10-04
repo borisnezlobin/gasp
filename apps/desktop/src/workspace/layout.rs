@@ -32,7 +32,7 @@ impl Workspace {
         }
     }
 
-    /// A pane's note tabs. Empty tabs aren't kept.
+    /// A pane's note and image tabs. Empty tabs aren't kept.
     fn leaf_layout(&self, pane: &Entity<Pane>, cx: &App) -> PaneLayout {
         let read = pane.read(cx);
         let mut layout = PaneLayout {
@@ -116,9 +116,10 @@ impl Workspace {
             // The starting pane's empty tab gives way to the first note.
             let replace = opened == 0;
             if path.is_file()
-                && self
-                    .show_path_in_pane(pane, &path, replace, window, cx)
-                    .is_ok()
+                && matches!(
+                    self.show_path_in_pane(pane, &path, replace, window, cx),
+                    Ok(true)
+                )
             {
                 opened += 1;
             }
@@ -142,7 +143,7 @@ impl Workspace {
 /// Clears a pane that shows only empty tabs, so a pane whose notes are all
 /// gone closes rather than lingering.
 fn drop_empty_tabs(pane: &Entity<Pane>, cx: &mut App) {
-    let only_empty = pane.read(cx).tabs().iter().all(|tab| tab.note().is_none());
+    let only_empty = pane.read(cx).tabs().iter().all(super::pane::Tab::is_blank);
     if !only_empty {
         return;
     }

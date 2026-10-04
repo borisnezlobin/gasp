@@ -568,6 +568,96 @@ fn open_tabs_are_remembered_per_vault(cx: &mut TestAppContext) {
     assert_eq!(active_title(&restored, cx), "a");
 }
 
+fn vault_with_image(notes: &[(&str, &str)], image: &str, size: (u32, u32)) -> TempDir {
+    let vault = vault_with(notes);
+    let path = vault.path().join(image);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    image::RgbaImage::new(size.0, size.1).save(path).unwrap();
+    vault
+}
+
+fn active_image_size(
+    workspace: &Entity<Workspace>,
+    cx: &mut VisualTestContext,
+) -> Option<(u32, u32)> {
+    cx.read(|cx| {
+        let pane = workspace.read(cx).active_pane().read(cx);
+        let image = pane.active_tab()?.image()?;
+        image.read(cx).natural_size()
+    })
+}
+
+#[gpui::test]
+fn an_image_opens_in_its_own_tab(cx: &mut TestAppContext) {
+    let vault = vault_with_image(&[("a.md", "A")], "images/pic.png", (40, 30));
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "a.md", OpenIn::ActiveTab);
+    open(&workspace, cx, "images/pic.png", OpenIn::NewTab);
+    assert_eq!(titles(&workspace, cx), vec!["a", "pic"]);
+    assert_eq!(active_image_size(&workspace, cx), Some((40, 30)));
+    assert!(cx.read(|cx| workspace.read(cx).active_editor(cx).is_none()));
+
+    run(&workspace, cx, "tab.go-1");
+    open(&workspace, cx, "images/pic.png", OpenIn::NewTab);
+    assert_eq!(titles(&workspace, cx), vec!["a", "pic"]);
+    assert_eq!(active_title(&workspace, cx), "pic");
+
+    run(&workspace, cx, "tab.close");
+    assert_eq!(titles(&workspace, cx), vec!["a"]);
+    run(&workspace, cx, "tab.reopen");
+    assert_eq!(titles(&workspace, cx), vec!["a", "pic"]);
+}
+
+#[gpui::test]
+fn an_image_tab_follows_its_file(cx: &mut TestAppContext) {
+    let vault = vault_with_image(&[("a.md", "A")], "pic.png", (40, 30));
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "pic.png", OpenIn::ActiveTab);
+    let path = vault_path(&workspace, cx).join("pic.png");
+    std::thread::sleep(Duration::from_millis(20));
+    image::RgbaImage::new(8, 6).save(&path).unwrap();
+    apply(&workspace, cx, vec![DiskChange::Changed(path.clone())]);
+    assert_eq!(active_image_size(&workspace, cx), Some((8, 6)));
+
+    std::fs::remove_file(&path).unwrap();
+    apply(&workspace, cx, vec![DiskChange::Removed(path)]);
+    let missing = cx.read(|cx| {
+        let pane = workspace.read(cx).active_pane().read(cx);
+        pane.active_tab()
+            .unwrap()
+            .image()
+            .unwrap()
+            .read(cx)
+            .is_missing()
+    });
+    assert!(missing);
+    assert_eq!(titles(&workspace, cx), vec!["pic"]);
+}
+
+#[gpui::test]
+fn open_image_tabs_are_remembered(cx: &mut TestAppContext) {
+    let vault = vault_with_image(&[("a.md", "")], "images/pic.png", (4, 4));
+    {
+        let (workspace, cx) = open_workspace(cx, vault.path());
+        open(&workspace, cx, "a.md", OpenIn::ActiveTab);
+        open(&workspace, cx, "images/pic.png", OpenIn::NewTab);
+        let device = cx.read(|cx| workspace.read(cx).device_state(cx));
+        assert_eq!(device.open_tabs, vec!["a.md", "images/pic.png"]);
+        assert_eq!(device.active_tab, Some(1));
+        workspace.update(cx, |workspace, cx| workspace.prepare_to_close(cx));
+    }
+    let vault_path = vault.path().to_path_buf();
+    let (restored, cx) = cx.add_window_view(move |window, cx| {
+        let mut workspace = Workspace::new(&vault_path, window, cx);
+        workspace.restore_session(window, cx);
+        workspace
+    });
+    cx.run_until_parked();
+    assert_eq!(titles(&restored, cx), vec!["a", "pic"]);
+    assert_eq!(active_title(&restored, cx), "pic");
+    assert_eq!(active_image_size(&restored, cx), Some((4, 4)));
+}
+
 struct Panel {
     focus_handle: FocusHandle,
 }
