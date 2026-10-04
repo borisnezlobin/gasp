@@ -329,6 +329,7 @@ impl Workspace {
         if let Some(doc) = self.doc_for_path(path, cx) {
             self.close_doc_tabs(&doc, window, cx);
         }
+        self.close_image_tabs(path, window, cx);
         self.forget_path(path, cx);
         let trashed_to = TrashedTo::of(trashed_to, mode);
         self.remember_deleted(DeletedNote::new(path.to_path_buf(), text, trashed_to), cx);
@@ -410,6 +411,7 @@ impl Workspace {
     ) {
         self.note_texts.apply(&changes);
         self.index_disk_changes(&changes, cx);
+        self.follow_image_changes(&changes, cx);
         if let Some(sync) = self.sync.clone() {
             let paths: Vec<PathBuf> = changes.iter().flat_map(DiskChange::paths).collect();
             sync.update(cx, |sync, cx| sync.files_changed(&paths, cx));
@@ -451,6 +453,11 @@ impl Workspace {
     pub fn entry_moved(&mut self, from: &Path, to: &Path, cx: &mut Context<Self>) -> Vec<PathBuf> {
         self.disk_renamed(from, to, cx);
         self.note_history_moved(from, to, cx);
+        let moved = DiskChange::Renamed {
+            from: from.to_path_buf(),
+            to: to.to_path_buf(),
+        };
+        self.follow_image_changes(&[moved], cx);
         if !self.config.settings.files.update_links_on_rename {
             return Vec::new();
         }

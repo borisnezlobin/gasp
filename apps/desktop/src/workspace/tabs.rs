@@ -1,10 +1,12 @@
-//! Opening notes into tabs, and closing, reopening and switching tabs.
+//! Opening notes and images into tabs, and closing, reopening and
+//! switching tabs.
 
 use std::io;
 use std::path::{Path, PathBuf};
 
 use gpui::{AppContext, Context, Entity, PromptLevel, Window};
 
+use super::file_opening::{FileOpening, opening_for};
 use super::files::note_title;
 use super::history::Location;
 use super::launcher::{Launcher, MAX_RECENT, OpenRecent, SearchFrom};
@@ -18,8 +20,9 @@ use crate::text_input::{TextInput, TextInputStyle};
 const CONFLICT_ANSWERS: [&str; 3] = ["Keep my version", "Use the version on disk", "Cancel"];
 
 impl Workspace {
-    /// Opens the note at `path` (vault-relative or absolute). A note
-    /// already open in the pane gets its tab shown instead.
+    /// Opens the note or image at `path` (vault-relative or absolute). A
+    /// file already open in the pane gets its tab shown instead. Other
+    /// files, such as PDFs, open in the system's default app.
     pub fn open_path(
         &mut self,
         path: &Path,
@@ -28,13 +31,17 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> io::Result<()> {
         let path = self.resolve(path);
+        if opening_for(&path) == FileOpening::SystemApp {
+            crate::sandbox::open_with_system(&path, cx);
+            return Ok(());
+        }
         let pane = match open_in {
             OpenIn::SplitRight => self.split_pane(super::pane_tree::Axis::Row, false, window, cx),
             _ => self.active_pane.clone(),
         };
         let replace = open_in == OpenIn::ActiveTab;
         let opened = self.open_in_pane(&pane, &path, replace, window, cx);
-        if opened.is_err() && pane.read(cx).is_empty() {
+        if pane.read(cx).is_empty() {
             self.handle_empty_pane(&pane, window, cx);
         }
         opened
@@ -56,7 +63,7 @@ impl Workspace {
         self.active_pane
             .read(cx)
             .active_tab()
-            .is_some_and(|tab| tab.note().is_none())
+            .is_some_and(Tab::is_blank)
     }
 
     /// Opens `path` in `pane`, recording where the pane was for Back.
@@ -69,7 +76,9 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> io::Result<()> {
         let from = self.pane_location(pane, cx);
-        self.show_path_in_pane(pane, path, replace, window, cx)?;
+        if !self.show_path_in_pane(pane, path, replace, window, cx)? {
+            return Ok(());
+        }
         if let Some(from) = from.filter(|from| from.path != path) {
             pane.update(cx, |pane, _| pane.history.push(from));
         }
@@ -96,7 +105,9 @@ impl Workspace {
                 false
             }
             None => {
-                let tab = self.note_tab(path, window, cx)?;
+                let Some(tab) = self.tab_for_path(path, window, cx)? else {
+                    return Ok(false);
+                };
                 pane.update(cx, |pane, cx| pane.insert_tab(slot, tab, cx));
                 true
             }
@@ -109,7 +120,8 @@ impl Workspace {
         Ok(added)
     }
 
-    /// Shows `path` in `pane` without touching its history.
+    /// Shows `path` in `pane` without touching its history. Returns
+    /// whether it shows there, rather than in the system's default app.
     pub(crate) fn show_path_in_pane(
         &mut self,
         pane: &Entity<Pane>,
@@ -117,18 +129,20 @@ impl Workspace {
         replace: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> io::Result<()> {
+    ) -> io::Result<bool> {
         let existing = pane.read(cx).index_of_path(path, cx);
         match existing {
             Some(index) => pane.update(cx, |pane, cx| pane.activate(index, cx)),
             None => {
-                let tab = self.note_tab(path, window, cx)?;
+                let Some(tab) = self.tab_for_path(path, window, cx)? else {
+                    return Ok(false);
+                };
                 self.put_tab(pane, tab, replace, cx);
             }
         }
         self.touch_recent(path);
         self.activate_pane(pane, window, cx);
-        Ok(())
+        Ok(true)
     }
 
     /// Adds `tab` to `pane`, or puts it in place of the active tab.
@@ -145,12 +159,12 @@ impl Workspace {
         }
     }
 
-    /// Where `pane`'s active note is, with its cursor.
+    /// Where `pane`'s active note is, with its cursor, or its image.
     pub(crate) fn pane_location(&self, pane: &Entity<Pane>, cx: &gpui::App) -> Option<Location> {
         let tab = pane.read(cx).active_tab()?;
-        let note = tab.note()?;
-        let offset = note.editor.read(cx).cursor();
-        Some(Location::new(note.doc.read(cx).path(), offset))
+        let path = tab.path(cx)?;
+        let offset = tab.note().map_or(0, |note| note.editor.read(cx).cursor());
+        Some(Location::new(path, offset))
     }
 
     /// The open note for `path`, loading it if needed.
@@ -314,7 +328,11 @@ impl Workspace {
         notes
     }
 
+    /// Puts a note first among the recent ones a launcher shows.
     fn touch_recent(&mut self, path: &Path) {
+        if opening_for(path) != FileOpening::Note {
+            return;
+        }
         self.recent.retain(|recent| recent != path);
         self.recent.insert(0, path.to_path_buf());
         self.recent.truncate(MAX_RECENT);
@@ -502,10 +520,7 @@ impl Workspace {
         while let Some(path) = self.closed_tabs.pop() {
             if path.is_file() {
                 let pane = self.active_pane.clone();
-                let replace = pane
-                    .read(cx)
-                    .active_tab()
-                    .is_some_and(|tab| tab.note().is_none());
+                let replace = pane.read(cx).active_tab().is_some_and(Tab::is_blank);
                 if let Err(error) = self.open_in_pane(&pane, &path, replace, window, cx) {
                     crate::notices::open_failed(&path, error, cx);
                 }
