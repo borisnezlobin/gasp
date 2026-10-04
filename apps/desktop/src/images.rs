@@ -261,6 +261,24 @@ impl ImageStore {
         true
     }
 
+    /// Forgets the images whose files are among `paths`, so the next
+    /// layout reads them afresh. A file replaced, edited or deleted on
+    /// disk otherwise keeps showing as it was while the note is open.
+    /// Matched by file name, as links are. False when none were known.
+    pub fn forget_files(&mut self, paths: &[PathBuf]) -> bool {
+        let names: HashSet<&std::ffi::OsStr> =
+            paths.iter().filter_map(|path| path.file_name()).collect();
+        let names_one = |target: &String| {
+            Path::new(target)
+                .file_name()
+                .is_some_and(|name| names.contains(name))
+        };
+        let known = self.by_target.len();
+        self.by_target.retain(|target, _| !names_one(target));
+        self.missing.retain(|target| !names_one(target));
+        self.by_target.len() != known
+    }
+
     /// Forgets which images were missing so the next layout looks for them
     /// again, as after the vault changed. False when none were.
     pub fn retry_missing(&mut self) -> bool {
@@ -420,6 +438,22 @@ mod tests {
             &store.image("missing.png", 100).image
         ));
         assert!(store.take_decodes().is_empty());
+    }
+
+    #[test]
+    fn a_file_replaced_on_disk_is_read_again_once_forgotten() {
+        let dir = temp_dir("replaced");
+        let file = dir.join("pic.png");
+        RgbaImage::new(3, 2).save(&file).unwrap();
+        let mut store = ImageStore::new(vec![dir.clone()]);
+        assert_eq!(store.image("pic.png", 3).natural, (3, 2));
+        run_decodes(&mut store);
+        RgbaImage::new(8, 4).save(&file).unwrap();
+        assert_eq!(store.image("pic.png", 8).natural, (3, 2), "still the old picture");
+        assert!(!store.forget_files(&[dir.join("other.png")]));
+        assert!(store.forget_files(std::slice::from_ref(&file)));
+        assert_eq!(store.image("pic.png", 8).natural, (8, 4));
+        std::fs::remove_dir_all(dir).ok();
     }
 
     #[test]

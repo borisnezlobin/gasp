@@ -107,6 +107,9 @@ pub struct EditorView {
     /// background or scrolling of its own.
     pub(crate) embedded: bool,
     pub(crate) images: ImageStore,
+    /// Images pasted while the note is open, offered for deletion if
+    /// their embeds go again.
+    pub(crate) pasted_images: Vec<crate::attachment_cleanup::PastedImage>,
     pub(crate) code: CodeHighlighter,
     /// Width of the text column in the last frame.
     pub(crate) column_width: Pixels,
@@ -266,6 +269,7 @@ impl EditorView {
             embeds: Default::default(),
             embedded: false,
             images: ImageStore::new(image_dirs),
+            pasted_images: Vec::new(),
             code: CodeHighlighter::default(),
             column_width,
             scroll_y: px(0.),
@@ -745,6 +749,7 @@ impl EditorView {
         self.keep_card_offer(cx);
         self.schedule_footnote_checks(cx);
         self.caret_moved_in_tables(cx);
+        self.follow_pasted_images(cx);
         cx.emit(EditorEvent::Edited);
         cx.notify();
     }

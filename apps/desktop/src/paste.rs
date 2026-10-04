@@ -325,7 +325,16 @@ impl EditorView {
         };
         let extension = image_extension(image.format);
         match save_attachment(&dir, &context.note_stem(), extension, &image.bytes) {
-            Ok(name) => self.paste_text_at(self.selected_range(), &embed(&name), cx),
+            Ok(name) => {
+                let file = dir.join(&name);
+                self.image_files_changed(std::slice::from_ref(&file), cx);
+                self.pasted_images
+                    .push(crate::attachment_cleanup::PastedImage::new(
+                        file,
+                        context.note_path,
+                    ));
+                self.paste_text_at(self.selected_range(), &embed(&name), cx);
+            }
             Err(error) => {
                 let message = format!("Couldn’t save the pasted image: {error}");
                 crate::notices::show(Notice::problem(message), cx);

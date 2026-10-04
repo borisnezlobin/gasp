@@ -410,6 +410,7 @@ impl Workspace {
     ) {
         self.note_texts.apply(&changes);
         self.index_disk_changes(&changes, cx);
+        self.refresh_changed_images(&changes, cx);
         if let Some(sync) = self.sync.clone() {
             let paths: Vec<PathBuf> = changes.iter().flat_map(DiskChange::paths).collect();
             sync.update(cx, |sync, cx| sync.files_changed(&paths, cx));
@@ -426,6 +427,27 @@ impl Workspace {
         }
         self.refresh_status(cx);
         cx.notify();
+    }
+
+    /// Open notes draw images changed on disk afresh, rather than as
+    /// they were when first drawn.
+    fn refresh_changed_images(&self, changes: &[DiskChange], cx: &mut Context<Self>) {
+        let images: Vec<PathBuf> = changes
+            .iter()
+            .flat_map(DiskChange::paths)
+            .filter(|path| crate::paste::is_image_path(path))
+            .collect();
+        if images.is_empty() {
+            return;
+        }
+        let editors: Vec<_> = self
+            .docs
+            .iter()
+            .flat_map(|doc| doc.read(cx).live_editors())
+            .collect();
+        for editor in editors {
+            editor.update(cx, |editor, cx| editor.image_files_changed(&images, cx));
+        }
     }
 
     fn index_disk_changes(&mut self, changes: &[DiskChange], cx: &mut Context<Self>) {
