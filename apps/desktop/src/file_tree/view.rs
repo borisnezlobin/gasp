@@ -90,6 +90,7 @@ pub struct FileTree {
     pub(super) options: FileTreeOptions,
     /// Whether a plain open goes to a new tab, which flips what Mod+Enter does.
     opens_in_new_tab: bool,
+    pub(super) image_preview: super::image_preview::ImagePreview,
     _watcher: Option<VaultWatcher>,
     _watch_task: Option<Task<()>>,
 }
@@ -141,6 +142,7 @@ impl FileTree {
             type_ahead: TypeAhead::default(),
             options,
             opens_in_new_tab: false,
+            image_preview: Default::default(),
             _watcher: None,
             _watch_task: None,
         };

@@ -5,6 +5,7 @@
 //! [`FileTreeEvent`] and never touches tabs or editors itself.
 
 mod autoscroll;
+mod image_preview;
 mod keys;
 mod menu;
 mod model;

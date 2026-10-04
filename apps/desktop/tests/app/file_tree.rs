@@ -358,6 +358,24 @@ fn the_context_menu_works_from_the_keyboard(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn resting_on_an_image_shows_a_preview(cx: &mut TestAppContext) {
+    let dir = vault();
+    let root = dir.path();
+    image::RgbaImage::new(40, 20).save(root.join("chart.png")).unwrap();
+    let (_tree, cx, _) = open(cx, root, false);
+    let row = cx.debug_bounds("tree-row-chart.png").expect("row is drawn");
+    cx.simulate_mouse_move(row.center(), None, Modifiers::default());
+    cx.executor().advance_clock(Duration::from_millis(400));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("file-tree-image-preview").is_some());
+    let note = cx.debug_bounds("tree-row-Note 2").expect("row is drawn");
+    cx.simulate_mouse_move(note.center(), None, Modifiers::default());
+    cx.executor().advance_clock(Duration::from_millis(400));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("file-tree-image-preview").is_none());
+}
+
+#[gpui::test]
 fn right_click_opens_the_menu_and_copy_path_copies(cx: &mut TestAppContext) {
     let dir = vault();
     let root = dir.path();
