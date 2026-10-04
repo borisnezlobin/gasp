@@ -62,16 +62,16 @@ impl PaneDrop for DraggedTab {
     }
 }
 
-/// Entries from the file tree: their notes open as tabs, and folders and
-/// other files are left out.
+/// Entries from the file tree: their notes and images open as tabs, and
+/// folders and other files are left out.
 impl PaneDrop for DraggedEntry {
     fn dropped_item(&self) -> Option<DroppedItem> {
-        let notes: Vec<_> = self.notes().map(Path::to_path_buf).collect();
+        let notes: Vec<_> = self.tab_files().map(Path::to_path_buf).collect();
         (!notes.is_empty()).then_some(DroppedItem::Notes(notes))
     }
 
     fn droppable(&self) -> bool {
-        self.notes().next().is_some()
+        self.tab_files().next().is_some()
     }
 }
 
