@@ -253,6 +253,22 @@ fn move_tab_commands_go_to_a_neighbour_or_split_one_off(cx: &mut TestAppContext)
 }
 
 #[gpui::test]
+fn an_image_tab_moves_and_splits_like_a_note(cx: &mut TestAppContext) {
+    let vault = vault_with(&["a.md"]);
+    image::RgbaImage::new(6, 4)
+        .save(vault.path().join("pic.png"))
+        .unwrap();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open_tabs(&workspace, cx, &["a.md", "pic.png"]);
+    run(&workspace, cx, "pane.move-tab-right");
+    assert_eq!(layout(&workspace, cx), vec![vec!["a"], vec!["pic"]]);
+    assert_eq!(saved_layout(&workspace, cx).sides[1].tabs, vec!["pic.png"]);
+    run(&workspace, cx, "pane.move-tab-left");
+    assert_eq!(layout(&workspace, cx), vec![vec!["a", "pic"]]);
+    assert_eq!(active_title(&workspace, cx), "pic");
+}
+
+#[gpui::test]
 fn closing_to_the_right_keeps_the_tabs_before(cx: &mut TestAppContext) {
     let vault = vault_with(&["a.md", "b.md", "c.md", "d.md"]);
     let (workspace, cx) = open_workspace(cx, vault.path());

@@ -47,11 +47,12 @@ impl DraggedEntry {
             .collect()
     }
 
-    /// The dragged notes, in order, leaving out folders and other files.
-    pub fn notes(&self) -> impl Iterator<Item = &Path> {
+    /// The dragged notes and images, which open as tabs, in order,
+    /// leaving out folders and other files.
+    pub fn tab_files(&self) -> impl Iterator<Item = &Path> {
         self.entries
             .iter()
-            .filter(|entry| entry.kind == EntryKind::Note)
+            .filter(|entry| matches!(entry.kind, EntryKind::Note | EntryKind::Image))
             .map(|entry| entry.path.as_path())
     }
 }
