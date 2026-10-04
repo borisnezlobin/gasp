@@ -160,12 +160,12 @@ Copy and layout
 - [x] On the new tab page, typing goes straight into the search. *(The first letter opens the note switcher with it already typed.)*
 - [x] Room below a note's last line: half the window on the Mac, 30% of the screen on the iPhone, so the last line can sit mid-screen. *(Not in the 0.2.2 draft.)*
 - [x] Hovering an image in the sidebar shows a preview of it. *(After the same pause as a link preview, beside the row, with its size in pixels.)*
-- [ ] Pasting images is unreliable. After pasting #1, pasting #2, then deleting #1 from the note and the sidebar, the next paste showed the deleted image under #1's name; the paste after that showed the clipboard as #3. Triage every cause.
-- [ ] Images can't be opened from the sidebar.
+- [x] Pasting images is unreliable. After pasting #1, pasting #2, then deleting #1 from the note and the sidebar, the next paste showed the deleted image under #1's name; the paste after that showed the clipboard as #3. Triage every cause.
+- [x] Images can't be opened from the sidebar.
   - *Triage: open notes cache each image by its link name and never notice the file was deleted or replaced (Mac and iPhone); new pastes reuse the lowest free number, so a deleted image's name comes back; the sidebar opens every file as a note, so images fail with "stream did not contain valid UTF-8".*
   - [x] Fix the stale image cache on the Mac and the iPhone.
   - [x] Stop new pastes reusing a deleted image's name. *(Numbered one past the highest used.)*
-  - [ ] Open images from the sidebar in an image tab.
+  - [x] Open images from the sidebar in an image tab. *(Fits the pane, a click shows actual size; PDFs and other files open in their default app.)*
   - [x] When an embed you just pasted is removed, offer to delete its image file too. *(Owner: "good idea". Undo withdraws the offer.)*
 - [x] Show whether iCloud is syncing; the owner on 0.2.1 can't tell.
   - The owner's vault syncs through GitHub, not iCloud (it's a git clone in ~/Documents). The sync popover now names the repository, like "borisnezlobin/notes on GitHub".
