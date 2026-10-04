@@ -263,11 +263,22 @@ impl FileTree {
         };
         let dragged = DraggedEntry::new(self.dragged_entries(&row.entry));
         let selector = format!("tree-row-{}", row.entry.label());
+        let is_image = row.entry.kind == EntryKind::Image;
+        let image_preview = self.render_image_preview(&row.entry.path, ui);
+        let image_path = row.entry.path.clone();
+        let preview_size = ui.image_preview_size;
         self.row_shell(row.depth, state, ui)
             .id(("file-tree-row", index))
             .selector(|| selector)
             .children(content)
             .children(menu)
+            .children(image_preview)
+            .when(is_image, |row| {
+                row.on_hover(cx.listener(move |tree, hovered: &bool, window, cx| {
+                    let pixel_width = (f32::from(preview_size) * window.scale_factor()) as u32;
+                    tree.image_row_hovered(image_path.clone(), *hovered, pixel_width, cx);
+                }))
+            })
             .on_click(cx.listener(move |tree, event: &ClickEvent, window, cx| {
                 let click = RowClick::from_modifiers(&event.modifiers());
                 tree.click_row(index, click, window, cx);
