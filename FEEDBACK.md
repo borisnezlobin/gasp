@@ -177,6 +177,8 @@ Copy and layout
 - [ ] Publish 0.2.1 (drafted, notarized): the agent tiles, the vault switcher and the new install window. It's the first release the one-click updater will offer, so check that it updates and relaunches cleanly.
 - [x] Draft 0.2.2 on GitHub releases. *(Drafted with notes and a notarized, stapled DMG.)*
 - [ ] Publish 0.2.2.
+- [ ] Make 0.2.3.
+- [x] The build folder grew to 40 GB+. Make it small and keep it small. *(43 GB → 6 GB. Debug builds keep only line tables, and `make tidy` keeps the newest five builds of each crate; it runs after `make build` and `make dmg` and once a day from the auto-pull job.)*
 - [x] Release notes stay short.
 
 ## Website, later rounds

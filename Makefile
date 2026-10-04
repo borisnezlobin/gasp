@@ -13,7 +13,7 @@ BUNDLE_ID := com.borisnezlobin.gasp
 # the paid account, but its installs stop opening after 7 days.
 IOS_TEAM ?= K2MB68Z582
 
-.PHONY: help build run dmg dmg-local dmg-background notarize icon ios-core ios-project ios-sim ios-phone snapshot
+.PHONY: help build run dmg dmg-local dmg-background notarize icon ios-core ios-project ios-sim ios-phone snapshot tidy
 
 help:
 	@echo "make build       Build the desktop app, signed so the Keychain remembers it"
@@ -23,6 +23,7 @@ help:
 	@echo "make dmg         Signed, notarized Gasp.dmg for other Macs (target/package/)"
 	@echo "make dmg-local   Unsigned Gasp.dmg that only runs on this Mac"
 	@echo "make notarize    Notarize the Gasp.dmg already built (needs the Mac unlocked)"
+	@echo "make tidy        Delete old builds Cargo left in target/ (runs after build and dmg)"
 	@echo "make icon        Rebuild AppIcon.icns from the whale render"
 	@echo "make dmg-background  Redraw the install window's background art"
 	@echo "make ios-sim     Build the iPhone app and run it in the simulator (no window)"
@@ -31,6 +32,7 @@ help:
 build:
 	cargo build --release -p gasp-desktop
 	codesign --force --sign "$(DEV_SIGNING_ID)" --identifier $(BUNDLE_ID) target/release/gasp
+	@scripts/prune-target.py
 
 run: build
 	./target/release/gasp
@@ -45,6 +47,10 @@ snapshot:
 
 dmg:
 	DEVELOPER_ID="$(DEVELOPER_ID)" NOTARY_PROFILE="$(NOTARY_PROFILE)" scripts/package-macos.sh
+	@scripts/prune-target.py
+
+tidy:
+	@scripts/prune-target.py
 
 VERSION := $(shell sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
 
