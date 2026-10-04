@@ -426,6 +426,23 @@ fn double_click_selects_a_word_and_triple_click_a_line(cx: &mut TestAppContext) 
 }
 
 #[gpui::test]
+fn the_last_line_can_scroll_up_to_the_middle(cx: &mut TestAppContext) {
+    let note: Vec<String> = (0..200).map(|line| format!("line {line}")).collect();
+    let (view, cx) = open(cx, &note.join("\n"));
+    view.update(cx, |view, cx| view.scroll_by(px(1_000_000.), cx));
+    cx.run_until_parked();
+    let (last_line_top, middle) = view.read_with(cx, |view, _| {
+        let frame = view.frame().unwrap();
+        let last = frame.line(199).expect("the last line is on screen");
+        (last.text_top(), frame.bounds.center().y)
+    });
+    assert!(
+        (last_line_top - middle).abs() < px(40.),
+        "the last line rests mid-view: {last_line_top:?} against {middle:?}"
+    );
+}
+
+#[gpui::test]
 fn select_all_keeps_the_scroll_position(cx: &mut TestAppContext) {
     let long: String = (0..400).map(|line| format!("line {line}\n")).collect();
     let (view, cx) = open(cx, &long);

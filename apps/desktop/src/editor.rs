@@ -50,6 +50,10 @@ const PLAN_CHUNK: usize = 8;
 /// The column width assumed before the first frame.
 const INITIAL_COLUMN_WIDTH: f32 = 700.;
 
+/// How much of the view stays empty below a note's last line when it's
+/// scrolled to the end.
+const ROOM_BELOW_LAST_LINE: f32 = 0.5;
+
 /// What the editor tells its container.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditorEvent {
@@ -453,9 +457,16 @@ impl EditorView {
         }
     }
 
-    /// The furthest the view can scroll with `viewport` of room.
+    /// The furthest the view can scroll with `viewport` of room. A note
+    /// being written scrolls on past its end until the last line sits
+    /// mid-view, so the line being typed at the bottom needn't hug the edge.
     fn max_scroll(&self, viewport: Pixels) -> Pixels {
-        (self.header_height + self.metrics.total_height() - viewport).max(px(0.))
+        let room_below = if self.read_only {
+            px(0.)
+        } else {
+            viewport * ROOM_BELOW_LAST_LINE
+        };
+        (self.header_height + self.metrics.total_height() + room_below - viewport).max(px(0.))
     }
 
     pub fn timings(&self) -> &Timings {

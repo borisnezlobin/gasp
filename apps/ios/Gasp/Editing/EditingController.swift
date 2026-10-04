@@ -18,6 +18,10 @@ protocol EditingHost: AnyObject {
 /// restyles it from each new plan, saves edits and keeps snapshots of the
 /// text it replaces.
 final class EditingController: NSObject, UITextViewDelegate {
+    /// How much of the view stays empty below a note's last line when
+    /// it's scrolled to the end, so that line can sit above the bottom edge.
+    static let roomBelowLastLine: CGFloat = 0.3
+
     let textView = EditorTextView(usingTextLayoutManager: true)
     var path: String {
         didSet {
@@ -213,8 +217,9 @@ final class EditingController: NSObject, UITextViewDelegate {
         let side = sideInset(spacing)
         let top = CGFloat(spacing.lg)
         let titleRoom = placeTitle(top: top, side: side)
+        let bottom = max(CGFloat(spacing.xxl) * 4, textView.bounds.height * Self.roomBelowLastLine)
         textView.textContainerInset = UIEdgeInsets(
-            top: top + titleRoom, left: side, bottom: CGFloat(spacing.xxl) * 4, right: side
+            top: top + titleRoom, left: side, bottom: bottom, right: side
         )
         styler.setColumnWidth(textView.bounds.width - side * 2)
         restyle(edited: nil)
