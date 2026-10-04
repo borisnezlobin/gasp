@@ -14,8 +14,13 @@ unsafe_code = "deny"
 [workspace.lints.clippy]
 cognitive_complexity = "deny"
 
-# Libraries keep only line tables in debug builds: backtraces still name
-# the file and line, and every debug binary is a fraction of the size.
+# Debug builds keep only line tables: backtraces still name the file and
+# line, and the object files macOS keeps beside every build stay a fraction
+# of the size. `make tidy` (run after builds) deletes builds Cargo left
+# behind.
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.dev.package."*"]
 debug = "line-tables-only"
 
