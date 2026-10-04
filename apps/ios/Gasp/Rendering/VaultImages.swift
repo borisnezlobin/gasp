@@ -4,12 +4,14 @@ import UIKit
 /// Images from the vault, decoded off the main thread at the size they're
 /// drawn rather than their own, so a folder of photos doesn't fill memory.
 /// A file's pixel size is read from its header alone, so the text lays out
-/// at the right height before the pixels arrive.
+/// at the right height before the pixels arrive. Both are kept by the
+/// file's modification time and size too, so a file replaced, edited or
+/// synced in under the same name is read again.
 final class VaultImages {
     static let shared = VaultImages()
 
     private let decoded = NSCache<NSString, UIImage>()
-    private var pixelSizes: [URL: CGSize] = [:]
+    private var pixelSizes: [String: CGSize] = [:]
     private var loading: [NSString: [() -> Void]] = [:]
     private let queue = OperationQueue()
 
@@ -21,7 +23,9 @@ final class VaultImages {
 
     /// The file's size in pixels, or `nil` when it isn't an image.
     func pixelSize(of file: URL) -> CGSize? {
-        if let known = pixelSizes[file] { return known }
+        guard let version = Self.version(of: file) else { return nil }
+        let sizeKey = "\(version) \(file.path)"
+        if let known = pixelSizes[sizeKey] { return known }
         guard let source = CGImageSourceCreateWithURL(file as CFURL, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let width = properties[kCGImagePropertyPixelWidth] as? CGFloat,
@@ -29,7 +33,7 @@ final class VaultImages {
         else { return nil }
         let turned = (properties[kCGImagePropertyOrientation] as? UInt32).map { $0 >= 5 } ?? false
         let size = turned ? CGSize(width: height, height: width) : CGSize(width: width, height: height)
-        pixelSizes[file] = size
+        pixelSizes[sizeKey] = size
         return size
     }
 
@@ -58,7 +62,16 @@ final class VaultImages {
     }
 
     private static func key(_ file: URL, _ pixels: Int) -> NSString {
-        "\(pixels) \(file.path)" as NSString
+        "\(pixels) \(version(of: file) ?? "missing") \(file.path)" as NSString
+    }
+
+    /// When the file last changed and how big it is, or `nil` when it's gone.
+    static func version(of file: URL) -> String? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: file.path),
+              let modified = attributes[.modificationDate] as? Date
+        else { return nil }
+        let bytes = (attributes[.size] as? NSNumber)?.intValue ?? 0
+        return "\(modified.timeIntervalSinceReferenceDate) \(bytes)"
     }
 
     private static func cost(of image: UIImage) -> Int {
