@@ -280,6 +280,13 @@ impl EditorView {
 
     /// Looks again for the images that were missing, after the vault
     /// changed.
+    /// Reads again the images whose files changed on disk.
+    pub fn image_files_changed(&mut self, paths: &[std::path::PathBuf], cx: &mut Context<Self>) {
+        if self.images.forget_files(paths) {
+            cx.notify();
+        }
+    }
+
     pub(crate) fn retry_missing_images(&mut self, cx: &mut Context<Self>) {
         if self.images.retry_missing() {
             cx.notify();

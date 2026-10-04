@@ -70,6 +70,39 @@ fn pasted_images_are_saved_next_to_the_note(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn removing_a_pasted_image_offers_to_delete_it_until_undone(cx: &mut TestAppContext) {
+    let vault = tempfile::tempdir().unwrap();
+    let note = vault.path().join("Lemma.md");
+    let (view, cx) = open(cx, "see ");
+    cx.update(|_, cx| {
+        let context = PasteContext {
+            note_path: Some(note.clone()),
+            attachments: "./images".to_owned(),
+        };
+        set_paste_context(&view, context, cx);
+    });
+    select(&view, cx, 4..4);
+    let image = Image::from_bytes(ImageFormat::Png, b"not really a png".to_vec());
+    cx.write_to_clipboard(ClipboardItem::new_image(&image));
+    press(cx, "edit.paste");
+    let offers = |cx: &mut VisualTestContext| {
+        let window = cx.update(|window, _| window.window_handle());
+        cx.update(|_, cx| gasp_desktop::notices::shown_in(window, cx))
+            .into_iter()
+            .filter(|(_, notice)| notice.message.contains("Lemma-1.png"))
+            .count()
+    };
+    assert_eq!(offers(cx), 0, "nothing to offer while it's in the note");
+    press(cx, "edit.undo");
+    assert_eq!(text(&view, cx), "see ");
+    assert_eq!(offers(cx), 1);
+    press(cx, "edit.redo");
+    assert_eq!(text(&view, cx), "see ![[Lemma-1.png]]");
+    assert_eq!(offers(cx), 0, "putting it back withdraws the offer");
+    assert!(vault.path().join("images/Lemma-1.png").is_file());
+}
+
+#[gpui::test]
 fn images_need_a_saved_note(cx: &mut TestAppContext) {
     let (view, cx) = open(cx, "x");
     let image = Image::from_bytes(ImageFormat::Jpeg, vec![1, 2, 3]);

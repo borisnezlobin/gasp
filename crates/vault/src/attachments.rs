@@ -26,17 +26,21 @@ pub fn attachments_dir(note: &Path, attachments: &str) -> PathBuf {
     dir
 }
 
-/// `<note>-<n>.<extension>` with the smallest `n` from 1 whose name (with
-/// any extension) isn't in `existing_stems`.
+/// `<note>-<n>.<extension>`, numbered one past the highest `n` in
+/// `existing_stems`, so deleting an attachment never frees its name for a
+/// different picture that something else may still remember.
 pub fn next_attachment_name(
     existing_stems: &HashSet<String>,
     note_stem: &str,
     extension: &str,
 ) -> String {
-    let n = (1..)
-        .find(|n| !existing_stems.contains(&format!("{note_stem}-{n}")))
-        .expect("there is always a free number");
-    format!("{note_stem}-{n}.{extension}")
+    let prefix = format!("{note_stem}-");
+    let highest = existing_stems
+        .iter()
+        .filter_map(|stem| stem.strip_prefix(&prefix)?.parse::<u32>().ok())
+        .max()
+        .unwrap_or(0);
+    format!("{note_stem}-{}.{extension}", highest + 1)
 }
 
 /// The file stems in `dir`, or none when it doesn't exist yet.
@@ -87,15 +91,23 @@ mod tests {
     }
 
     #[test]
-    fn attachment_names_take_the_next_free_number() {
+    fn attachment_names_count_on_from_the_highest_number() {
         assert_eq!(
             next_attachment_name(&stems(&[]), "Note", "png"),
             "Note-1.png"
         );
         let taken = stems(&["Note-1", "Note-2", "Other-3"]);
         assert_eq!(next_attachment_name(&taken, "Note", "jpg"), "Note-3.jpg");
-        let gap = stems(&["Note-2"]);
-        assert_eq!(next_attachment_name(&gap, "Note", "png"), "Note-1.png");
+        let deleted_first = stems(&["Note-2"]);
+        assert_eq!(
+            next_attachment_name(&deleted_first, "Note", "png"),
+            "Note-3.png"
+        );
+        let lookalikes = stems(&["Note-2b", "Note-draft", "Notes-9"]);
+        assert_eq!(
+            next_attachment_name(&lookalikes, "Note", "png"),
+            "Note-1.png"
+        );
     }
 
     #[test]

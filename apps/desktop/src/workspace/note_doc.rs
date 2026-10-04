@@ -183,7 +183,7 @@ impl NoteDoc {
             .map_or_else(|| self.saved_text.clone(), |editor| editor.read(cx).text())
     }
 
-    fn live_editors(&self) -> Vec<Entity<EditorView>> {
+    pub(crate) fn live_editors(&self) -> Vec<Entity<EditorView>> {
         self.editors
             .iter()
             .filter_map(WeakEntity::upgrade)

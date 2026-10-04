@@ -170,6 +170,10 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     workspace.on_command("toolbar.customize", open_toolbar_settings);
     workspace.on_command("app.print", print_note);
     workspace.on_command("file-tree.reveal-active", reveal_active);
+    workspace.on_command(
+        crate::attachment_cleanup::DELETE_COMMAND,
+        crate::attachment_cleanup::delete_offered_image,
+    );
 }
 
 // ---- File tree ----
