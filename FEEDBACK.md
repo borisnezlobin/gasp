@@ -158,6 +158,7 @@ Copy and layout
 - [x] Drag notes out of the sidebar the same way as dragging a note's title in the editor. *(Drop on the tab bar to open a tab there, on the note to open it next to the current tab, or on an edge to split.)*
 - [x] Checkmarks (connecting Claude and the like) shouldn't use the theme colour. *(They're green now, from a new `color.connected` token.)*
 - [x] On the new tab page, typing goes straight into the search. *(The first letter opens the note switcher with it already typed.)*
+- [x] Room below a note's last line: half the window on the Mac, 30% of the screen on the iPhone, so the last line can sit mid-screen. *(Not in the 0.2.2 draft.)*
 - [x] Show whether iCloud is syncing; the owner on 0.2.1 can't tell.
   - The owner's vault syncs through GitHub, not iCloud (it's a git clone in ~/Documents). The sync popover now names the repository, like "borisnezlobin/notes on GitHub".
 
