@@ -181,7 +181,7 @@ Copy and layout
 - [ ] Publish 0.2.3.
 - [ ] Put the iPhone app on TestFlight under Zihao's team: app icon, everything App Review needs, upload, and on the owner's phone. Then a list of what the owner does in App Store Connect, with links.
   - *(Icon, privacy manifest, encryption exemption and `make ios-upload` are in. Build 0.2.3 (591) is uploaded and processing; the owner adds themselves to internal testing and installs it from TestFlight.)*
-- [ ] iPhone: swipe to delete on the Tabs page.
+- [x] iPhone: swipe to delete on the Tabs page. *(Swipe a card sideways on the tab overview to close it; a short swipe springs back.)*
 - [ ] Make the App Store page ready for submission ("Gasp: Markdown Notes") and generate every asset it needs.
 - [x] The build folder grew to 40 GB+. Make it small and keep it small. *(43 GB → 6 GB. Debug builds keep only line tables, and `make tidy` keeps the newest five builds of each crate; it runs after `make build` and `make dmg` and once a day from the auto-pull job.)*
 - [x] Release notes stay short.
