@@ -12,6 +12,9 @@ protocol EditingHost: AnyObject {
     var keyboardToolbar: PhoneToolbar { get }
     /// Gives the session's note a new name, typed in its title.
     func rename(_ session: EditingController, to title: String)
+    /// Whether the note may take the cursor, which it may not while
+    /// something sits over it.
+    var noteMayTakeFocus: Bool { get }
 }
 
 /// One open note: keeps the core's copy in step with the text view,
@@ -304,6 +307,10 @@ final class EditingController: NSObject, UITextViewDelegate {
         scheduleGrammarCheck()
         scheduleCodeColours()
         editState.refresh()
+    }
+
+    func textViewShouldBeginEditing(_ textView: UITextView) -> Bool {
+        host?.noteMayTakeFocus ?? true
     }
 
     func textViewDidBeginEditing(_ textView: UITextView) {

@@ -11,6 +11,7 @@ extension CommandRunner {
         do {
             let path = try vault.createNote(folder: folder, title: nil)
             library.edited()
+            workspace.sidebarOpen = false
             if tabs.active.path == nil {
                 tabs.open(path)
             } else {

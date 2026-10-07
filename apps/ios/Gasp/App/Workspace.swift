@@ -1,5 +1,6 @@
-import Foundation
+import GameController
 import Observation
+import UIKit
 
 /// What the sidebar shows below its search field.
 enum SidebarSection: String, CaseIterable, Identifiable {
@@ -85,11 +86,16 @@ enum WorkspacePrompt: Identifiable {
 /// line length.
 @Observable
 final class Workspace {
-    var sidebarOpen = false
+    /// Opening the sidebar puts the keyboard away; closing it leaves the
+    /// keyboard down until the note is tapped.
+    var sidebarOpen = false {
+        didSet { if sidebarOpen && !oldValue { Self.dismissKeyboard() } }
+    }
     var sidebarSection: SidebarSection = .files
     var searchQuery = ""
-    /// Bumped to put the cursor in the sidebar's search field.
-    var searchFocusRequest = 0
+    /// Set to put the cursor in the sidebar's search field, which takes it
+    /// and clears this.
+    var searchFocusPending = false
     var overviewOpen = false
     var sheet: WorkspaceSheet?
     var prompt: WorkspacePrompt?
@@ -129,9 +135,16 @@ final class Workspace {
         tell("Hold the note, then drag it onto a folder.")
     }
 
+    /// Opens the sidebar, with the cursor in its search field only when a
+    /// hardware keyboard is attached, so no software keyboard covers the
+    /// files.
     func openSearch() {
         sidebarOpen = true
-        searchFocusRequest += 1
+        searchFocusPending = GCKeyboard.coalesced != nil
+    }
+
+    private static func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     /// Shows `message` for a moment.
