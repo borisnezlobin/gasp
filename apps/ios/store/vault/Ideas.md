@@ -1,0 +1,3 @@
+- Map every song theme by year, like a family tree
+- A tide clock for the kitchen
+- Learn enough Swift to build my own field recorder

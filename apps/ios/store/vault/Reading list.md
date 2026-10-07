@@ -1,0 +1,5 @@
+- [x] Moby-Dick
+- [x] *Spying on Whales*, Nick Pyenson
+- [ ] *Fathoms*, Rebecca Giggs
+- [ ] The Old Man and the Sea
+- [ ] Twenty Thousand Leagues Under the Seas
