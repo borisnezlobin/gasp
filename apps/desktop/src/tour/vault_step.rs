@@ -99,8 +99,7 @@ impl Tour {
                 match std::fs::create_dir_all(&vault) {
                     Ok(()) => tour.chose_vault(vault, window, cx),
                     Err(error) => {
-                        let message = format!("Couldn’t make the vault’s folder: {error}");
-                        crate::notices::problem(message, cx);
+                        crate::notices::failed("Couldn’t make the vault’s folder", error, cx);
                     }
                 }
             })
@@ -131,8 +130,7 @@ impl Tour {
                 self.open_vault(vault, AfterOpening::OpenNote(first), window, cx);
             }
             Err(error) => {
-                let message = format!("Couldn’t make the sample vault: {error}");
-                crate::notices::problem(message, cx);
+                crate::notices::failed("Couldn’t make the sample vault", error, cx);
             }
         }
     }

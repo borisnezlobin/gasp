@@ -234,11 +234,11 @@ impl NoteDoc {
     /// it fails. A failed save leaves the note marked unsaved.
     pub fn save_or_log(&mut self, cx: &mut Context<Self>) {
         if let Err(error) = self.save(cx) {
-            let message = format!(
-                "Couldn’t save “{}”: {error}. Your edits are still open here.",
-                super::files::note_title(&self.path)
-            );
-            crate::notices::show(crate::notices::Notice::problem(message), cx);
+            let what = format!("Couldn’t save “{}”", super::files::note_title(&self.path));
+            let notice = crate::notices::failure(what, error);
+            let detail = notice.detail.clone().unwrap_or_default();
+            let notice = notice.with_detail(format!("{detail} Your edits are still open here."));
+            crate::notices::show(notice, cx);
         }
     }
 

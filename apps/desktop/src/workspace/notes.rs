@@ -233,7 +233,7 @@ impl Workspace {
             return Err(format!("There’s already a note called “{title}”."));
         }
         doc.update(cx, |doc, cx| doc.save_or_log(cx));
-        std::fs::rename(old, &new).map_err(|error| format!("Couldn’t rename the note: {error}"))?;
+        std::fs::rename(old, &new).map_err(|error| format!("Couldn’t rename the note. {}", crate::plain_errors::PlainReason::plain_reason(&error)))?;
         self.note_moved(doc, old, &new, cx);
         self.note_history_moved(old, &new, cx);
         if self.config.settings.files.update_links_on_rename {
@@ -305,8 +305,7 @@ impl Workspace {
             workspace
                 .update_in(cx, |workspace, window, cx| {
                     if let Err(error) = workspace.trash_note(&path, window, cx) {
-                        let message = format!("Couldn’t move it to the trash: {error}");
-                        crate::notices::problem(message, cx);
+                        crate::notices::failed("Couldn’t move it to the trash", error, cx);
                     }
                 })
                 .ok();
@@ -394,10 +393,7 @@ impl Workspace {
             let conflicted = doc.read(cx).conflict().is_some() && doc.read(cx).is_dirty();
             if conflicted && let Err(error) = doc.update(cx, |doc, cx| doc.save_conflicted_copy(cx))
             {
-                crate::notices::problem(
-                    format!("Couldn’t keep the conflicting edits: {error}"),
-                    cx,
-                );
+                crate::notices::failed("Couldn’t keep the conflicting edits", error, cx);
             }
         }
     }

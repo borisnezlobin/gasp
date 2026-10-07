@@ -457,7 +457,7 @@ impl Workspace {
         match choice {
             0 => {
                 if let Err(error) = doc.update(cx, |doc, cx| doc.keep_mine(cx)) {
-                    crate::notices::problem(format!("Couldn’t save: {error}"), cx);
+                    crate::notices::failed("Couldn’t save", error, cx);
                     return;
                 }
             }

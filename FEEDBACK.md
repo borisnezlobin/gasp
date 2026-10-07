@@ -184,10 +184,19 @@ Copy and layout
   - *(Build 600, with the keyboard fix and swipe-to-close tabs, is uploaded. `make ios-upload` now signs in with the App Store Connect API key from ~/.appstoreconnect/gasp.env.)*
 - [x] iPhone: swipe to delete on the Tabs page. *(Swipe a card sideways on the tab overview to close it; a short swipe springs back.)*
 - [x] iPhone: the keyboard should never be open while the sidebar is open. *(Opening the sidebar puts the keyboard away, its search field only focuses itself with a hardware keyboard attached, and the note can't take focus behind it.)*
+- [x] Error notices are ugly and useless, e.g. 'Couldn't open “CR5”: stream did not contain valid UTF-8'. Say what happened and what to do, in people's words. *(A short headline says what failed and a quieter line says why and what to do; the system's wording goes to the log. A note that isn't text already opens in its default app in 0.2.3.)*
 - [ ] Make the App Store page ready for submission ("Gasp: Markdown Notes") and generate every asset it needs.
   - *(Five 6.9" screenshots and the full listing text are made (apps/ios/store); the owner pastes them into App Store Connect.)*
 - [x] The build folder grew to 40 GB+. Make it small and keep it small. *(43 GB → 6 GB. Debug builds keep only line tables, and `make tidy` keeps the newest five builds of each crate; it runs after `make build` and `make dmg` and once a day from the auto-pull job.)*
 - [x] Release notes stay short.
+
+## iPhone first run (from the owner trying TestFlight)
+
+- [ ] "Tick this box": only the second box can be ticked; tapping the first puts the cursor between the brackets.
+- [ ] Don't pop the keyboard up automatically during the welcome flow.
+- [ ] The first screen should feel like the website's homepage: the liquid shader instead of the jumping whale, which looks dated and weird.
+- [ ] Starting from an existing GitHub vault doesn't work: "GitHub sign-in isn't available in this build yet."
+- [ ] iCloud setup asks people to make a folder in iCloud Drive themselves; many can't. Gasp should make it.
 
 ## Website, later rounds
 

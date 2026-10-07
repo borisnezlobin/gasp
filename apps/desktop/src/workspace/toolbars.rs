@@ -481,7 +481,7 @@ impl Workspace {
         match gasp_config::toolbar_files::remove_toolbar(&self.vault, id) {
             Ok(_) => self.reload_config(cx),
             Err(error) => {
-                crate::notices::problem(format!("Couldn’t hide the toolbar: {error}"), cx);
+                crate::notices::failed("Couldn’t hide the toolbar", error, cx);
             }
         }
     }

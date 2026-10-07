@@ -69,11 +69,11 @@ pub fn update_links_after_rename(
             Ok(Some(_)) => changed.push(path),
             Ok(None) => {}
             Err(error) => {
-                let message = format!(
-                    "Couldn’t update the links in “{}”: {error}",
+                let what = format!(
+                    "Couldn’t update the links in “{}”",
                     crate::workspace::files::note_title(&path)
                 );
-                crate::notices::problem(message, cx);
+                crate::notices::failed(what, error, cx);
             }
         }
     }

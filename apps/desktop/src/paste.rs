@@ -336,8 +336,7 @@ impl EditorView {
                 self.paste_text_at(self.selected_range(), &embed(&name), cx);
             }
             Err(error) => {
-                let message = format!("Couldn’t save the pasted image: {error}");
-                crate::notices::show(Notice::problem(message), cx);
+                crate::notices::failed("Couldn’t save the pasted image", error, cx);
             }
         }
     }
@@ -382,8 +381,7 @@ impl EditorView {
             Ok(markup) if !markup.is_empty() => self.paste_text_at(offset..offset, &markup, cx),
             Ok(_) => {}
             Err(error) => {
-                let message = format!("Couldn’t add the files: {error}");
-                crate::notices::show(Notice::problem(message), cx);
+                crate::notices::failed("Couldn’t add the files", error, cx);
             }
         }
     }

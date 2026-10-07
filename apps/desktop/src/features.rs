@@ -512,7 +512,7 @@ fn on_palette_event(
         }
         PaletteEvent::Bind { command, chord } => {
             if let Err(error) = bind_user_key(workspace.vault(), command, chord, cx) {
-                crate::notices::problem(format!("Couldn’t save the shortcut: {error}"), cx);
+                crate::notices::failed("Couldn’t save the shortcut", error, cx);
             }
         }
     }
@@ -662,7 +662,7 @@ fn create_note(
             .map_or(Ok(()), std::fs::create_dir_all)
             .and_then(|()| std::fs::write(&path, ""));
         if let Err(error) = created {
-            crate::notices::problem(format!("Couldn’t make “{name}”: {error}"), cx);
+            crate::notices::failed(format!("Couldn’t make “{name}”"), error, cx);
             return;
         }
     }

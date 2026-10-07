@@ -109,7 +109,7 @@ fn finish_import(
     let outcome = match result {
         Ok(outcome) => outcome,
         Err(error) => {
-            notices::problem(format!("Couldn’t import from Obsidian: {error}"), cx);
+            notices::failed("Couldn’t import from Obsidian", error, cx);
             return;
         }
     };

@@ -17,6 +17,7 @@ use gpui::{
 
 use crate::icons::{IconName, icon};
 use crate::keymap::RunCommand;
+use crate::plain_errors::PlainReason;
 use crate::theme::UiTheme;
 use crate::ui::{Button, IconButton, Selectable};
 
@@ -44,6 +45,9 @@ pub struct NoticeAction {
 pub struct Notice {
     pub kind: NoticeKind,
     pub message: SharedString,
+    /// A quieter line under the message: for a problem, why it happened
+    /// and what to do.
+    pub detail: Option<SharedString>,
     pub action: Option<NoticeAction>,
     /// A quieter follow-up shown before the action.
     pub link: Option<NoticeAction>,
@@ -56,6 +60,7 @@ impl Notice {
         Notice {
             kind: NoticeKind::Done,
             message: message.into(),
+            detail: None,
             action: None,
             link: None,
             progress: None,
@@ -66,6 +71,7 @@ impl Notice {
         Notice {
             kind: NoticeKind::Problem,
             message: message.into(),
+            detail: None,
             action: None,
             link: None,
             progress: None,
@@ -76,10 +82,17 @@ impl Notice {
         Notice {
             kind: NoticeKind::Offer,
             message: message.into(),
+            detail: None,
             action: None,
             link: None,
             progress: None,
         }
+    }
+
+    /// Adds a quieter line under the message.
+    pub fn with_detail(mut self, detail: impl Into<SharedString>) -> Notice {
+        self.detail = Some(detail.into());
+        self
     }
 
     /// Offers `command` on a button labelled `label`.
@@ -205,13 +218,26 @@ pub fn problem(message: impl Into<SharedString>, cx: &mut App) -> u64 {
     show(Notice::problem(message), cx)
 }
 
+/// A problem saying `what` failed, with the plain reason for `error`
+/// under it. The error's own wording goes to the log.
+pub fn failure(what: impl Into<SharedString>, error: impl PlainReason) -> Notice {
+    let what = what.into();
+    eprintln!("{what}: {error}");
+    Notice::problem(what).with_detail(error.plain_reason())
+}
+
+/// Shows that `what` failed, and why in plain words.
+pub fn failed(what: impl Into<SharedString>, error: impl PlainReason, cx: &mut App) -> u64 {
+    show(failure(what, error), cx)
+}
+
 /// Says `path` couldn't be opened, and why.
-pub fn open_failed(path: &std::path::Path, error: impl std::fmt::Display, cx: &mut App) -> u64 {
+pub fn open_failed(path: &std::path::Path, error: impl PlainReason, cx: &mut App) -> u64 {
     let name = path
         .file_stem()
         .unwrap_or(path.as_os_str())
         .to_string_lossy();
-    problem(format!("Couldn’t open “{name}”: {error}"), cx)
+    failed(format!("Couldn’t open “{name}”"), error, cx)
 }
 
 /// Takes notice `id` away, if it's still shown.
@@ -302,7 +328,7 @@ fn render_card(id: u64, notice: Notice, ui: &UiTheme) -> AnyElement {
         .relative()
         .occlude()
         .child(icon(glyph).flex_none().size(ui.icon_size).text_color(tint))
-        .child(div().flex_1().min_w_0().child(notice.message))
+        .child(render_text(notice.message, notice.detail, ui))
         .children(link)
         .children(action)
         .child(
@@ -313,6 +339,24 @@ fn render_card(id: u64, notice: Notice, ui: &UiTheme) -> AnyElement {
         )
         .children(notice.progress.map(|percent| render_progress(percent, ui)))
         .into_any_element()
+}
+
+/// The message, and under it the detail in a smaller, quieter line.
+fn render_text(message: SharedString, detail: Option<SharedString>, ui: &UiTheme) -> gpui::Div {
+    let headline = div().when(detail.is_some(), |headline| headline.font_weight(ui.strong_weight));
+    div()
+        .flex_1()
+        .min_w_0()
+        .flex()
+        .flex_col()
+        .gap(ui.space_xs)
+        .child(headline.child(message))
+        .children(detail.map(|detail| {
+            div()
+                .text_size(ui.small_font_size)
+                .text_color(ui.text_muted)
+                .child(detail)
+        }))
 }
 
 /// A button that takes the notice away and runs `action`'s command; the
@@ -361,6 +405,20 @@ fn render_progress(percent: u8, ui: &UiTheme) -> AnyElement {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_failure_says_what_failed_and_why_in_plain_words() {
+        let error = std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "stream did not contain valid UTF-8",
+        );
+        let notice = failure("Couldn’t open “CR5”", error);
+        assert_eq!(notice.kind, NoticeKind::Problem);
+        assert_eq!(notice.message.as_ref(), "Couldn’t open “CR5”");
+        let detail = notice.detail.expect("a reason under the headline");
+        assert_eq!(detail.as_ref(), "It isn’t a file Gasp can read.");
+        assert!(!detail.contains("UTF-8"));
+    }
 
     #[gpui::test]
     fn a_repeated_message_shows_once_and_the_oldest_makes_room(cx: &mut gpui::TestAppContext) {

@@ -156,9 +156,10 @@ fn a_refused_update_says_why_in_plain_words(cx: &mut TestAppContext) {
     let shown = shown(cx);
     assert_eq!(shown.len(), 1);
     assert_eq!(shown[0].kind, NoticeKind::Problem);
+    assert_eq!(shown[0].message.as_ref(), "Gasp didn’t update");
     assert_eq!(
-        shown[0].message.as_ref(),
-        "Gasp didn’t update because the new app isn’t signed by Gasp’s developer."
+        shown[0].detail.as_ref().map(|detail| detail.as_ref()),
+        Some("The new app isn’t signed by Gasp’s developer.")
     );
 }
 

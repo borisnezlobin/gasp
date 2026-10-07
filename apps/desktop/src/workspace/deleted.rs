@@ -204,7 +204,7 @@ impl Workspace {
             }
             Err(RestoreFailure::Failed(error)) => {
                 self.deleted.push(note);
-                notices::problem(format!("Couldn’t restore “{title}”: {error}"), cx);
+                notices::failed(format!("Couldn’t restore “{title}”"), error, cx);
                 return;
             }
         };

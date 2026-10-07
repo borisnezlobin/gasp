@@ -2112,6 +2112,8 @@ pub struct UiTheme {
     pub flag_card_max_width: Pixels,
     /// One line of interface text, for measuring a wrapped message.
     pub text_line_height: Pixels,
+    /// Emphasis in interface text, such as a notice's headline over its detail.
+    pub strong_weight: FontWeight,
     /// How long the pointer rests on a link before its preview opens.
     pub hover_preview_delay: std::time::Duration,
     /// How long the preview stays after the pointer leaves, so it can
@@ -2471,6 +2473,7 @@ impl UiTheme {
             flag_card_min_width: px(220.),
             flag_card_max_width: px(440.),
             text_line_height: px(20.),
+            strong_weight: FontWeight::SEMIBOLD,
             hover_preview_delay: std::time::Duration::from_millis(350),
             hover_preview_grace: std::time::Duration::from_millis(250),
             image_preview_size: px(280.),

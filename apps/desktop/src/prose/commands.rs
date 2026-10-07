@@ -36,8 +36,7 @@ fn toggle_sentence_length(workspace: &mut Workspace, _: &mut Window, cx: &mut Co
     ) {
         Ok(_) => workspace.reload_config(cx),
         Err(error) => {
-            let message = format!("Couldn’t change sentence-length highlighting: {error}");
-            crate::notices::problem(message, cx);
+            crate::notices::failed("Couldn’t change sentence-length highlighting", error, cx);
         }
     }
 }
