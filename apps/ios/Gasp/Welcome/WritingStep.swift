@@ -119,4 +119,6 @@ final class PracticeNote: EditingHost {
     func follow(link target: String, from session: EditingController) {}
 
     func rename(_ session: EditingController, to title: String) {}
+
+    var noteMayTakeFocus: Bool { true }
 }
