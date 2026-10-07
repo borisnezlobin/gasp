@@ -181,6 +181,7 @@ Copy and layout
 - [ ] Publish 0.2.3.
 - [ ] Put the iPhone app on TestFlight under Zihao's team: app icon, everything App Review needs, upload, and on the owner's phone. Then a list of what the owner does in App Store Connect, with links.
   - *(Icon, privacy manifest, encryption exemption and `make ios-upload` are in. Build 0.2.3 (591) is uploaded and processing; the owner adds themselves to internal testing and installs it from TestFlight.)*
+  - *(Build 600, with the keyboard fix and swipe-to-close tabs, is uploaded. `make ios-upload` now signs in with the App Store Connect API key from ~/.appstoreconnect/gasp.env.)*
 - [x] iPhone: swipe to delete on the Tabs page. *(Swipe a card sideways on the tab overview to close it; a short swipe springs back.)*
 - [x] iPhone: the keyboard should never be open while the sidebar is open. *(Opening the sidebar puts the keyboard away, its search field only focuses itself with a hardware keyboard attached, and the note can't take focus behind it.)*
 - [ ] Make the App Store page ready for submission ("Gasp: Markdown Notes") and generate every asset it needs.

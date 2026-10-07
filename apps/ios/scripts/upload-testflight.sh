@@ -4,17 +4,24 @@
 #
 #   apps/ios/scripts/upload-testflight.sh
 #
-# Signs as the team in project.yml with the account Xcode is signed in to,
-# or with an App Store Connect API key when ASC_KEY_ID and ASC_ISSUER_ID are
-# set (the key in ~/.appstoreconnect/private_keys/AuthKey_<id>.p8). Each
-# build is numbered by the commit count, so every upload is newer than the
-# last.
+# Signs and uploads with an App Store Connect API key when ASC_KEY_ID and
+# ASC_ISSUER_ID are set, in the environment or in ~/.appstoreconnect/gasp.env
+# (the key itself in ~/.appstoreconnect/private_keys/AuthKey_<id>.p8), and
+# otherwise with the account Xcode is signed in to, whose session expires.
+# Each build is numbered by the commit count, so every upload is newer than
+# the last.
 set -euo pipefail
 
 ios_dir="$(cd "$(dirname "$0")/.." && pwd)"
 repo="$(cd "$ios_dir/../.." && pwd)"
 build_dir="$repo/target/ios-archive"
 build_number="$(git -C "$repo" rev-list --count HEAD)"
+
+local_settings="$HOME/.appstoreconnect/gasp.env"
+if [[ -z "${ASC_KEY_ID:-}" && -f "$local_settings" ]]; then
+  # shellcheck source=/dev/null
+  source "$local_settings"
+fi
 
 auth=()
 if [[ -n "${ASC_KEY_ID:-}" && -n "${ASC_ISSUER_ID:-}" ]]; then
