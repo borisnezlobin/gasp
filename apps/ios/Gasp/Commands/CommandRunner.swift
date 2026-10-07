@@ -127,6 +127,8 @@ final class CommandRunner: EditingHost {
 
     // MARK: EditingHost
 
+    var noteMayTakeFocus: Bool { !workspace.sidebarOpen }
+
     func rename(_ session: EditingController, to title: String) {
         rename(session.path, to: title)
     }
