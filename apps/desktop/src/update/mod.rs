@@ -330,7 +330,7 @@ fn finish(prepared: Result<Prepared, InstallError>, cx: &mut App) {
         Err(error) => {
             updater(cx).phase = Phase::Idle;
             say(
-                Notice::problem(format!("Gasp didn’t update because {error}.")),
+                Notice::problem("Gasp didn’t update").with_detail(update_refusal(&error)),
                 cx,
             );
         }
@@ -369,7 +369,7 @@ fn restart(cx: &mut App) {
         Ok(()) => cx.quit(),
         Err(error) => {
             say(
-                Notice::problem(format!("Gasp couldn’t restart to update: {error}.")),
+                crate::notices::failure("Gasp couldn’t restart to update", error),
                 cx,
             );
         }
@@ -384,6 +384,26 @@ fn open_release_notes(cx: &mut App) {
 }
 
 /// Shows `notice` in place of the last update notice.
+/// Why an update didn't install, in the notice's words. A refusal (the
+/// download isn't Gasp, or isn't newer) is said as it is; anything else
+/// goes to the log, and the notice says how to try again.
+fn update_refusal(error: &install::InstallError) -> String {
+    match error {
+        install::InstallError::Refused(refusal) => {
+            let reason = refusal.to_string();
+            let mut letters = reason.chars();
+            letters.next().map_or(String::new(), |first| {
+                format!("{}{}.", first.to_uppercase(), letters.as_str())
+            })
+        }
+        install::InstallError::Failed(message) => {
+            eprintln!("update failed: {message}");
+            "The download didn’t finish. Try again with Check for updates in the Gasp menu."
+                .to_owned()
+        }
+    }
+}
+
 fn say(notice: Notice, cx: &mut App) {
     let previous = updater(cx).notice;
     let id = notices::replace(previous, notice, cx);

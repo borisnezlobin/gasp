@@ -50,6 +50,7 @@ pub mod open_bench;
 pub mod outline;
 pub mod palette;
 pub mod paste;
+pub mod plain_errors;
 pub mod pending_renders;
 pub mod picker;
 pub mod preview;

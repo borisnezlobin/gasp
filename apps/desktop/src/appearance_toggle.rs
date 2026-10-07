@@ -31,7 +31,7 @@ fn toggle_dark_mode(workspace: &mut Workspace, _: &mut Window, cx: &mut Context<
     match written {
         Ok(_) => workspace.reload_config(cx),
         Err(error) => {
-            crate::notices::problem(format!("Couldn’t switch to {next} mode: {error}"), cx);
+            crate::notices::failed(format!("Couldn’t switch to {next} mode"), error, cx);
         }
     }
 }

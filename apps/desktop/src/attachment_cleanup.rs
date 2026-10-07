@@ -126,7 +126,7 @@ pub fn delete_offered_image(
     let mode = workspace.config().settings.files.trash;
     match crate::trashing::move_to_trash(&vault, relative, mode) {
         Ok(_) => notices::show(Notice::done(format!("Deleted “{name}”.")), cx),
-        Err(error) => notices::problem(format!("Couldn’t delete “{name}”: {error}"), cx),
+        Err(error) => notices::failed(format!("Couldn’t delete “{name}”"), error, cx),
     };
 }
 

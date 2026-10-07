@@ -131,7 +131,7 @@ fn on_sidebar_event(
             let range = range.clone();
             let change = |text: &str| mentions::link_mention(text, range, expected, link);
             if let Err(error) = edit::edit_note(workspace, source, change, cx) {
-                crate::notices::problem(format!("Couldn’t link the mention: {error}"), cx);
+                crate::notices::failed("Couldn’t link the mention", error, cx);
             }
         }
         SidebarEvent::Show(view) => show_sidebar(workspace, Some(*view), sidebar, cx),
@@ -187,7 +187,7 @@ fn open_daily_note(workspace: &mut Workspace, window: &mut Window, cx: &mut Cont
     let path = match made {
         Ok((path, _)) => path,
         Err(error) => {
-            crate::notices::problem(format!("Couldn’t make today’s note: {error}"), cx);
+            crate::notices::failed("Couldn’t make today’s note", error, cx);
             return;
         }
     };

@@ -53,7 +53,7 @@ fn copy_rich_text(workspace: &mut Workspace, _: &mut Window, cx: &mut Context<Wo
             notices::show(Notice::done(format!("Copied {what} as rich text.")), cx);
         }
         Err(error) => {
-            notices::problem(format!("Couldn’t copy as rich text: {error}"), cx);
+            notices::failed("Couldn’t copy as rich text", error, cx);
         }
     }
 }

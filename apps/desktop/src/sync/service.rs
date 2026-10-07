@@ -282,8 +282,8 @@ impl SyncService {
         match gasp_sync::switch_branch(&self.root, self.settings.branch.trim()) {
             Ok(()) => self.open(cx),
             Err(error) => {
-                let message = format!("Sync can’t move to {}: {error}", self.settings_branch());
-                crate::notices::problem(message, cx);
+                let what = format!("Sync can’t move to {}", self.settings_branch());
+                crate::notices::failed(what, error, cx);
             }
         }
     }
@@ -546,7 +546,7 @@ impl SyncService {
         };
         self.store
             .save(&url, &token)
-            .map_err(|error| format!("The token couldn’t be saved: {error}"))?;
+            .map_err(|error| format!("The token couldn’t be saved. {}", crate::plain_errors::PlainReason::plain_reason(&error)))?;
         self.signed_in = true;
         if let Presence::Ready(engine) = &self.presence {
             engine.set_token(Some(token));
@@ -560,7 +560,7 @@ impl SyncService {
         if let Some(url) = &self.remote_url {
             self.store
                 .delete(url)
-                .map_err(|error| format!("The token couldn’t be removed: {error}"))?;
+                .map_err(|error| format!("The token couldn’t be removed. {}", crate::plain_errors::PlainReason::plain_reason(&error)))?;
         }
         if let Presence::Ready(engine) = &self.presence {
             engine.set_token(None);

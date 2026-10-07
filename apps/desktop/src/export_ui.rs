@@ -610,7 +610,7 @@ impl ExportDialog {
             Ok(()) => crate::sandbox::open_with_system(&path, cx),
             Err(error) => {
                 if let ExportState::Article(article) = &mut self.state {
-                    article.status = Some(format!("Couldn’t write the preview: {error}").into());
+                    article.status = Some(format!("Couldn’t write the preview. {}", crate::plain_errors::PlainReason::plain_reason(&error)).into());
                 }
                 cx.notify();
             }

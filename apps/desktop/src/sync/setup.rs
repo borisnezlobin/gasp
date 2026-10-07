@@ -853,9 +853,9 @@ fn keep_setup(job: &SetupJob, workspace: &WeakEntity<Workspace>, cx: &mut App) -
         && crate::sandbox::keeps_credentials()
         && let Err(error) = super::credential_store(cx).save(&job.url, token)
     {
-        caveat = Some(format!(
-            "The token couldn’t be kept ({error}). Paste it on the Sync page in settings."
-        ));
+        eprintln!("sync setup: keeping the token failed: {error}");
+        caveat =
+            Some("The token couldn’t be kept. Paste it on the Sync page in settings.".to_owned());
     }
     if job.branch != job.settings_branch {
         let default = Value::from(SyncSettings::default().branch);
@@ -866,9 +866,10 @@ fn keep_setup(job: &SetupJob, workspace: &WeakEntity<Workspace>, cx: &mut App) -
             &default,
         );
         if let Err(error) = written {
-            caveat.get_or_insert(format!(
-                "The branch couldn’t be saved in settings ({error}). Set it on the Sync page."
-            ));
+            eprintln!("sync setup: saving the branch failed: {error}");
+            caveat.get_or_insert(
+                "The branch couldn’t be saved in settings. Set it on the Sync page.".to_owned(),
+            );
         }
     }
     if let Some(workspace) = workspace.upgrade() {

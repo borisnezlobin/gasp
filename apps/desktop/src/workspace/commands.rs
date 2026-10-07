@@ -77,7 +77,7 @@ const HANDLERS: [(&str, Handler); 36] = [
     }),
     ("note.new", |ws, window, cx| {
         if let Err(error) = ws.new_note(window, cx) {
-            crate::notices::problem(format!("Couldn’t make a note: {error}"), cx);
+            crate::notices::failed("Couldn’t make a note", error, cx);
         }
     }),
     ("note.rename", |ws, window, cx| ws.focus_title(window, cx)),
@@ -113,7 +113,7 @@ const HANDLERS: [(&str, Handler); 36] = [
     ("help.tour", |_, _, cx| {
         let recent = super::state::AppState::recent_vaults();
         if let Err(error) = super::window::open_tour_window(true, recent, cx) {
-            crate::notices::problem(format!("Couldn’t open the tour: {error}"), cx);
+            crate::notices::failed("Couldn’t open the tour", error, cx);
         }
     }),
     ("file-tree.new-folder", |ws, window, cx| {
