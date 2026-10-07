@@ -19,7 +19,6 @@ struct TabTitleSwiper: View {
 
     private var tokens: Tokens { model.library.tokens }
     private var tabs: TabStore { model.tabs }
-    private static let settling = Animation.spring(response: 0.36, dampingFraction: 0.86)
 
     /// Whether a new tab waits past the last one; not when the last tab is
     /// already a new tab.
@@ -35,7 +34,7 @@ struct TabTitleSwiper: View {
             let width = geometry.size.width
             track(width: width)
                 .offset(x: position(width: width))
-                .animation(dragging ? nil : Self.settling, value: position(width: width))
+                .animation(dragging ? nil : .tabSettling, value: position(width: width))
                 .frame(width: width, height: geometry.size.height, alignment: .leading)
                 .contentShape(Rectangle())
                 .onTapGesture { model.workspace.overviewOpen = true }
@@ -150,6 +149,11 @@ struct TabTitleSwiper: View {
         let folder = (path as NSString).deletingLastPathComponent
         return folder.isEmpty ? nil : folder
     }
+}
+
+extension Animation {
+    /// How a swiped tab, title or card, settles once the finger lets go.
+    static let tabSettling = Animation.spring(response: 0.36, dampingFraction: 0.86)
 }
 
 /// A tab's title in the bottom bar, with its folder under it.
