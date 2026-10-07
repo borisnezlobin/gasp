@@ -184,6 +184,7 @@ Copy and layout
 - [x] iPhone: swipe to delete on the Tabs page. *(Swipe a card sideways on the tab overview to close it; a short swipe springs back.)*
 - [ ] iPhone: the keyboard should never be open while the sidebar is open.
 - [ ] Make the App Store page ready for submission ("Gasp: Markdown Notes") and generate every asset it needs.
+  - *(Five 6.9" screenshots and the full listing text are made (apps/ios/store); the owner pastes them into App Store Connect.)*
 - [x] The build folder grew to 40 GB+. Make it small and keep it small. *(43 GB → 6 GB. Debug builds keep only line tables, and `make tidy` keeps the newest five builds of each crate; it runs after `make build` and `make dmg` and once a day from the auto-pull job.)*
 - [x] Release notes stay short.
 
