@@ -1,6 +1,10 @@
-"""Composes the macOS app icon from an ink render of the humpback.
+"""Composes the app icon from an ink render of the humpback.
 
-    python compose_icon.py <whale.png> <out.png> [angle] [scale] [centre_x] [centre_y]
+    python compose_icon.py <whale.png> <out.png> [angle] [scale] [centre_x] [centre_y] [--small | --ios]
+
+The Mac icon is a rounded tile with a shadow on a clear canvas. With --ios it's
+the same tile filling an opaque square, since iOS rounds the corners itself and
+App Store Connect rejects icons with transparency.
 """
 import sys
 
@@ -139,8 +143,8 @@ def drop_shadow(mask: Image.Image) -> Image.Image:
     return shadow
 
 
-def compose(whale_path: str, out_path: str, angle: float, scale: float, centre: tuple[float, float]) -> None:
-    mask = tile_mask(TILE_SIZE)
+def artwork(whale_path: str, angle: float, scale: float, centre: tuple[float, float]) -> Image.Image:
+    """The tile's paper, whale and lines, square and unmasked."""
     tile = paper_tile(TILE_SIZE)
     whale = submerge(placed_whale(whale_path, TILE_SIZE, angle, scale, centre))
     tile.alpha_composite(whale_shadow(whale))
@@ -148,10 +152,21 @@ def compose(whale_path: str, out_path: str, angle: float, scale: float, centre: 
     tile.alpha_composite(foam(whale))
     tile.alpha_composite(text_lines(TILE_SIZE))
     tile.alpha_composite(caret(TILE_SIZE))
+    return tile
+
+
+def compose(whale_path: str, out_path: str, angle: float, scale: float, centre: tuple[float, float]) -> None:
+    mask = tile_mask(TILE_SIZE)
+    tile = artwork(whale_path, angle, scale, centre)
     tile.putalpha(ImageChops.multiply(tile.getchannel("A"), mask))
     icon = drop_shadow(mask)
     icon.alpha_composite(tile, (TILE_INSET, TILE_INSET))
     icon.save(out_path)
+
+
+def compose_full_bleed(whale_path: str, out_path: str, angle: float, scale: float, centre: tuple[float, float]) -> None:
+    tile = artwork(whale_path, angle, scale, centre)
+    tile.resize((CANVAS, CANVAS), Image.LANCZOS).convert("RGB").save(out_path)
 
 
 def use_small_size_layout() -> None:
@@ -171,7 +186,10 @@ if __name__ == "__main__":
     if "--small" in arguments:
         arguments.remove("--small")
         use_small_size_layout()
-    compose(
+    full_bleed = "--ios" in arguments
+    if full_bleed:
+        arguments.remove("--ios")
+    (compose_full_bleed if full_bleed else compose)(
         arguments[0],
         arguments[1],
         float(arguments[2]) if len(arguments) > 2 else 34.0,

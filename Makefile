@@ -13,7 +13,7 @@ BUNDLE_ID := com.borisnezlobin.gasp
 # the paid account, but its installs stop opening after 7 days.
 IOS_TEAM ?= K2MB68Z582
 
-.PHONY: help build run dmg dmg-local dmg-background notarize icon ios-core ios-project ios-sim ios-phone snapshot tidy
+.PHONY: help build run dmg dmg-local dmg-background notarize icon ios-core ios-project ios-sim ios-phone ios-upload snapshot tidy
 
 help:
 	@echo "make build       Build the desktop app, signed so the Keychain remembers it"
@@ -28,6 +28,7 @@ help:
 	@echo "make dmg-background  Redraw the install window's background art"
 	@echo "make ios-sim     Build the iPhone app and run it in the simulator (no window)"
 	@echo "make ios-phone   Build the iPhone app and install it on the plugged-in iPhone"
+	@echo "make ios-upload  Archive the iPhone app and upload it to App Store Connect for TestFlight"
 
 build:
 	cargo build --release -p gasp-desktop
@@ -84,3 +85,7 @@ ios-phone: ios-project
 		-allowProvisioningUpdates -allowProvisioningDeviceRegistration DEVELOPMENT_TEAM=$(IOS_TEAM) build
 	xcrun devicectl device install app --device $(IPHONE) $(IOS_BUILD)/Build/Products/Release-iphoneos/Gasp.app
 	xcrun devicectl device process launch --device $(IPHONE) com.borisnezlobin.gasp
+
+ios-upload:
+	apps/ios/scripts/upload-testflight.sh
+	@scripts/prune-target.py
