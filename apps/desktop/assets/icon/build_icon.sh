@@ -1,5 +1,6 @@
 #!/bin/zsh
-# Builds apps/desktop/assets/AppIcon.icns from the committed whale render.
+# Builds apps/desktop/assets/AppIcon.icns and the iPhone app's icon from the
+# committed whale render.
 #
 #   apps/desktop/assets/icon/build_icon.sh
 #
@@ -38,3 +39,7 @@ done
 iconutil --convert icns --output "$ASSETS_DIR/AppIcon.icns" "$ICONSET"
 cp "$WORK/full.png" "$ICON_DIR/AppIcon-1024.png"
 print "Wrote $ASSETS_DIR/AppIcon.icns"
+
+IOS_ICON="${ASSETS_DIR:h:h:h}/apps/ios/Gasp/Resources/AppIcon.xcassets/AppIcon.appiconset/AppIcon-1024.png"
+"$PYTHON" "$ICON_DIR/compose_icon.py" "$WHALE" "$IOS_ICON" 38 0.98 0.47 0.46 --ios
+print "Wrote $IOS_ICON"

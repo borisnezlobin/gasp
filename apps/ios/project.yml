@@ -29,6 +29,9 @@ targets:
       path: Gasp/Info.plist
       properties:
         CFBundleDisplayName: Gasp
+        # From the build settings below, so the version and build number aren't 1.0 and 1.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         # gasp://open?path=Folder/Note.md&line=12 opens a note at a line.
         CFBundleURLTypes:
           - CFBundleURLName: com.borisnezlobin.gasp
@@ -45,6 +48,9 @@ targets:
         LSSupportsOpeningDocumentsInPlace: true
         # Sync now and then while the app is in the background.
         UIBackgroundModes: [fetch]
+        # Only standard HTTPS (GitHub sync, the update and usage pings), which is exempt,
+        # so App Store Connect doesn't ask about encryption for every build.
+        ITSAppUsesNonExemptEncryption: false
         BGTaskSchedulerPermittedIdentifiers: [com.borisnezlobin.gasp.sync]
     settings:
       base:
@@ -53,8 +59,8 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         MARKETING_VERSION: "0.2.3"
         CURRENT_PROJECT_VERSION: "1"
-        # The welcome tour's whales are in an asset catalog; the app has no icon set yet.
-        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        # Made with the Mac icon by apps/desktop/assets/icon/build_icon.sh.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     postCompileScripts:
       - name: Bundle the sample vault
         script: '"$SRCROOT/scripts/bundle-sample-vault.sh"'
