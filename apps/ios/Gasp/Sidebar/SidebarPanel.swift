@@ -27,8 +27,10 @@ struct SidebarPanel: View {
         }
         .padding(.horizontal, tokens.spacing.lg)
         .padding(.top, tokens.spacing.md)
-        .onChange(of: workspace.searchFocusRequest, initial: true) { _, request in
-            if request > 0 { searchFocused = true }
+        .onChange(of: workspace.searchFocusPending, initial: true) { _, pending in
+            guard pending else { return }
+            searchFocused = true
+            workspace.searchFocusPending = false
         }
     }
 
