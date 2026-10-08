@@ -1,9 +1,11 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Syncing with iCloud: the person picks the Gasp folder in iCloud Drive
-/// once, this iPhone's own notes can come along (copied, the originals
-/// left where they are), and the folder opens as the vault.
+/// Syncing with iCloud: one tap and Gasp makes its own folder in iCloud
+/// Drive, brings this iPhone's notes along (copied, the originals left
+/// where they are) and opens the folder as the vault. With no notes to
+/// ask about, it starts as soon as it shows. Opening another folder in
+/// iCloud Drive stays as a quieter way in.
 struct ICloudSetupSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -36,6 +38,7 @@ struct ICloudSetupSheet: View {
         .font(Font(tokens.uiFont(size: tokens.bodySize)))
         .interactiveDismissDisabled(moving)
         .fileImporter(isPresented: $picking, allowedContentTypes: [.folder], onCompletion: picked)
+        .task { if !canBringNotes { await syncWithICloud() } }
     }
 
     @ViewBuilder private var content: some View {
@@ -57,7 +60,8 @@ struct ICloudSetupSheet: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top, tokens.spacing.xl)
             WelcomeSentence(
-                text: "Choose the Gasp folder in iCloud Drive. If there isn't one yet, make a folder called Gasp there.",
+                text: "Gasp keeps your notes in a Gasp folder in iCloud Drive. "
+                    + "Your Mac and other devices pick them up from there.",
                 tokens: tokens
             )
             if canBringNotes {
@@ -70,15 +74,44 @@ struct ICloudSetupSheet: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, WelcomeMetrics.margin)
-        .safeAreaInset(edge: .bottom) {
-            WelcomeFooter(
-                primary: moving ? "Bringing your notes along" : "Choose the folder",
-                tokens: tokens, action: { picking = true }
-            ) {
-                if moving { ProgressView() }
+        .safeAreaInset(edge: .bottom) { footer }
+    }
+
+    private var footer: some View {
+        WelcomeFooter(
+            primary: moving ? "Setting up iCloud" : "Sync with iCloud",
+            tokens: tokens, action: startSyncing
+        ) {
+            if moving {
+                ProgressView()
+            } else {
+                WelcomeQuietButton(title: "Open a folder", symbol: nil, tokens: tokens) { picking = true }
             }
-            .disabled(moving)
-            .padding(.bottom, tokens.spacing.lg)
+        }
+        .disabled(moving)
+        .padding(.bottom, tokens.spacing.lg)
+    }
+
+    private func startSyncing() {
+        Task { await syncWithICloud() }
+    }
+
+    /// Makes Gasp's folder in iCloud Drive if it isn't there yet, and
+    /// moves in.
+    private func syncWithICloud() async {
+        guard !moving else { return }
+        moving = true
+        problem = nil
+        do {
+            guard let folder = try await ICloudContainer.documentsFolder() else {
+                problem = ICloudContainer.turnedOff
+                moving = false
+                return
+            }
+            await move(into: folder)
+        } catch {
+            problem = error.shownMessage
+            moving = false
         }
     }
 
@@ -90,20 +123,20 @@ struct ICloudSetupSheet: View {
             return
         }
         problem = nil
-        let ownVault = canBringNotes && bringsNotes ? model.library.folder : nil
-        model.tabs.saveAllNotes()
         moving = true
-        Task { await move(ownVault, into: folder) }
+        Task { await move(into: folder) }
     }
 
-    private func move(_ ownVault: URL?, into folder: URL) async {
+    private func move(into folder: URL) async {
+        let ownVault = canBringNotes && bringsNotes ? model.library.folder : nil
+        model.tabs.saveAllNotes()
         do {
             let moved = try await offMainThread {
                 NoteSaver.waitForWrites()
                 return try ownVault.map { try ICloudVaultMove.bring($0, into: folder) }
             }
             model.openICloudVault(at: folder)
-            finished = ICloudSetupResult(folder: folder.lastPathComponent, moved: moved)
+            finished = ICloudSetupResult(folder: ICloudContainer.shownName(of: folder), moved: moved)
         } catch {
             problem = error.shownMessage
         }
