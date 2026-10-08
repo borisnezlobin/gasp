@@ -199,6 +199,7 @@ Copy and layout
 - [ ] Starting from an existing GitHub vault doesn't work: "GitHub sign-in isn't available in this build yet."
 - [ ] iCloud setup asks people to make a folder in iCloud Drive themselves; many can't. Gasp should make it. *(Built on both apps; the App ID's iCloud needs CloudKit mode with the container ticked before builds sign.)*
 - [x] Choose the app icon in the iPhone app: the current whale, and a second whale (the head rising into the tile from the bottom-left corner, per the owner's sketch), each with a dark mode version. *(Settings → App icon: "Breaching" and "Up close"; iOS shows each one's dark version in dark mode.)*
+- [ ] Choose the app icon on the Mac too (the Dock icon; the signed bundle's icon stays, so updates keep verifying).
 
 ## Website, later rounds
 
