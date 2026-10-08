@@ -67,9 +67,9 @@ impl Tour {
     }
 
     /// Goes on with `vault`: to the sync step when it doesn't sync yet,
-    /// or straight in when it does.
+    /// or straight in when it does, with git or by being in iCloud.
     pub fn chose_vault(&mut self, vault: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
-        let syncs = vault.join(".git").exists();
+        let syncs = vault.join(".git").exists() || crate::sync::icloud::is_icloud_vault(&vault, cx);
         let has_sync_step = self.steps.contains(&Step::Sync);
         if syncs || !has_sync_step {
             self.open_vault(vault, AfterOpening::Nothing, window, cx);
