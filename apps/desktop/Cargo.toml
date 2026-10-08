@@ -62,6 +62,9 @@ reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features 
 # The native view behind a window, for Look up and printing. GPUI already
 # builds it.
 raw-window-handle = "0.6"
+# Round-capped strokes for the welcome tour's note lines. GPUI already
+# builds it for its paths.
+lyon = "1"
 
 # AppKit messages for Look up and the print panel (PDFKit), through the
 # Objective-C runtime. GPUI already builds it on macOS.
@@ -75,6 +78,10 @@ metal = "0.29"
 semver = "1"
 sha2 = "0.10"
 plist = "1"
+# The welcome tour's name drawn from the system's own glyph outlines.
+# GPUI already builds both.
+core-text = "21"
+core-graphics = "0.24"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 x11rb = "0.13"

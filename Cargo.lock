@@ -3864,6 +3864,8 @@ name = "gasp-desktop"
 version = "0.2.3"
 dependencies = [
  "anyhow",
+ "core-graphics 0.24.0",
+ "core-text",
  "ctor",
  "dirs 5.0.1",
  "emojis",
@@ -3885,6 +3887,7 @@ dependencies = [
  "gpui",
  "image",
  "jiff",
+ "lyon",
  "metal 0.29.0",
  "notify",
  "objc",
