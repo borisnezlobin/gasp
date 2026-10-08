@@ -21,22 +21,37 @@ extension EditingController: UIGestureRecognizerDelegate {
         textView.addGestureRecognizer(tap)
     }
 
+    /// Finds what the tap does where it landed. A tap on a checkbox moves
+    /// nothing, so the text view never reveals the box's brackets under the
+    /// finger.
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        tapAction(at: gestureRecognizer.location(in: textView)) != nil
+        pendingTapAction = tapAction(at: gestureRecognizer.location(in: textView))
+        return pendingTapAction != nil
     }
 
     func gestureRecognizer(
         _ gestureRecognizer: UIGestureRecognizer,
         shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
     ) -> Bool {
-        switch tapAction(at: gestureRecognizer.location(in: textView)) {
-        case .toggleTask, .showFlag: true
-        default: false
-        }
+        if case .showFlag = tapAction(at: gestureRecognizer.location(in: textView)) { return true }
+        return false
+    }
+
+    /// The text view's own taps, which place the cursor and raise the
+    /// keyboard, wait for a tap on a checkbox to fail.
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldBeRequiredToFailBy other: UIGestureRecognizer
+    ) -> Bool {
+        guard other is UITapGestureRecognizer, other.view?.isDescendant(of: textView) == true else { return false }
+        if case .toggleTask = tapAction(at: gestureRecognizer.location(in: textView)) { return true }
+        return false
     }
 
     @objc private func tapped(_ tap: UITapGestureRecognizer) {
-        switch tapAction(at: tap.location(in: textView)) {
+        let action = pendingTapAction
+        pendingTapAction = nil
+        switch action {
         case .toggleTask(let marker): toggleTask(at: marker)
         case .fold(let offset): toggleFold(at: offset)
         case .showFlag(let flag, let range): showCard(for: flag, at: range)
