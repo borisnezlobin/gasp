@@ -78,6 +78,25 @@ impl Context {
         paths::resolve_attachment(&self.root, path)
     }
 
+    /// Fails in words when the vault folder can't be read, so a blocked
+    /// vault isn't reported as an empty one. macOS keeps refusing a
+    /// server that started before Gasp was allowed into the folder, or
+    /// before Gasp was updated, until that server restarts.
+    pub fn check_readable(&self) -> Result<(), ToolError> {
+        match std::fs::read_dir(&self.root) {
+            Ok(_) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
+                Err(ToolError::new(format!(
+                    "this server isn't allowed to read {}. Restart the app that started it, \
+                     such as Claude, and allow {} into the folder if macOS asks.",
+                    self.root.display(),
+                    gasp_config::APP_NAME,
+                )))
+            }
+            Err(error) => Err(ToolError::io(&self.root.display().to_string(), &error)),
+        }
+    }
+
     /// The vault's settings as its file says now, or the built-in ones
     /// when the file is missing or broken.
     pub fn settings(&self) -> Settings {
