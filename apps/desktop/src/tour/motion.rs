@@ -27,11 +27,6 @@ pub fn ease_in_out(t: f32) -> f32 {
     }
 }
 
-/// Past its mark and back, for a press: 0 at rest, 1 at the peak.
-pub fn pulse(t: f32) -> f32 {
-    (t * std::f32::consts::PI).sin().max(0.)
-}
-
 pub fn lerp(from: f32, to: f32, t: f32) -> f32 {
     from + (to - from) * t
 }
@@ -68,7 +63,5 @@ mod tests {
             assert_eq!(curve(0.), 0.);
             assert!((curve(1.) - 1.).abs() < 1e-6);
         }
-        assert!(pulse(0.) < 1e-6);
-        assert!((pulse(0.5) - 1.).abs() < 1e-6);
     }
 }

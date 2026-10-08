@@ -794,6 +794,7 @@ The script has one step per line. Words are split at spaces, a double-quoted wor
 | `wait DURATION` | Keeps drawing for `300ms`, `2s` or `1.5s`, for timers such as hover delays |
 | `settle` | Waits for the view to stop changing |
 | `snap NAME` | Settles, then writes `<dir>/NAME.png` |
+| `snap-now NAME` | Writes `<dir>/NAME.png` from the next frame without settling, for a view that keeps moving, such as the welcome tour's first step |
 | `bounds SEL` | Settles, then prints the element's bounds |
 | `selectors [PREFIX]` | Settles, then prints every named element on screen (starting with `PREFIX`) and its bounds |
 

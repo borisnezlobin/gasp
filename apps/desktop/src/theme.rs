@@ -2269,6 +2269,8 @@ pub struct UiTheme {
     pub tour: TourTheme,
     /// The app icon's red caret, which the welcome tour marks things with.
     pub caret_mark: Hsla,
+    /// The note lines the welcome tour's whale glides under.
+    pub sea: Hsla,
     /// Text that has to stand out from its neighbours, such as a heading.
     pub text_strong: Hsla,
     /// The strongest of the translucent fills, which reads on every surface.
@@ -2351,17 +2353,32 @@ impl ToolbarTheme {
 /// tokens. Its colours are [`UiTheme`]'s, plus the palette's caret mark.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TourTheme {
+    /// The most the name on the first step grows to.
     pub title_size: Pixels,
     pub heading_size: Pixels,
-    /// The whale breaching on the first step.
-    pub breach_width: Pixels,
+    /// The widest the first step's name, lines and sentence get.
+    pub hero_width: Pixels,
+    /// The widest the whale gliding under the first step's lines gets.
+    pub glide_width: Pixels,
+    /// The first step's sentence about the app, and its caret's width.
+    pub lede_size: Pixels,
+    pub lede_caret_width: Pixels,
+    /// The distance from one of the first step's note lines to the next,
+    /// and their thickness.
+    pub sea_pitch: Pixels,
+    pub sea_thickness: Pixels,
     /// The whale swimming along the sea at the bottom of every step.
     pub swimmer_width: Pixels,
     /// The height of one line of the sea, which is drawn as lines of text.
     pub sea_line: Pixels,
     /// The red caret's width.
     pub caret_width: Pixels,
-    pub breach_rise: std::time::Duration,
+    /// One slow glide of the first step's whale from side to side and
+    /// back, and one bob up and down.
+    pub glide_period: std::time::Duration,
+    pub bob_period: std::time::Duration,
+    /// How long after the first step shows a ring greets the whale.
+    pub greet: std::time::Duration,
     pub swim: std::time::Duration,
     pub step_enter: std::time::Duration,
     pub press: std::time::Duration,
@@ -2381,13 +2398,20 @@ impl TourTheme {
             std::time::Duration::from_millis(read.number(name, default).max(0.) as u64)
         };
         TourTheme {
-            title_size: size("tour.title-size", 150.),
+            title_size: size("tour.title-size", 240.),
             heading_size: size("tour.heading-size", 34.),
-            breach_width: size("tour.breach-width", 380.),
+            hero_width: size("tour.hero-width", 1000.),
+            glide_width: size("tour.glide-width", 520.),
+            lede_size: size("tour.lede-size", 24.),
+            lede_caret_width: size("tour.lede-caret-width", 3.),
+            sea_pitch: size("tour.sea-pitch", 30.),
+            sea_thickness: size("tour.sea-thickness", 10.),
             swimmer_width: size("tour.swimmer-width", 132.),
             sea_line: size("tour.sea-line", 6.),
             caret_width: size("tour.caret-width", 2.),
-            breach_rise: millis("tour.breach-rise", 1400.),
+            glide_period: millis("tour.glide-period", 28000.),
+            bob_period: millis("tour.bob-period", 11000.),
+            greet: millis("tour.greet", 700.),
             swim: millis("tour.swim", 900.),
             step_enter: millis("tour.step-enter", 360.),
             press: millis("tour.press", 700.),
@@ -2581,6 +2605,7 @@ impl UiTheme {
             toolbar: ToolbarTheme::default(),
             tour: TourTheme::default(),
             caret_mark: p.caret_mark,
+            sea: p.divider,
             text_strong: p.text_strong,
             fill_strong: p.fill_strong,
             highlight: p.highlight,
