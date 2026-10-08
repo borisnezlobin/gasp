@@ -52,6 +52,7 @@ struct SettingsScreen: View {
                     model.welcome.replay()
                 }
             }
+            AppIconSection()
             ToolbarSettingsSection()
             ForEach(sections, id: \.title) { section in
                 Section(section.title) {

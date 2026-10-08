@@ -40,6 +40,9 @@ iconutil --convert icns --output "$ASSETS_DIR/AppIcon.icns" "$ICONSET"
 cp "$WORK/full.png" "$ICON_DIR/AppIcon-1024.png"
 print "Wrote $ASSETS_DIR/AppIcon.icns"
 
-IOS_ICON="${ASSETS_DIR:h:h:h}/apps/ios/Gasp/Resources/AppIcon.xcassets/AppIcon.appiconset/AppIcon-1024.png"
-"$PYTHON" "$ICON_DIR/compose_icon.py" "$WHALE" "$IOS_ICON" 38 0.98 0.47 0.46 --ios
-print "Wrote $IOS_ICON"
+IOS_ICONS="${ASSETS_DIR:h:h:h}/apps/ios/Gasp/Resources/AppIcon.xcassets"
+"$PYTHON" "$ICON_DIR/compose_icon.py" "$WHALE" "$IOS_ICONS/AppIcon.appiconset/AppIcon-1024.png" 38 0.98 0.47 0.46 --ios
+"$PYTHON" "$ICON_DIR/compose_icon.py" "$WHALE" "$IOS_ICONS/AppIcon.appiconset/AppIcon-1024-dark.png" 38 0.98 0.47 0.46 --ios --dark
+"$PYTHON" "$ICON_DIR/compose_icon.py" "$WHALE" "$IOS_ICONS/AppIconHead.appiconset/AppIconHead-1024.png" --ios --head
+"$PYTHON" "$ICON_DIR/compose_icon.py" "$WHALE" "$IOS_ICONS/AppIconHead.appiconset/AppIconHead-1024-dark.png" --ios --head --dark
+print "Wrote the iPhone icons in $IOS_ICONS"
