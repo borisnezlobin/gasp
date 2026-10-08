@@ -58,6 +58,7 @@ pub mod preview;
 pub mod print;
 pub mod prose;
 pub mod recovery;
+pub mod reduce_motion;
 #[cfg(target_os = "macos")]
 pub mod rich_copy;
 pub mod sandbox;

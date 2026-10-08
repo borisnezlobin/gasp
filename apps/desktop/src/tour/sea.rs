@@ -1,11 +1,11 @@
-//! The sea: lines like the lines of text in the app icon, which the whale
-//! breaches out of on the first step, and the whale swimming along the
-//! bottom of every step after it, as far across as the tour has come.
+//! The sea along the bottom of every step after the first: the whale
+//! swimming under it, as far across as the tour has come, and the red
+//! caret that marks lines like the lines of text in the app icon.
 
 use std::rc::Rc;
 use std::time::Instant;
 
-use gpui::{AnyElement, Div, Hsla, Pixels, Window, div, prelude::*, px};
+use gpui::{AnyElement, Div, Pixels, Window, div, prelude::*, px};
 
 use super::art::{self, WhaleArt};
 use super::motion;
@@ -17,8 +17,6 @@ const NOSE_RANGE: (f32, f32) = (0.12, 1.);
 /// How strongly the swimming whale shows, so it marks progress without
 /// pulling the eye from the step.
 const SWIMMER_OPACITY: f32 = 0.55;
-/// How much of the window's colour lies over what's under the surface.
-const UNDERWATER: f32 = 0.62;
 
 /// The room the sea takes along the bottom of the window.
 pub fn band_height(ui: &UiTheme) -> Pixels {
@@ -33,29 +31,6 @@ pub fn line_spacing(ui: &UiTheme) -> Pixels {
 /// The space the tour keeps from the window's sides.
 pub fn margin(ui: &UiTheme) -> Pixels {
     ui.space_xl * 4.
-}
-
-/// One line of the sea: a rounded bar, `width` long, at `left`, `top`.
-pub fn line(left: Pixels, top: Pixels, width: Pixels, color: Hsla, ui: &UiTheme) -> Div {
-    div()
-        .absolute()
-        .left(left)
-        .top(top)
-        .w(width.max(px(0.)))
-        .h(ui.tour.sea_line)
-        .rounded_full()
-        .bg(color)
-}
-
-/// The wash over everything under the surface at `top`.
-pub fn underwater(top: Pixels, ui: &UiTheme) -> Div {
-    div()
-        .absolute()
-        .left_0()
-        .right_0()
-        .top(top)
-        .bottom_0()
-        .bg(ui.app_background.opacity(UNDERWATER))
 }
 
 /// The blinking red caret, centred on a line at `center`.
