@@ -342,6 +342,24 @@ fn setext_underline_shows_with_cursor() {
 }
 
 #[test]
+fn starting_a_list_under_a_paragraph_keeps_the_paragraph() {
+    check(
+        "The authors are:\n- ‸",
+        &element(),
+        &["The authors are:", "- "],
+    );
+}
+
+#[test]
+fn a_double_dash_underline_still_makes_a_heading() {
+    check(
+        "Title\n--\n\npara‸",
+        &element(),
+        &["[h2] {heading-2:Title}", "[h2] ~collapsed~", "", "para"],
+    );
+}
+
+#[test]
 fn bullets_replace_list_markers() {
     check(
         "- one\n- two\n  - nested\n\n‸",
