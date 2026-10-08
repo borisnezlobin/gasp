@@ -83,7 +83,7 @@ pub const SETTING_TEXTS: &[(&str, &str, &str)] = &[
     (
         "files.open-in-new-tab",
         "Open notes in new tabs",
-        "Notes you open from the file list, the note switcher or search get a tab of their own, instead of replacing the note in front of you.",
+        "Notes you open from the file list, the note switcher or search get their own tab instead of replacing the one in front.",
     ),
     (
         "files.trash",
