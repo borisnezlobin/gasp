@@ -192,8 +192,8 @@ Copy and layout
 
 ## iPhone first run (from the owner trying TestFlight)
 
-- [ ] "Tick this box": only the second box can be ticked; tapping the first puts the cursor between the brackets.
-- [ ] Don't pop the keyboard up automatically during the welcome flow.
+- [x] "Tick this box": only the second box can be ticked; tapping the first puts the cursor between the brackets. *(Every task box in every note now ticks on tap without moving the cursor.)*
+- [x] Don't pop the keyboard up automatically during the welcome flow.
 - [ ] The first screen should feel like the website's homepage: the liquid shader instead of the jumping whale, which looks dated and weird.
 - [ ] Starting from an existing GitHub vault doesn't work: "GitHub sign-in isn't available in this build yet."
 - [ ] iCloud setup asks people to make a folder in iCloud Drive themselves; many can't. Gasp should make it.
