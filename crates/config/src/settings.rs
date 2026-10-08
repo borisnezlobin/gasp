@@ -439,6 +439,9 @@ pub struct AppearanceSettings {
     pub base_font_size: u32,
     /// Light or dark, or whichever the system uses.
     pub theme: ThemeChoice,
+    /// Which whale the Mac's Dock shows. Each has a dark version for the
+    /// system's dark mode.
+    pub app_icon: AppIconChoice,
 }
 
 impl Default for AppearanceSettings {
@@ -446,6 +449,29 @@ impl Default for AppearanceSettings {
         AppearanceSettings {
             base_font_size: 12,
             theme: ThemeChoice::MatchSystem,
+            app_icon: AppIconChoice::Breaching,
+        }
+    }
+}
+
+/// The app icon's whale: whole and breaching through lines of text, the
+/// bundle's own icon, or its head up close.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum AppIconChoice {
+    #[default]
+    Breaching,
+    UpClose,
+}
+
+impl AppIconChoice {
+    pub const ALL: [AppIconChoice; 2] = [AppIconChoice::Breaching, AppIconChoice::UpClose];
+
+    /// The value `settings.toml` stores, such as `up-close`.
+    pub fn id(self) -> &'static str {
+        match self {
+            AppIconChoice::Breaching => "breaching",
+            AppIconChoice::UpClose => "up-close",
         }
     }
 }
