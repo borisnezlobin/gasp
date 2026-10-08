@@ -77,18 +77,18 @@ private struct SyncedVaultRows: View {
     @Environment(AppModel.self) private var model
     let overview: SyncOverview
     let write: (String, SettingValue) -> Void
-    @State private var repository = ""
-    @State private var branch = ""
     @State private var problem: String?
 
     private var tokens: Tokens { model.library.tokens }
 
     var body: some View {
         Section {
-            SettingTextRow(title: "Repository", prompt: "github.com/you/notes", text: $repository) {
+            SettingTextRow(
+                title: "Repository", prompt: "github.com/you/notes", saved: overview.repository ?? ""
+            ) { repository in
                 attempt { try model.sync.setRepository(repository) }
             }
-            SettingTextRow(title: "Branch", prompt: "master", text: $branch) {
+            SettingTextRow(title: "Branch", prompt: "master", saved: overview.branch) { branch in
                 write("sync.branch", .text(value: branch))
             }
             Stepper(value: intervalBinding, in: 1...120) {
@@ -100,8 +100,6 @@ private struct SyncedVaultRows: View {
                 ProblemText(message: problem, tokens: tokens)
             }
         }
-        .onAppear(perform: fill)
-        .onChange(of: overview) { fill() }
     }
 
     private var intervalBinding: Binding<Int> {
@@ -109,11 +107,6 @@ private struct SyncedVaultRows: View {
             get: { Int(overview.intervalMinutes) },
             set: { write("sync.interval-minutes", .integer(value: Int64($0))) }
         )
-    }
-
-    private func fill() {
-        repository = overview.repository ?? ""
-        branch = overview.branch
     }
 
     private func attempt(_ change: () throws -> Void) {
@@ -176,21 +169,41 @@ private struct SyncAccountRow: View {
     }
 }
 
-/// A text setting written when editing ends.
+/// A text setting saved when its field loses focus (Return, a tap
+/// elsewhere, going back) or goes away. Sync refreshes `saved` while the
+/// field is edited; the draft keeps what's typed until then.
 private struct SettingTextRow: View {
     let title: String
     let prompt: String
-    @Binding var text: String
-    let submit: () -> Void
+    let saved: String
+    let save: (String) -> Void
+    @State private var draft = SettingDraft()
+    @FocusState private var focused: Bool
 
     var body: some View {
         LabeledContent(title) {
-            TextField(prompt, text: $text)
+            TextField(prompt, text: text)
                 .multilineTextAlignment(.trailing)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .onSubmit(submit)
+                .focused($focused)
         }
+        .onChange(of: focused) { _, isFocused in
+            if isFocused {
+                draft.beginEditing(saved: saved)
+            } else {
+                finish()
+            }
+        }
+        .onDisappear(perform: finish)
+    }
+
+    private var text: Binding<String> {
+        Binding(get: { draft.shown(saved: saved) }, set: { draft.type($0) })
+    }
+
+    private func finish() {
+        if let changed = draft.endEditing(saved: saved) { save(changed) }
     }
 }
 

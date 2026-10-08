@@ -125,6 +125,27 @@ fn setup_clones_master_and_keeps_the_token() {
 }
 
 #[test]
+fn a_new_branch_in_settings_syncs_without_reopening_the_vault() {
+    let world = World::new();
+    let phone = world.phone();
+    phone.sync_now();
+    let folder = world.path("phone").to_string_lossy().into_owned();
+    let vault = crate::vault::VaultFolder::open(folder).unwrap();
+    let notes = crate::settings::SettingValue::Text {
+        value: "notes".into(),
+    };
+    vault.set_setting("sync.branch".into(), notes).unwrap();
+    phone.reload_settings();
+    let overview = phone.overview();
+    assert_eq!(overview.branch, "notes");
+    assert_eq!(overview.phase, SyncPhaseKind::Synced);
+    write(&world.path("phone"), "one\ntwo\nthree\non notes\n");
+    phone.sync_now();
+    assert_eq!(world.remote_note("notes"), "one\ntwo\nthree\non notes\n");
+    assert_eq!(world.remote_note("master"), "one\ntwo\nthree\n");
+}
+
+#[test]
 fn an_edit_on_the_phone_is_pushed_and_another_devices_edit_comes_in() {
     let world = World::new();
     let phone = world.phone();
