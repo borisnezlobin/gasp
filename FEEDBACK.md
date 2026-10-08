@@ -200,8 +200,8 @@ Copy and layout
 - [x] iCloud setup asks people to make a folder in iCloud Drive themselves; many can't. Gasp should make it. *(Gasp has its own iCloud Drive folder, "Gasp", on both apps; first in build 614.)*
 - [x] Choose the app icon in the iPhone app: the current whale, and a second whale (the head rising into the tile from the bottom-left corner, per the owner's sketch), each with a dark mode version. *(Settings → App icon: "Breaching" and "Up close"; iOS shows each one's dark version in dark mode.)*
 - [x] Choose the app icon on the Mac too (the Dock icon; the signed bundle's icon stays, so updates keep verifying). *(Settings → Appearance → Dock icon, following the system's dark mode.)*
-- [ ] iPhone settings rows: a setting's description should end before the toggle starts, and the toggle should be centred on the whole row, not on the title.
-- [ ] iPhone settings should be a short list of groups (like ChatGPT's settings), each opening its own screen, not one long list of every setting.
+- [x] iPhone settings rows: a setting's description should end before the toggle starts, and the toggle should be centred on the whole row, not on the title.
+- [x] iPhone settings should be a short list of groups (like ChatGPT's settings), each opening its own screen, not one long list of every setting. *(App: General, Sync, Appearance, Sidebar, Toolbars. Writing: Editor, Files and links, Daily notes and templates, Prose, Snippets and replacements. Switches that are on stay visible in dark mode.)*
 - [x] Turn on GitHub sign-in with the owner's OAuth App (client ID Ov23liz05FTm7a3skQOD).
 - [x] A logo under 1 MB for Gasp's GitHub OAuth App, from the breaching-whale icon. *(apps/desktop/assets/icon/gasp-logo-512.png, 307 KB.)*
 

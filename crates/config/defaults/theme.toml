@@ -91,6 +91,9 @@ diff-added   = "rgba(5, 126, 53, 0.12)"
 diff-removed = "rgba(209, 22, 45, 0.1)"
 # A switch's knob.
 knob        = "{color.background}"
+# An iPhone switch that's on. iOS draws its knob white, so it needs a fill
+# the white knob shows against.
+switch-on   = "{color.accent}"
 # Grouped rows on the settings screen and the conflict resolver.
 card        = "{color.sidebar}"
 # The tab stops a snippet left for Tab to visit next.
@@ -173,6 +176,7 @@ table-drag = 0.85
 mode = "dark"
 
 [dark.color]
+switch-on   = "#7f7a72"
 gray-50     = "#201f1d"
 gray-100    = "#252421"
 gray-200    = "#312f2c"
