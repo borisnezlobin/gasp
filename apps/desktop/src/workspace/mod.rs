@@ -476,6 +476,7 @@ impl Workspace {
         self.left_panel
             .apply_settings(&self.config.settings, &self.config.rules);
         self.apply_theme(cx);
+        self.show_dock_icon(cx);
         crate::recovery::configure(&self.vault, &self.config.settings.recovery, cx);
         let grammar = &self.config.settings.prose.grammar;
         crate::prose::checker::configure(&self.vault, grammar, cx);
@@ -484,18 +485,26 @@ impl Workspace {
     }
 
     /// Follows the system's light or dark appearance as it changes, for
-    /// the theme setting that matches it.
+    /// the theme setting that matches it and the Dock icon's dark version.
     fn observe_appearance(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         crate::ui::set_system_dark(crate::ui::is_dark_appearance(window.appearance()), cx);
         self.apply_theme(cx);
+        self.show_dock_icon(cx);
         let observe = cx.observe_window_appearance(window, |workspace, window, cx| {
             let dark = crate::ui::is_dark_appearance(window.appearance());
             crate::ui::set_system_dark(dark, cx);
+            workspace.show_dock_icon(cx);
             if workspace.apply_theme(cx) {
                 workspace.restyle_editors(cx);
             }
         });
         self._subscriptions.push(observe);
+    }
+
+    /// Gives the Dock the app icon the settings pick, in the system's
+    /// light or dark version.
+    fn show_dock_icon(&self, cx: &mut Context<Self>) {
+        crate::dock_icon::show_in_dock(self.config.settings.appearance.app_icon, cx);
     }
 
     /// Builds this window's light or dark theme as the settings ask and
