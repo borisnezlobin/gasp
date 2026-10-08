@@ -217,7 +217,7 @@ struct VaultChoiceSection: View {
                 VaultRow(title: synced.lastPathComponent, detail: "Synced", kind: .synced)
             }
             if let icloud = VaultLocation.icloudFolder {
-                VaultRow(title: icloud.lastPathComponent, detail: "In iCloud Drive", kind: .icloud)
+                VaultRow(title: ICloudContainer.shownName(of: icloud), detail: "In iCloud Drive", kind: .icloud)
             }
             VaultRow(title: VaultLocation.localFolder.lastPathComponent, detail: "On this iPhone only", kind: .local)
             if VaultLocation.hasPickedFolder {

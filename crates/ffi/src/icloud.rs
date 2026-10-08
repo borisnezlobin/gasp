@@ -1,7 +1,7 @@
 //! A vault in iCloud Drive on the phone: moving this iPhone's notes into
 //! the Gasp folder, the files iCloud hasn't downloaded yet, and the
 //! copies it leaves when two devices changed a note at once. The app
-//! does iCloud's own part (the Files picker, downloads, coordinated
+//! does iCloud's own part (its container, downloads, coordinated
 //! writes); this is the part that's the same on every device.
 
 use std::path::{Path, PathBuf};

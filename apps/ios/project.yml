@@ -52,10 +52,17 @@ targets:
         # so App Store Connect doesn't ask about encryption for every build.
         ITSAppUsesNonExemptEncryption: false
         BGTaskSchedulerPermittedIdentifiers: [com.borisnezlobin.gasp.sync]
+        # Gasp's own iCloud container, shown in iCloud Drive as a folder named Gasp.
+        NSUbiquitousContainers:
+          iCloud.com.borisnezlobin.gasp:
+            NSUbiquitousContainerIsDocumentScopePublic: true
+            NSUbiquitousContainerName: Gasp
+            NSUbiquitousContainerSupportedFolderLevels: Any
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.borisnezlobin.gasp
         PRODUCT_NAME: Gasp
+        CODE_SIGN_ENTITLEMENTS: Gasp/Gasp.entitlements
         TARGETED_DEVICE_FAMILY: "1"
         MARKETING_VERSION: "0.2.3"
         CURRENT_PROJECT_VERSION: "1"

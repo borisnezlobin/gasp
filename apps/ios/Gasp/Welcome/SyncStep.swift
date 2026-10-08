@@ -15,7 +15,8 @@ struct SyncStep: View {
         VStack(alignment: .leading, spacing: tokens.spacing.md) {
             WelcomeHeading(text: "Sync with your other devices", tokens: tokens)
             WelcomeSentence(
-                text: "iCloud keeps your notes the same on your iPhone and Mac, with nothing to sign up for.",
+                text: "iCloud keeps your notes the same on your iPhone and Mac. "
+                    + "Gasp makes its own folder there for them.",
                 tokens: tokens
             )
             SyncDiagram(tokens: tokens)
