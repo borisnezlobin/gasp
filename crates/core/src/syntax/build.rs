@@ -358,12 +358,23 @@ fn skip_leading_blanks(text: &str, range: Range<usize>) -> Range<usize> {
     (range.start + blank).min(range.end)..range.end
 }
 
+/// Whether a setext heading's underline is a lone `-`: someone starting a
+/// bullet list under a paragraph, which Markdown would otherwise read as
+/// underlining the paragraph into a heading for as long as the item is
+/// empty. A longer `--` or `==` underline still makes a heading.
+fn is_starting_a_list(source: &str) -> bool {
+    source
+        .rsplit_once('\n')
+        .is_some_and(|(_, underline)| underline.trim() == "-")
+}
+
 fn tag_kind(tag: Tag<'_>, source: &str) -> NodeKind {
     block_tag_kind(&tag, source).unwrap_or_else(|| inline_tag_kind(tag, source))
 }
 
 fn block_tag_kind(tag: &Tag<'_>, source: &str) -> Option<NodeKind> {
     let kind = match tag {
+        Tag::Heading { .. } if is_starting_a_list(source) => NodeKind::Paragraph,
         Tag::Heading { level, .. } => NodeKind::Heading {
             level: *level as u8,
             setext: false,
