@@ -64,6 +64,9 @@ final class EditingController: NSObject, UITextViewDelegate {
     /// Where the line at the top of the screen should start, once the text
     /// is laid out, when the note opens where it was left.
     var pendingTop: Int?
+    /// What the tap being recognized does, found where the finger landed
+    /// before the text could move under it.
+    var pendingTapAction: TapAction?
     /// The wide tables' scrolling grids, by where each table starts.
     var tableGrids: [UInt32: TableGridView] = [:]
     /// The note's name above its text, wrapping onto as many lines as it
