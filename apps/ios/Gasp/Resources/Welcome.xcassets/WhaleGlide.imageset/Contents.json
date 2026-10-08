@@ -2,12 +2,12 @@
   "images": [
     {
       "idiom": "universal",
-      "filename": "breach-light.png",
+      "filename": "whale-glide-light.png",
       "scale": "3x"
     },
     {
       "idiom": "universal",
-      "filename": "breach-dark.png",
+      "filename": "whale-glide-dark.png",
       "scale": "3x",
       "appearances": [
         {
