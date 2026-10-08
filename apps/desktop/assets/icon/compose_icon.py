@@ -20,6 +20,23 @@ SUPERSAMPLE = 4
 PAPER = (248, 246, 241)
 INK = (11, 11, 13)
 ACCENT = (192, 43, 74)
+
+# The dark versions, from the site's dark theme: the paper goes near black
+# and the whale's ink swaps, a light body with dark grooves and fins.
+DARK_PAPER = (28, 27, 25)
+DARK_INK = (235, 231, 224)
+DARK_ACCENT = (240, 97, 111)
+DARK_BODY = (200, 198, 192)
+DARK_GROOVES = (38, 37, 42)
+SHADOW = INK
+
+# The head close-up: the whale rises into the tile from the bottom-left
+# corner, so only its head, grooves and front fin show.
+HEAD_ANGLE = 40
+HEAD_SCALE = 1.8
+HEAD_TIP = (0.62, 0.3)
+# Where the snout's tip is in the render, as fractions of its size.
+RENDER_TIP = (0.997, 0.36)
 TEXT_LINE_ALPHA = 34
 GRAIN_STRENGTH = 5
 
@@ -73,9 +90,52 @@ def caret(size: int) -> Image.Image:
     return layer.resize((size, size), Image.LANCZOS)
 
 
-def placed_whale(path: str, size: int, angle: float, scale: float, centre: tuple[float, float]) -> Image.Image:
+def use_dark_theme() -> None:
+    """Near-black paper, light lines and the softer red of the dark theme."""
+    global PAPER, INK, ACCENT, SHADOW
+    PAPER, INK, ACCENT, SHADOW = DARK_PAPER, DARK_INK, DARK_ACCENT, (0, 0, 0)
+
+
+def swapped_ink(whale: Image.Image) -> Image.Image:
+    """The whale with its ink swapped for a dark page: the dark body turns
+    light and the white grooves and fins turn dark, as the site's dark
+    whale does."""
+    pixels = np.array(whale, dtype=np.float32)
+    luminance = pixels[..., :3] @ np.array([0.299, 0.587, 0.114])
+    body, white = np.percentile(luminance[pixels[..., 3] > 200], [5, 99])
+    light = np.clip((luminance - body) / max(white - body, 1.0), 0.0, 1.0)[..., None]
+    pixels[..., :3] = np.array(DARK_BODY) * (1.0 - light) + np.array(DARK_GROOVES) * light
+    return Image.fromarray(pixels.astype(np.uint8), "RGBA")
+
+
+def whale_render(path: str) -> Image.Image:
     whale = Image.open(path).convert("RGBA")
     whale = whale.crop(whale.getbbox())
+    return swapped_ink(whale) if PAPER == DARK_PAPER else whale
+
+
+def placed_head(path: str, size: int) -> Image.Image:
+    """The whale large and turned up, with its snout's tip at HEAD_TIP."""
+    whale = whale_render(path)
+    width = int(size * HEAD_SCALE)
+    whale = whale.resize((width, int(whale.height * width / whale.width)), Image.LANCZOS)
+    tip = np.array([RENDER_TIP[0] * whale.width, RENDER_TIP[1] * whale.height]) - np.array(whale.size) / 2
+    turn = np.radians(HEAD_ANGLE)
+    turned_tip = np.array([
+        tip[0] * np.cos(turn) + tip[1] * np.sin(turn),
+        -tip[0] * np.sin(turn) + tip[1] * np.cos(turn),
+    ])
+    whale = whale.rotate(HEAD_ANGLE, resample=Image.BICUBIC, expand=True)
+    tip_in_whale = turned_tip + np.array(whale.size) / 2
+    target = np.array(HEAD_TIP) * size
+    x, y = (target - tip_in_whale).astype(int)
+    layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    layer.alpha_composite(whale, (max(x, 0), max(y, 0)), (max(-x, 0), max(-y, 0)))
+    return layer
+
+
+def placed_whale(path: str, size: int, angle: float, scale: float, centre: tuple[float, float]) -> Image.Image:
+    whale = whale_render(path)
     width = int(size * scale)
     whale = whale.resize((width, int(whale.height * width / whale.width)), Image.LANCZOS)
     whale = whale.rotate(angle, resample=Image.BICUBIC, expand=True)
@@ -129,7 +189,7 @@ def ripples(whale: Image.Image) -> Image.Image:
 
 def whale_shadow(whale: Image.Image) -> Image.Image:
     alpha = whale.getchannel("A").filter(ImageFilter.GaussianBlur(14))
-    shadow = Image.new("RGBA", whale.size, (*INK, 0))
+    shadow = Image.new("RGBA", whale.size, (*SHADOW, 0))
     shadow.putalpha(alpha.point(lambda value: value * 0.16))
     return ImageChops.offset(shadow, 0, 10)
 
@@ -141,6 +201,15 @@ def drop_shadow(mask: Image.Image) -> Image.Image:
     shadow = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
     shadow.putalpha(blurred)
     return shadow
+
+
+def head_artwork(whale_path: str) -> Image.Image:
+    """The tile's paper with the whale's head rising into it."""
+    tile = paper_tile(TILE_SIZE)
+    whale = placed_head(whale_path, TILE_SIZE)
+    tile.alpha_composite(whale_shadow(whale))
+    tile.alpha_composite(whale)
+    return tile
 
 
 def artwork(whale_path: str, angle: float, scale: float, centre: tuple[float, float]) -> Image.Image:
@@ -165,8 +234,11 @@ def compose(whale_path: str, out_path: str, angle: float, scale: float, centre: 
 
 
 def compose_full_bleed(whale_path: str, out_path: str, angle: float, scale: float, centre: tuple[float, float]) -> None:
-    tile = artwork(whale_path, angle, scale, centre)
+    tile = head_artwork(whale_path) if HEAD else artwork(whale_path, angle, scale, centre)
     tile.resize((CANVAS, CANVAS), Image.LANCZOS).convert("RGB").save(out_path)
+
+
+HEAD = False
 
 
 def use_small_size_layout() -> None:
@@ -189,6 +261,12 @@ if __name__ == "__main__":
     full_bleed = "--ios" in arguments
     if full_bleed:
         arguments.remove("--ios")
+    if "--dark" in arguments:
+        arguments.remove("--dark")
+        use_dark_theme()
+    if "--head" in arguments:
+        arguments.remove("--head")
+        HEAD = True
     (compose_full_bleed if full_bleed else compose)(
         arguments[0],
         arguments[1],
