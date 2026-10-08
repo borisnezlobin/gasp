@@ -119,18 +119,34 @@ private struct TextSettingField: View {
     let title: String
     let value: String
     let write: (String) -> Void
-    @State private var draft = ""
+    @State private var draft = SettingDraft()
+    @FocusState private var focused: Bool
 
     private static let width: CGFloat = 140
 
     var body: some View {
-        TextField(title, text: $draft)
+        TextField(title, text: text)
             .multilineTextAlignment(.trailing)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .frame(width: Self.width)
-            .onSubmit { write(draft) }
-            .onAppear { draft = value }
+            .focused($focused)
+            .onChange(of: focused) { _, isFocused in
+                if isFocused {
+                    draft.beginEditing(saved: value)
+                } else {
+                    finish()
+                }
+            }
+            .onDisappear(perform: finish)
+    }
+
+    private var text: Binding<String> {
+        Binding(get: { draft.shown(saved: value) }, set: { draft.type($0) })
+    }
+
+    private func finish() {
+        if let changed = draft.endEditing(saved: value) { write(changed) }
     }
 }
 
