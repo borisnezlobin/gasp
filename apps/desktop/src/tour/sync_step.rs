@@ -2,8 +2,11 @@
 //! iCloud, drawn as a cloud between them with each note travelling from
 //! a device into it and on to the other. "Sync with iCloud" is the one
 //! big button; "Use GitHub instead" and "Not now" sit beside it, quieter.
-//! Either way of syncing opens the vault with "Set up sync" on that path,
-//! where GitHub's one question from macOS, the Keychain's, is explained.
+//! Either way of syncing opens the vault with "Set up sync" on that path.
+//! For iCloud that's the whole job: Gasp makes its own folder in iCloud
+//! Drive and moves an empty vault there at once, asking only when there
+//! are notes to bring along. GitHub signs in with a code, and its one
+//! question from macOS, the Keychain's, is explained there.
 
 use std::time::Instant;
 
@@ -26,6 +29,9 @@ pub const CHOICE_COUNT: usize = CHOICES.len();
 const NOTE_GAP: f32 = 30.;
 /// How wide the cloud is drawn.
 const CLOUD_WIDTH: f32 = 230.;
+/// Where a note holds still on its way, with Reduce Motion on, as a share
+/// of its trip.
+const STILL_TRIP: f32 = 0.2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SyncChoice {
@@ -119,7 +125,11 @@ pub fn walk_buttons(tour: &Tour, window: &Window, cx: &mut Context<Tour>) -> Any
 /// How sync works: the devices, iCloud and a note going round.
 pub fn render_how(tour: &Tour, now: Instant, cx: &mut Context<Tour>) -> AnyElement {
     let ui = ui_theme(cx);
-    let seconds = now.saturating_duration_since(tour.opened).as_secs_f32();
+    let seconds = if tour.still {
+        history::TRIP_SECONDS * STILL_TRIP
+    } else {
+        now.saturating_duration_since(tour.opened).as_secs_f32()
+    };
     let moment = history::moment(seconds);
     let content = div()
         .flex()
@@ -127,7 +137,7 @@ pub fn render_how(tour: &Tour, now: Instant, cx: &mut Context<Tour>) -> AnyEleme
         .gap(ui.space_md)
         .child(heading(Step::Sync, &ui))
         .child(explanation(
-            "iCloud keeps your notes the same on your Mac and iPhone, with nothing to sign up for.",
+            "iCloud keeps your notes the same on your Mac and iPhone. Gasp makes its own folder there for them.",
             &ui,
         ))
         .child(div().h(ui.space_xl * 3.))
