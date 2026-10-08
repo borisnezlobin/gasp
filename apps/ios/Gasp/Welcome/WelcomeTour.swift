@@ -63,7 +63,7 @@ struct WelcomeTour: View {
     @ViewBuilder private func page(_ shown: WelcomeStep) -> some View {
         switch shown {
         case .hello:
-            HelloStep(tokens: tokens) { go(to: .writing) }
+            HelloStep(tokens: tokens, isShowing: step == .hello) { go(to: .writing) }
         case .writing:
             WritingStep(tokens: tokens, isShowing: step == .writing, keyboardShown: keyboardShown) { go(to: .vault) }
         case .vault:

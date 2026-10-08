@@ -165,15 +165,13 @@ struct CaretMark: View {
     }
 }
 
-/// The tour's whales, in ink for light mode and chalk for dark, from the
-/// same renders as the Mac's tour.
+/// The tour's swimming whale, in ink for light mode and chalk for dark,
+/// from the same renders as the Mac's tour.
 enum WhaleArt {
     /// Frames in the swimming strip, laid side by side.
     static let swimFrameCount = 30
     /// How long each swimming frame shows.
     static let swimFrameTime = 0.066
-    /// How wide the breaching whale is for its height.
-    static let breachAspect: CGFloat = 900.0 / 873.0
     /// How wide a swimming frame is for its height.
     static let swimAspect: CGFloat = 440.0 / 170.0
 
