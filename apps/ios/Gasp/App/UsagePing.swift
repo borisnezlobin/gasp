@@ -42,8 +42,15 @@ enum UsagePing {
         lastPing != today
     }
 
-    /// Today's date here, such as `2026-09-30`.
-    static func today(_ now: Date = .now, calendar: Calendar = .current) -> String {
+    static let utcCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        return calendar
+    }()
+
+    /// Today's date in UTC, such as `2026-09-30`: the day the server counts
+    /// the ping under, so a day never gets two pings or none around midnight.
+    static func today(_ now: Date = .now, calendar: Calendar = utcCalendar) -> String {
         let day = calendar.dateComponents([.year, .month, .day], from: now)
         return String(format: "%04d-%02d-%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0)
     }
