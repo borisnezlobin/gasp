@@ -7,7 +7,7 @@
 use gasp_config::schema::SettingKind;
 use gpui::{App, Context, DismissEvent, Focusable, KeyDownEvent, Keystroke, Window};
 
-use super::model::{ICON_SOURCE_URL, SettingItem};
+use super::model::{APP_ICON_KEY, ICON_SOURCE_URL, SettingItem};
 use super::view::{ControlRow, SettingsFocus, SettingsView};
 
 impl SettingsView {
@@ -305,6 +305,7 @@ impl SettingsView {
         match key {
             "left" => self.step_choice(item, -1, cx),
             "right" => self.step_choice(item, 1, cx),
+            "space" | "enter" if item.key == APP_ICON_KEY => self.cycle_choice(item, cx),
             "space" | "enter" => self.open_menu(index, window, cx),
             _ => return false,
         }

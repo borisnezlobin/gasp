@@ -16,7 +16,8 @@ use super::controls::{
 };
 use super::menu::MenuTarget;
 use super::model::{
-    FontSlot, ICON_SOURCE_URL, SettingItem, ShortcutQuery, ShortcutRow, choice_label, map_names,
+    APP_ICON_KEY, FontSlot, ICON_SOURCE_URL, SettingItem, ShortcutQuery, ShortcutRow, choice_label,
+    map_names,
 };
 use super::view::{ControlRow, SettingsFocus, SettingsView, theme_key};
 use crate::icons::IconName;
@@ -254,6 +255,9 @@ impl SettingsView {
     ) -> AnyElement {
         let control = match &item.kind {
             SettingKind::Bool => self.toggle_control(item, focused, cx),
+            SettingKind::Choice(_) if item.key == APP_ICON_KEY => {
+                self.app_icon_tiles(item, focused, cx)
+            }
             SettingKind::Choice(_) => self.dropdown_control(index, item, focused, cx),
             SettingKind::Integer | SettingKind::Number => self.number_control(item, focused, cx),
             _ => self.field_control(&ControlRow::Setting(item.clone()), focused),
