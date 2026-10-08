@@ -8,6 +8,7 @@ pub mod app;
 pub mod app_icons;
 pub mod attachment_cleanup;
 pub mod appearance_toggle;
+pub mod dock_icon;
 pub mod atlas;
 pub mod bench;
 pub mod cli;
