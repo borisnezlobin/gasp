@@ -120,6 +120,7 @@ struct ToolbarEditor: View {
                 get: { setup.enabled },
                 set: { enabled in change { try $0.setToolbarEnabled(id: id, enabled: enabled) } }
             ))
+            .tint(tokens.swiftUIColor(\.switchOn))
             Picker("Buttons show", selection: Binding(
                 get: { setup.labels },
                 set: { labels in change { try $0.setToolbarLabels(id: id, labels: labels) } }

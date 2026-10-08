@@ -73,6 +73,7 @@ struct SettingRow: View {
             ) {
                 Toggle(item.title, isOn: Binding(get: { value }, set: { write(.bool(value: $0)) }))
                     .labelsHidden()
+                    .tint(tokens.swiftUIColor(\.switchOn))
             }
         case (.choice(let options), .text(let value)):
             SettingRowLayout(title: item.title, description: item.description, tokens: tokens) {

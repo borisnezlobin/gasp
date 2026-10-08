@@ -67,7 +67,7 @@ struct ICloudSetupSheet: View {
             if canBringNotes {
                 Toggle("Bring this iPhone's notes along", isOn: $bringsNotes)
                     .foregroundStyle(tokens.swiftUIColor(\.textStrong))
-                    .tint(tokens.swiftUIColor(\.accent))
+                    .tint(tokens.swiftUIColor(\.switchOn))
                     .disabled(moving)
             }
             if let problem { ProblemText(message: problem, tokens: tokens) }

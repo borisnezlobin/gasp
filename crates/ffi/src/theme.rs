@@ -41,6 +41,9 @@ pub struct Palette {
     pub text_faint: ThemeColor,
     pub accent: ThemeColor,
     pub on_accent: ThemeColor,
+    /// A switch that's on. The iPhone always draws its knob white, so in a
+    /// theme whose accent is light this is darker than the accent.
+    pub switch_on: ThemeColor,
     pub icon: ThemeColor,
     /// An icon on a button that can't do anything now.
     pub icon_disabled: ThemeColor,
@@ -213,6 +216,7 @@ fn palette(read: &TokenReader<'_>) -> Palette {
         text_faint: read.color("color.text-faint"),
         accent: read.color("color.accent"),
         on_accent: read.color("color.on-accent"),
+        switch_on: read.color("color.switch-on"),
         icon: read.color("color.icon"),
         icon_disabled: read.color("color.icon-disabled"),
         link: read.color("color.link"),
