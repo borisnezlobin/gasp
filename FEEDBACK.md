@@ -204,6 +204,11 @@ Copy and layout
 - [x] iPhone settings should be a short list of groups (like ChatGPT's settings), each opening its own screen, not one long list of every setting. *(App: General, Sync, Appearance, Sidebar, Toolbars. Writing: Editor, Files and links, Daily notes and templates, Prose, Snippets and replacements. Switches that are on stay visible in dark mode.)*
 - [x] iPhone: changing the sync branch (e.g. "fake-default-lol" to "main") or clearing the legacy branch doesn't save.
 - [x] Remove the "legacy branch" setting from every Gasp app; nobody knows what it means.
+- [ ] iPhone sync after switching to master: the phone has some recent notes but not newer ones (Critique (SAI), Distance is Decreasing, molab marimo submission).
+- [ ] Mac: app icon options too. *(Built as Settings → Appearance → Dock icon; ships in the next release.)*
+- [ ] Mac: by default the sidebar shows when you click the sidebar button.
+- [ ] Mac: the first-use flow should match the phone's (liquid welcome screen, no jumping whale, no auto keyboard, one-tap iCloud).
+- [ ] Build and draft a GitHub release for the Mac.
 - [x] Turn on GitHub sign-in with the owner's OAuth App (client ID Ov23liz05FTm7a3skQOD).
 - [x] A logo under 1 MB for Gasp's GitHub OAuth App, from the breaching-whale icon. *(apps/desktop/assets/icon/gasp-logo-512.png, 307 KB.)*
 
