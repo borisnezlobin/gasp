@@ -70,6 +70,7 @@ check = true   # once a day the Mac app asks gaspmd.com for the newest version n
 [appearance]
 base-font-size = 12
 theme          = "match-system"   # "light" | "dark" | "match-system"
+app-icon       = "breaching"      # the Mac's Dock icon: "breaching" | "up-close"
 
 [sync]
 auto             = true
