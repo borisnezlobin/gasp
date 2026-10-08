@@ -208,7 +208,8 @@ Copy and layout
 - [x] Mac: app icon options too. *(Settings → Appearance → Dock icon; in 0.2.4.)*
 - [x] Mac: by default the sidebar shows when you click the sidebar button. *(sidebar.files.reveal defaults to "toggle"; hover is still a choice.)*
 - [x] Mac: the first-use flow should match the phone's (liquid welcome screen, no jumping whale, no auto keyboard, one-tap iCloud).
-- [ ] Build and draft a GitHub release for the Mac.
+- [x] Build and draft a GitHub release for the Mac. *(0.2.4 drafted with a notarized, stapled DMG.)*
+- [ ] Publish 0.2.4.
 - [x] Turn on GitHub sign-in with the owner's OAuth App (client ID Ov23liz05FTm7a3skQOD).
 - [x] A logo under 1 MB for Gasp's GitHub OAuth App, from the breaching-whale icon. *(apps/desktop/assets/icon/gasp-logo-512.png, 307 KB.)*
 
