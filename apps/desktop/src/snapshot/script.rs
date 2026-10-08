@@ -41,6 +41,7 @@ keys KEY|\"TEXT\"...
 wait DURATION
 settle
 snap NAME
+snap-now NAME
 bounds SELECTOR
 selectors [PREFIX]";
 
@@ -101,6 +102,9 @@ pub enum Step {
     Wait(Duration),
     Settle,
     Snap(String),
+    /// The frame on screen now, without settling, for a view that keeps
+    /// moving.
+    SnapNow(String),
     Bounds(String),
     Selectors(Option<String>),
 }
@@ -177,7 +181,7 @@ fn quoted_word(chars: &mut impl Iterator<Item = char>) -> Result<Word, String> {
 type StepParser = fn(&str, &[&str], &[Word]) -> Result<Step, String>;
 
 /// Every step but the pointer's, by name.
-const STEP_PARSERS: [(&str, StepParser); 12] = [
+const STEP_PARSERS: [(&str, StepParser); 13] = [
     ("size", |name, texts, _| parse_size(one(name, texts)?)),
     ("theme", |name, texts, _| parse_theme(one(name, texts)?)),
     ("open", |name, texts, _| {
@@ -197,6 +201,9 @@ const STEP_PARSERS: [(&str, StepParser); 12] = [
     }),
     ("snap", |name, texts, _| {
         Ok(Step::Snap(snap_name(one(name, texts)?)?))
+    }),
+    ("snap-now", |name, texts, _| {
+        Ok(Step::SnapNow(snap_name(one(name, texts)?)?))
     }),
     ("bounds", |name, texts, _| {
         Ok(Step::Bounds(one(name, texts)?.to_owned()))
