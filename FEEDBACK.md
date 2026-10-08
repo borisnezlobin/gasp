@@ -206,7 +206,7 @@ Copy and layout
 - [x] Remove the "legacy branch" setting from every Gasp app; nobody knows what it means.
 - [ ] iPhone sync after switching to master: the phone has some recent notes but not newer ones (Critique (SAI), Distance is Decreasing, molab marimo submission).
 - [ ] Mac: app icon options too. *(Built as Settings → Appearance → Dock icon; ships in the next release.)*
-- [ ] Mac: by default the sidebar shows when you click the sidebar button.
+- [x] Mac: by default the sidebar shows when you click the sidebar button. *(sidebar.files.reveal defaults to "toggle"; hover is still a choice.)*
 - [ ] Mac: the first-use flow should match the phone's (liquid welcome screen, no jumping whale, no auto keyboard, one-tap iCloud).
 - [ ] Build and draft a GitHub release for the Mac.
 - [x] Turn on GitHub sign-in with the owner's OAuth App (client ID Ov23liz05FTm7a3skQOD).

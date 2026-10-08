@@ -451,6 +451,7 @@ do = "sidebar.files.hide"
         let clock = ManualClock::new();
         let event = Event::at(EventKind::PointerEnter, "window.left-edge");
         let mut settings = crate::settings::Settings::default();
+        settings.sidebar.files.reveal = crate::settings::SidebarReveal::Hover;
         let hover = SettingsIndex::new(&settings);
         let context = MatchContext {
             input: None,

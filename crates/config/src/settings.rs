@@ -48,13 +48,14 @@ pub struct FileSidebarSettings {
     pub mode: SidebarMode,
 }
 
-/// How a sidebar is revealed.
+/// How a sidebar is revealed. By default the sidebar button shows and
+/// hides it, which is what people expect a sidebar button to do.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum SidebarReveal {
     Always,
-    Toggle,
     #[default]
+    Toggle,
     Hover,
 }
 
@@ -600,7 +601,7 @@ mod tests {
     fn partial_files_fill_in_defaults() {
         let settings: Settings = toml::from_str("[sidebar.files]\nmode = \"push\"\n").unwrap();
         assert_eq!(settings.sidebar.files.mode, SidebarMode::Push);
-        assert_eq!(settings.sidebar.files.reveal, SidebarReveal::Hover);
+        assert_eq!(settings.sidebar.files.reveal, SidebarReveal::Toggle);
         assert_eq!(settings.files, FileSettings::default());
     }
 
@@ -624,7 +625,7 @@ mod tests {
         let index = SettingsIndex::new(&Settings::default());
         assert_eq!(
             index.get("sidebar.files.reveal"),
-            Some(&Value::String("hover".into()))
+            Some(&Value::String("toggle".into()))
         );
         assert_eq!(
             index.get("appearance.base-font-size"),
