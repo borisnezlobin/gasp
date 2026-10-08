@@ -3,17 +3,20 @@
 //! how sync works. With no vault to reopen and some opened before, the
 //! window starts at choosing a vault instead.
 //!
-//! The app icon's whale carries it: it breaches through a paragraph on
-//! the first step, then swims under the lines at the bottom of the window
-//! to where the red caret marks how far along the tour is.
+//! The app icon's whale carries it: it glides under a note's lines on the
+//! first step, as on the website, then swims under the lines at the
+//! bottom of the window to where the red caret marks how far along the
+//! tour is. With Reduce Motion on, nothing moves by itself.
 //!
 //! Enter or the right arrow moves on and the left arrow goes back, except
-//! while the practice note has the keyboard. On the vault and sync steps
+//! once the practice note has been clicked into: the tour never puts the
+//! cursor in a note by itself. On the vault and sync steps
 //! the arrows and Tab walk the choices and Enter takes one.
 
 mod art;
 mod hello;
 mod history;
+mod liquid;
 mod motion;
 mod sample;
 mod sea;
@@ -21,6 +24,8 @@ mod shortcuts;
 mod sketch;
 mod sync_step;
 mod vault_step;
+mod water;
+mod wordmark;
 mod writing;
 
 use std::path::PathBuf;
@@ -29,7 +34,7 @@ use std::time::{Duration, Instant};
 
 use gpui::{
     AnyElement, App, Context, Entity, FocusHandle, Focusable, KeyDownEvent, MouseMoveEvent, Pixels,
-    Point, Subscription, Task, Window, div, point, prelude::*, px,
+    Point, Subscription, Task, Window, div, prelude::*, px,
 };
 
 use crate::editor::EditorView;
@@ -117,15 +122,17 @@ pub struct Tour {
     playground: Option<Entity<EditorView>>,
     /// The shortcut last pressed on the shortcuts step, and when.
     pressed: Option<(usize, Instant)>,
-    /// The whale leaping when clicked on the first step.
-    leapt: Option<Instant>,
+    /// The first step's soft glyphs and rings on the water.
+    liquid: liquid::LiquidMotion,
+    /// The first step's name as outlines, when the system's font has them.
+    wordmark: Option<Rc<[wordmark::GlyphOutline]>>,
+    /// Whether Reduce Motion is on, so nothing moves by itself.
+    still: bool,
     recent: Vec<PathBuf>,
     /// The vault chosen, waiting on the sync step.
     vault: Option<PathBuf>,
     /// The choice the keyboard is on, on the vault and sync steps.
     selected: usize,
-    /// Where the pointer is, from -1 to 1 across and down the window.
-    pointer: Point<f32>,
     ticking: Option<Task<()>>,
     /// The built-in theme in the system's mode, this window's own.
     theme: Option<crate::ui::WindowTheme>,
@@ -159,7 +166,10 @@ impl Tour {
     ) -> Self {
         let focus_handle = cx.focus_handle();
         window.focus(&focus_handle);
-        let activation = cx.observe_window_activation(window, |_, _, cx| cx.notify());
+        let activation = cx.observe_window_activation(window, |tour, _, cx| {
+            tour.still = crate::reduce_motion::is_on();
+            cx.notify();
+        });
         let mut theme = None;
         follow_appearance(window, &mut theme, cx);
         let appearance = cx.observe_window_appearance(window, |tour, window, cx| {
@@ -167,22 +177,29 @@ impl Tour {
                 tour.restyle(cx);
             }
         });
+        let opened = Instant::now();
+        let wordmark = steps
+            .contains(&Step::Hello)
+            .then(|| wordmark::outlines(hello::NAME))
+            .flatten()
+            .map(Rc::from);
         let mut tour = Tour {
             focus_handle,
             steps,
             at: 0,
             change: None,
-            opened: Instant::now(),
+            opened,
             art: None,
             art_is_dark: false,
             decoding: None,
             playground: None,
             pressed: None,
-            leapt: None,
+            liquid: liquid::LiquidMotion::new(hello::NAME.chars().count(), opened),
+            wordmark,
+            still: crate::reduce_motion::is_on(),
             recent,
             vault: None,
             selected: 0,
-            pointer: point(0., 0.),
             ticking: None,
             theme,
             _notices: crate::notices::observe(cx),
@@ -275,14 +292,23 @@ impl Tour {
         }
     }
 
-    /// Sets up what a step needs as it shows, and gives it the keyboard.
+    /// Sets up what a step needs as it shows. The tour keeps the keyboard:
+    /// the practice note only takes it once clicked into.
     fn arrive(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.step() == Step::Writing {
-            let playground = self.playground(cx);
-            window.focus(&playground.focus_handle(cx));
-            return;
+            self.playground(cx);
         }
         window.focus(&self.focus_handle);
+    }
+
+    /// The practice note on the writing step, once it has been made.
+    pub fn practice_note(&self) -> Option<Entity<EditorView>> {
+        self.playground.clone()
+    }
+
+    /// Whether the tour holds still for Reduce Motion.
+    pub fn is_still(&self) -> bool {
+        self.still
     }
 
     fn playground(&mut self, cx: &mut Context<Self>) -> Entity<EditorView> {
@@ -387,31 +413,32 @@ impl Tour {
         cx.notify();
     }
 
-    fn leap(&mut self, cx: &mut Context<Self>) {
-        let leaping = self
-            .leapt
-            .is_some_and(|at| at.elapsed() < ui_theme(cx).tour.press * 2);
-        if !leaping {
-            self.leapt = Some(Instant::now());
+    /// Whether the first step is showing and moving: its water drifts and
+    /// its glyphs follow the pointer, every frame.
+    fn hello_moves(&self) -> bool {
+        self.step() == Step::Hello && !self.still
+    }
+
+    fn on_pointer_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if self.hello_moves() {
+            self.liquid.point(event.position, Instant::now());
             cx.notify();
         }
     }
 
-    fn on_pointer_move(
-        &mut self,
-        event: &MouseMoveEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.step() != Step::Hello {
-            return;
+    fn on_pointer_hover(&mut self, hovered: &bool, _: &mut Window, _: &mut Context<Self>) {
+        if !hovered {
+            self.liquid.leave();
         }
-        let size = window.viewport_size();
-        let across = event.position.x / size.width.max(px(1.)) * 2. - 1.;
-        let down = event.position.y / size.height.max(px(1.)) * 2. - 1.;
-        self.pointer = point(across.clamp(-1., 1.), down.clamp(-1., 1.));
-        cx.notify();
     }
+
+    /// A click on the first step's water rings it.
+    fn press_water(&mut self, at: Point<Pixels>) {
+        if self.hello_moves() {
+            self.liquid.press(at, Instant::now());
+        }
+    }
+
 
     /// Hands the window to `vault`, then does `after` there.
     pub fn open_vault(
@@ -430,18 +457,20 @@ impl Tour {
     /// Asks for the next frame while something moves smoothly, so a step
     /// always finishes arriving. Otherwise it asks for a wake-up when the
     /// swimming whale's frame or the caret's blink next changes, but not
-    /// while the window is in the background.
+    /// while the window is in the background. A snapshot run's window is
+    /// never in front, yet is watched frame by frame like one that is.
     fn schedule_next_frame(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let now = Instant::now();
         if self.moves_smoothly(now, cx) {
             window.request_animation_frame();
             return;
         }
-        if !window.is_window_active() {
+        if !window.is_window_active() && !crate::sandbox::is_active() {
             self.ticking = None;
             return;
         }
-        if self.step() == Step::Sync {
+        let sync_moves = self.step() == Step::Sync && !self.still;
+        if sync_moves || self.hello_moves() {
             window.request_animation_frame();
             return;
         }
@@ -467,13 +496,14 @@ impl Tour {
             .change
             .is_some_and(|change| now < change.at + tour.swim.max(tour.step_enter));
         let pressing = self.pressed.is_some_and(|(_, at)| now < at + tour.press);
-        let leaping = self.leapt.is_some_and(|at| now < at + tour.press * 2);
-        let rising = self.step() == Step::Hello && now < self.opened + tour.breach_rise;
-        changing || pressing || leaping || rising
+        changing || pressing
     }
 
     /// How far into its entrance the step showing is, from 0 to 1.
     fn entrance(&self, now: Instant, ui: &UiTheme) -> f32 {
+        if self.still {
+            return 1.;
+        }
         self.change.map_or(1., |change| {
             motion::ease_out(motion::progress(change.at, now, ui.tour.step_enter))
         })
@@ -483,7 +513,7 @@ impl Tour {
     /// the last, moving with the whale between steps.
     fn tide(&self, now: Instant, ui: &UiTheme) -> f32 {
         let at = |index: usize| index as f32 / (self.steps.len().max(2) - 1) as f32;
-        let Some(change) = self.change else {
+        let Some(change) = self.change.filter(|_| !self.still) else {
             return at(self.at);
         };
         let swum = motion::ease_in_out(motion::progress(change.at, now, ui.tour.swim));
@@ -650,7 +680,8 @@ impl Render for Tour {
         let step = self.render_step(now, window, cx);
         let sea = (self.step() != Step::Hello).then(|| {
             let tide = self.tide(now, &ui);
-            sea::band(self.art.clone(), tide, self.opened, now, window, &ui)
+            let swum_since = if self.still { now } else { self.opened };
+            sea::band(self.art.clone(), tide, swum_since, now, window, &ui)
         });
         let walk = self.render_walk(&ui, window, cx);
         let top = self.render_top(cx);
@@ -663,6 +694,7 @@ impl Render for Tour {
             .on_key_down(cx.listener(Self::on_key_down))
             .on_action(cx.listener(Self::on_run_command))
             .on_mouse_move(cx.listener(Self::on_pointer_move))
+            .on_hover(cx.listener(Self::on_pointer_hover))
             .relative()
             .size_full()
             .overflow_hidden()
@@ -686,7 +718,3 @@ impl Render for Tour {
     }
 }
 
-/// The distance the whale on the first step leans towards the pointer.
-fn lean(pointer: Point<f32>, reach: Pixels) -> Point<Pixels> {
-    point(reach * pointer.x, reach * 0.5 * pointer.y)
-}

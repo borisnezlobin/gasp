@@ -351,17 +351,25 @@ md   = 6
 lg   = 10
 pill = 999
 
-# The welcome tour: the size of its title and its whales, and how long
-# its motions take. The whale breaches in, swims from step to step, and
-# a pressed shortcut's picture plays for `press`.
+# The welcome tour: the size of its name, lines and whales, and how long
+# its motions take. On the first step the whale glides under the note's
+# lines; after it, it swims from step to step, and a pressed shortcut's
+# picture plays for `press`.
 [tour]
-title-size   = 150
+title-size   = 240
 heading-size = 34
-breach-width = 380
+hero-width   = 1000
+glide-width  = 520
+lede-size    = 24
+lede-caret-width = 3
+sea-pitch    = 30
+sea-thickness = 10
 swimmer-width = 132
 sea-line     = 6
 caret-width  = 2
-breach-rise  = 1400
+glide-period = 28000
+bob-period   = 11000
+greet        = 700
 swim         = 900
 step-enter   = 360
 press        = 700

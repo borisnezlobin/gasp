@@ -406,10 +406,12 @@ fn the_tour_walks_by_keyboard_and_plays_each_shortcut(cx: &mut TestAppContext) {
     );
     cx.simulate_keystrokes("enter");
     assert_eq!(step(cx), Step::Writing);
-    cx.simulate_input("x");
-    assert_eq!(step(cx), Step::Writing, "the practice note takes typing");
-    cx.update(|window, cx| tour.update(cx, |tour, cx| tour.advance(window, cx)));
-    assert_eq!(step(cx), Step::Shortcuts);
+    cx.simulate_keystrokes("right");
+    assert_eq!(
+        step(cx),
+        Step::Shortcuts,
+        "the tour keeps the keyboard until the practice note is clicked"
+    );
     for (index, command) in SHORTCUT_COMMANDS.iter().enumerate() {
         press(cx, command);
         let pressed = tour.read_with(cx, |tour, _| tour.pressed_shortcut());
@@ -425,6 +427,62 @@ fn the_tour_walks_by_keyboard_and_plays_each_shortcut(cx: &mut TestAppContext) {
     );
     cx.simulate_keystrokes("escape");
     assert_eq!(step(cx), Step::Vault, "Escape elsewhere skips to the vault");
+}
+
+#[gpui::test]
+fn the_practice_note_waits_to_be_clicked_and_its_first_box_ticks(cx: &mut TestAppContext) {
+    use gasp_desktop::line_layout::Hit;
+    use gpui::{Focusable, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, point};
+    let (tour, cx) = open_tour(cx, true, Vec::new());
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    let note = tour
+        .read_with(cx, |tour, _| tour.practice_note())
+        .expect("the writing step makes its note");
+    let focused = cx.update(|window, cx| note.focus_handle(cx).is_focused(window));
+    assert!(!focused, "the cursor doesn't jump into the note by itself");
+    let first_box = note.read_with(cx, |editor, _| {
+        let frame = editor.frame().expect("the note is drawn");
+        frame
+            .lines
+            .iter()
+            .find_map(|placed| {
+                let row = placed.visual.rows.first()?;
+                let piece = row
+                    .pieces
+                    .iter()
+                    .find(|piece| matches!(piece.hit, Hit::Checkbox { .. }))?;
+                Some(point(
+                    frame.text_left + piece.x + piece.width / 2.,
+                    placed.top + row.top + piece.top + piece.height / 2.,
+                ))
+            })
+            .expect("the note has a task box")
+    });
+    cx.simulate_event(MouseDownEvent {
+        position: first_box,
+        button: MouseButton::Left,
+        modifiers: Modifiers::none(),
+        click_count: 1,
+        first_mouse: false,
+    });
+    cx.simulate_event(MouseUpEvent {
+        position: first_box,
+        button: MouseButton::Left,
+        modifiers: Modifiers::none(),
+        click_count: 1,
+    });
+    let text = note.read_with(cx, |editor, _| editor.text());
+    assert!(text.contains("- [x] Tick this box"), "{text}");
+}
+
+#[gpui::test]
+fn reduce_motion_holds_the_tour_still(cx: &mut TestAppContext) {
+    gasp_desktop::reduce_motion::pretend(true);
+    let (tour, cx) = open_tour(cx, true, Vec::new());
+    let still = tour.read_with(cx, |tour, _| tour.is_still());
+    gasp_desktop::reduce_motion::pretend(false);
+    assert!(still);
 }
 
 #[gpui::test]

@@ -190,6 +190,7 @@ impl ScriptRunner {
             Step::Wait(duration) => keep_drawing(&self.capture, *duration, cx).await,
             Step::Settle => settle_or_warn(&self.capture, cx).await,
             Step::Snap(name) => return self.snap(line.line, name, cx).await,
+            Step::SnapNow(name) => return self.snap_now(line.line, name, cx).await,
             Step::Bounds(selector) => return self.print_bounds(line.line, selector, cx).await,
             Step::Selectors(prefix) => self.print_selectors(line.line, prefix.as_deref(), cx).await,
             Step::Pointer {
@@ -404,6 +405,15 @@ impl ScriptRunner {
 
     async fn snap(&self, line: usize, name: &str, cx: &mut AsyncApp) -> Result<(), String> {
         settle_or_warn(&self.capture, cx).await;
+        self.save_snap(line, name)
+    }
+
+    async fn snap_now(&self, line: usize, name: &str, cx: &mut AsyncApp) -> Result<(), String> {
+        self.next_frame(cx).await;
+        self.save_snap(line, name)
+    }
+
+    fn save_snap(&self, line: usize, name: &str) -> Result<(), String> {
         let path = self.out.join(name);
         save_last_frame(&self.capture, &path)?;
         print_line(json!({ "line": line, "snap": path }));
