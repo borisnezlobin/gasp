@@ -54,11 +54,6 @@ pub struct VaultConfig {
     pub remote: String,
     /// The branch the app commits to and pushes.
     pub branch: String,
-    /// A branch older sync tools still push to. While it is set, every
-    /// merge also pulls it into `branch`, one way, so nothing they push is
-    /// lost; the app never pushes to it. A clone of a remote that has only
-    /// this branch starts `branch` from its tip.
-    pub legacy_branch: Option<String>,
     pub device_only: DeviceOnlyFiles,
 }
 
@@ -67,7 +62,6 @@ impl Default for VaultConfig {
         Self {
             remote: "origin".to_owned(),
             branch: "master".to_owned(),
-            legacy_branch: Some("main".to_owned()),
             device_only: DeviceOnlyFiles::default(),
         }
     }
@@ -79,18 +73,7 @@ impl VaultConfig {
     }
 
     fn tracking_ref(&self) -> String {
-        self.tracking_ref_for(&self.branch)
-    }
-
-    fn tracking_ref_for(&self, branch: &str) -> String {
-        format!("refs/remotes/{}/{branch}", self.remote)
-    }
-
-    /// The legacy branch, unless it is the branch the app syncs.
-    fn active_legacy(&self) -> Option<&str> {
-        self.legacy_branch
-            .as_deref()
-            .filter(|legacy| *legacy != self.branch)
+        format!("refs/remotes/{}/{}", self.remote, self.branch)
     }
 }
 
@@ -188,29 +171,6 @@ fn clone_branch(
         .map_err(SyncError::from_transport)
 }
 
-/// Creates `branch` at the current commit and switches HEAD to it.
-fn start_branch_at_head(repo: &Repository, branch: &str) -> SyncResult<()> {
-    let head = repo.head()?.peel_to_commit()?;
-    repo.branch(branch, &head, false)?;
-    repo.set_head(&format!("refs/heads/{branch}"))?;
-    Ok(())
-}
-
-/// The result of merging the synced branch and then the legacy one: a
-/// conflict wins, then whichever merge actually changed something.
-fn combine_outcomes(own: MergeOutcome, legacy: MergeOutcome) -> MergeOutcome {
-    let changed = |outcome: &MergeOutcome| {
-        !matches!(
-            outcome,
-            MergeOutcome::UpToDate | MergeOutcome::NothingToMerge
-        )
-    };
-    if matches!(legacy, MergeOutcome::Conflicts(_)) || !changed(&own) && changed(&legacy) {
-        return legacy;
-    }
-    own
-}
-
 /// The largest object a push tries to store as a delta against another.
 /// Photos and plugin binaries above it are sent whole: a delta between two
 /// different photos never pays off, and looking for one took most of the
@@ -265,17 +225,7 @@ impl Vault {
         token: Option<Token>,
     ) -> SyncResult<Self> {
         let path = path.as_ref();
-        let repo = match clone_branch(url, path, &config.branch, token.as_ref()) {
-            Ok(repo) => repo,
-            Err(error) => {
-                let Some(legacy) = config.active_legacy() else {
-                    return Err(error);
-                };
-                let repo = clone_branch(url, path, legacy, token.as_ref())?;
-                start_branch_at_head(&repo, &config.branch)?;
-                repo
-            }
-        };
+        let repo = clone_branch(url, path, &config.branch, token.as_ref())?;
         pin_settings(&repo)?;
         repo.checkout_head(Some(CheckoutBuilder::new().force()))?;
         Self::from_repo(repo, config, token)
@@ -473,19 +423,14 @@ impl Vault {
             .remote_callbacks(remote_callbacks(self.token.as_ref()))
             .update_fetchhead(false)
             .prune(git2::FetchPrune::On);
-        let branches =
-            std::iter::once(self.config.branch.as_str()).chain(self.config.active_legacy());
-        let refspecs: Vec<String> = branches
-            .map(|branch| {
-                format!(
-                    "+refs/heads/{branch}:{}",
-                    self.config.tracking_ref_for(branch)
-                )
-            })
-            .collect();
+        let refspec = format!(
+            "+refs/heads/{}:{}",
+            self.config.branch,
+            self.config.tracking_ref()
+        );
         self.fetched_remote_tip.set(None);
         remote
-            .fetch(&refspecs, Some(&mut options), None)
+            .fetch(&[refspec], Some(&mut options), None)
             .map_err(SyncError::from_transport)?;
         // Pruning drops the tracking branch when the remote no longer has
         // it, so after the fetch it holds exactly the remote's tip, or
@@ -542,31 +487,15 @@ impl Vault {
     }
 
     /// Merges the fetched remote branch into the local one using the vault
-    /// merge policy, then the legacy branch the same way, if one is set.
+    /// merge policy.
     ///
     /// A merge always finishes with a commit. Files that need a person keep
     /// their version on the synced branch and wait, with both
     /// versions on disk, while everything else syncs.
     pub fn merge(&self, author: &Author) -> SyncResult<MergeOutcome> {
         self.finish_interrupted_merge(author)?;
-        let own = self.merge_tracking(&self.config.branch, BranchKeeps::OtherDevice, author)?;
-        let Some(legacy) = self.config.active_legacy() else {
-            return Ok(own);
-        };
-        let legacy = self.merge_tracking(legacy, BranchKeeps::ThisDevice, author)?;
-        Ok(combine_outcomes(own, legacy))
-    }
-
-    fn merge_tracking(
-        &self,
-        branch: &str,
-        keeps: BranchKeeps,
-        author: &Author,
-    ) -> SyncResult<MergeOutcome> {
-        let Ok(tracking) = self
-            .repo
-            .find_reference(&self.config.tracking_ref_for(branch))
-        else {
+        let branch = self.config.branch.as_str();
+        let Ok(tracking) = self.repo.find_reference(&self.config.tracking_ref()) else {
             return Ok(MergeOutcome::NothingToMerge);
         };
         let theirs = self.repo.reference_to_annotated_commit(&tracking)?;
@@ -583,7 +512,7 @@ impl Vault {
             self.fast_forward(theirs.id())
                 .map(|()| MergeOutcome::FastForward)
         } else {
-            self.merge_diverged(&theirs, branch, keeps, author)
+            self.merge_diverged(&theirs, author)
         };
         // Parked files go back on disk whether or not the merge worked.
         self.refold(lifted)?;
@@ -632,8 +561,6 @@ impl Vault {
     fn merge_diverged(
         &self,
         theirs: &AnnotatedCommit,
-        branch: &str,
-        keeps: BranchKeeps,
         author: &Author,
     ) -> SyncResult<MergeOutcome> {
         let mut checkout = CheckoutBuilder::new();
@@ -644,8 +571,8 @@ impl Vault {
             Some(&mut MergeOptions::new()),
             Some(&mut checkout),
         )?;
-        let settled = self.settle_conflicts(keeps, MergeRun::Fresh)?;
-        let commit = self.commit_merge(author, branch)?;
+        let settled = self.settle_conflicts(BranchKeeps::OtherDevice, MergeRun::Fresh)?;
+        let commit = self.commit_merge(author, &self.config.branch)?;
         if settled.parked > 0 {
             return Ok(MergeOutcome::Conflicts(self.conflicts()?));
         }
@@ -661,17 +588,8 @@ impl Vault {
         if !self.is_merging() {
             return Ok(());
         }
-        let merging = self.merge_heads()?.first().copied();
-        let legacy = self.config.active_legacy().filter(|legacy| {
-            let tracking = self.config.tracking_ref_for(legacy);
-            merging.is_some() && self.repo.refname_to_id(&tracking).ok() == merging
-        });
-        let (branch, keeps) = match legacy {
-            Some(legacy) => (legacy.to_owned(), BranchKeeps::ThisDevice),
-            None => (self.config.branch.clone(), BranchKeeps::OtherDevice),
-        };
-        self.settle_conflicts(keeps, MergeRun::Interrupted)?;
-        self.commit_merge(author, &branch)?;
+        self.settle_conflicts(BranchKeeps::OtherDevice, MergeRun::Interrupted)?;
+        self.commit_merge(author, &self.config.branch)?;
         Ok(())
     }
 

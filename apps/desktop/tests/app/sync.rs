@@ -51,7 +51,6 @@ impl World {
         let world = World { dir, remote };
         let config = VaultConfig {
             branch: branch.to_owned(),
-            legacy_branch: None,
             ..VaultConfig::default()
         };
         let seed = Vault::init(world.path("seed"), &world.remote, config).unwrap();
@@ -534,7 +533,6 @@ fn a_vault_on_another_branch_is_left_alone(cx: &mut TestAppContext) {
     let old_tool = world.path("old-tool");
     let config = VaultConfig {
         branch: "main".into(),
-        legacy_branch: None,
         ..VaultConfig::default()
     };
     drop(Vault::clone_remote(&world.remote, &old_tool, config, None).unwrap());

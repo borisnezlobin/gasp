@@ -32,11 +32,9 @@ const RECENT_RUNS: usize = 5;
 /// The vault settings sync uses.
 pub(crate) fn vault_config(settings: &SyncSettings) -> Result<VaultConfig, String> {
     let device_only = DeviceOnlyFiles::new(&settings.device_only).map_err(|e| e.to_string())?;
-    let legacy = settings.legacy_branch.trim();
     Ok(VaultConfig {
         remote: REMOTE.to_owned(),
         branch: settings.branch.trim().to_owned(),
-        legacy_branch: (!legacy.is_empty()).then(|| legacy.to_owned()),
         device_only,
     })
 }
@@ -94,7 +92,6 @@ pub struct SyncOverview {
     pub explanation: Option<String>,
     pub repository: Option<String>,
     pub branch: String,
-    pub legacy_branch: String,
     pub interval_minutes: u32,
     pub auto_sync: bool,
     pub signed_in: bool,
@@ -368,7 +365,6 @@ impl SyncState {
             explanation: phase::explanation(&phase),
             repository: self.remote_url.clone(),
             branch: self.settings.branch.clone(),
-            legacy_branch: self.settings.legacy_branch.clone(),
             interval_minutes: self.settings.interval_minutes,
             auto_sync: self.settings.auto,
             signed_in: self.signed_in,
@@ -613,9 +609,7 @@ impl VaultSync {
         let reopen = {
             let mut state = self.state();
             let old = &state.settings;
-            let reopen = settings.branch != old.branch
-                || settings.legacy_branch != old.legacy_branch
-                || settings.device_only != old.device_only;
+            let reopen = settings.branch != old.branch || settings.device_only != old.device_only;
             state.scheduler.set_config(scheduler_config(&settings));
             state.settings = settings;
             reopen

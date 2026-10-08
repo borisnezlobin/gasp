@@ -190,7 +190,7 @@ pub const PAGES: &[PageSpec] = &[
         cards: &[
             &[RowSpec::SyncRemote, RowSpec::SyncAccount],
             &[setting("sync.auto"), setting("sync.interval-minutes")],
-            &[setting("sync.branch"), setting("sync.legacy-branch")],
+            &[setting("sync.branch")],
             &[setting("sync.device-only")],
         ],
     },

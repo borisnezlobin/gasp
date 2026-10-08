@@ -60,11 +60,9 @@ pub struct StepOutcome {
 /// The vault settings the engine uses.
 pub fn vault_config(settings: &SyncSettings) -> Result<VaultConfig, String> {
     let device_only = DeviceOnlyFiles::new(&settings.device_only).map_err(|e| e.to_string())?;
-    let legacy = settings.legacy_branch.trim();
     Ok(VaultConfig {
         remote: REMOTE.to_owned(),
         branch: settings.branch.trim().to_owned(),
-        legacy_branch: (!legacy.is_empty()).then(|| legacy.to_owned()),
         device_only,
     })
 }

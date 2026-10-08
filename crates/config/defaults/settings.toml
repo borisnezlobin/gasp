@@ -76,7 +76,6 @@ app-icon       = "breaching"      # the Mac's Dock icon: "breaching" | "up-close
 auto             = true
 interval-minutes = 5
 branch           = "master"   # the branch this app commits to and pushes
-legacy-branch    = "main"     # merged into branch one way until older tools retire; "" turns it off
 device-only      = [".gasp/device.toml", ".editor/device.toml", ".obsidian/workspace*.json", "**/.DS_Store", ".trash/**"]
 
 # The bar above the iPhone's keyboard is the `keyboard` toolbar in

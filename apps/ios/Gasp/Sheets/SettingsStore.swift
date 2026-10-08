@@ -57,11 +57,11 @@ import Observation
         return order.map { SettingsBlock(title: $0, items: bySection[$0] ?? []) }
     }
 
-    /// The sync screen shows the repository, branches and interval itself;
+    /// The sync screen shows the repository, branch and interval itself;
     /// the rest of sync's settings only matter in the synced vault.
     private static func showsInList(_ key: String, kind: VaultKind) -> Bool {
         guard key.hasPrefix("sync.") else { return true }
-        let ownRows = ["sync.branch", "sync.legacy-branch", "sync.interval-minutes"]
+        let ownRows = ["sync.branch", "sync.interval-minutes"]
         return kind == .synced && !ownRows.contains(key)
     }
 }

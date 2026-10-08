@@ -210,28 +210,6 @@ fn device_only_files_stay_on_the_device() {
 }
 
 #[test]
-fn the_legacy_branch_starts_the_branch_when_it_is_all_there_is() {
-    let legacy = VaultConfig {
-        branch: "main".to_owned(),
-        legacy_branch: None,
-        ..VaultConfig::default()
-    };
-    let world = World::seeded_on(legacy, &[("Old.md", b"from the old tool\n")]);
-    let root = folder_with(&world, "laptop", &[("New.md", "laptop\n")]);
-    set_up(&root, &world.remote_url).unwrap();
-    assert_eq!(
-        fs::read_to_string(root.join("Old.md")).unwrap(),
-        "from the old tool\n"
-    );
-    assert!(remote_text(&world, "master", "Old.md").is_some());
-    assert!(remote_text(&world, "master", "New.md").is_some());
-    assert!(
-        remote_text(&world, "main", "New.md").is_none(),
-        "the legacy branch is never pushed to"
-    );
-}
-
-#[test]
 fn an_address_that_cant_be_reached_leaves_the_folder_as_it_was() {
     let world = empty_world();
     let root = folder_with(&world, "laptop", &[("Plan.md", "# Plan\n")]);

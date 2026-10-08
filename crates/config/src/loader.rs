@@ -3,6 +3,7 @@
 //! Each file is loaded on its own. When one has an error, its diagnostics are reported
 //! and that part of the config keeps its last good version.
 
+use std::borrow::Cow;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -17,6 +18,7 @@ use crate::layout::{LayoutNode, LayoutSpec};
 use crate::merge::deep_merge;
 use crate::rules::RuleSet;
 use crate::settings::Settings;
+use crate::store::SettingsFile;
 use crate::theme::{Theme, TokenSet};
 use crate::toolbars::{Toolbars, build_toolbars};
 use crate::typing::{TypingTables, build_replacements, build_snippets};
@@ -142,6 +144,7 @@ fn parse_table(file: &str, text: &str) -> Result<Table, Vec<Diagnostic>> {
 pub fn build_settings(file: &str, user: Option<&str>) -> Built<Settings> {
     let mut merged = parse_table("defaults/settings.toml", DEFAULT_SETTINGS)?;
     if let Some(text) = user {
+        let text = &*without_retired_settings(text);
         toml::from_str::<Settings>(text)
             .map_err(|error| vec![Diagnostic::from_toml(file, text, &error)])?;
         deep_merge(&mut merged, &parse_table(file, text)?);
@@ -150,6 +153,25 @@ pub fn build_settings(file: &str, user: Option<&str>) -> Built<Settings> {
         vec![Diagnostic::error(file, "", None, error.to_string())]
     })?;
     Ok((settings, Vec::new()))
+}
+
+/// Settings older versions wrote that no longer exist. Vaults sync between
+/// devices running different versions, so a file that still sets one loads
+/// as if it didn't.
+const RETIRED_SETTINGS: &[&str] = &["sync.legacy-branch"];
+
+fn without_retired_settings(text: &str) -> Cow<'_, str> {
+    let Ok(mut file) = SettingsFile::parse(text) else {
+        return Cow::Borrowed(text);
+    };
+    let removed = RETIRED_SETTINGS
+        .iter()
+        .filter(|key| file.remove(key))
+        .count();
+    if removed == 0 {
+        return Cow::Borrowed(text);
+    }
+    Cow::Owned(file.to_string())
 }
 
 /// The built-in theme with `user` tokens layered on top, fully resolved.
@@ -353,6 +375,13 @@ mod tests {
         let text = "[sidebar.files]\nreveal = \"sometimes\"\n";
         let errors = build_settings("settings.toml", Some(text)).unwrap_err();
         assert_eq!(errors[0].line, 2);
+    }
+
+    #[test]
+    fn a_retired_setting_still_loads() {
+        let text = "[sync]\nbranch = \"notes\"\nlegacy-branch = \"main\"\n";
+        let (settings, _) = build_settings("settings.toml", Some(text)).unwrap();
+        assert_eq!(settings.sync.branch, "notes");
     }
 
     #[test]

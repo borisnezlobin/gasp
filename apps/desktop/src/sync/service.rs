@@ -501,7 +501,6 @@ impl SyncService {
             }
         }
         let reopen = settings.branch != self.settings.branch
-            || settings.legacy_branch != self.settings.legacy_branch
             || settings.device_only != self.settings.device_only;
         self.scheduler.set_config(scheduler_config(&settings));
         self.settings = settings;
