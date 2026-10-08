@@ -2,8 +2,9 @@ import SwiftUI
 import UIKit
 
 /// The writing step: a real note to type in, with a heading, bold, tasks,
-/// a link and some math, and the keyboard's bar over the keyboard. The
-/// cursor starts inside the bold word, so its stars show from the start.
+/// a link and some math, and the keyboard's bar over the keyboard once the
+/// person taps into it. The cursor starts inside the bold word, so its
+/// stars show from the start without raising the keyboard.
 struct WritingStep: View {
     let tokens: Tokens
     let isShowing: Bool
@@ -39,16 +40,11 @@ struct WritingStep: View {
         .frame(maxHeight: .infinity)
     }
 
-    /// Makes the note the first time the step shows, and puts the cursor in
-    /// it once the step has slid into place.
+    /// Makes the note the first time the step shows, with the cursor in
+    /// its bold word.
     private func arrive() {
         if practice == nil { practice = PracticeNote(tokens: tokens) }
-        guard let practice else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-            guard isShowing else { return }
-            practice.session.textView.becomeFirstResponder()
-            practice.placeCursorInBoldWord()
-        }
+        practice?.placeCursorInBoldWord()
     }
 
     private func leave() {
