@@ -195,9 +195,9 @@ Copy and layout
 
 - [x] "Tick this box": only the second box can be ticked; tapping the first puts the cursor between the brackets. *(Every task box in every note now ticks on tap without moving the cursor.)*
 - [x] Don't pop the keyboard up automatically during the welcome flow.
-- [ ] The first screen should feel like the website's homepage: the liquid shader instead of the jumping whale, which looks dated and weird.
+- [x] The first screen should feel like the website's homepage: the liquid shader instead of the jumping whale, which looks dated and weird. *(Soft-glyph wordmark, red caret, and the whale gliding under the note lines through a Metal water shader that ripples under a finger.)*
 - [ ] Starting from an existing GitHub vault doesn't work: "GitHub sign-in isn't available in this build yet."
-- [ ] iCloud setup asks people to make a folder in iCloud Drive themselves; many can't. Gasp should make it.
+- [ ] iCloud setup asks people to make a folder in iCloud Drive themselves; many can't. Gasp should make it. *(Built on both apps; the App ID's iCloud needs CloudKit mode with the container ticked before builds sign.)*
 
 ## Website, later rounds
 
