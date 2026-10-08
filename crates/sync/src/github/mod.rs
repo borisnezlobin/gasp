@@ -28,7 +28,7 @@ use std::time::Duration;
 /// The client ID of Gasp's OAuth App on GitHub (Settings, Developer
 /// settings, OAuth Apps, with "Enable Device Flow" ticked). It isn't a
 /// secret. Replace the placeholder to turn GitHub sign-in on.
-pub const GITHUB_CLIENT_ID: &str = "PASTE-OAUTH-APP-CLIENT-ID";
+pub const GITHUB_CLIENT_ID: &str = "Ov23liz05FTm7a3skQOD";
 
 const CLIENT_ID_PLACEHOLDER: &str = "PASTE-OAUTH-APP-CLIENT-ID";
 
