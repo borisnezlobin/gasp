@@ -721,7 +721,10 @@ fn the_left_panel_toggles_and_takes_focus(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn the_left_panel_reveals_on_hover_and_hides_after_leaving(cx: &mut TestAppContext) {
-    let vault = vault_with(&[("a.md", "")]);
+    let vault = vault_with(&[
+        ("a.md", ""),
+        (".gasp/settings.toml", "[sidebar.files]\nreveal = \"hover\"\n"),
+    ]);
     let (workspace, cx) = open_workspace(cx, vault.path());
     open(&workspace, cx, "a.md", OpenIn::ActiveTab);
     cx.update(|_, cx| {

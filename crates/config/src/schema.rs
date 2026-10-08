@@ -153,7 +153,7 @@ mod tests {
             reveal.kind,
             SettingKind::Choice(vec!["always".into(), "toggle".into(), "hover".into()])
         );
-        assert_eq!(reveal.default, Value::from("hover"));
+        assert_eq!(reveal.default, Value::from("toggle"));
         assert!(reveal.description.is_some());
     }
 

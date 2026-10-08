@@ -283,7 +283,7 @@ fn default_settings_file_matches_the_types() {
 #[test]
 fn default_settings_values() {
     let settings = Config::defaults().settings;
-    assert_eq!(settings.sidebar.files.reveal, SidebarReveal::Hover);
+    assert_eq!(settings.sidebar.files.reveal, SidebarReveal::Toggle);
     assert_eq!(settings.sidebar.files.mode, SidebarMode::Overlay);
     assert_eq!(settings.markdown.symbols.mode, SymbolMode::AroundCursor);
     assert_eq!(settings.markdown.symbols.scope, RevealScope::Element);

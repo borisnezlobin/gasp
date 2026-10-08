@@ -514,8 +514,8 @@ fn enter_opens_a_dropdown_that_arrows_and_enter_pick_from(cx: &mut TestAppContex
     go_to_control(&view, "sidebar.files.reveal", cx);
     cx.simulate_keystrokes("enter");
     assert!(view.read_with(cx, |view, _| view.menu_open()));
-    // The menu opens on the current choice, "hover", the last option.
-    cx.simulate_keystrokes("up up enter");
+    // The menu opens on the current choice, "toggle", the middle option.
+    cx.simulate_keystrokes("up enter");
     assert!(!view.read_with(cx, |view, _| view.menu_open()));
     assert_eq!(
         value(&view, "sidebar.files.reveal", cx),

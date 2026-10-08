@@ -1,7 +1,7 @@
 # Built-in settings. A vault's .gasp/settings.toml layers on top of this file.
 
 [sidebar.files]
-reveal = "hover"      # "always" | "toggle" | "hover"
+reveal = "toggle"     # "always" | "toggle" | "hover"
 mode   = "overlay"    # "overlay" slides over the text, "push" moves it aside
 
 [markdown.symbols]
