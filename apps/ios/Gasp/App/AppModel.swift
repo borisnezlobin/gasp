@@ -71,7 +71,7 @@ final class AppModel {
         switchVault(to: .synced)
     }
 
-    /// Opens the Gasp folder in iCloud Drive as the vault.
+    /// Opens a folder in iCloud Drive, usually Gasp's own, as the vault.
     func openICloudVault(at folder: URL) {
         reopen { library.open(icloudFolder: folder) }
     }

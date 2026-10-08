@@ -17,7 +17,7 @@ struct SyncChooserSheet: View {
                 VStack(alignment: .leading, spacing: tokens.spacing.lg) {
                     SyncChoiceCard(
                         title: "Sync with iCloud",
-                        detail: "Your notes go in iCloud Drive, in a folder called Gasp. "
+                        detail: "Gasp keeps your notes in a Gasp folder in iCloud Drive. "
                             + "Your Mac and other devices pick them up from there.",
                         isMain: true, tokens: tokens, action: { model.workspace.sheet = .icloudSetup }
                     ) {
