@@ -33,16 +33,13 @@ struct NumberLimits: Equatable {
     }
 }
 
-/// A number setting: its name and description on the leading side, and
-/// on the trailing side one control holding − and + around the value.
-/// Tapping the value types a new one on the number pad; it's kept in range
-/// when editing ends. At the accessibility text sizes the control moves
-/// under the text, so nothing overlaps.
+/// A number setting in the shared row layout, its control one capsule
+/// holding − and + around the value. Tapping the value types a new one on
+/// the number pad; it's kept in range when editing ends.
 struct NumberSettingRow: View {
     let item: SettingItem
     let tokens: Tokens
     let write: (SettingValue) -> Void
-    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var draft = ""
     @FocusState private var typing: Bool
 
@@ -67,29 +64,8 @@ struct NumberSettingRow: View {
     private var step: Double { isWhole ? 1 : 0.5 }
 
     var body: some View {
-        if typeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: tokens.spacing.sm) {
-                text.frame(maxWidth: .infinity, alignment: .leading)
-                control
-            }
-        } else {
-            HStack(alignment: .center, spacing: tokens.spacing.md) {
-                text
-                Spacer(minLength: 0)
-                control
-            }
-        }
-    }
-
-    private var text: some View {
-        VStack(alignment: .leading, spacing: tokens.spacing.xs) {
-            Text(item.title)
-            if !item.description.isEmpty {
-                Text(item.description)
-                    .font(Font(tokens.uiFont(size: tokens.smallSize)))
-                    .foregroundStyle(tokens.swiftUIColor(\.textDetail))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        SettingRowLayout(title: item.title, description: item.description, tokens: tokens, labelsControl: false) {
+            control
         }
     }
 

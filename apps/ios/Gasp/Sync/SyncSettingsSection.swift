@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Sync on the settings screen. For the synced vault: the repository, the
+/// The rows of Settings' sync screen. For the synced vault: the repository, the
 /// branches, how often to check, and the token. For the iCloud vault:
 /// where it is and how it stands. Otherwise, the ways to start syncing.
 struct SyncSettingsSection: View {
@@ -27,7 +27,7 @@ private struct ICloudVaultRows: View {
     private var tokens: Tokens { model.library.tokens }
 
     var body: some View {
-        Section("Sync") {
+        Section {
             LabeledContent("Where", value: model.icloud.place)
             Button { model.workspace.sheet = .icloudDetails } label: {
                 HStack(spacing: tokens.spacing.md) {
@@ -53,7 +53,7 @@ private struct NotSyncingRows: View {
     private var tokens: Tokens { model.library.tokens }
 
     var body: some View {
-        Section("Sync") {
+        Section {
             Button { model.workspace.sheet = .icloudSetup } label: {
                 Label("Sync with iCloud", systemImage: "icloud")
             }
@@ -99,8 +99,6 @@ private struct SyncedVaultRows: View {
                 Text("Check every \(overview.intervalMinutes) \(overview.intervalMinutes == 1 ? "minute" : "minutes")")
             }
             SyncAccountRow(overview: overview) { problem = $0 }
-        } header: {
-            Text("Sync")
         } footer: {
             if let problem {
                 ProblemText(message: problem, tokens: tokens)
@@ -209,7 +207,6 @@ private struct SettingTextRow: View {
 /// The vaults this phone can open, the open one checked.
 struct VaultChoiceSection: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Section("Vault") {
@@ -224,7 +221,7 @@ struct VaultChoiceSection: View {
                 VaultRow(title: "Folder from Files", detail: "Picked in Files", kind: .picked)
             }
             Button("Open another folder") {
-                dismiss()
+                model.workspace.sheet = nil
                 model.workspace.prompt = .pickVault
             }
         }
