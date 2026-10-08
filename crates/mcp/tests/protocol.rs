@@ -31,6 +31,23 @@ impl Client {
         assert_eq!(reply["id"], id, "{reply}");
         reply
     }
+
+    async fn initialize(&mut self) -> Value {
+        let init = self
+            .request(
+                0,
+                "initialize",
+                json!({
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "test", "version": "1"},
+                }),
+            )
+            .await;
+        self.send(json!({"jsonrpc": "2.0", "method": "notifications/initialized"}))
+            .await;
+        init
+    }
 }
 
 fn start(vault: &std::path::Path) -> Client {
@@ -50,17 +67,7 @@ async fn initialize_list_and_call() {
     std::fs::write(dir.path().join("Plan.md"), "# Plan\n\nWaves.\n").unwrap();
     let mut client = start(dir.path());
 
-    let init = client
-        .request(
-            1,
-            "initialize",
-            json!({
-                "protocolVersion": "2025-06-18",
-                "capabilities": {},
-                "clientInfo": {"name": "test", "version": "1"},
-            }),
-        )
-        .await;
+    let init = client.initialize().await;
     assert_eq!(
         init["result"]["serverInfo"]["name"],
         gasp_config::COMMAND_NAME
@@ -69,9 +76,6 @@ async fn initialize_list_and_call() {
         init["result"]["capabilities"]["tools"].is_object(),
         "{init}"
     );
-    client
-        .send(json!({"jsonrpc": "2.0", "method": "notifications/initialized"}))
-        .await;
 
     let pong = client.request(2, "ping", json!({})).await;
     assert!(pong["result"].is_object(), "{pong}");
@@ -136,4 +140,28 @@ async fn initialize_list_and_call() {
             .unwrap()
             .contains("nope")
     );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_vault_it_cant_read_is_an_error_not_an_empty_list() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("Plan.md"), "# Plan\n").unwrap();
+    let mut client = start(dir.path());
+    client.initialize().await;
+    std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    let call = client
+        .request(
+            1,
+            "tools/call",
+            json!({"name": "list_notes", "arguments": {}}),
+        )
+        .await;
+    std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert_eq!(call["result"]["isError"], true, "{call}");
+    let message = call["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(message.contains("isn't allowed to read"), "{message}");
 }

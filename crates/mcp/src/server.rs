@@ -72,9 +72,13 @@ impl Server {
             .position(|tool| tool.name == name)
             .ok_or_else(|| ErrorData::invalid_params(format!("there's no tool {name:?}"), None))?;
         let (context, tools) = (self.context.clone(), self.tools.clone());
-        let result = tokio::task::spawn_blocking(move || tools[index].call(&context, arguments))
-            .await
-            .map_err(|error| ErrorData::internal_error(error.to_string(), None))?;
+        let result = tokio::task::spawn_blocking(move || {
+            context
+                .check_readable()
+                .and_then(|()| tools[index].call(&context, arguments))
+        })
+        .await
+        .map_err(|error| ErrorData::internal_error(error.to_string(), None))?;
         Ok(tool_result(result))
     }
 }

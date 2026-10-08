@@ -211,6 +211,7 @@ Copy and layout
 - [x] Build and draft a GitHub release for the Mac. *(0.2.4 drafted with a notarized, stapled DMG.)*
 - [ ] Publish 0.2.4.
 - [x] Mac usage pings don't show on the stats page after a day or two of the editor being open. *(The Mac only pinged at launch; it now checks hourly. Both apps count days in UTC like the server.)*
+- [x] MCP: list_notes told Claude the vault was empty while it was full; reading a note by path worked. (macOS was blocking servers started before the update; now an error that says to restart Claude)
 - [x] Turn on GitHub sign-in with the owner's OAuth App (client ID Ov23liz05FTm7a3skQOD).
 - [x] A logo under 1 MB for Gasp's GitHub OAuth App, from the breaching-whale icon. *(apps/desktop/assets/icon/gasp-logo-512.png, 307 KB.)*
 
