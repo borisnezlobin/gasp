@@ -1,35 +1,38 @@
 //! iCloud Drive on this Mac: where it is, whether a vault can move into
-//! it, and asking it for files it hasn't downloaded. The vault goes in a
-//! folder called Gasp at the top of iCloud Drive, which the iPhone opens
-//! once through the Files picker. A non-sandboxed app needs no
-//! entitlement to write there, so this works in every build, signed or
-//! not. A snapshot run gets a folder of its own in the sandbox instead.
+//! it, and asking it for files it hasn't downloaded. The vault goes in
+//! the Documents folder of Gasp's iCloud container, which the iPhone app
+//! opens on its own and iCloud Drive shows as Gasp. A non-sandboxed app
+//! needs no entitlement to write there, so this works in every build,
+//! signed or not. A snapshot run gets a folder of its own in the sandbox
+//! instead.
 
 use std::path::{Path, PathBuf};
 
 use gasp_sync::icloud::{self, is_git_clone};
 use gpui::{App, Global};
 
-/// A folder standing in for iCloud Drive, set by tests.
+/// A folder standing in for `~/Library/Mobile Documents`, set by tests.
 struct DriveGlobal(PathBuf);
 
 impl Global for DriveGlobal {}
 
-/// Treats `folder` as iCloud Drive from now on, as tests do so nothing
+/// Treats `folder` as `~/Library/Mobile Documents`, which holds iCloud
+/// Drive and Gasp's container, from now on, as tests do so nothing
 /// reaches the real one.
 pub fn use_drive(folder: PathBuf, cx: &mut App) {
     cx.set_global(DriveGlobal(folder));
 }
 
-/// The folder standing in for iCloud Drive: a test's, or a snapshot
-/// run's own.
+/// The folder standing in for `Mobile Documents`: a test's, or a
+/// snapshot run's own.
 fn stand_in(cx: &App) -> Option<PathBuf> {
     cx.try_global::<DriveGlobal>()
         .map(|drive| drive.0.clone())
         .or_else(|| crate::sandbox::folder("icloud-drive"))
 }
 
-/// iCloud Drive's folder on this Mac, when iCloud Drive is turned on.
+/// `~/Library/Mobile Documents` on this Mac, when iCloud Drive is turned
+/// on.
 pub fn drive(cx: &App) -> Option<PathBuf> {
     if let Some(stand_in) = stand_in(cx) {
         std::fs::create_dir_all(&stand_in).ok()?;
@@ -38,8 +41,40 @@ pub fn drive(cx: &App) -> Option<PathBuf> {
     if !cfg!(target_os = "macos") {
         return None;
     }
-    let drive = icloud::icloud_drive(&dirs::home_dir()?);
-    drive.is_dir().then_some(drive)
+    let mobile_documents = icloud::mobile_documents(&dirs::home_dir()?);
+    icloud::icloud_drive(&mobile_documents)
+        .is_dir()
+        .then_some(mobile_documents)
+}
+
+/// The Gasp folder from before Gasp had an iCloud container, when it's
+/// there with notes to bring into the new one.
+pub fn old_folder_with_notes(cx: &App) -> Option<PathBuf> {
+    let drive = drive(cx)?;
+    (old_notes(&drive) > 0).then(|| icloud::old_icloud_vault(&drive))
+}
+
+/// How many notes the old Gasp folder has to bring along.
+fn old_notes(drive: &Path) -> usize {
+    let old = icloud::old_icloud_vault(drive);
+    if is_git_clone(&old) {
+        return 0;
+    }
+    count_notes(&old)
+}
+
+/// Moves the vault at `from` into iCloud at `to`, bringing the notes from
+/// the old Gasp folder along first so both end up in one place.
+pub fn move_into_icloud(
+    from: &Path,
+    to: &Path,
+    old: Option<&Path>,
+    device: &str,
+) -> Result<icloud::MoveReport, icloud::MoveError> {
+    if let Some(old) = old.filter(|old| *old != from) {
+        icloud::move_vault(old, to, device)?;
+    }
+    icloud::move_vault(from, to, device)
 }
 
 /// Whether the vault at `root` lives in iCloud, so iCloud keeps it in step
@@ -83,7 +118,7 @@ pub fn readiness(root: &Path, cx: &App) -> ICloudReadiness {
         return ICloudReadiness::NoDrive;
     };
     let folder = icloud::icloud_vault(&drive);
-    let notes = count_notes(&folder);
+    let notes = count_notes(&folder) + old_notes(&drive);
     ICloudReadiness::Ready { folder, notes }
 }
 
@@ -124,11 +159,7 @@ pub fn request_downloads(root: &Path) -> usize {
 
 /// How a folder in iCloud reads to a person: `iCloud Drive › Gasp`.
 pub fn shown_location(folder: &Path) -> String {
-    let name = folder.file_name().map_or_else(
-        || icloud::ICLOUD_FOLDER_NAME.to_owned(),
-        |name| name.to_string_lossy().into_owned(),
-    );
-    format!("iCloud Drive › {name}")
+    format!("iCloud Drive › {}", icloud::shown_folder_name(folder))
 }
 
 /// A folder in the home folder as `~/Documents/Notes`.
