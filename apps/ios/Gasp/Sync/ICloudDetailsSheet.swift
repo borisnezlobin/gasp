@@ -27,7 +27,7 @@ extension ICloudCenter {
 
     /// `iCloud Drive › Gasp`.
     var place: String {
-        "iCloud Drive › " + (folder?.lastPathComponent ?? icloudFolderName())
+        "iCloud Drive › " + (folder.map(ICloudContainer.shownName(of:)) ?? icloudFolderName())
     }
 
     static func counted(_ count: Int, _ one: String, _ many: String) -> String {

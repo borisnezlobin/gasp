@@ -80,11 +80,10 @@ pub fn note_title(path: &Path) -> String {
         .unwrap_or_default()
 }
 
-/// The folder's own name, for the window title.
+/// The vault folder's name as people see it, for the window title: Gasp
+/// for the folder in Gasp's iCloud container.
 pub fn folder_name(path: &Path) -> String {
-    path.file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.display().to_string())
+    gasp_sync::icloud::shown_folder_name(path)
 }
 
 /// `path` as people read it, with the home folder written `~`.

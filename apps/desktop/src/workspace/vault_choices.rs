@@ -74,6 +74,9 @@ fn same_folder(path: &Path) -> PathBuf {
 /// Where a vault lives, as people name it: "iCloud Drive", or its parent
 /// folder from the home folder, such as "~/Documents".
 fn location_of(vault: &Path, home: Option<&Path>) -> String {
+    if gasp_sync::icloud::is_gasp_container(vault) {
+        return "iCloud Drive".to_owned();
+    }
     let parent = vault.parent().unwrap_or(vault);
     let icloud = home.map(|home| home.join(ICLOUD_DRIVE));
     if let Some(rest) = icloud
@@ -104,7 +107,7 @@ mod tests {
     fn same_names_say_where_they_live_and_unique_ones_do_not() {
         let home = Path::new("/Users/ana");
         let recent = paths(&[
-            "/Users/ana/Library/Mobile Documents/com~apple~CloudDocs/Gasp",
+            "/Users/ana/Library/Mobile Documents/iCloud~com~borisnezlobin~gasp/Documents",
             "/Users/ana/Documents/Gasp",
             "/Users/ana/Documents/Vault",
         ]);

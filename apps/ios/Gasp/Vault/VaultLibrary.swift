@@ -104,7 +104,8 @@ final class VaultLibrary {
         open(VaultLocation.current())
     }
 
-    /// Opens the Gasp folder in iCloud Drive as the vault from now on.
+    /// Opens a folder in iCloud Drive, usually Gasp's own, as the vault
+    /// from now on.
     func open(icloudFolder url: URL) {
         VaultLocation.rememberICloud(url)
         open(VaultLocation.current())
@@ -293,7 +294,7 @@ enum VaultLocation {
     }
     #endif
 
-    /// Keeps the Gasp folder picked in iCloud Drive and chooses it.
+    /// Keeps the vault's folder in iCloud Drive and chooses it.
     static func rememberICloud(_ url: URL) {
         bookmark(url, under: icloudBookmarkKey)
         choice = .icloud
@@ -303,9 +304,9 @@ enum VaultLocation {
         pickedFolder() != nil
     }
 
-    /// The vault in iCloud Drive: the Gasp folder, picked once in Files
-    /// and kept with a bookmark. The one place that knows how the phone
-    /// reaches it.
+    /// The vault in iCloud Drive: Gasp's own folder there, or one opened
+    /// in Files, kept with a bookmark. The one place that knows how the
+    /// phone reaches it.
     static var icloudFolder: URL? {
         bookmarkedFolder(under: icloudBookmarkKey)
     }

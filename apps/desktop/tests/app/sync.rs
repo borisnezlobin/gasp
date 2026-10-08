@@ -120,7 +120,7 @@ fn open_workspace<'a>(
     let beside = vault
         .ancestors()
         .skip(1)
-        .find(|folder| !folder.ends_with("stand-in-icloud"))
+        .find(|folder| !folder.iter().any(|part| part == "stand-in-icloud"))
         .unwrap_or(vault)
         .to_path_buf();
     cx.update(|cx| {
@@ -903,6 +903,11 @@ fn start_dialog(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> En
         .expect("set up sync is open")
 }
 
+/// Gasp's iCloud folder and the one from before it, inside the stand-in
+/// for `~/Library/Mobile Documents`.
+const ICLOUD_VAULT: &str = "stand-in-icloud/iCloud~com~borisnezlobin~gasp/Documents";
+const OLD_ICLOUD_VAULT: &str = "stand-in-icloud/com~apple~CloudDocs/Gasp";
+
 fn start_stage(dialog: &Entity<SyncStart>, cx: &mut VisualTestContext) -> Stage {
     dialog.read_with(cx, |dialog, _| dialog.stage().clone())
 }
@@ -930,6 +935,46 @@ fn setting_up_offers_icloud_first_then_github_then_the_form(cx: &mut TestAppCont
 }
 
 #[gpui::test]
+fn syncing_with_icloud_brings_the_old_gasp_folders_notes_along(cx: &mut TestAppContext) {
+    let (dir, vault, _remote) = unsynced_vault(&[("Plan.md", "# Plan\n")]);
+    let old = dir.path().join(OLD_ICLOUD_VAULT);
+    write(&old, "Old.md", "From before\n");
+    let (workspace, cx) = open_workspace(cx, &vault, Arc::default());
+    run(&workspace, cx, "sync.set-up");
+    let dialog = start_dialog(&workspace, cx);
+    click(cx, "sync-start-icloud");
+    assert!(matches!(
+        start_stage(&dialog, cx),
+        Stage::ICloudConfirm { notes_there: 1, .. }
+    ));
+    click(cx, "sync-start-move");
+    cx.run_until_parked();
+
+    let icloud = dir.path().join(ICLOUD_VAULT);
+    assert_eq!(
+        std::fs::read_to_string(icloud.join("Old.md")).unwrap(),
+        "From before\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(icloud.join("Plan.md")).unwrap(),
+        "# Plan\n"
+    );
+    assert!(
+        old.join("Old.md").exists(),
+        "the old folder stays as it was"
+    );
+}
+
+#[gpui::test]
+fn a_vault_in_the_old_gasp_folder_still_syncs_with_icloud(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().join(OLD_ICLOUD_VAULT);
+    write(&vault, "Plan.md", "# Plan\n");
+    let (_workspace, cx) = open_workspace(cx, &vault, Arc::default());
+    assert!(is_drawn(cx, "icloud-status-button"));
+}
+
+#[gpui::test]
 fn syncing_with_icloud_copies_the_vault_checks_it_and_opens_it_there(cx: &mut TestAppContext) {
     let (dir, vault, _remote) =
         unsynced_vault(&[("Plan.md", "# Plan\n"), ("Daily/Monday.md", "Ran\n")]);
@@ -937,7 +982,7 @@ fn syncing_with_icloud_copies_the_vault_checks_it_and_opens_it_there(cx: &mut Te
     run(&workspace, cx, "sync.set-up");
     let dialog = start_dialog(&workspace, cx);
     click(cx, "sync-start-icloud");
-    let icloud = dir.path().join("stand-in-icloud/Gasp");
+    let icloud = dir.path().join(ICLOUD_VAULT);
     assert!(
         matches!(start_stage(&dialog, cx), Stage::ICloudConfirm { ref folder, notes_there: 0 } if *folder == icloud),
         "a vault with notes shows where they're going first"
@@ -966,7 +1011,7 @@ fn syncing_with_icloud_copies_the_vault_checks_it_and_opens_it_there(cx: &mut Te
 #[gpui::test]
 fn a_vault_already_in_icloud_gets_its_settings_rather_than_set_up(cx: &mut TestAppContext) {
     let dir = tempfile::tempdir().unwrap();
-    let vault = dir.path().join("stand-in-icloud/Gasp");
+    let vault = dir.path().join(ICLOUD_VAULT);
     std::fs::create_dir_all(&vault).unwrap();
     std::fs::write(vault.join("Plan.md"), "# Plan\n").unwrap();
     std::fs::write(vault.join("Plan 2.md"), "# Plan\nfrom the phone\n").unwrap();
@@ -981,7 +1026,7 @@ fn a_vault_already_in_icloud_gets_its_settings_rather_than_set_up(cx: &mut TestA
 #[gpui::test]
 fn icloud_copies_open_beside_their_notes_to_compare(cx: &mut TestAppContext) {
     let dir = tempfile::tempdir().unwrap();
-    let vault = dir.path().join("stand-in-icloud/Gasp");
+    let vault = dir.path().join(ICLOUD_VAULT);
     std::fs::create_dir_all(&vault).unwrap();
     std::fs::write(vault.join("Plan.md"), "# Plan\nBuy milk\n").unwrap();
     std::fs::write(vault.join("Plan 2.md"), "# Plan\nBuy milk\nCall Sam\n").unwrap();

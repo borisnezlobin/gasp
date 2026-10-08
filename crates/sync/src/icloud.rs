@@ -1,7 +1,10 @@
 //! Keeping a vault in iCloud Drive, the sync that needs nothing but an
-//! Apple account. The vault is an ordinary folder, `Gasp`, at the top of
-//! iCloud Drive; iCloud copies it between the person's devices and Gasp
-//! reads and writes the files as it does any vault's.
+//! Apple account. The vault is the Documents folder of Gasp's own iCloud
+//! container, which iCloud Drive shows as a folder named Gasp on every
+//! device; iCloud copies it between the person's devices and Gasp reads
+//! and writes the files as it does any vault's. Before the container,
+//! the vault was an ordinary `Gasp` folder at the top of iCloud Drive
+//! ([`old_icloud_vault`]), which still counts as an iCloud vault.
 //!
 //! What iCloud does to the files that Gasp has to know about:
 //!
@@ -20,27 +23,64 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-/// The folder at the top of iCloud Drive that holds the vault.
+/// The name iCloud Drive shows for the folder that holds the vault.
 pub const ICLOUD_FOLDER_NAME: &str = "Gasp";
 
 /// The folder every iCloud Drive item lives under, on a Mac and an iPhone.
 const MOBILE_DOCUMENTS: &str = "Mobile Documents";
 /// iCloud Drive's own container inside it.
 const ICLOUD_DRIVE_CONTAINER: &str = "com~apple~CloudDocs";
+/// Gasp's container inside it, `iCloud.com.borisnezlobin.gasp` as the
+/// folder name spells it.
+pub const GASP_CONTAINER: &str = "iCloud~com~borisnezlobin~gasp";
+/// The container's folder that iCloud Drive shows under the app's name.
+const CONTAINER_DOCUMENTS: &str = "Documents";
 
 /// Where a placeholder's name starts and ends.
 const PLACEHOLDER_SUFFIX: &str = ".icloud";
 
-/// iCloud Drive on a Mac, for the person whose home folder is `home`.
-pub fn icloud_drive(home: &Path) -> PathBuf {
-    home.join("Library")
-        .join(MOBILE_DOCUMENTS)
-        .join(ICLOUD_DRIVE_CONTAINER)
+/// The folder holding iCloud Drive and every app's iCloud container on a
+/// Mac, for the person whose home folder is `home`.
+pub fn mobile_documents(home: &Path) -> PathBuf {
+    home.join("Library").join(MOBILE_DOCUMENTS)
 }
 
-/// Where the vault goes in iCloud Drive.
-pub fn icloud_vault(drive: &Path) -> PathBuf {
-    drive.join(ICLOUD_FOLDER_NAME)
+/// iCloud Drive's own folder inside `mobile_documents`, there whenever
+/// iCloud Drive is on.
+pub fn icloud_drive(mobile_documents: &Path) -> PathBuf {
+    mobile_documents.join(ICLOUD_DRIVE_CONTAINER)
+}
+
+/// Where the vault goes: the Documents folder of Gasp's container inside
+/// `mobile_documents`, which iCloud Drive shows as Gasp.
+pub fn icloud_vault(mobile_documents: &Path) -> PathBuf {
+    mobile_documents
+        .join(GASP_CONTAINER)
+        .join(CONTAINER_DOCUMENTS)
+}
+
+/// Where the vault went before Gasp had a container: a folder called Gasp
+/// at the top of iCloud Drive.
+pub fn old_icloud_vault(mobile_documents: &Path) -> PathBuf {
+    icloud_drive(mobile_documents).join(ICLOUD_FOLDER_NAME)
+}
+
+/// Whether `path` is the folder in Gasp's container that holds the vault.
+pub fn is_gasp_container(path: &Path) -> bool {
+    path.ends_with(Path::new(GASP_CONTAINER).join(CONTAINER_DOCUMENTS))
+}
+
+/// A vault folder's name as people see it: Gasp for the container's
+/// Documents folder, as iCloud Drive shows it, and the folder's own name
+/// otherwise.
+pub fn shown_folder_name(path: &Path) -> String {
+    if is_gasp_container(path) {
+        return ICLOUD_FOLDER_NAME.to_owned();
+    }
+    path.file_name().map_or_else(
+        || path.display().to_string(),
+        |name| name.to_string_lossy().into_owned(),
+    )
 }
 
 /// Whether `path` is somewhere iCloud keeps in step: iCloud Drive, or an
@@ -440,17 +480,34 @@ mod tests {
     }
 
     #[test]
-    fn knows_where_icloud_drive_is() {
-        let drive = icloud_drive(Path::new("/Users/you"));
+    fn knows_where_icloud_drive_and_the_vault_are() {
+        let mobile = mobile_documents(Path::new("/Users/you"));
         assert_eq!(
-            drive,
+            icloud_drive(&mobile),
             Path::new("/Users/you/Library/Mobile Documents/com~apple~CloudDocs")
         );
-        assert!(is_in_icloud(&icloud_vault(&drive)));
+        let vault = icloud_vault(&mobile);
+        assert_eq!(
+            vault,
+            Path::new(
+                "/Users/you/Library/Mobile Documents/iCloud~com~borisnezlobin~gasp/Documents"
+            )
+        );
+        assert!(is_in_icloud(&vault));
+        assert!(is_in_icloud(&old_icloud_vault(&mobile)));
         assert!(is_in_icloud(Path::new(
             "/private/var/mobile/Library/Mobile Documents/com~apple~CloudDocs/Gasp"
         )));
         assert!(!is_in_icloud(Path::new("/Users/you/Documents/Notes")));
+    }
+
+    #[test]
+    fn the_container_folder_shows_as_gasp() {
+        let mobile = mobile_documents(Path::new("/Users/you"));
+        assert!(is_gasp_container(&icloud_vault(&mobile)));
+        assert!(!is_gasp_container(&old_icloud_vault(&mobile)));
+        assert_eq!(shown_folder_name(&icloud_vault(&mobile)), "Gasp");
+        assert_eq!(shown_folder_name(Path::new("/Users/you/Notes")), "Notes");
     }
 
     #[test]
