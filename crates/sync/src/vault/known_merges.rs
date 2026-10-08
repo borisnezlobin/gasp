@@ -1,10 +1,9 @@
 //! Which fetched branch tips the local branch already holds.
 //!
 //! Git works out that a fetched tip is already merged by walking back from
-//! the local branch until it meets the tip. The legacy branch stops moving
-//! once every device runs the app, so that walk went through every commit
-//! made since, on every merge. The record here names the commit each tip
-//! was last seen merged into; while the branch only moves forward from
+//! the local branch until it meets the tip, which can take a walk through
+//! every commit made since that tip. The record here names the commit each
+//! tip was last seen merged into; while the branch only moves forward from
 //! there, the short walk back to that commit is all it takes.
 
 use std::fs;

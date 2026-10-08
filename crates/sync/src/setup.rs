@@ -6,12 +6,12 @@
 //! push it rejects) leaves the folder exactly as it was, with no `.git`.
 //!
 //! The notes already in the folder are committed as this device's, then
-//! merged with what the remote's branch holds (or its legacy branch, when
-//! the branch doesn't exist yet). The two share no history, so a note on
-//! both sides merges with [`merge_unrelated`]: lines only one side has are
-//! kept, and a place where the two read differently waits for a person,
-//! parked as any sync conflict is. The merge is pushed before anything in
-//! the folder changes; only then are the remote's notes written in.
+//! merged with what the remote's branch holds. The two share no history,
+//! so a note on both sides merges with [`merge_unrelated`]: lines only one
+//! side has are kept, and a place where the two read differently waits for
+//! a person, parked as any sync conflict is. The merge is pushed before
+//! anything in the folder changes; only then are the remote's notes
+//! written in.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -229,35 +229,30 @@ impl<'a> Builder<'a> {
         options
             .remote_callbacks(remote_callbacks(self.setup.token.as_ref()))
             .update_fetchhead(false);
-        let branches = std::iter::once(self.config().branch.clone())
-            .chain(self.legacy_branch().map(str::to_owned));
-        let refspecs: Vec<String> = branches
-            .map(|branch| {
-                format!(
-                    "+refs/heads/{branch}:refs/remotes/{}/{branch}",
-                    self.config().remote
-                )
-            })
-            .collect();
         remote
-            .fetch(&refspecs, Some(&mut options), None)
+            .fetch(&[self.refspec()], Some(&mut options), None)
             .map_err(SyncError::from_transport)
     }
 
-    fn legacy_branch(&self) -> Option<&str> {
-        self.config()
-            .legacy_branch
-            .as_deref()
-            .filter(|legacy| *legacy != self.config().branch)
+    fn tracking_ref(&self) -> String {
+        format!(
+            "refs/remotes/{}/{}",
+            self.config().remote,
+            self.config().branch
+        )
     }
 
-    /// The remote's branch, else its legacy branch: where the notes start.
+    fn refspec(&self) -> String {
+        format!(
+            "+refs/heads/{}:{}",
+            self.config().branch,
+            self.tracking_ref()
+        )
+    }
+
+    /// The remote's branch, where the notes start.
     fn remote_tip(&self) -> Option<Oid> {
-        let tracking = |branch: &str| {
-            let name = format!("refs/remotes/{}/{branch}", self.config().remote);
-            self.repo.refname_to_id(&name).ok()
-        };
-        tracking(&self.config().branch).or_else(|| self.legacy_branch().and_then(tracking))
+        self.repo.refname_to_id(&self.tracking_ref()).ok()
     }
 
     /// Commits the folder's notes and merges them with the remote's.

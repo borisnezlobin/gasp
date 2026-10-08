@@ -186,11 +186,6 @@ pub const SETTING_TEXTS: &[(&str, &str, &str)] = &[
         "The Git branch this device saves to.",
     ),
     (
-        "sync.legacy-branch",
-        "Also bring in",
-        "A branch older sync tools use. Its changes are merged in one way. Leave it empty to turn it off.",
-    ),
-    (
         "sync.device-only",
         "Files that stay on this device",
         "Patterns for files that never sync, such as window layouts.",

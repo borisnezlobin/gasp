@@ -22,8 +22,8 @@ const NO_VERSION: &str = "-";
 /// Which side's version the branch keeps committed while the conflict waits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BranchKeeps {
-    /// Merging the legacy branch: the synced branch keeps this device's
-    /// version, so nothing already on it changes.
+    /// The synced branch keeps this device's version. Only records saved
+    /// by older versions, which also merged a second branch in, say this.
     ThisDevice,
     /// Merging the synced branch: it keeps the version the remote has.
     OtherDevice,

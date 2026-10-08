@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The rows of Settings' sync screen. For the synced vault: the repository, the
-/// branches, how often to check, and the token. For the iCloud vault:
+/// branch, how often to check, and the token. For the iCloud vault:
 /// where it is and how it stands. Otherwise, the ways to start syncing.
 struct SyncSettingsSection: View {
     @Environment(AppModel.self) private var model
@@ -79,7 +79,6 @@ private struct SyncedVaultRows: View {
     let write: (String, SettingValue) -> Void
     @State private var repository = ""
     @State private var branch = ""
-    @State private var legacyBranch = ""
     @State private var problem: String?
 
     private var tokens: Tokens { model.library.tokens }
@@ -92,9 +91,6 @@ private struct SyncedVaultRows: View {
             SettingTextRow(title: "Branch", prompt: "master", text: $branch) {
                 write("sync.branch", .text(value: branch))
             }
-            SettingTextRow(title: "Legacy branch", prompt: "None", text: $legacyBranch) {
-                write("sync.legacy-branch", .text(value: legacyBranch))
-            }
             Stepper(value: intervalBinding, in: 1...120) {
                 Text("Check every \(overview.intervalMinutes) \(overview.intervalMinutes == 1 ? "minute" : "minutes")")
             }
@@ -102,11 +98,6 @@ private struct SyncedVaultRows: View {
         } footer: {
             if let problem {
                 ProblemText(message: problem, tokens: tokens)
-            } else {
-                Text(
-                    "Every sync also merges the legacy branch in one way, for tools that still send to it. "
-                        + "Leave it empty to stop."
-                )
             }
         }
         .onAppear(perform: fill)
@@ -123,7 +114,6 @@ private struct SyncedVaultRows: View {
     private func fill() {
         repository = overview.repository ?? ""
         branch = overview.branch
-        legacyBranch = overview.legacyBranch
     }
 
     private func attempt(_ change: () throws -> Void) {

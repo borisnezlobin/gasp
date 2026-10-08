@@ -535,8 +535,6 @@ pub struct SyncSettings {
     pub interval_minutes: u32,
     /// The branch this app commits to and pushes.
     pub branch: String,
-    /// A branch older sync tools push to, merged in one way. Empty turns it off.
-    pub legacy_branch: String,
     /// Files that never sync, as globs relative to the vault.
     pub device_only: Vec<String>,
 }
@@ -547,7 +545,6 @@ impl Default for SyncSettings {
             auto: true,
             interval_minutes: 5,
             branch: "master".to_string(),
-            legacy_branch: "main".to_string(),
             device_only: DEFAULT_DEVICE_ONLY
                 .iter()
                 .map(|glob| glob.to_string())

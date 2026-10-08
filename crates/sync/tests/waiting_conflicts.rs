@@ -217,54 +217,6 @@ fn more_changes_from_the_other_device_fold_into_the_waiting_note() {
 }
 
 #[test]
-fn a_conflict_with_the_legacy_branch_keeps_masters_version_meanwhile() {
-    let old_tool_config = VaultConfig {
-        branch: "main".to_owned(),
-        legacy_branch: None,
-        ..VaultConfig::default()
-    };
-    let world = World::seeded_on(old_tool_config.clone(), &[(NOTE, BASE.as_bytes())]);
-    let app = world.device("laptop");
-    let old_tool = world.device_with("phone", old_tool_config);
-    write(&app, NOTE, laptop_text().as_bytes());
-    sync(&app, "laptop");
-    write(&old_tool, NOTE, phone_text().as_bytes());
-    sync(&old_tool, "phone");
-
-    let outcome = sync(&app, "laptop");
-    assert!(matches!(outcome, MergeOutcome::Conflicts(_)), "{outcome:?}");
-    assert_eq!(
-        world.remote_file("master", NOTE).unwrap(),
-        laptop_text().as_bytes()
-    );
-    let files = app.conflicts().unwrap();
-    let hunk = files[0].hunks().next().unwrap();
-    assert_eq!(hunk.this_device, "proof by the laptop\n");
-    assert_eq!(hunk.other_device, "proof by the phone\n");
-
-    // The phone rewrites the same line again before anyone resolves it.
-    let again = BASE.replace("proof", "proof by the phone, again");
-    write(&old_tool, NOTE, again.as_bytes());
-    sync(&old_tool, "phone");
-    sync(&app, "laptop");
-    assert_eq!(
-        world.remote_file("master", NOTE).unwrap(),
-        laptop_text().as_bytes()
-    );
-    let files = app.conflicts().unwrap();
-    assert_eq!(files.len(), 1);
-    let hunk = files[0].hunks().next().unwrap();
-    assert_eq!(hunk.this_device, "proof by the laptop\n");
-    assert_eq!(hunk.other_device, "proof by the phone, again\n");
-
-    app.resolve(&files[0], &[Resolution::OtherDevice]).unwrap();
-    sync(&app, "laptop");
-    assert_eq!(world.remote_file("master", NOTE).unwrap(), again.as_bytes());
-    assert_eq!(world.remote_file("main", NOTE).unwrap(), again.as_bytes());
-    assert_eq!(sync(&app, "laptop"), MergeOutcome::UpToDate);
-}
-
-#[test]
 fn a_merge_an_older_version_left_paused_is_finished_and_parked() {
     let world = World::seeded(&[(NOTE, BASE.as_bytes()), (OTHER, b"ideas\n")]);
     let laptop = world.device("laptop");

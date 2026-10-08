@@ -1,5 +1,5 @@
 //! The phone's sync against local bare repositories: setting up, sending
-//! and receiving notes, the legacy branch, conflicts and going offline.
+//! and receiving notes, conflicts and going offline.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -20,17 +20,17 @@ struct World {
 }
 
 impl World {
-    /// A bare remote whose `main` holds `Note.md`, as the old sync tool left it.
+    /// A bare remote whose `master` holds `Note.md`.
     fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let mut options = RepositoryInitOptions::new();
-        options.bare(true).initial_head("main");
+        options.bare(true).initial_head("master");
         Repository::init_opts(dir.path().join("remote.git"), &options).unwrap();
         let world = World {
             dir,
             store: Arc::default(),
         };
-        let laptop = world.laptop_on("main");
+        let laptop = world.laptop_on("master");
         std::fs::write(laptop.root().join("Note.md"), "one\ntwo\nthree\n").unwrap();
         laptop.commit_all(&author(), "laptop: Note.md").unwrap();
         laptop.push().unwrap();
@@ -45,11 +45,10 @@ impl World {
         self.dir.path().join(name)
     }
 
-    /// Another device that syncs `branch` with no legacy branch.
+    /// Another device that syncs `branch`.
     fn laptop_on(&self, branch: &str) -> Vault {
         let config = VaultConfig {
             branch: branch.to_owned(),
-            legacy_branch: None,
             ..VaultConfig::default()
         };
         let folder = self.path(&format!("laptop-{branch}"));
@@ -112,14 +111,13 @@ fn write(root: &Path, text: &str) {
 }
 
 #[test]
-fn setup_clones_master_from_main_and_keeps_the_token() {
+fn setup_clones_master_and_keeps_the_token() {
     let world = World::new();
     let phone = world.phone();
     let overview = phone.overview();
     assert_eq!(overview.phase, SyncPhaseKind::Synced);
     assert_eq!(overview.headline, "Not synced yet");
     assert_eq!(overview.branch, "master");
-    assert_eq!(overview.legacy_branch, "main");
     assert!(overview.signed_in);
     assert!(!overview.takes_token);
     assert!(phone.sync_now().ran);
@@ -151,26 +149,6 @@ fn an_edit_on_the_phone_is_pushed_and_another_devices_edit_comes_in() {
     let on_phone = std::fs::read_to_string(world.path("phone/Note.md")).unwrap();
     assert!(on_phone.starts_with("zero\n"), "{on_phone}");
     assert_eq!(phone.overview().recent[0].received, ["Note"]);
-}
-
-#[test]
-fn a_commit_on_the_legacy_branch_merges_into_master() {
-    let world = World::new();
-    let phone = world.phone();
-    phone.sync_now();
-    let old_tool = world.laptop_on("main");
-    write(old_tool.root(), "one\ntwo\nthree\nfrom the old tool\n");
-    old_tool.commit_all(&author(), "laptop: Note.md").unwrap();
-    old_tool.push().unwrap();
-    phone.sync_now();
-    assert_eq!(
-        world.remote_note("master"),
-        "one\ntwo\nthree\nfrom the old tool\n"
-    );
-    assert_eq!(
-        world.remote_note("main"),
-        "one\ntwo\nthree\nfrom the old tool\n"
-    );
 }
 
 #[test]

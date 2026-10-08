@@ -101,7 +101,6 @@ fn set_up(root: &Path, shape: Shape, report: &mut Report) -> Devices {
     backdate_first_commit(&mac_root);
     let mut first_push = Samples::new();
     first_push.time(|| mac.push().expect("first push"));
-    start_legacy_branch(&remote);
     write_history(&mac);
     let (files, bytes) = committed_size(&mac_root);
     let mut clone = Samples::new();
@@ -117,10 +116,7 @@ fn set_up(root: &Path, shape: Shape, report: &mut Report) -> Devices {
         Duration::from_secs(60),
     );
     report.note_time("clone onto the phone", clone.median());
-    report.note_count(
-        "commits since the legacy branch last moved",
-        HISTORY_COMMITS as f64,
-    );
+    report.note_count("commits of history", HISTORY_COMMITS as f64);
     Devices {
         mac,
         phone,
@@ -129,8 +125,7 @@ fn set_up(root: &Path, shape: Shape, report: &mut Report) -> Devices {
     }
 }
 
-/// Months of syncing since the old tools last pushed to the legacy branch:
-/// a commit a minute for each of a few hundred edits, the last a minute
+/// Months of syncing: a commit a minute for each of a few hundred edits, the last a minute
 /// ago, then pushed. Git's history walks stop by commit date, so the dates
 /// have to advance as real ones do.
 fn write_history(mac: &Vault) {
@@ -181,18 +176,6 @@ fn init_bare_remote(path: &Path) -> String {
     options.bare(true).initial_head(&vault_config().branch);
     Repository::init_opts(path, &options).expect("the bare remote starts");
     path.to_str().expect("a UTF-8 scratch path").to_owned()
-}
-
-/// The owner's remote still has the branch the old sync tools push to.
-fn start_legacy_branch(remote: &str) {
-    let config = vault_config();
-    let legacy = config.legacy_branch.expect("a legacy branch");
-    let repo = Repository::open_bare(remote).expect("the bare remote opens");
-    let head = repo
-        .refname_to_id(&format!("refs/heads/{}", config.branch))
-        .expect("the synced branch exists");
-    repo.reference(&format!("refs/heads/{legacy}"), head, true, "legacy")
-        .expect("the legacy branch starts");
 }
 
 fn write_vault(root: &Path, shape: Shape) {

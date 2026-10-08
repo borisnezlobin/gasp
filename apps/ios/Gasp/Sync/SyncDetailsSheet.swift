@@ -167,15 +167,12 @@ private struct FileList: View {
     }
 }
 
-/// Where the notes sync: the repository and its branches.
+/// Where the notes sync: the repository and its branch.
 struct SyncPlaceRows: View {
     let overview: SyncOverview
 
     var body: some View {
         LabeledContent("Repository", value: overview.repository ?? "None")
         LabeledContent("Branch", value: overview.branch)
-        if !overview.legacyBranch.isEmpty {
-            LabeledContent("Also brings in", value: overview.legacyBranch)
-        }
     }
 }
