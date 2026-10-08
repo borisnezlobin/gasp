@@ -355,10 +355,10 @@ impl SyncStart {
         let from = self.root.clone();
         let device = crate::edit_time::device_name();
         let target = folder.clone();
-        let moving =
-            cx.background_spawn(
-                async move { gasp_sync::icloud::move_vault(&from, &target, &device) },
-            );
+        let old = super::icloud::old_folder_with_notes(cx);
+        let moving = cx.background_spawn(async move {
+            super::icloud::move_into_icloud(&from, &target, old.as_deref(), &device)
+        });
         self.work = Some(cx.spawn_in(window, async move |this, cx| {
             let moved = moving.await;
             this.update_in(cx, |this, window, cx| match moved {

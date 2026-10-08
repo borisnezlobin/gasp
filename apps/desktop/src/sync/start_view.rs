@@ -17,6 +17,7 @@ use crate::icons::{IconName, icon};
 use crate::settings_view::controls::{button, icon_label_button, inert_button};
 use crate::theme::SettingsTheme;
 use crate::ui::Selectable;
+use crate::workspace::files::folder_name;
 
 /// The code's placeholder while GitHub hands one out, the same width.
 const CODE_PLACEHOLDER: &str = "····-····";
@@ -733,10 +734,4 @@ fn selector_name(action: StartAction) -> String {
         StartAction::Done => "done",
     };
     format!("sync-start-{name}")
-}
-
-fn folder_name(folder: &Path) -> String {
-    folder
-        .file_name()
-        .map_or_else(String::new, |name| name.to_string_lossy().into_owned())
 }
