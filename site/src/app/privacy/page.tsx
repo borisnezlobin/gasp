@@ -69,7 +69,7 @@ export default function Privacy() {
         </p>
 
         <Part title="What the app sends">
-          <p>Once a day, a little after Gasp opens, it sends exactly this to gaspmd.com:</p>
+          <p>Once a day, a little after Gasp opens and then on each day it stays open, it sends exactly this to gaspmd.com:</p>
           <pre className="code overflow-x-auto rounded-xl bg-fill p-5 leading-relaxed text-ink">{PAYLOAD}</pre>
           <FactList facts={FIELDS} className="pt-2" />
         </Part>

@@ -22,6 +22,10 @@ pub const PING_URL: &str = "https://gaspmd.com/api/ping";
 /// first frames or with opening the vault.
 const SETTLE_DELAY: Duration = Duration::from_secs(20);
 
+/// How often a running app checks whether today's ping has gone out, so
+/// an app left open for days still pings once a day.
+const CHECK_EVERY: Duration = Duration::from_secs(60 * 60);
+
 const TIMEOUT: Duration = Duration::from_secs(5);
 
 const SYSTEM_VERSION_FILE: &str = "/System/Library/CoreServices/SystemVersion.plist";
@@ -64,9 +68,10 @@ pub fn is_due(last_ping: Option<&str>, today: &str) -> bool {
     last_ping != Some(today)
 }
 
-/// Today's date on this Mac, such as `2026-09-30`.
+/// Today's date in UTC, such as `2026-09-30`: the day the server counts
+/// the ping under, so a day never gets two pings or none around midnight.
 pub fn today() -> String {
-    jiff::Zoned::now().date().to_string()
+    jiff::Timestamp::now().to_zoned(jiff::tz::TimeZone::UTC).date().to_string()
 }
 
 /// The `ProductVersion` in the text of `SystemVersion.plist`.
@@ -82,17 +87,23 @@ fn system_version() -> Option<String> {
     product_version(&plist)
 }
 
-/// Sends today's ping a little after launch, when one is due and allowed.
+/// Sends today's ping a little after launch, then checks every hour while
+/// the app runs, sending whenever one is due and allowed.
 pub fn schedule(cx: &mut App) {
     if cfg!(debug_assertions) || !crate::sandbox::reaches_outside() {
         return;
     }
-    cx.spawn(async move |cx| send_when_settled(cx).await)
-        .detach();
+    cx.spawn(async move |cx| {
+        cx.background_executor().timer(SETTLE_DELAY).await;
+        loop {
+            send_if_due(cx).await;
+            cx.background_executor().timer(CHECK_EVERY).await;
+        }
+    })
+    .detach();
 }
 
-async fn send_when_settled(cx: &mut AsyncApp) {
-    cx.background_executor().timer(SETTLE_DELAY).await;
+async fn send_if_due(cx: &mut AsyncApp) {
     let allowed = cx.update(every_open_vault_allows_pings).unwrap_or(false);
     let Some(state_path) = AppState::default_path() else {
         return;
