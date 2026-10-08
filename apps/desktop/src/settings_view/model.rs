@@ -216,6 +216,7 @@ pub const PAGES: &[PageSpec] = &[
                 setting("theme.font.scale.h2"),
                 setting("theme.font.line-height.code"),
             ],
+            &[setting(APP_ICON_KEY)],
         ],
     },
     PageSpec {
@@ -342,6 +343,9 @@ pub const PAGES: &[PageSpec] = &[
         ],
     },
 ];
+
+/// The setting whose choices show as pictures of the app icon.
+pub const APP_ICON_KEY: &str = "appearance.app-icon";
 
 /// The id of the Daily notes and templates page.
 pub const DAILY_NOTES_SECTION: &str = "daily-notes";

@@ -115,6 +115,20 @@ impl SettingsView {
         }
     }
 
+    /// Moves a choice to its next option, or back to its first from the
+    /// last.
+    pub(super) fn cycle_choice(&mut self, item: &SettingItem, cx: &mut Context<Self>) {
+        let SettingKind::Choice(options) = &item.kind else {
+            return;
+        };
+        let current = self.current_value(item);
+        let index = options
+            .iter()
+            .position(|o| Some(o.as_str()) == current.as_str());
+        let next = index.map_or(0, |index| (index + 1) % options.len());
+        self.choose(item, &options[next].clone(), cx);
+    }
+
     pub(super) fn choose(&mut self, item: &SettingItem, option: &str, cx: &mut Context<Self>) {
         if self.current_value(item).as_str() != Some(option) {
             self.write(item, Some(Value::from(option)), cx);

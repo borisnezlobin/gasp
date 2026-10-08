@@ -161,6 +161,11 @@ pub const SETTING_TEXTS: &[(&str, &str, &str)] = &[
         "Light, dark, or whichever the system is using.",
     ),
     (
+        "appearance.app-icon",
+        "Dock icon",
+        "Which whale the Dock shows. Each has a dark version for dark mode.",
+    ),
+    (
         "appearance.base-font-size",
         "Font size",
         "Body text size in points. Headings scale with it.",
@@ -260,6 +265,8 @@ pub const CHOICE_LABELS: &[(&str, &str)] = &[
     ("light", "Light"),
     ("dark", "Dark"),
     ("match-system", "Match system"),
+    ("breaching", "Breaching"),
+    ("up-close", "Up close"),
     ("american", "American"),
     ("british", "British"),
     ("canadian", "Canadian"),
@@ -270,8 +277,8 @@ pub const CHOICE_LABELS: &[(&str, &str)] = &[
 pub const HIDDEN: &[&str] = &["mobile."];
 
 /// Settings only the Mac app shows, by key prefix: the iPhone updates
-/// through the App Store.
-pub const DESKTOP_ONLY: &[&str] = &["updates."];
+/// through the App Store and picks its own icon.
+pub const DESKTOP_ONLY: &[&str] = &["updates.", "appearance.app-icon"];
 
 /// The title and description of the setting `key`, if it has them.
 pub fn setting_text(key: &str) -> Option<(&'static str, &'static str)> {

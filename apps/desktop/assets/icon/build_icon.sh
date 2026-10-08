@@ -1,6 +1,6 @@
 #!/bin/zsh
-# Builds apps/desktop/assets/AppIcon.icns and the iPhone app's icon from the
-# committed whale render.
+# Builds apps/desktop/assets/AppIcon.icns, the Mac's Dock icons and the
+# iPhone app's icons from the committed whale render.
 #
 #   apps/desktop/assets/icon/build_icon.sh
 #
@@ -39,6 +39,22 @@ done
 iconutil --convert icns --output "$ASSETS_DIR/AppIcon.icns" "$ICONSET"
 cp "$WORK/full.png" "$ICON_DIR/AppIcon-1024.png"
 print "Wrote $ASSETS_DIR/AppIcon.icns"
+
+# The Dock icons the Mac app picks between at runtime. The Dock draws at
+# most 256 points on a 2x screen, so 512 pixels is all it needs.
+DOCK_DIR="$ICON_DIR/dock"
+BREACHING=(38 0.98 0.47 0.46)
+dock_icon() {
+  local name=$1; shift
+  "$PYTHON" "$ICON_DIR/compose_icon.py" "$WHALE" "$WORK/$name.png" "$@"
+  resize "$WORK/$name.png" 512 "$DOCK_DIR/$name.png"
+}
+mkdir -p "$DOCK_DIR"
+dock_icon breaching-light $BREACHING
+dock_icon breaching-dark $BREACHING --dark
+dock_icon up-close-light --head
+dock_icon up-close-dark --head --dark
+print "Wrote the Dock icons in $DOCK_DIR"
 
 IOS_ICONS="${ASSETS_DIR:h:h:h}/apps/ios/Gasp/Resources/AppIcon.xcassets"
 "$PYTHON" "$ICON_DIR/compose_icon.py" "$WHALE" "$IOS_ICONS/AppIcon.appiconset/AppIcon-1024.png" 38 0.98 0.47 0.46 --ios

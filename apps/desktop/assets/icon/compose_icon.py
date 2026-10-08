@@ -1,6 +1,6 @@
 """Composes the app icon from an ink render of the humpback.
 
-    python compose_icon.py <whale.png> <out.png> [angle] [scale] [centre_x] [centre_y] [--small | --ios]
+    python compose_icon.py <whale.png> <out.png> [angle] [scale] [centre_x] [centre_y] [--small | --ios] [--head] [--dark]
 
 The Mac icon is a rounded tile with a shadow on a clear canvas. With --ios it's
 the same tile filling an opaque square, since iOS rounds the corners itself and
@@ -226,7 +226,7 @@ def artwork(whale_path: str, angle: float, scale: float, centre: tuple[float, fl
 
 def compose(whale_path: str, out_path: str, angle: float, scale: float, centre: tuple[float, float]) -> None:
     mask = tile_mask(TILE_SIZE)
-    tile = artwork(whale_path, angle, scale, centre)
+    tile = head_artwork(whale_path) if HEAD else artwork(whale_path, angle, scale, centre)
     tile.putalpha(ImageChops.multiply(tile.getchannel("A"), mask))
     icon = drop_shadow(mask)
     icon.alpha_composite(tile, (TILE_INSET, TILE_INSET))

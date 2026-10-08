@@ -12,6 +12,7 @@
 
 mod agent_app_tiles;
 pub mod agent_apps;
+mod app_icon_tiles;
 mod capture;
 pub mod controls;
 mod edit;

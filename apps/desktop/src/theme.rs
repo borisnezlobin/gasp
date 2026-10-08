@@ -2933,6 +2933,9 @@ pub struct SettingsTheme {
     /// The square another app's icon is drawn in, such as on an AI app
     /// tile.
     pub app_icon_size: Pixels,
+    /// The square Gasp's own icon is drawn in on the Dock icon row's
+    /// tiles. `dock_icon::PREVIEW_PIXELS` draws it sharp at twice this.
+    pub app_icon_choice_size: Pixels,
     /// The round mark on an app icon's corner, such as the check on a
     /// connected AI app.
     pub app_badge_size: Pixels,
@@ -3049,6 +3052,7 @@ impl SettingsTheme {
             slot_border: px(1.),
             slot_fill: p.accent.opacity(0.12),
             app_icon_size: px(32.),
+            app_icon_choice_size: px(48.),
             app_badge_size: px(14.),
         }
     }
