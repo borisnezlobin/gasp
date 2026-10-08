@@ -197,7 +197,7 @@ Copy and layout
 - [x] Don't pop the keyboard up automatically during the welcome flow.
 - [x] The first screen should feel like the website's homepage: the liquid shader instead of the jumping whale, which looks dated and weird. *(Soft-glyph wordmark, red caret, and the whale gliding under the note lines through a Metal water shader that ripples under a finger.)*
 - [ ] Starting from an existing GitHub vault doesn't work: "GitHub sign-in isn't available in this build yet."
-- [ ] iCloud setup asks people to make a folder in iCloud Drive themselves; many can't. Gasp should make it. *(Built on both apps; the App ID's iCloud needs CloudKit mode with the container ticked before builds sign.)*
+- [x] iCloud setup asks people to make a folder in iCloud Drive themselves; many can't. Gasp should make it. *(Gasp has its own iCloud Drive folder, "Gasp", on both apps; first in build 614.)*
 - [x] Choose the app icon in the iPhone app: the current whale, and a second whale (the head rising into the tile from the bottom-left corner, per the owner's sketch), each with a dark mode version. *(Settings → App icon: "Breaching" and "Up close"; iOS shows each one's dark version in dark mode.)*
 - [ ] Choose the app icon on the Mac too (the Dock icon; the signed bundle's icon stays, so updates keep verifying).
 
