@@ -2,6 +2,7 @@
 //! `RunCommand` action its key does, so menus show the current shortcut.
 
 use gasp_config::commands::BUILTIN_COMMANDS;
+use gasp_config::toolbars::{SEPARATOR, Toolbars};
 use gpui::{App, KeyBinding, Menu, MenuItem, OsAction, SystemMenuType, actions};
 
 use crate::keymap::{Quit, RunCommand};
@@ -21,17 +22,20 @@ actions!(
 pub const APP_NAME: &str = gasp_config::APP_NAME;
 
 /// One entry in a menu table.
-enum Entry {
-    Command(&'static str),
+enum Entry<'a> {
+    Command(&'a str),
     Separator,
 }
 
 use Entry::{Command, Separator};
 
+/// The toolbar menu the menu bar's Insert menu shows.
+const INSERT_MENU: &str = "insert";
+
 /// Commands at the top of the app menu.
 const APP_ITEMS: [&str; 2] = ["app.check-for-updates", "settings.open"];
 
-const FILE: &[Entry] = &[
+const FILE: &[Entry<'static>] = &[
     Command("note.new"),
     Command("daily.open"),
     Command("tab.new"),
@@ -56,7 +60,7 @@ const FILE: &[Entry] = &[
     Command("pane.close"),
 ];
 
-const EDIT: &[Entry] = &[
+const EDIT: &[Entry<'static>] = &[
     Command("edit.undo"),
     Command("edit.redo"),
     Separator,
@@ -74,7 +78,7 @@ const EDIT: &[Entry] = &[
     Command("search.open"),
 ];
 
-const VIEW: &[Entry] = &[
+const VIEW: &[Entry<'static>] = &[
     Command("sidebar.files.toggle"),
     Command("file-tree.focus"),
     Command("toolbar.focus"),
@@ -105,7 +109,7 @@ const VIEW: &[Entry] = &[
     Command("fold.unfold-all"),
 ];
 
-const GO: &[Entry] = &[
+const GO: &[Entry<'static>] = &[
     Command("history.back"),
     Command("history.forward"),
     Separator,
@@ -166,6 +170,7 @@ pub fn app_menus(is_available: &dyn Fn(&str) -> bool) -> Vec<Menu> {
         app_menu(is_available),
         menu("File", FILE, is_available),
         menu("Edit", EDIT, is_available),
+        insert_menu(is_available),
         menu("View", VIEW, is_available),
         menu("Go", GO, is_available),
         window_menu(),
@@ -206,7 +211,29 @@ fn window_menu() -> Menu {
     }
 }
 
-fn menu(name: &'static str, entries: &[Entry], is_available: &dyn Fn(&str) -> bool) -> Menu {
+/// The toolbars' built-in `[menu.insert]`, so the menu bar and the
+/// toolbar dropdown list the same things.
+fn insert_menu(is_available: &dyn Fn(&str) -> bool) -> Menu {
+    let toolbars = Toolbars::defaults();
+    let Some(insert) = toolbars.menu(INSERT_MENU) else {
+        return menu("Insert", &[], is_available);
+    };
+    let entries: Vec<Entry> = insert
+        .items
+        .iter()
+        .map(|item| match item.as_str() {
+            SEPARATOR => Separator,
+            id => Command(id),
+        })
+        .collect();
+    menu(insert.title.clone(), &entries, is_available)
+}
+
+fn menu(
+    name: impl Into<gpui::SharedString>,
+    entries: &[Entry],
+    is_available: &dyn Fn(&str) -> bool,
+) -> Menu {
     let mut items: Vec<MenuItem> = Vec::new();
     for entry in entries {
         match entry {
@@ -227,9 +254,11 @@ fn menu(name: &'static str, entries: &[Entry], is_available: &dyn Fn(&str) -> bo
     }
 }
 
-fn command_item(id: &'static str) -> MenuItem {
+fn command_item(id: &str) -> MenuItem {
     let title = command_title(id);
-    let action = RunCommand { id: id.into() };
+    let action = RunCommand {
+        id: id.to_owned().into(),
+    };
     match OS_ACTIONS.iter().find(|(os_id, _)| *os_id == id) {
         Some((_, os_action)) => MenuItem::os_action(title, action, *os_action),
         None => MenuItem::action(title, action),
@@ -286,16 +315,20 @@ mod tests {
             .collect()
     }
 
+    fn named<'a>(menus: &'a [Menu], name: &str) -> &'a Menu {
+        menus.iter().find(|menu| menu.name == name).unwrap()
+    }
+
     #[test]
     fn menus_leave_out_commands_with_no_handler() {
         let menus = app_menus(&built_in_available(&[]));
-        let file = item_names(&menus[1]);
+        let file = item_names(named(&menus, "File"));
         assert!(file.contains(&"New note".to_owned()));
         assert!(!file.contains(&"Sync now".to_owned()));
         assert!(!file.contains(&"Print".to_owned()));
         assert_ne!(file.last().map(String::as_str), Some("-"));
         let with_sync = app_menus(&built_in_available(&["sync.now"]));
-        assert!(item_names(&with_sync[1]).contains(&"Sync now".to_owned()));
+        assert!(item_names(named(&with_sync, "File")).contains(&"Sync now".to_owned()));
     }
 
     #[test]
@@ -309,12 +342,38 @@ mod tests {
     #[test]
     fn menu_items_carry_their_command() {
         let menus = app_menus(&built_in_available(&[]));
-        let back = menus[4].items.iter().find_map(|item| match item {
-            MenuItem::Action { action, .. } => {
-                action.as_any().downcast_ref::<RunCommand>().cloned()
-            }
-            _ => None,
-        });
+        let back = named(&menus, "Go")
+            .items
+            .iter()
+            .find_map(|item| match item {
+                MenuItem::Action { action, .. } => {
+                    action.as_any().downcast_ref::<RunCommand>().cloned()
+                }
+                _ => None,
+            });
         assert_eq!(back.unwrap().id.as_ref(), "history.back");
+    }
+
+    #[test]
+    fn the_insert_menu_follows_the_toolbars_insert_menu() {
+        let available = ["note.import-image", "table.insert", "format.bold"];
+        let menus = app_menus(&|id| available.contains(&id));
+        let insert = item_names(named(&menus, "Insert"));
+        assert_eq!(insert, ["Insert image", "Insert table", "-", "Toggle bold"]);
+    }
+
+    #[test]
+    fn the_app_runs_everything_in_the_insert_menu() {
+        let menus = app_menus(&built_in_available(&crate::features::WIRED_COMMANDS));
+        let insert = item_names(named(&menus, "Insert"));
+        let commands = Toolbars::defaults()
+            .menu(INSERT_MENU)
+            .unwrap()
+            .items
+            .clone();
+        let wanted = commands.iter().filter(|id| id.as_str() != SEPARATOR);
+        for title in wanted.map(|id| command_title(id)) {
+            assert!(insert.contains(&title), "{title} missing from {insert:?}");
+        }
     }
 }

@@ -188,14 +188,21 @@ final class AccessoryBar: UIInputView {
             primaryAction: UIAction { [weak self] _ in self?.run(command.id) }
         )
         button.changesSelectionAsPrimaryAction = false
+        if command.id == ImageSource.command {
+            button.menu = UIMenu(title: command.title, children: imageSourceActions())
+            button.showsMenuAsPrimaryAction = true
+        }
         commandButtons[command.id] = button
         return styled(button, title: command.title, labelled: title != nil)
     }
 
     private func menuButton(title: String, commands: [CommandInfo], labels: ToolbarLabels) -> UIButton {
         let (shown, symbol) = face(title: title, symbol: "ellipsis.circle", labels: labels)
-        let actions = commands.map { command in
+        let actions = commands.map { command -> UIMenuElement in
             let image = UIImage(systemName: CommandSymbols.name(for: command.id))
+            if command.id == ImageSource.command {
+                return UIMenu(title: command.title, image: image, children: imageSourceActions())
+            }
             return UIAction(title: command.title, image: image) { [weak self] _ in
                 self?.run(command.id)
             }
@@ -204,6 +211,14 @@ final class AccessoryBar: UIInputView {
         button.menu = UIMenu(title: title, children: actions)
         button.showsMenuAsPrimaryAction = true
         return styled(button, title: title, labelled: shown != nil)
+    }
+
+    private func imageSourceActions() -> [UIAction] {
+        ImageSource.allCases.map { source in
+            UIAction(title: source.title, image: UIImage(systemName: source.symbol)) { [weak self] _ in
+                self?.run(source.id)
+            }
+        }
     }
 
     /// A thin line between groups of buttons.

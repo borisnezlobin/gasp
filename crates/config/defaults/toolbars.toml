@@ -72,8 +72,15 @@ style     = "icons"
 density   = "comfortable"
 items     = ["sidebar.files.toggle", "spacer", "tab.overview"]
 
-# A dropdown any toolbar can hold as "menu:insert".
+# A dropdown any toolbar can hold as "menu:insert". The Mac's menu bar
+# shows it too, as its Insert menu.
 [menu.insert]
 title = "Insert"
 icon  = "plus"
-items = ["table.insert", "format.callout", "footnote.insert-or-jump", "note.import-image", "template.insert"]
+items = [
+  "note.import-image", "table.insert", "format.horizontal-rule",
+  "format.code-block", "format.math-block", "format.callout", "separator",
+  "format.link", "footnote.insert-or-jump", "template.insert", "separator",
+  "format.bold", "format.italic", "format.strikethrough", "format.highlight",
+  "format.code", "format.math-inline",
+]

@@ -235,6 +235,14 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("format.math-inline", "Toggle inline math", "Formatting").icon("sigma"),
     spec("format.comment", "Toggle comment", "Formatting").icon("chat-text"),
     spec("format.callout", "Insert callout", "Formatting").icon("quotes"),
+    spec(
+        "format.horizontal-rule",
+        "Insert horizontal rule",
+        "Formatting",
+    )
+    .icon("minus"),
+    spec("format.code-block", "Insert code block", "Formatting").icon("code-block"),
+    spec("format.math-block", "Insert math block", "Formatting").icon("function"),
     spec("format.bullet-list", "Toggle bulleted list", "Formatting").icon("list-bullets"),
     spec("format.numbered-list", "Toggle numbered list", "Formatting").icon("list-numbers"),
     spec(
@@ -477,7 +485,7 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     TOGGLE_DARK_MODE,
     #[cfg(not(target_os = "ios"))]
     MOVE_NOTE,
-    spec("note.import-image", "Insert image from file", "Editing").icon("image"),
+    spec("note.import-image", "Insert image", "Editing").icon("image"),
     spec("edit.paste-plain", "Paste as plain text", "Editing").icon("clipboard-text"),
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     LOOK_UP,

@@ -31,6 +31,9 @@ enum WorkspaceSheet: Identifiable {
     case share(URL)
     case lookUp(String)
     case photos
+    case imageFiles
+    /// Photo library or Files, for Insert image run from the palette.
+    case imageSource
     case syncSetup(SyncSetupDraft)
     case syncDetails
     case resolver
@@ -39,6 +42,15 @@ enum WorkspaceSheet: Identifiable {
     case icloudSetup
     case githubSignIn
     case icloudDetails
+
+    /// Whether it has its own presenter instead of being a sheet: the
+    /// photo picker, the file picker and the dialog that chooses one.
+    var presentsItself: Bool {
+        switch self {
+        case .photos, .imageFiles, .imageSource: true
+        default: false
+        }
+    }
 
     var id: String {
         switch self {
@@ -57,6 +69,8 @@ enum WorkspaceSheet: Identifiable {
         case .share(let url): "share \(url.path)"
         case .lookUp(let term): "look up \(term)"
         case .photos: "photos"
+        case .imageFiles: "image files"
+        case .imageSource: "image source"
         }
     }
 }

@@ -1,11 +1,12 @@
 //! Editing commands the keymap binds: formatting toggles, links, callouts,
-//! indenting and footnotes.
+//! rules and fenced blocks, indenting and footnotes.
 //!
 //! Each command reads the document and selection and returns a
 //! [`Transaction`] tagged with the command's id, so it becomes its own undo
 //! step. Returning `None` means there is nothing to do.
 
 mod active;
+mod blocks;
 mod callout;
 mod footnote;
 mod format;
@@ -15,6 +16,7 @@ mod link;
 mod lists;
 
 pub use active::active_commands;
+pub use blocks::{insert_code_block, insert_horizontal_rule, insert_math_block};
 pub use callout::insert_callout;
 pub use footnote::{FootnoteCommand, insert_or_jump_footnote};
 pub use format::{Format, toggle_format};

@@ -865,7 +865,10 @@ impl Workspace {
         Some(
             menu.items
                 .iter()
-                .map(|id| self.command_menu_item(id, cx))
+                .map(|id| match ToolbarItem::parse(id) {
+                    ToolbarItem::Separator => MenuItem::Separator,
+                    _ => self.command_menu_item(id, cx),
+                })
                 .collect(),
         )
     }

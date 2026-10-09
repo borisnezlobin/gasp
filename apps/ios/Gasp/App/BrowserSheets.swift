@@ -3,7 +3,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// The sheets over the browser: the palette, settings, templates, file
-/// recovery, sharing an export, Look up, and picking a photo.
+/// recovery, sharing an export, Look up, and picking an image from Photos
+/// or Files.
 struct BrowserSheets: ViewModifier {
     @Environment(AppModel.self) private var model
     @State private var photo: PhotosPickerItem?
@@ -15,29 +16,40 @@ struct BrowserSheets: ViewModifier {
                 sheetContent(sheet)
                     .environment(model)
             }
-            .photosPicker(isPresented: photosBinding, selection: $photo, matching: .images)
+            .photosPicker(isPresented: presenting(.photos), selection: $photo, matching: .images)
             .onChange(of: photo) { _, item in
                 guard let item else { return }
                 photo = nil
                 Task { await insert(item) }
             }
+            .fileImporter(
+                isPresented: presenting(.imageFiles),
+                allowedContentTypes: [.image],
+                allowsMultipleSelection: true
+            ) { result in
+                insert(files: result)
+            }
+            .confirmationDialog("Insert image", isPresented: presenting(.imageSource)) {
+                ForEach(ImageSource.allCases) { source in
+                    Button(source.title) { model.workspace.sheet = source.sheet }
+                }
+            }
     }
 
-    /// Every sheet but the photo picker, which is presented on its own.
+    /// Every sheet but the ones that present themselves.
     private var sheetBinding: Binding<WorkspaceSheet?> {
         Binding(
-            get: {
-                if case .photos = model.workspace.sheet { return nil }
-                return model.workspace.sheet
-            },
+            get: { model.workspace.sheet.flatMap { $0.presentsItself ? nil : $0 } },
             set: { model.workspace.sheet = $0 }
         )
     }
 
-    private var photosBinding: Binding<Bool> {
+    /// Whether `sheet` is up. Closing it clears the workspace's sheet only
+    /// while it's still this one, so a dialog's choice can open the next.
+    private func presenting(_ sheet: WorkspaceSheet) -> Binding<Bool> {
         Binding(
-            get: { if case .photos = model.workspace.sheet { true } else { false } },
-            set: { if !$0 { model.workspace.sheet = nil } }
+            get: { model.workspace.sheet?.id == sheet.id },
+            set: { if !$0, model.workspace.sheet?.id == sheet.id { model.workspace.sheet = nil } }
         )
     }
 
@@ -50,7 +62,7 @@ struct BrowserSheets: ViewModifier {
         case .recovery(let path): RecoverySheet(path: path)
         case .share(let url): ShareSheet(items: [url])
         case .lookUp(let term): LookUpView(term: term)
-        case .photos: EmptyView()
+        case .photos, .imageFiles, .imageSource: EmptyView()
         case .syncSetup(let draft): SyncSetupView(draft: draft)
         case .syncDetails: SyncDetailsSheet()
         case .resolver: ConflictResolverView()
@@ -68,6 +80,23 @@ struct BrowserSheets: ViewModifier {
         }
         let type = item.supportedContentTypes.first { $0.conforms(to: .image) }
         model.runner.insertImage(data, extension: type?.preferredFilenameExtension ?? "jpg")
+    }
+
+    private func insert(files result: Result<[URL], Error>) {
+        guard case .success(let urls) = result else {
+            model.workspace.tell("Couldn't open Files.")
+            return
+        }
+        for url in urls {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            guard let data = try? Data(contentsOf: url) else {
+                model.workspace.tell("Couldn't read \(url.lastPathComponent).")
+                continue
+            }
+            let fileExtension = url.pathExtension.isEmpty ? "png" : url.pathExtension.lowercased()
+            model.runner.insertImage(data, extension: fileExtension)
+        }
     }
 }
 
