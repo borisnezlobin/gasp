@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Gasp
+GenericName=Markdown Editor
+Comment=A fast, native Markdown editor for your notes
+Exec=gasp %f
+Icon=com.borisnezlobin.gasp
+Terminal=false
+Categories=Utility;TextEditor;
+MimeType=text/markdown;text/x-markdown;
+Keywords=Markdown;Notes;Obsidian;Vault;Editor;Writing;
+StartupNotify=true
+StartupWMClass=com.borisnezlobin.gasp

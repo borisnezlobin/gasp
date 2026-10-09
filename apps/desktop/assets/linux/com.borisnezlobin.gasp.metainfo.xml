@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.borisnezlobin.gasp</id>
+  <name>Gasp</name>
+  <summary>A fast, native Markdown editor for your notes</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="com.borisnezlobin">
+    <name>Boris Nezlobin</name>
+  </developer>
+  <description>
+    <p>
+      Gasp is a fast, native Markdown editor for an Obsidian vault, with live
+      preview, math, search across every note, and sync through GitHub. Every
+      part of it can be changed through plain config files in the vault.
+    </p>
+  </description>
+  <launchable type="desktop-id">com.borisnezlobin.gasp.desktop</launchable>
+  <url type="homepage">https://gaspmd.com</url>
+  <url type="bugtracker">https://github.com/borisnezlobin/gasp/issues</url>
+  <categories>
+    <category>Office</category>
+    <category>TextEditor</category>
+  </categories>
+  <provides>
+    <binary>gasp</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+</component>

@@ -13,7 +13,7 @@ BUNDLE_ID := com.borisnezlobin.gasp
 # the paid account, but its installs stop opening after 7 days.
 IOS_TEAM ?= K2MB68Z582
 
-.PHONY: help build run dmg dmg-local dmg-background notarize icon ios-core ios-project ios-sim ios-phone ios-upload snapshot tidy
+.PHONY: help build run dmg dmg-local linux dmg-background notarize icon ios-core ios-project ios-sim ios-phone ios-upload snapshot tidy
 
 help:
 	@echo "make build       Build the desktop app, signed so the Keychain remembers it"
@@ -22,6 +22,7 @@ help:
 	@echo "                 make snapshot SCRIPT=steps.txt VAULT=path [OUT=dir] [OPEN=note]"
 	@echo "make dmg         Signed, notarized Gasp.dmg for other Macs (target/package/)"
 	@echo "make dmg-local   Unsigned Gasp.dmg that only runs on this Mac"
+	@echo "make linux       Linux tarball and .deb (target/package/); releases build them in CI"
 	@echo "make notarize    Notarize the Gasp.dmg already built (needs the Mac unlocked)"
 	@echo "make tidy        Delete old builds Cargo left in target/ (runs after build and dmg)"
 	@echo "make icon        Rebuild AppIcon.icns from the whale render"
@@ -32,7 +33,9 @@ help:
 
 build:
 	cargo build --release -p gasp-desktop
-	codesign --force --sign "$(DEV_SIGNING_ID)" --identifier $(BUNDLE_ID) target/release/gasp
+	@if [ "$$(uname)" = Darwin ]; then \
+		codesign --force --sign "$(DEV_SIGNING_ID)" --identifier $(BUNDLE_ID) target/release/gasp; \
+	fi
 	@scripts/prune-target.py
 
 run: build
@@ -62,6 +65,9 @@ notarize:
 
 dmg-local:
 	DEVELOPER_ID= NOTARY_PROFILE= scripts/package-macos.sh
+
+linux:
+	scripts/package-linux.sh
 
 dmg-background:
 	"$(ICON_PYTHON)" scripts/dmg-background.py
