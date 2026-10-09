@@ -64,7 +64,7 @@ targets:
         PRODUCT_NAME: Gasp
         CODE_SIGN_ENTITLEMENTS: Gasp/Gasp.entitlements
         TARGETED_DEVICE_FAMILY: "1"
-        MARKETING_VERSION: "0.2.4"
+        MARKETING_VERSION: "0.2.5"
         CURRENT_PROJECT_VERSION: "1"
         # Made with the Mac icon by apps/desktop/assets/icon/build_icon.sh, each with a
         # dark version. AppIconHead is the second icon people can pick in Settings.
