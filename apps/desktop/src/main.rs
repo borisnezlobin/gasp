@@ -27,18 +27,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    // A snapshot only looks, so it leaves the app's folders as they are:
-    // never migrate them for one.
-    let only_looks = matches!(
-        command,
-        Command::Snapshot(_)
-            | Command::WindowSnapshot(_)
-            | Command::BenchOpen { .. }
-            | Command::GrammarWorker
-            | Command::Help
-            | Command::Version
-    );
-    if !only_looks {
+    if !only_looks(&command) {
         migrate_app_folders();
     }
     if draws_editors(&command)
@@ -74,6 +63,20 @@ fn main() -> ExitCode {
             exit_status("--snapshot", gasp_desktop::snapshot::run_window(request))
         }
     }
+}
+
+/// Whether the command only looks, as a snapshot does, so it leaves the
+/// app's folders as they are: they're never migrated for one.
+fn only_looks(command: &Command) -> bool {
+    matches!(
+        command,
+        Command::Snapshot(_)
+            | Command::WindowSnapshot(_)
+            | Command::BenchOpen { .. }
+            | Command::GrammarWorker
+            | Command::Help
+            | Command::Version
+    )
 }
 
 /// Whether the command opens editors, whose grammar checks then run in a
