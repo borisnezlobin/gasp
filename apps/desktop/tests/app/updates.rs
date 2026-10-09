@@ -3,7 +3,7 @@
 //! `hdiutil`; the checks' answers and the install's progress are handed
 //! straight to the notices.
 
-#![cfg(target_os = "macos")]
+#![cfg(any(target_os = "macos", target_os = "linux"))]
 
 use std::path::PathBuf;
 
@@ -64,6 +64,38 @@ fn checking_from_the_menu_outside_an_app_bundle_says_why_not(cx: &mut TestAppCon
     assert_eq!(
         shown[0].message.as_ref(),
         "Gasp can only update itself when it runs as an installed app."
+    );
+}
+
+/// The palette runs commands inside its window's update, and the check
+/// reads every window's settings: it waits for the update to end rather
+/// than read its own window mid-update, which GPUI refuses.
+#[gpui::test]
+fn checking_from_inside_a_vault_window_reads_its_settings(cx: &mut TestAppContext) {
+    let vault = tempfile::tempdir().unwrap();
+    std::fs::write(vault.path().join("a.md"), "# a\n").unwrap();
+    cx.update(update::register_commands);
+    let root = vault.path().to_path_buf();
+    let (workspace, cx) = cx.add_window_view(move |window, cx| {
+        gasp_desktop::workspace::Workspace::new(&root, window, cx)
+    });
+    cx.run_until_parked();
+    workspace.update_in(cx, |_, window, cx| {
+        window.dispatch_action(
+            Box::new(RunCommand {
+                id: "app.check-for-updates".into(),
+            }),
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    let shown = shown(cx);
+    assert_eq!(
+        shown
+            .last()
+            .map(|notice| notice.message.to_string())
+            .as_deref(),
+        Some("Gasp can only update itself when it runs as an installed app.")
     );
 }
 

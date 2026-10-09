@@ -143,7 +143,10 @@ fn run_command(id: &str, cx: &mut App) -> bool {
         NOTES_COMMAND => open_release_notes,
         _ => return false,
     };
-    run(cx);
+    // A command from the palette arrives inside its window's update, and
+    // the check reads every window's settings, its own included, which
+    // GPUI only allows once that update is over.
+    cx.defer(run);
     true
 }
 
