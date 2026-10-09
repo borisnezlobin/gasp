@@ -1,5 +1,5 @@
 //! The once-a-day usage ping: the app's version, the platform, the
-//! system's version and the chip type, sent to gaspmd.com so the owner
+//! system's version (macOS's, or the Linux kernel's) and the chip type, sent to gaspmd.com so the owner
 //! can count how many people use Gasp. Nothing else goes with it, and it
 //! stops when any open vault turns `telemetry.enabled` off.
 //!
@@ -28,6 +28,7 @@ const CHECK_EVERY: Duration = Duration::from_secs(60 * 60);
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 
+#[cfg(not(target_os = "linux"))]
 const SYSTEM_VERSION_FILE: &str = "/System/Library/CoreServices/SystemVersion.plist";
 
 /// Exactly what the ping sends.
@@ -40,10 +41,11 @@ pub struct Ping {
 }
 
 impl Ping {
-    pub fn for_this_mac(os: String) -> Ping {
+    /// This computer's ping, with `os` its system's version.
+    pub fn for_this_computer(os: String) -> Ping {
         Ping {
             version: env!("CARGO_PKG_VERSION").to_string(),
-            platform: "mac",
+            platform: platform_name(std::env::consts::OS),
             os,
             arch: chip_name(std::env::consts::ARCH),
         }
@@ -51,6 +53,15 @@ impl Ping {
 
     pub fn body(&self) -> String {
         serde_json::to_string(self).unwrap_or_default()
+    }
+}
+
+/// The server's name for a desktop system.
+pub fn platform_name(rust_os: &str) -> &'static str {
+    match rust_os {
+        "linux" => "linux",
+        "windows" => "windows",
+        _ => "mac",
     }
 }
 
@@ -89,6 +100,27 @@ pub fn product_version(plist: &str) -> Option<String> {
     (!value.is_empty()).then(|| value.to_string())
 }
 
+/// The leading `major.minor.patch` of a Linux kernel release, such as
+/// `6.14.0` for `6.14.0-24-generic`: a number on every distribution,
+/// where the distribution's own version isn't always one.
+pub fn kernel_version(release: &str) -> Option<String> {
+    let numbers: Vec<&str> = release
+        .split(|c: char| !c.is_ascii_digit() && c != '.')
+        .next()?
+        .split('.')
+        .filter(|part| !part.is_empty())
+        .take(3)
+        .collect();
+    (!numbers.is_empty()).then(|| numbers.join("."))
+}
+
+#[cfg(target_os = "linux")]
+fn system_version() -> Option<String> {
+    let name = rustix::system::uname();
+    kernel_version(&name.release().to_string_lossy())
+}
+
+#[cfg(not(target_os = "linux"))]
 fn system_version() -> Option<String> {
     let plist = std::fs::read_to_string(SYSTEM_VERSION_FILE).ok()?;
     product_version(&plist)
@@ -121,7 +153,7 @@ async fn send_if_due(cx: &mut AsyncApp) {
     }
     let sent = cx
         .background_executor()
-        .spawn(async { send(&Ping::for_this_mac(system_version().unwrap_or_default())) })
+        .spawn(async { send(&Ping::for_this_computer(system_version().unwrap_or_default())) })
         .await;
     if sent {
         remember_ping(&state_path, today);
@@ -191,9 +223,21 @@ mod tests {
             ping.body(),
             r#"{"version":"0.1.0","platform":"mac","os":"15.1","arch":"arm64"}"#
         );
-        let this_mac = Ping::for_this_mac("26.0".to_string());
-        assert_eq!(this_mac.version, env!("CARGO_PKG_VERSION"));
-        assert!(["arm64", "x86_64"].contains(&this_mac.arch));
+        let this_one = Ping::for_this_computer("26.0".to_string());
+        assert_eq!(this_one.version, env!("CARGO_PKG_VERSION"));
+        assert!(["arm64", "x86_64"].contains(&this_one.arch));
+        assert!(["mac", "linux", "windows"].contains(&this_one.platform));
+    }
+
+    #[test]
+    fn linux_reports_linux_and_its_kernel() {
+        assert_eq!(platform_name("linux"), "linux");
+        assert_eq!(platform_name("macos"), "mac");
+        assert_eq!(kernel_version("6.14.0-24-generic").as_deref(), Some("6.14.0"));
+        assert_eq!(kernel_version("6.10.3-arch1-1").as_deref(), Some("6.10.3"));
+        assert_eq!(kernel_version("5.15.167.4-microsoft-standard-WSL2").as_deref(), Some("5.15.167"));
+        assert_eq!(kernel_version("6.1").as_deref(), Some("6.1"));
+        assert_eq!(kernel_version("rolling"), None);
     }
 
     #[test]

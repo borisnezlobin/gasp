@@ -239,9 +239,14 @@ fn window_options(device: &DeviceSettings, cx: &App) -> WindowOptions {
         // window moves from there whatever is pressed, tabs included. Its
         // empty space moves the window itself (`window_drag`).
         is_movable: !cfg!(target_os = "macos"),
+        app_id: Some(APP_ID.to_owned()),
         ..Default::default()
     }
 }
+
+/// The name Linux desktops match the window to its launcher by: the
+/// `.desktop` file's name, and its `StartupWMClass` on X11.
+pub const APP_ID: &str = "com.borisnezlobin.gasp";
 
 /// On macOS the app draws under a hidden title bar, with the window
 /// buttons centred in the tab bar's row. Elsewhere the system's title bar
