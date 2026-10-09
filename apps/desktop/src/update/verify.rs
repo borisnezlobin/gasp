@@ -32,6 +32,11 @@ pub enum Refusal {
     OtherDeveloper,
     NotNotarized,
     NotNewer,
+    /// The release has no SHA-256, which Linux, with no signature to
+    /// check, needs.
+    NoChecksum,
+    /// The new version doesn't start on this computer.
+    WontRun,
 }
 
 impl std::fmt::Display for Refusal {
@@ -46,6 +51,8 @@ impl std::fmt::Display for Refusal {
             Refusal::OtherDeveloper => "the new app isn’t signed by Gasp’s developer",
             Refusal::NotNotarized => "macOS doesn’t accept the new app as notarized",
             Refusal::NotNewer => "the new app isn’t newer than this one",
+            Refusal::NoChecksum => "the release has no checksum to check the download against",
+            Refusal::WontRun => "the new version doesn’t run on this computer",
         })
     }
 }

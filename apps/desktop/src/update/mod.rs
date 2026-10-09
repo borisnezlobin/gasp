@@ -1,16 +1,24 @@
-//! Updates for the Mac app. A little after launch, and then once a day,
-//! the app asks gaspmd.com for the newest published version and offers
-//! it in a notice; "Check for updates" in the app menu asks right away.
-//! Updating downloads the release's disk image, checks the app in it
-//! ([`verify`]), copies it beside the running bundle, and on restart a
-//! small helper swaps the two once the app has quit and saved.
+//! Updates for the Mac and Linux apps. A little after launch, and then
+//! once a day, the app asks gaspmd.com for the newest published version
+//! and offers it in a notice; "Check for updates" in the app menu or the
+//! command palette asks right away.
 //!
-//! None of it runs outside a `.app` bundle, so `cargo run`, tests and
+//! On the Mac, updating downloads the release's disk image, checks the
+//! app in it ([`verify`]), copies it beside the running bundle, and on
+//! restart a small helper swaps the two once the app has quit and saved.
+//! On Linux a copy installed from the tarball replaces its own binary
+//! ([`linux`]), and one a package manager installed opens the download
+//! page.
+//!
+//! None of it runs outside an installed app (a `.app` bundle, or the
+//! Linux tarball's or package's folders), so `cargo run`, tests and
 //! snapshot runs never ask, and the daily check stops when any open vault
 //! turns `updates.check` off.
 
 pub mod bundle;
 pub mod install;
+#[cfg(target_os = "linux")]
+pub mod linux;
 pub mod release;
 pub mod tools;
 pub mod verify;
@@ -26,8 +34,10 @@ use semver::Version;
 
 use crate::keymap::RunCommand;
 use crate::notices::{self, Notice};
-use bundle::{CheckGate, running_bundle};
-use install::{InstallError, Prepared, RestartPlan};
+use bundle::CheckGate;
+#[cfg(target_os = "macos")]
+use bundle::running_bundle;
+use install::{InstallError, Prepared};
 use release::{Release, VERSION_URL, is_newer, parse_release, running_version};
 
 pub const CHECK_COMMAND: &str = "app.check-for-updates";
@@ -148,9 +158,27 @@ fn start_daily_checks(cx: &mut App) {
     .detach();
 }
 
+/// Where to say a check can be asked for.
+const WHERE_TO_CHECK: &str = if cfg!(target_os = "macos") {
+    "Check for updates in the Gasp menu"
+} else {
+    "Check for updates in the command palette"
+};
+
+/// Whether this copy runs installed, so it may check for updates.
+#[cfg(target_os = "macos")]
+fn is_installed() -> bool {
+    running_bundle().is_some()
+}
+
+#[cfg(target_os = "linux")]
+fn is_installed() -> bool {
+    linux::running_install().is_some()
+}
+
 fn gate(cx: &mut App) -> CheckGate {
     CheckGate {
-        in_bundle: running_bundle().is_some(),
+        in_bundle: is_installed(),
         reaches_outside: crate::sandbox::reaches_outside(),
         enabled: crate::telemetry::every_open_vault_allows(cx, |settings| settings.updates.check),
     }
@@ -260,14 +288,14 @@ fn start_install(cx: &mut App) {
     if updater(cx).phase != Phase::Idle {
         return check(true, cx);
     }
-    let Some(bundle) = running_bundle() else {
-        return check(true, cx);
+    let Some(target) = install_target(&release, cx) else {
+        return;
     };
     updater(cx).phase = Phase::Installing;
     apply_progress(InstallProgress::Downloaded(0), cx);
     let (sender, mut receiver) = mpsc::unbounded();
     cx.background_executor()
-        .spawn(async move { download_and_prepare(&release, bundle, &sender) })
+        .spawn(async move { download_and_prepare(&release, target, &sender) })
         .detach();
     cx.spawn(async move |cx: &mut AsyncApp| {
         while let Some(progress) = receiver.next().await {
@@ -277,23 +305,74 @@ fn start_install(cx: &mut App) {
     .detach();
 }
 
+/// What an update replaces: the running bundle on the Mac, the running
+/// binary on Linux. `None` once it's said why there's nothing to replace.
+#[cfg(target_os = "macos")]
+fn install_target(_: &Release, cx: &mut App) -> Option<PathBuf> {
+    let bundle = running_bundle();
+    if bundle.is_none() {
+        check(true, cx);
+    }
+    bundle
+}
+
+#[cfg(target_os = "linux")]
+fn install_target(release: &Release, cx: &mut App) -> Option<PathBuf> {
+    match linux::running_install() {
+        Some(linux::Install::Tarball { binary }) => Some(binary),
+        Some(linux::Install::Managed) => {
+            crate::sandbox::open_url(linux::DOWNLOAD_PAGE, cx);
+            say(
+                Notice::offer(format!(
+                    "Install Gasp {} the way you installed this copy.",
+                    release.version
+                )),
+                cx,
+            );
+            None
+        }
+        None => {
+            check(true, cx);
+            None
+        }
+    }
+}
+
 fn download_and_prepare(
     release: &Release,
-    bundle: PathBuf,
+    target: PathBuf,
     sender: &mpsc::UnboundedSender<InstallProgress>,
 ) {
     let folder = install::download_folder(&release.version);
     let downloaded = install::download(release, &folder, |percent| {
         let _ = sender.unbounded_send(InstallProgress::Downloaded(percent));
     });
-    let prepared = downloaded.and_then(|dmg| {
+    let prepared = downloaded.and_then(|file| {
         let _ = sender.unbounded_send(InstallProgress::Verifying);
-        install::prepare(&dmg, release, &bundle, &running_version(), &tools::MacTools)
+        prepare_download(&file, release, &target)
     });
     if prepared.is_err() {
         let _ = std::fs::remove_dir_all(&folder);
     }
     let _ = sender.unbounded_send(InstallProgress::Finished(prepared));
+}
+
+#[cfg(target_os = "macos")]
+fn prepare_download(
+    dmg: &std::path::Path,
+    release: &Release,
+    bundle: &std::path::Path,
+) -> Result<Prepared, InstallError> {
+    install::prepare(dmg, release, bundle, &running_version(), &tools::MacTools)
+}
+
+#[cfg(target_os = "linux")]
+fn prepare_download(
+    tarball: &std::path::Path,
+    release: &Release,
+    binary: &std::path::Path,
+) -> Result<Prepared, InstallError> {
+    linux::prepare(tarball, release, binary, &running_version()).map(Prepared::Staged)
 }
 
 /// Shows how the update in progress is going, in one notice that changes
@@ -349,25 +428,56 @@ fn show_ready(cx: &mut App) {
     );
 }
 
+/// Why the restart helper didn't start.
+enum RestartFailure {
+    NotInstalled,
+    /// The new version has gone from where the update put it.
+    Missing,
+    Spawn(std::io::Error),
+}
+
+/// Starts the helper that swaps the staged version in and opens it once
+/// the app has quit.
+#[cfg(target_os = "macos")]
+fn start_restart_helper() -> Result<(), RestartFailure> {
+    let bundle = running_bundle().ok_or(RestartFailure::NotInstalled)?;
+    let plan = install::RestartPlan::for_this_process(&bundle);
+    if !plan.staged.exists() {
+        return Err(RestartFailure::Missing);
+    }
+    install::spawn_restart_helper(&plan).map_err(RestartFailure::Spawn)
+}
+
+/// Starts the helper that opens the new binary, already in place, once
+/// the app has quit.
+#[cfg(target_os = "linux")]
+fn start_restart_helper() -> Result<(), RestartFailure> {
+    let Some(linux::Install::Tarball { binary }) = linux::running_install() else {
+        return Err(RestartFailure::NotInstalled);
+    };
+    if !binary.is_file() {
+        return Err(RestartFailure::Missing);
+    }
+    linux::spawn_restart_helper(&binary).map_err(RestartFailure::Spawn)
+}
+
 /// Starts the helper that swaps the staged version in, then quits the
 /// usual way, which saves every open note first.
 fn restart(cx: &mut App) {
-    let staged = updater(cx).phase == Phase::Staged;
-    let Some(bundle) = running_bundle().filter(|_| staged) else {
+    if updater(cx).phase != Phase::Staged {
         return check(true, cx);
-    };
-    let plan = RestartPlan::for_this_process(&bundle);
-    if !plan.staged.exists() {
-        updater(cx).phase = Phase::Idle;
-        say(
-            Notice::problem("Gasp couldn’t find the update it downloaded. Try updating again."),
-            cx,
-        );
-        return;
     }
-    match install::spawn_restart_helper(&plan) {
+    match start_restart_helper() {
         Ok(()) => cx.quit(),
-        Err(error) => {
+        Err(RestartFailure::NotInstalled) => check(true, cx),
+        Err(RestartFailure::Missing) => {
+            updater(cx).phase = Phase::Idle;
+            say(
+                Notice::problem("Gasp couldn’t find the update it downloaded. Try updating again."),
+                cx,
+            );
+        }
+        Err(RestartFailure::Spawn(error)) => {
             say(
                 crate::notices::failure("Gasp couldn’t restart to update", error),
                 cx,
@@ -398,8 +508,7 @@ fn update_refusal(error: &install::InstallError) -> String {
         }
         install::InstallError::Failed(message) => {
             eprintln!("update failed: {message}");
-            "The download didn’t finish. Try again with Check for updates in the Gasp menu."
-                .to_owned()
+            format!("The download didn’t finish. Try again with {WHERE_TO_CHECK}.")
         }
     }
 }

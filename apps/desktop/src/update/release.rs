@@ -4,21 +4,25 @@
 use semver::Version;
 use serde::Deserialize;
 
-/// Where the app asks for the newest version.
+/// Where the app asks for the newest version: the Mac's disk image, or
+/// the Linux tarball.
+#[cfg(target_os = "macos")]
 pub const VERSION_URL: &str = "https://gaspmd.com/api/version";
+#[cfg(not(target_os = "macos"))]
+pub const VERSION_URL: &str = "https://gaspmd.com/api/version/linux";
 
 /// The newest published release, as the site describes it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Release {
     pub version: Version,
-    /// The release's disk image.
+    /// The release's download: the Mac's disk image or the Linux tarball.
     pub url: String,
     /// The release's page on GitHub.
     pub notes: String,
     pub published: String,
-    /// The disk image's size in bytes.
+    /// The download's size in bytes.
     pub size: u64,
-    /// The disk image's SHA-256 in lowercase hex, when GitHub gave one.
+    /// The download's SHA-256 in lowercase hex, when GitHub gave one.
     pub sha256: Option<String>,
 }
 

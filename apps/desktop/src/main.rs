@@ -36,6 +36,7 @@ fn main() -> ExitCode {
             | Command::BenchOpen { .. }
             | Command::GrammarWorker
             | Command::Help
+            | Command::Version
     );
     if !only_looks {
         migrate_app_folders();
@@ -49,6 +50,10 @@ fn main() -> ExitCode {
         Command::GrammarWorker => grammar_worker(),
         Command::Help => {
             println!("{USAGE}");
+            ExitCode::SUCCESS
+        }
+        Command::Version => {
+            println!("{COMMAND_NAME} {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
         }
         Command::Open(path) => open(path.as_deref()),

@@ -415,13 +415,13 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     #[cfg(not(target_os = "ios"))]
     SET_UP_SYNC,
     spec("settings.open", "Open settings", "App").icon("gear-six"),
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     CHECK_FOR_UPDATES,
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     INSTALL_UPDATE,
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     RESTART_TO_UPDATE,
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     SHOW_RELEASE_NOTES,
     spec("toolbar.focus", "Focus toolbars", "Tabs and panels").icon("app-window"),
     spec("toolbar.customize", "Customize toolbars", "App").icon("sliders-horizontal"),

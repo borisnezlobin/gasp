@@ -57,8 +57,8 @@ pub fn download_folder(version: &Version) -> PathBuf {
     std::env::temp_dir().join(format!("gasp-update-{version}"))
 }
 
-/// Downloads `release`'s disk image into `folder`, calling `on_progress`
-/// with each new whole percent.
+/// Downloads `release`'s disk image or tarball into `folder`, calling
+/// `on_progress` with each new whole percent.
 pub fn download(
     release: &Release,
     folder: &Path,
@@ -68,7 +68,12 @@ pub fn download(
         InstallError::Failed(format!("the download failed: {error}"))
     };
     std::fs::create_dir_all(folder).map_err(|error| failed(&error))?;
-    let dmg = folder.join(format!("Gasp-{}.dmg", release.version));
+    let extension = if release.url.ends_with(".tar.gz") {
+        "tar.gz"
+    } else {
+        "dmg"
+    };
+    let dmg = folder.join(format!("Gasp-{}.{extension}", release.version));
     let response = reqwest::blocking::Client::builder()
         .connect_timeout(CONNECT_TIMEOUT)
         .timeout(DOWNLOAD_TIMEOUT)

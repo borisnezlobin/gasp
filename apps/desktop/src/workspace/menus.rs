@@ -154,12 +154,12 @@ pub fn built_in_available<'a>(extra: &'a [&'a str]) -> impl Fn(&str) -> bool + '
 
 /// Whether the app runs `id` whatever window is open, as it does the
 /// update commands.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub fn app_handles(id: &str) -> bool {
     crate::update::handles(id)
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 pub fn app_handles(_: &str) -> bool {
     false
 }

@@ -14,6 +14,8 @@ pub const USAGE: &str = concat!(
     command_name!(),
     " [PATH]\n       ",
     command_name!(),
+    " --version\n       ",
+    command_name!(),
     " --bench-layout PATH [--keystrokes N] [--scroll-pages N] [--in-code] [--in-math] [--in-table] [--no-prose] [--hidden]\n       ",
     command_name!(),
     " --bench-index VAULT\n       ",
@@ -97,6 +99,9 @@ pub enum Command {
     /// starts itself.
     GrammarWorker,
     Help,
+    /// `gasp --version`: prints the version, which an update asks a new
+    /// binary before it replaces the running one.
+    Version,
 }
 
 /// Parses arguments after the program name.
@@ -107,6 +112,7 @@ pub fn parse(args: &[String]) -> Result<Command, String> {
     let rest = &args[1..];
     match first {
         "-h" | "--help" => Ok(Command::Help),
+        "-V" | "--version" if rest.is_empty() => Ok(Command::Version),
         "--bench-layout" | "--bench-index" | "--bench-open" => parse_bench_mode(first, rest),
         "--snapshot" => parse_snapshot(rest),
         "mcp" => parse_mcp(rest),
@@ -487,5 +493,6 @@ mod tests {
         assert!(parse(&args(&["--frobnicate"])).is_err());
         assert!(parse(&args(&["a", "b"])).is_err());
         assert_eq!(parse(&args(&["--help"])), Ok(Command::Help));
+        assert_eq!(parse(&args(&["--version"])), Ok(Command::Version));
     }
 }

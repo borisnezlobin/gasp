@@ -72,16 +72,18 @@ lyon = "1"
 objc = "0.2"
 # Reading back a frame for `--snapshot`. GPUI already builds this version.
 metal = "0.29"
-# Updates: comparing versions, checking the download's SHA-256 and
-# reading `hdiutil`'s and the new app's property lists. All three are
-# already in the build.
-semver = "1"
-sha2 = "0.10"
-plist = "1"
 # The welcome tour's name drawn from the system's own glyph outlines.
 # GPUI already builds both.
 core-text = "21"
 core-graphics = "0.24"
+
+# Updates: comparing versions, checking the download's SHA-256 and, on
+# macOS, reading `hdiutil`'s and the new app's property lists. All three
+# are already in the build.
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
+semver = "1"
+sha2 = "0.10"
+plist = "1"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 x11rb = "0.13"
