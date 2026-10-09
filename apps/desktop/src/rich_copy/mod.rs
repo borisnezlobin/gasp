@@ -3,7 +3,14 @@
 //! article) with its Markdown as the plain text, for pasting into mail,
 //! documents and chat.
 
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "linux")]
+use linux as platform;
+#[cfg(target_os = "macos")]
+use macos as platform;
 
 use std::path::Path;
 
@@ -47,7 +54,7 @@ fn copy_rich_text(workspace: &mut Workspace, _: &mut Window, cx: &mut Context<Wo
         workspace.active_path(cx).as_deref(),
         workspace.vault(),
     );
-    match macos::copy_html_and_text(&html, &markdown) {
+    match platform::copy_html_and_text(&html, &markdown) {
         Ok(()) => {
             let what = if whole { "the note" } else { "the selection" };
             notices::show(Notice::done(format!("Copied {what} as rich text.")), cx);

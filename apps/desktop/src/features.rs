@@ -141,7 +141,7 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     crate::obsidian_import::install(workspace, window, cx);
     crate::appearance_toggle::install(workspace);
     workspace.on_command("note.move", crate::move_picker::open);
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     crate::rich_copy::install(workspace);
     workspace.on_command("palette.open", open_palette);
     workspace.on_command("switcher.open", open_switcher);

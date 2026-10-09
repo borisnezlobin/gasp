@@ -85,6 +85,10 @@ core-graphics = "0.24"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 x11rb = "0.13"
+# Copy as rich text: HTML beside its plain text on the clipboard, which
+# GPUI's clipboard (plain text and images only) can't offer. X11, and
+# Wayland where the compositor has data control, else through XWayland.
+arboard = { version = "3.6", default-features = false, features = ["wayland-data-control"] }
 
 [target.'cfg(unix)'.dependencies]
 # Per-thread CPU time for startup tracing (`EDITOR_TRACE_STARTUP`), and the
