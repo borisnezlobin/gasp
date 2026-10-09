@@ -1,15 +1,16 @@
 //! Where this device keeps the GitHub token for each remote: the Keychain
-//! on macOS and Credential Manager on Windows. On Linux, where the Secret
-//! Service needs D-Bus libraries that aren't always there, it's a file in
-//! the user's config folder that only the user can read. Never the vault,
-//! which syncs.
+//! on macOS, Credential Manager on Windows and the Secret Service (GNOME
+//! Keyring, KWallet) on Linux. A Linux desktop with no keyring running
+//! gets a file in the user's config folder that only the user can read,
+//! and a token from that file moves to the keyring once there is one.
+//! Never the vault, which syncs.
 
 use std::collections::BTreeMap;
 use std::io;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 pub use gasp_sync::KeychainStore;
 use gasp_sync::{CredentialStore, SyncError, SyncResult, Token};
 
@@ -22,15 +23,29 @@ pub fn default_store() -> Arc<dyn CredentialStore> {
     {
         Arc::new(KeychainStore)
     }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    #[cfg(target_os = "linux")]
     {
-        let folder = dirs::config_dir().unwrap_or_else(std::env::temp_dir);
-        Arc::new(FileStore::new(
-            folder
-                .join(gasp_config::APP_FOLDER)
-                .join("credentials.toml"),
-        ))
+        Arc::new(FallbackStore {
+            primary: KeychainStore,
+            fallback: file_store(),
+        })
     }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        Arc::new(file_store())
+    }
+}
+
+/// The file in the config folder that holds tokens where there's no
+/// credential store.
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn file_store() -> FileStore {
+    let folder = dirs::config_dir().unwrap_or_else(std::env::temp_dir);
+    FileStore::new(
+        folder
+            .join(gasp_config::APP_FOLDER)
+            .join("credentials.toml"),
+    )
 }
 
 /// Where the store keeps tokens, as the settings screen tells the person.
@@ -39,8 +54,58 @@ pub fn store_name() -> &'static str {
         "the Keychain"
     } else if cfg!(target_os = "windows") {
         "Credential Manager"
+    } else if cfg!(target_os = "linux") {
+        "your desktop’s keyring"
     } else {
         "a file only you can read in your config folder"
+    }
+}
+
+/// Tokens in `primary`, or in `fallback` while `primary` can't be
+/// reached, as the Secret Service can't on a desktop with no keyring
+/// running. A token found only in `fallback` moves to `primary` when it
+/// can.
+pub struct FallbackStore<Primary, Fallback> {
+    pub primary: Primary,
+    pub fallback: Fallback,
+}
+
+impl<Primary: CredentialStore, Fallback: CredentialStore> CredentialStore
+    for FallbackStore<Primary, Fallback>
+{
+    fn load(&self, remote_url: &str) -> SyncResult<Option<Token>> {
+        match self.primary.load(remote_url) {
+            Ok(Some(token)) => Ok(Some(token)),
+            Ok(None) => {
+                let Some(token) = self.fallback.load(remote_url)? else {
+                    return Ok(None);
+                };
+                if self.primary.save(remote_url, &token).is_ok() {
+                    let _ = self.fallback.delete(remote_url);
+                }
+                Ok(Some(token))
+            }
+            Err(_) => self.fallback.load(remote_url),
+        }
+    }
+
+    fn save(&self, remote_url: &str, token: &Token) -> SyncResult<()> {
+        if self.primary.save(remote_url, token).is_ok() {
+            // An older token left in the file would answer if the keyring
+            // later can't be reached.
+            let _ = self.fallback.delete(remote_url);
+            return Ok(());
+        }
+        self.fallback.save(remote_url, token)
+    }
+
+    fn delete(&self, remote_url: &str) -> SyncResult<()> {
+        let primary = self.primary.delete(remote_url);
+        let fallback = self.fallback.delete(remote_url);
+        match (primary, fallback) {
+            (Err(error), Err(_)) => Err(error),
+            _ => Ok(()),
+        }
     }
 }
 
@@ -139,6 +204,61 @@ impl CredentialStore for FileStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gasp_sync::InMemoryCredentialStore;
+
+    /// A credential store that can't be reached, as the Secret Service
+    /// with no keyring running.
+    struct Unreachable;
+
+    impl CredentialStore for Unreachable {
+        fn load(&self, _: &str) -> SyncResult<Option<Token>> {
+            Err(io_error("no keyring"))
+        }
+        fn save(&self, _: &str, _: &Token) -> SyncResult<()> {
+            Err(io_error("no keyring"))
+        }
+        fn delete(&self, _: &str) -> SyncResult<()> {
+            Err(io_error("no keyring"))
+        }
+    }
+
+    const URL: &str = "https://example.invalid/notes.git";
+
+    #[test]
+    fn with_no_keyring_tokens_go_in_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = FallbackStore {
+            primary: Unreachable,
+            fallback: FileStore::new(dir.path().join("credentials.toml")),
+        };
+        store.save(URL, &Token::new("synthetic-token")).unwrap();
+        assert_eq!(
+            store.load(URL).unwrap(),
+            Some(Token::new("synthetic-token"))
+        );
+        store.delete(URL).unwrap();
+        assert_eq!(store.load(URL).unwrap(), None);
+    }
+
+    #[test]
+    fn a_token_in_the_file_moves_to_the_keyring() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = FileStore::new(dir.path().join("credentials.toml"));
+        file.save(URL, &Token::new("from-the-file")).unwrap();
+        let store = FallbackStore {
+            primary: InMemoryCredentialStore::default(),
+            fallback: file,
+        };
+        assert_eq!(store.load(URL).unwrap(), Some(Token::new("from-the-file")));
+        assert_eq!(
+            store.primary.load(URL).unwrap(),
+            Some(Token::new("from-the-file"))
+        );
+        assert_eq!(store.fallback.load(URL).unwrap(), None);
+        store.save(URL, &Token::new("newer")).unwrap();
+        assert_eq!(store.load(URL).unwrap(), Some(Token::new("newer")));
+        assert_eq!(store.fallback.load(URL).unwrap(), None);
+    }
 
     #[test]
     fn the_file_store_round_trips_and_only_its_owner_can_read_it() {
