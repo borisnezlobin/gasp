@@ -32,9 +32,9 @@ const VERSION_ANSWER = `{
 
 const FIELDS: Fact[] = [
   { term: <span className="code">version</span>, detail: "Which version of Gasp you have." },
-  { term: <span className="code">platform</span>, detail: "Mac or iPhone." },
-  { term: <span className="code">os</span>, detail: "Your macOS or iOS version number." },
-  { term: <span className="code">arch</span>, detail: "Apple silicon or Intel." },
+  { term: <span className="code">platform</span>, detail: "Mac, Linux or iPhone." },
+  { term: <span className="code">os</span>, detail: "Your macOS or iOS version number, or on Linux the kernel's, such as 6.14.0." },
+  { term: <span className="code">arch</span>, detail: "Apple silicon (arm64) or Intel and AMD (x86_64)." },
 ];
 
 const NEVER = [
@@ -64,8 +64,8 @@ export default function Privacy() {
         </h1>
         <p className="lede mt-6 text-ink-soft">
           Your notes live on your devices, and in your iCloud Drive or your own GitHub repository if you sync. We never see them. Gasp
-          sends us one tiny message, at most once a day, so we can count how many people use it, and the Mac app asks us
-          once a day whether a newer version is out. This page shows all of it.
+          sends us one tiny message, at most once a day, so we can count how many people use it, and the Mac and Linux
+          apps ask us once a day whether a newer version is out. This page shows all of it.
         </p>
 
         <Part title="What the app sends">
@@ -97,7 +97,7 @@ export default function Privacy() {
 
         <Part title="Turning it off">
           <p>
-            Open Settings in Gasp. On the Mac the switch is on the General page, under Agent access. On the iPhone
+            Open Settings in Gasp. On the Mac and Linux the switch is on the General page, under Agent access. On the iPhone
             it&apos;s in the Telemetry section.
           </p>
           <div className="overflow-hidden rounded-xl shadow-lifted">
@@ -118,19 +118,20 @@ export default function Privacy() {
         <Part title="Checking for updates">
           <p>
             A little after the Mac app opens, and then once a day while it runs, it asks gaspmd.com/api/version for
-            the newest version. It also asks when you choose Check for updates in the Gasp menu. The request
-            carries nothing about you or your Mac: no version, no ID and nothing from your notes. The answer is the
-            same for everyone:
+            the newest version, and the Linux app asks gaspmd.com/api/version/linux. Each also asks when you choose
+            Check for updates. The request carries nothing about you or your computer: no version, no ID and nothing
+            from your notes. The answer is the same for everyone:
           </p>
           <pre className="code overflow-x-auto rounded-xl bg-fill p-5 leading-relaxed text-ink">{VERSION_ANSWER}</pre>
           <p>
             Nothing about these requests is logged or counted. When you choose Update, Gasp downloads the new version
-            from GitHub, and it installs it only after macOS confirms that Gasp&apos;s developer signed it and Apple
-            notarized it.
+            from GitHub. On the Mac it installs it only after macOS confirms that Gasp&apos;s developer signed it and
+            Apple notarized it. On Linux it installs it only if the download matches the checksum GitHub records for
+            the release; a copy installed from the .deb opens the download page instead.
           </p>
           <p>
             To stop the daily check, turn off Check for updates on the General page of Settings. It&apos;s saved in
-            your vault as <span className="code">updates.check</span>. The menu item still checks when you ask it to.
+            your vault as <span className="code">updates.check</span>. Check for updates still checks when you ask it to.
           </p>
         </Part>
 
