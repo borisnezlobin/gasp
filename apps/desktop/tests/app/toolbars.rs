@@ -209,7 +209,7 @@ fn a_bar_menu_opens_its_commands(cx: &mut TestAppContext) {
         let menu = workspace.read(cx).open_menu(cx).expect("the menu opens");
         menu.read(cx).labels()
     });
-    assert_eq!(labels[0], "Insert table");
+    assert_eq!(labels[..2], ["Insert image", "Insert table"]);
 }
 
 /// The status bar is right-aligned, so a cursor position growing from

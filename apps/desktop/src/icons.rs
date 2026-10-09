@@ -53,6 +53,7 @@ pub enum IconName {
     CloudSlash,
     CloudWarning,
     Code,
+    CodeBlock,
     Columns,
     ColumnsPlusLeft,
     ColumnsPlusRight,
@@ -150,7 +151,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 139] = [
+const ICONS: [(IconName, &str, &[u8]); 140] = [
     (
         IconName::AppWindow,
         "app-window",
@@ -370,6 +371,11 @@ const ICONS: [(IconName, &str, &[u8]); 139] = [
         IconName::Code,
         "code",
         include_bytes!("../assets/icons/code.svg"),
+    ),
+    (
+        IconName::CodeBlock,
+        "code-block",
+        include_bytes!("../assets/icons/code-block.svg"),
     ),
     (
         IconName::Columns,

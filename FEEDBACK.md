@@ -243,3 +243,5 @@ Copy and layout
 - [x] Folding: say how to fold in the demo window, not only with a shortcut the site can't use.
 - [x] Accept colour names like "orange".
 - [x] A changelog page on gaspmd.com that shows every GitHub release's notes. *(Live at gaspmd.com/changelog since 2026-10-03, linked from the footer.)*
+- [x] Images: a friend wants to add images for diagrams without pasting (an upload or insert button). *(Mac: Insert → Insert image; iPhone: Photo library or Files.)*
+- [x] Mac: an Insert menu in the menu bar with images, tables, bold, horizontal rule and the like. iPhone: the image button offers Photo library or Files.

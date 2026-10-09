@@ -1,7 +1,8 @@
 //! The commands the editor view runs, looked up by id.
 
 use gasp_core::commands::{
-    FootnoteCommand, Format, duplicate_lines, insert_callout, insert_link, insert_or_jump_footnote,
+    FootnoteCommand, Format, duplicate_lines, insert_callout, insert_code_block,
+    insert_horizontal_rule, insert_link, insert_math_block, insert_or_jump_footnote,
     move_lines_down, move_lines_up, toggle_bullet_list, toggle_format, toggle_numbered_list,
     toggle_tasks,
 };
@@ -91,6 +92,15 @@ const HANDLERS: &[(&str, Handler)] = &[
     ("format.link", |view, _, cx| view.run_edit(insert_link, cx)),
     ("format.callout", |view, _, cx| {
         view.run_edit(insert_callout, cx)
+    }),
+    ("format.horizontal-rule", |view, _, cx| {
+        view.run_edit(insert_horizontal_rule, cx)
+    }),
+    ("format.code-block", |view, _, cx| {
+        view.run_edit(insert_code_block, cx)
+    }),
+    ("format.math-block", |view, _, cx| {
+        view.run_edit(insert_math_block, cx)
     }),
     ("footnote.insert-or-jump", |view, _, cx| view.footnote(cx)),
     ("footnote.tidy", |view, _, cx| view.tidy_footnotes(cx)),

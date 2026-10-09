@@ -134,6 +134,11 @@ extension CommandRunner {
         }
     }
 
+    /// Opens the picker for `source`; the picked image lands at the cursor.
+    func pickImage(from source: ImageSource) {
+        withSession { _ in workspace.sheet = source.sheet }
+    }
+
     /// Saves a picked image beside the note and embeds it at the cursor.
     func insertImage(_ data: Data, extension fileExtension: String) {
         withSession { session in

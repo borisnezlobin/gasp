@@ -46,7 +46,9 @@ extension CommandRunner {
         "app.export": { runner in runner.onNotePath { runner.workspace.prompt = .export(path: $0) } },
         "app.print": { $0.printNote() },
         "template.insert": { runner in runner.withSession { _ in runner.workspace.sheet = .templates } },
-        "note.import-image": { runner in runner.withSession { _ in runner.workspace.sheet = .photos } },
+        ImageSource.command: { runner in runner.withSession { _ in runner.workspace.sheet = .imageSource } },
+        ImageSource.photoLibrary.id: { $0.pickImage(from: .photoLibrary) },
+        ImageSource.files.id: { $0.pickImage(from: .files) },
         "settings.open": { $0.workspace.sheet = .settings },
         "toolbar.customize": { $0.workspace.sheet = .toolbars },
         "vault.open": { $0.workspace.prompt = .pickVault }
