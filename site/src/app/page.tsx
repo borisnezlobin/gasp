@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { SwimHero } from "@/components/SwimHero";
 import { DownloadButton } from "@/components/DownloadButton";
 import { FeatureGrid } from "@/components/FeatureGrid";
@@ -11,6 +12,8 @@ import { ScreenshotTabs } from "@/components/ScreenshotTabs";
 import { Section } from "@/components/Section";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 function FriendQuote() {
   return (
@@ -36,7 +39,7 @@ export default function Home() {
       <SiteHeader />
       <main>
         <SwimHero>
-          <DownloadButton size="large" />
+          <DownloadButton size="large" others />
         </SwimHero>
 
         <Section id="speed" title="Ready to edit in under half a second">
@@ -85,7 +88,7 @@ export default function Home() {
             <LiveText text="Try Gasp" />
           </h2>
           <div className="mt-8">
-            <DownloadButton size="large" />
+            <DownloadButton size="large" others />
           </div>
         </section>
       </main>

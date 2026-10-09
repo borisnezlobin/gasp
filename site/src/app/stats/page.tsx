@@ -100,16 +100,22 @@ function NoStore() {
 function Tallies({ tallies, days }: { tallies: DayTally[]; days: string[] }) {
   const mac = tallies.map((tally) => installsOn(tally, "mac"));
   const ios = tallies.map((tally) => installsOn(tally, "ios"));
+  const linux = tallies.map((tally) => installsOn(tally, "linux"));
   const downloads = tallies.map((tally) => tally.downloads);
+  const linuxDownloads = tallies.map((tally) => tally.downloadsBy.linux + tally.downloadsBy.deb);
   const today = tallies.length - 1;
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Tile label="Active installs today" value={mac[today] + ios[today]} detail={`${mac[today]} Mac, ${ios[today]} iPhone`} />
+        <Tile
+          label="Active installs today"
+          value={mac[today] + ios[today] + linux[today]}
+          detail={`${mac[today]} Mac, ${linux[today]} Linux, ${ios[today]} iPhone`}
+        />
         <Tile
           label={`Downloads from the site, ${DAYS} days`}
           value={downloads.reduce((sum, count) => sum + count, 0)}
-          detail={`${downloads[today]} today`}
+          detail={`${downloads[today]} today, ${linuxDownloads.reduce((sum, count) => sum + count, 0)} for Linux`}
         />
       </div>
       <ColumnChart
@@ -118,6 +124,7 @@ function Tallies({ tallies, days }: { tallies: DayTally[]; days: string[] }) {
         series={[
           { name: PLATFORM_NAMES.mac, color: "var(--series-1)", values: mac },
           { name: PLATFORM_NAMES.ios, color: "var(--series-2)", values: ios },
+          { name: PLATFORM_NAMES.linux, color: "var(--series-3)", values: linux },
         ]}
       />
       <ColumnChart title="Downloads from the site per day" days={days} series={[{ name: "Downloads", color: "var(--series-1)", values: downloads }]} />

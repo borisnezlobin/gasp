@@ -16,9 +16,10 @@
   --button: #18181b;
   --on-button: #ffffff;
   --shadow: 0 1px 2px rgb(24 24 27 / 0.06), 0 12px 32px -12px rgb(24 24 27 / 0.18);
-  /* Chart series, from the dataviz reference palette's first two slots. */
+  /* Chart series, from the dataviz reference palette's first three slots. */
   --series-1: #2a78d6;
   --series-2: #eb6834;
+  --series-3: #1baf7a;
   --grain: 0.05;
   --image-outline: oklch(0 0 0 / 0.1);
   color-scheme: light;
@@ -41,6 +42,7 @@
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 16px 40px -12px rgb(0 0 0 / 0.6);
     --series-1: #3987e5;
     --series-2: #d95926;
+    --series-3: #199e70;
     --grain: 0.04;
     --image-outline: oklch(1 0 0 / 0.1);
     color-scheme: dark;

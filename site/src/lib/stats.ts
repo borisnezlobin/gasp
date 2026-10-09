@@ -1,7 +1,7 @@
 import type { Platform } from "./ping";
 import type { DayTally, PingCount } from "./tally";
 
-export const PLATFORM_NAMES: Record<Platform, string> = { mac: "Mac", ios: "iPhone" };
+export const PLATFORM_NAMES: Record<Platform, string> = { mac: "Mac", ios: "iPhone", linux: "Linux", windows: "Windows" };
 export const ARCH_NAMES: Record<string, string> = { arm64: "Apple silicon", x86_64: "Intel" };
 
 export function installsOn(tally: DayTally, platform: Platform): number {

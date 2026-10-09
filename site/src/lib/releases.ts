@@ -22,14 +22,27 @@ export type GitHubRelease = {
   assets: GitHubAsset[];
 };
 
+/** The files a release offers, one per way of installing Gasp. */
+export const INSTALLERS = ["mac", "linux", "deb"] as const;
+export type Installer = (typeof INSTALLERS)[number];
+
+export type Download = {
+  url: string;
+  name: string;
+  size: number;
+  sha256?: string;
+};
+
 export type Release = {
   tag: string;
+  version: string;
   publishedAt: string | null;
-  dmgUrl: string | null;
+  files: Partial<Record<Installer, Download>>;
+  /** GitHub's count of downloads of every installer in the release. */
   downloads: number;
 };
 
-/** The newest stable version, as the Mac app's update check reads it. */
+/** The newest stable version, as the app's update check reads it. */
 export type NewestVersion = {
   version: string;
   url: string;
@@ -39,17 +52,42 @@ export type NewestVersion = {
   sha256?: string;
 };
 
-function isDmg(asset: GitHubAsset): boolean {
-  return asset.name.toLowerCase().endsWith(".dmg");
+/** Which installer an asset is: the Mac's disk image, the Linux tarball
+    (`Gasp-0.2.5-linux-x86_64.tar.gz`) or the Debian package. */
+export function installerOf(name: string): Installer | null {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".dmg")) return "mac";
+  if (/-linux-x86_64\.tar\.gz$/.test(lower)) return "linux";
+  if (/_amd64\.deb$/.test(lower)) return "deb";
+  return null;
+}
+
+function isInstaller(asset: GitHubAsset): boolean {
+  return installerOf(asset.name) !== null;
+}
+
+function toDownload(asset: GitHubAsset): Download {
+  const sha256 = sha256Of(asset);
+  return {
+    url: asset.browser_download_url,
+    name: asset.name,
+    size: asset.size,
+    ...(sha256 ? { sha256 } : {}),
+  };
 }
 
 function toRelease(release: GitHubRelease): Release {
-  const dmg = release.assets.find(isDmg);
+  const files: Partial<Record<Installer, Download>> = {};
+  for (const asset of release.assets) {
+    const installer = installerOf(asset.name);
+    if (installer && !files[installer]) files[installer] = toDownload(asset);
+  }
   return {
     tag: release.tag_name,
+    version: release.tag_name.replace(/^v/, ""),
     publishedAt: release.published_at,
-    dmgUrl: dmg?.browser_download_url ?? null,
-    downloads: release.assets.filter(isDmg).reduce((sum, asset) => sum + asset.download_count, 0),
+    files,
+    downloads: release.assets.filter(isInstaller).reduce((sum, asset) => sum + asset.download_count, 0),
   };
 }
 
@@ -75,9 +113,14 @@ export async function publishedReleases(): Promise<Release[]> {
   return releases.filter((release) => !release.draft).map(toRelease);
 }
 
-export async function latestRelease(): Promise<Release | null> {
+/** The newest published release with `installer`, and that file. */
+export async function latestDownload(installer: Installer): Promise<{ release: Release; file: Download } | null> {
   const releases = await publishedReleases();
-  return releases.find((release) => release.dmgUrl !== null) ?? null;
+  for (const release of releases) {
+    const file = release.files[installer];
+    if (file) return { release, file };
+  }
+  return null;
 }
 
 const SHA256_DIGEST = /^sha256:([0-9a-f]{64})$/i;
@@ -95,24 +138,25 @@ function newestFirst(a: GitHubRelease, b: GitHubRelease): number {
   return Date.parse(b.published_at ?? "") - Date.parse(a.published_at ?? "");
 }
 
-function toNewestVersion(release: GitHubRelease, dmg: GitHubAsset): NewestVersion {
-  const sha256 = sha256Of(dmg);
+function toNewestVersion(release: GitHubRelease, file: GitHubAsset): NewestVersion {
+  const sha256 = sha256Of(file);
   return {
     version: release.tag_name.replace(/^v/, ""),
-    url: dmg.browser_download_url,
+    url: file.browser_download_url,
     notes: release.html_url,
     published: release.published_at ?? "",
-    size: dmg.size,
+    size: file.size,
     ...(sha256 ? { sha256 } : {}),
   };
 }
 
 /** The newest published release that isn't a draft or a prerelease and
-    has a disk image, or null when there's none. */
-export function newestStableVersion(releases: GitHubRelease[]): NewestVersion | null {
+    has `installer` (the Mac's disk image unless said), or null when
+    there's none. */
+export function newestStableVersion(releases: GitHubRelease[], installer: Installer = "mac"): NewestVersion | null {
   for (const release of releases.filter(isStable).sort(newestFirst)) {
-    const dmg = release.assets?.find(isDmg);
-    if (dmg) return toNewestVersion(release, dmg);
+    const file = release.assets?.find((asset) => installerOf(asset.name) === installer);
+    if (file) return toNewestVersion(release, file);
   }
   return null;
 }

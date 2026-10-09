@@ -1,4 +1,4 @@
-export const PLATFORMS = ["mac", "ios"] as const;
+export const PLATFORMS = ["mac", "ios", "linux", "windows"] as const;
 export const ARCHES = ["arm64", "x86_64"] as const;
 
 export type Platform = (typeof PLATFORMS)[number];
