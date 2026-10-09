@@ -343,7 +343,9 @@ fn render_card(id: u64, notice: Notice, ui: &UiTheme) -> AnyElement {
 
 /// The message, and under it the detail in a smaller, quieter line.
 fn render_text(message: SharedString, detail: Option<SharedString>, ui: &UiTheme) -> gpui::Div {
-    let headline = div().when(detail.is_some(), |headline| headline.font_weight(ui.strong_weight));
+    let headline = div().when(detail.is_some(), |headline| {
+        headline.font_weight(ui.strong_weight)
+    });
     div()
         .flex_1()
         .min_w_0()

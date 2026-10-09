@@ -234,19 +234,20 @@ impl Workspace {
     pub fn open_vault_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let recent = AppState::recent_vaults();
         let home = dirs::home_dir();
-        let mut items: Vec<MenuItem> = vault_choices(&recent, &self.vault, home.as_deref(), Path::is_dir)
-            .into_iter()
-            .map(|choice| {
-                let vault = choice.path;
-                MenuItem::action(choice.name, move |_, cx| {
-                    if let Err(error) = open_vault_window(&vault, None, cx) {
-                        crate::notices::open_failed(&vault, error, cx);
-                    }
+        let mut items: Vec<MenuItem> =
+            vault_choices(&recent, &self.vault, home.as_deref(), Path::is_dir)
+                .into_iter()
+                .map(|choice| {
+                    let vault = choice.path;
+                    MenuItem::action(choice.name, move |_, cx| {
+                        if let Err(error) = open_vault_window(&vault, None, cx) {
+                            crate::notices::open_failed(&vault, error, cx);
+                        }
+                    })
+                    .with_icon(IconName::Folder)
+                    .with_detail(choice.location)
                 })
-                .with_icon(IconName::Folder)
-                .with_detail(choice.location)
-            })
-            .collect();
+                .collect();
         if !items.is_empty() {
             items.push(MenuItem::Separator);
         }

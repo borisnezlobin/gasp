@@ -71,13 +71,20 @@ pub fn is_due(last_ping: Option<&str>, today: &str) -> bool {
 /// Today's date in UTC, such as `2026-09-30`: the day the server counts
 /// the ping under, so a day never gets two pings or none around midnight.
 pub fn today() -> String {
-    jiff::Timestamp::now().to_zoned(jiff::tz::TimeZone::UTC).date().to_string()
+    jiff::Timestamp::now()
+        .to_zoned(jiff::tz::TimeZone::UTC)
+        .date()
+        .to_string()
 }
 
 /// The `ProductVersion` in the text of `SystemVersion.plist`.
 pub fn product_version(plist: &str) -> Option<String> {
     let after_key = plist.split("<key>ProductVersion</key>").nth(1)?;
-    let value = after_key.split("<string>").nth(1)?.split("</string>").next()?;
+    let value = after_key
+        .split("<string>")
+        .nth(1)?
+        .split("</string>")
+        .next()?;
     let value = value.trim();
     (!value.is_empty()).then(|| value.to_string())
 }

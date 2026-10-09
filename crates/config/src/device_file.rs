@@ -24,7 +24,13 @@ static DEVICE_NAME: OnceLock<String> = OnceLock::new();
 pub fn set_device_name(name: &str) {
     let slug: String = name
         .chars()
-        .map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_lowercase() } else { '-' })
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
         .collect();
     let slug = slug.trim_matches('-');
     if !slug.is_empty() {

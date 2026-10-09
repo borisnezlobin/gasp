@@ -295,7 +295,9 @@ impl ConfigLoader {
     pub fn reload(&mut self, file: ConfigFile) -> Vec<Diagnostic> {
         let name = file.file_name();
         let path = match file {
-            ConfigFile::Device => self.dir.join(crate::device_file::device_file_name(&self.dir)),
+            ConfigFile::Device => self
+                .dir
+                .join(crate::device_file::device_file_name(&self.dir)),
             _ => self.dir.join(name),
         };
         let text = match read_optional(&path) {

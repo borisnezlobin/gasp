@@ -88,7 +88,9 @@ pub fn use_window_theme(theme: &mut WindowTheme, cx: &mut App) {
         let (tokens, dark) = (theme.0.tokens.clone(), theme.0.dark);
         theme.0 = Arc::new(ThemeState::build(&tokens, dark, cx));
     }
-    let in_effect = cx.try_global::<ThemeGlobal>().is_some_and(|current| Arc::ptr_eq(&current.0, &theme.0));
+    let in_effect = cx
+        .try_global::<ThemeGlobal>()
+        .is_some_and(|current| Arc::ptr_eq(&current.0, &theme.0));
     if !in_effect {
         cx.set_global(ThemeGlobal(theme.0.clone()));
     }

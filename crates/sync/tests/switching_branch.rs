@@ -23,10 +23,17 @@ fn a_new_branch_starts_where_the_vault_is_and_takes_the_next_sync() {
 
     switch_branch(&world.path("laptop"), "notes").unwrap();
     let laptop = Vault::open(world.path("laptop"), on_branch("notes")).unwrap();
-    assert_eq!(read(&laptop, NOTE), "first\nunsaved edit\n", "edits stay on disk");
+    assert_eq!(
+        read(&laptop, NOTE),
+        "first\nunsaved edit\n",
+        "edits stay on disk"
+    );
     sync(&laptop, "laptop");
 
-    assert_eq!(world.remote_file("notes", NOTE).unwrap(), b"first\nunsaved edit\n");
+    assert_eq!(
+        world.remote_file("notes", NOTE).unwrap(),
+        b"first\nunsaved edit\n"
+    );
     assert_eq!(world.remote_file("master", NOTE).unwrap(), b"first\n");
 }
 

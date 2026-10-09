@@ -513,7 +513,11 @@ impl Workspace {
     fn apply_theme(&mut self, cx: &mut Context<Self>) -> bool {
         let choice = self.config.settings.appearance.theme;
         let dark = choice.is_dark(crate::ui::system_dark(cx));
-        if self.window_theme.as_ref().is_some_and(|theme| theme.matches(&self.config.theme, dark)) {
+        if self
+            .window_theme
+            .as_ref()
+            .is_some_and(|theme| theme.matches(&self.config.theme, dark))
+        {
             return false;
         }
         self.window_theme = Some(crate::ui::WindowTheme::new(&self.config.theme, dark, cx));

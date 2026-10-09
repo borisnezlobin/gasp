@@ -449,7 +449,11 @@ mod tests {
         assert_eq!(store.image("pic.png", 3).natural, (3, 2));
         run_decodes(&mut store);
         RgbaImage::new(8, 4).save(&file).unwrap();
-        assert_eq!(store.image("pic.png", 8).natural, (3, 2), "still the old picture");
+        assert_eq!(
+            store.image("pic.png", 8).natural,
+            (3, 2),
+            "still the old picture"
+        );
         assert!(!store.forget_files(&[dir.join("other.png")]));
         assert!(store.forget_files(std::slice::from_ref(&file)));
         assert_eq!(store.image("pic.png", 8).natural, (8, 4));
