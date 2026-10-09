@@ -1,0 +1,51 @@
+name: Linux release
+
+# Builds the Linux tarball and .deb on the oldest supported Ubuntu, so they
+# run on any distribution with glibc 2.35 or newer (Ubuntu 22.04, Debian 12,
+# Fedora 36 and later), and attaches them to the release. Runs when a
+# release is published, or by hand for a release that already exists.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release's tag, such as v0.2.5
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  package:
+    name: Package for Linux
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: dtolnay/rust-toolchain@1.94.1
+      - uses: Swatinem/rust-cache@v2
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Install build packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+            libvulkan-dev libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev \
+            libssl-dev libdbus-1-dev clang
+      - name: Build and package
+        run: GLIBC_MAX=2.35 scripts/package-linux.sh
+      - name: Check the binary starts
+        run: target/dist/gasp --version
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$TAG" --clobber \
+            target/package/Gasp-*-linux-*.tar.gz target/package/gasp_*.deb

@@ -10,6 +10,7 @@ A fast, native Markdown editor for an Obsidian vault. It's written in Rust, runs
 |---|---|
 | `make run` | Builds the desktop app and opens your last vault |
 | `make dmg` | Builds a signed, notarized `Gasp-<version>.dmg` in `target/package/` |
+| `make linux` | Builds the Linux tarball and `.deb` in `target/package/` (a published release builds them in CI and attaches them) |
 | `make ios-phone` | Builds the iPhone app and installs it on a plugged-in iPhone |
 | `make ios-sim` | Builds the iPhone app and runs it in the simulator, without opening its window |
 | `make help` | Lists the rest |
