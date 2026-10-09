@@ -161,7 +161,8 @@ const IMPORT_OBSIDIAN: CommandSpec = spec(
 .icon("arrow-square-in");
 
 /// The selection or note as formatted text on the clipboard, which the
-/// macOS pasteboard can hold beside its plain text.
+/// macOS pasteboard and the Linux clipboard can hold beside its plain
+/// text.
 const COPY_RICH_TEXT: CommandSpec =
     spec("export.copy-rich-text", "Copy as rich text", "App").icon("clipboard");
 
@@ -479,7 +480,7 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     RESTORE_DELETED,
     #[cfg(not(target_os = "ios"))]
     IMPORT_OBSIDIAN,
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     COPY_RICH_TEXT,
     #[cfg(not(target_os = "ios"))]
     TOGGLE_DARK_MODE,

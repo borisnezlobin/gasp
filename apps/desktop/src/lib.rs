@@ -59,7 +59,7 @@ pub mod print;
 pub mod prose;
 pub mod recovery;
 pub mod reduce_motion;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub mod rich_copy;
 pub mod sandbox;
 pub mod settings_view;
