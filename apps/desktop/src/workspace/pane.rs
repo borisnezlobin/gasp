@@ -214,6 +214,9 @@ pub struct Pane {
     /// Room at the tab bar's left for the window's own buttons, when this
     /// pane is at the window's top-left.
     pub corner_inset: Pixels,
+    /// Room at the tab bar's right for the window's own buttons, when the
+    /// app draws them and this pane is at the window's top-right.
+    pub controls_inset: Pixels,
     pub(crate) reading_probe: Option<ReadingProbe>,
     pub(crate) menu: MenuSlot,
     /// Notes a paused sync merge is waiting on, which get a banner.
@@ -272,6 +275,7 @@ impl Pane {
             show_sidebar_toggle: false,
             show_right_sidebar_toggle: false,
             corner_inset: px(0.),
+            controls_inset: px(0.),
             reading_probe: None,
             menu: MenuSlot::default(),
             sync_conflicts: Vec::new(),

@@ -14,7 +14,7 @@ use crate::ui::Selectable;
 use crate::ui::{Button, IconButton, Tooltip, truncated, ui_theme};
 
 impl Render for KnowledgeSidebar {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let ui = ui_theme(cx);
         let rows = list(
             self.list.clone(),
@@ -32,7 +32,7 @@ impl Render for KnowledgeSidebar {
             .font_family(ui.font_family.clone())
             .text_size(ui.font_size)
             .text_color(ui.text)
-            .child(self.render_header(&ui, cx))
+            .child(self.render_header(&ui, window, cx))
             .child(
                 div()
                     .flex_1()
@@ -45,7 +45,15 @@ impl Render for KnowledgeSidebar {
 }
 
 impl KnowledgeSidebar {
-    fn render_header(&self, ui: &UiTheme, cx: &mut Context<Self>) -> impl IntoElement {
+    /// The view buttons and the hide button, which leaves room at its right
+    /// for the window's buttons when the app draws them, since the
+    /// sidebar is always at the window's top-right.
+    fn render_header(
+        &self,
+        ui: &UiTheme,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let views = SidebarView::ALL.map(|view| {
             IconButton::new(format!("knowledge-{}", view.key()), view.icon())
                 .command(view.command(), cx)
@@ -65,6 +73,7 @@ impl KnowledgeSidebar {
             .justify_between()
             .h(ui.tab_bar_height)
             .px(ui.sidebar_padding)
+            .pr(ui.sidebar_padding + crate::window_controls::width(window, cx))
             .child(
                 div()
                     .flex()

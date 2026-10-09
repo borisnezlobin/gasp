@@ -7,6 +7,12 @@
 //! AppKit would otherwise move the window from any press on GPUI's view,
 //! tabs included, and GPUI 0.2.2's `start_window_move` does nothing on
 //! macOS, so both halves go through AppKit directly.
+//!
+//! On Linux the system's title bar usually stays above the tab bar, but
+//! GNOME on Wayland leaves the title bar to the app
+//! (`crate::window_controls`), so there the tab bar moves the window too,
+//! a double click maximizes it and a right click shows the desktop's
+//! window menu. Where a title bar is drawn the compositor ignores these.
 
 use std::cell::Cell;
 
@@ -58,7 +64,7 @@ pub fn start(window: &mut Window) {
         macos::drag_window(view);
     }
     #[cfg(not(target_os = "macos"))]
-    let _ = window;
+    window.start_window_move();
 }
 
 /// Zooms or minimizes the window, as a title bar's double click does.
@@ -69,5 +75,14 @@ pub fn double_click(window: &mut Window) {
     #[cfg(target_os = "macos")]
     window.titlebar_double_click();
     #[cfg(not(target_os = "macos"))]
-    let _ = window;
+    window.zoom_window();
+}
+
+/// Shows the desktop's window menu at `position`, as a right click on a
+/// title bar does, where the app draws the title bar.
+pub fn window_menu(window: &mut Window, position: gpui::Point<gpui::Pixels>) {
+    if ONLY_COUNT.get() || !crate::window_controls::drawn_by_app(window) {
+        return;
+    }
+    window.show_window_menu(position);
 }

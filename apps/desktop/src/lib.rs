@@ -85,6 +85,7 @@ pub mod update;
 pub mod vault_index;
 pub mod vault_search;
 pub mod vault_watch;
+pub mod window_controls;
 pub mod window_drag;
 pub mod workspace;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]

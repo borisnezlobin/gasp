@@ -6,7 +6,7 @@
 use gasp_config::device::RightSidebarState;
 use gpui::{
     AnyElement, AnyView, Context, CursorStyle, FocusHandle, MouseButton, MouseDownEvent, Pixels,
-    div, prelude::*, px,
+    Window, div, prelude::*, px,
 };
 
 use super::{Drag, Workspace};
@@ -101,9 +101,15 @@ impl Workspace {
     }
 
     /// Puts the right sidebar's show button at the end of the top-right
-    /// pane's tab bar while the sidebar is hidden.
-    pub(super) fn sync_right_sidebar_toggle(&mut self, cx: &mut Context<Self>) {
+    /// pane's tab bar while the sidebar is hidden, and room for the
+    /// window's buttons when the app draws them and no sidebar is there.
+    pub(super) fn sync_right_sidebar_toggle(&mut self, window: &Window, cx: &mut Context<Self>) {
         let hidden = self.right_panel.view.is_some() && !self.right_panel.visible;
+        let controls = if self.right_panel.is_visible() {
+            px(0.)
+        } else {
+            crate::window_controls::width(window, cx)
+        };
         let corner = self
             .panes
             .rects()
@@ -112,10 +118,13 @@ impl Workspace {
             .max_by(|(_, a), (_, b)| a.x.total_cmp(&b.x))
             .map(|(pane, _)| pane);
         for pane in self.panes.panes() {
-            let show = hidden && Some(&pane) == corner.as_ref();
+            let at_corner = Some(&pane) == corner.as_ref();
+            let show = hidden && at_corner;
+            let inset = if at_corner { controls } else { px(0.) };
             pane.update(cx, |pane, cx| {
-                if pane.show_right_sidebar_toggle != show {
+                if pane.show_right_sidebar_toggle != show || pane.controls_inset != inset {
                     pane.show_right_sidebar_toggle = show;
+                    pane.controls_inset = inset;
                     cx.notify();
                 }
             });
