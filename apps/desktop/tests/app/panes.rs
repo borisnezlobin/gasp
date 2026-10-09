@@ -458,6 +458,15 @@ fn open_workspace_with_tree<'a>(
 #[gpui::test]
 fn tree_drop_a_note_on_the_tab_strip_opens_it_at_that_slot(cx: &mut TestAppContext) {
     let vault = vault_with(&["a.md", "b.md", "c.md"]);
+    // Beside the notes, so the panel covers none of the tabs: without
+    // the Mac's window buttons the strip starts under an open overlay.
+    let config = vault.path().join(gasp_config::CONFIG_DIR);
+    std::fs::create_dir_all(&config).unwrap();
+    std::fs::write(
+        config.join("settings.toml"),
+        "[sidebar.files]\nmode = \"push\"\n",
+    )
+    .unwrap();
     let (workspace, cx) = open_workspace_with_tree(cx, vault.path());
     open_tabs(&workspace, cx, &["a.md", "c.md"]);
     let row = bounds(cx, "tree-row-b");

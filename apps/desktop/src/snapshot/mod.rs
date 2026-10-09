@@ -153,6 +153,8 @@ impl WindowSnapshotRequest {
 }
 
 /// A note read from disk with what its vault says about drawing it.
+/// Only macOS draws it so far.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 struct SnapshotNote {
     text: String,
     image_dirs: Vec<PathBuf>,
