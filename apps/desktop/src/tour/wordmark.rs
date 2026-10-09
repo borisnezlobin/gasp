@@ -14,7 +14,8 @@ mod macos;
 const OUTLINE_FONT: &str = "Charter-Bold";
 
 /// One piece of a glyph's outline, in ems from the pen on the baseline,
-/// down being positive.
+/// down being positive. Only macOS reads outlines so far.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Segment {
     Move(Point<f32>),

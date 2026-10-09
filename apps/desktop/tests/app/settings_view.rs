@@ -1416,8 +1416,16 @@ fn picking_a_font_keeps_its_dropdown_width(cx: &mut TestAppContext) {
     click(cx, "dropdown-font.code");
     click(cx, "menu-option-Liberation Mono");
     assert_eq!(token(&view, "font.code", cx), "Liberation Mono");
-    assert_eq!(drawn(cx, "dropdown-font.code"), button);
-    assert_eq!(columns(cx, &name), before);
+    // Where the default code font isn't installed, the row's "isn't
+    // installed" note goes once an installed one is picked and the row
+    // gets shorter, so only widths and columns are compared.
+    let across = |bounds: Bounds<Pixels>| (bounds.left(), bounds.size.width);
+    let (text, control) = columns(cx, &name);
+    assert_eq!(across(drawn(cx, "dropdown-font.code")), across(button));
+    assert_eq!(
+        (across(text), across(control)),
+        (across(before.0), across(before.1))
+    );
 }
 
 #[gpui::test]
