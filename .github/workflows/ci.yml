@@ -99,7 +99,7 @@ jobs:
       - name: Install packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y libssl-dev pkg-config clang
+          sudo apt-get install -y libssl-dev libdbus-1-dev pkg-config clang
       - name: Build the benches
         run: >-
           cargo build --release --locked
