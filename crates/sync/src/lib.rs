@@ -30,7 +30,12 @@ mod vault;
 pub use conflict::{ConflictHunk, ConflictedFile, MarkedHunk, MarkedText, Resolution, Segment};
 #[cfg(all(
     feature = "keychain",
-    any(target_os = "macos", target_os = "ios", target_os = "windows")
+    any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows",
+        target_os = "linux"
+    )
 ))]
 pub use credentials::KeychainStore;
 pub use credentials::{

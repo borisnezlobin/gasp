@@ -153,7 +153,11 @@ async fn send_if_due(cx: &mut AsyncApp) {
     }
     let sent = cx
         .background_executor()
-        .spawn(async { send(&Ping::for_this_computer(system_version().unwrap_or_default())) })
+        .spawn(async {
+            send(&Ping::for_this_computer(
+                system_version().unwrap_or_default(),
+            ))
+        })
         .await;
     if sent {
         remember_ping(&state_path, today);
@@ -233,9 +237,15 @@ mod tests {
     fn linux_reports_linux_and_its_kernel() {
         assert_eq!(platform_name("linux"), "linux");
         assert_eq!(platform_name("macos"), "mac");
-        assert_eq!(kernel_version("6.14.0-24-generic").as_deref(), Some("6.14.0"));
+        assert_eq!(
+            kernel_version("6.14.0-24-generic").as_deref(),
+            Some("6.14.0")
+        );
         assert_eq!(kernel_version("6.10.3-arch1-1").as_deref(), Some("6.10.3"));
-        assert_eq!(kernel_version("5.15.167.4-microsoft-standard-WSL2").as_deref(), Some("5.15.167"));
+        assert_eq!(
+            kernel_version("5.15.167.4-microsoft-standard-WSL2").as_deref(),
+            Some("5.15.167")
+        );
         assert_eq!(kernel_version("6.1").as_deref(), Some("6.1"));
         assert_eq!(kernel_version("rolling"), None);
     }

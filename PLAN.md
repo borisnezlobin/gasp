@@ -67,7 +67,7 @@ cargo test --workspace                            # every crate's tests
 python3 scripts/check-complexity.py               # the complexity limit
 ```
 
-On Linux, GPUI needs `libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev libssl-dev clang` (the CI workflow installs the same list).
+On Linux, GPUI needs `libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev libssl-dev libdbus-1-dev clang` (the CI workflow installs the same list).
 
 On macOS, GPUI compiles its Metal shaders at build time, so it needs Apple's Metal Toolchain (Xcode, then `xcodebuild -downloadComponent MetalToolchain` if the build asks for it). Without it, build with `cargo run -p gasp-desktop --features runtime-shaders`, which compiles the shaders when the app starts instead.
 

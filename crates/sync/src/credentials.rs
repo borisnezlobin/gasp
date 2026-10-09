@@ -105,17 +105,27 @@ impl<Current: CredentialStore, Legacy: CredentialStore> CredentialStore
 }
 
 /// The system's credential store: the Keychain on macOS and iOS,
-/// Credential Manager on Windows. Tokens filed under
+/// Credential Manager on Windows, the Secret Service on Linux. Tokens filed under
 /// [`LEGACY_KEYCHAIN_SERVICE`] move to [`KEYCHAIN_SERVICE`] when read.
 #[cfg(all(
     feature = "keychain",
-    any(target_os = "macos", target_os = "ios", target_os = "windows")
+    any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows",
+        target_os = "linux"
+    )
 ))]
 pub struct KeychainStore;
 
 #[cfg(all(
     feature = "keychain",
-    any(target_os = "macos", target_os = "ios", target_os = "windows")
+    any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows",
+        target_os = "linux"
+    )
 ))]
 impl KeychainStore {
     fn migrating() -> MigratingStore<KeychainService, KeychainService> {
@@ -128,7 +138,12 @@ impl KeychainStore {
 
 #[cfg(all(
     feature = "keychain",
-    any(target_os = "macos", target_os = "ios", target_os = "windows")
+    any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows",
+        target_os = "linux"
+    )
 ))]
 impl CredentialStore for KeychainStore {
     fn load(&self, remote_url: &str) -> SyncResult<Option<Token>> {
@@ -147,13 +162,23 @@ impl CredentialStore for KeychainStore {
 /// The tokens filed under one service name in the system's credential store.
 #[cfg(all(
     feature = "keychain",
-    any(target_os = "macos", target_os = "ios", target_os = "windows")
+    any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows",
+        target_os = "linux"
+    )
 ))]
 struct KeychainService(&'static str);
 
 #[cfg(all(
     feature = "keychain",
-    any(target_os = "macos", target_os = "ios", target_os = "windows")
+    any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows",
+        target_os = "linux"
+    )
 ))]
 impl KeychainService {
     fn entry(&self, remote_url: &str) -> SyncResult<keyring::Entry> {
@@ -163,7 +188,12 @@ impl KeychainService {
 
 #[cfg(all(
     feature = "keychain",
-    any(target_os = "macos", target_os = "ios", target_os = "windows")
+    any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows",
+        target_os = "linux"
+    )
 ))]
 fn keychain_error(error: keyring::Error) -> crate::error::SyncError {
     crate::error::SyncError::Io(std::io::Error::other(error.to_string()))
@@ -171,7 +201,12 @@ fn keychain_error(error: keyring::Error) -> crate::error::SyncError {
 
 #[cfg(all(
     feature = "keychain",
-    any(target_os = "macos", target_os = "ios", target_os = "windows")
+    any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows",
+        target_os = "linux"
+    )
 ))]
 impl CredentialStore for KeychainService {
     fn load(&self, remote_url: &str) -> SyncResult<Option<Token>> {
