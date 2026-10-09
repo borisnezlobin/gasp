@@ -361,7 +361,9 @@ fn the_context_menu_works_from_the_keyboard(cx: &mut TestAppContext) {
 fn resting_on_an_image_shows_a_preview(cx: &mut TestAppContext) {
     let dir = vault();
     let root = dir.path();
-    image::RgbaImage::new(40, 20).save(root.join("chart.png")).unwrap();
+    image::RgbaImage::new(40, 20)
+        .save(root.join("chart.png"))
+        .unwrap();
     let (_tree, cx, _) = open(cx, root, false);
     let row = cx.debug_bounds("tree-row-chart.png").expect("row is drawn");
     cx.simulate_mouse_move(row.center(), None, Modifiers::default());

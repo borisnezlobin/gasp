@@ -439,7 +439,6 @@ impl Tour {
         }
     }
 
-
     /// Hands the window to `vault`, then does `after` there.
     pub fn open_vault(
         &mut self,
@@ -611,11 +610,18 @@ impl Tour {
 /// Builds the built-in theme in the system's light or dark into `theme`,
 /// as a vault with the default settings would have it, and puts it in
 /// effect. Answers whether it changed.
-fn follow_appearance(window: &Window, theme: &mut Option<crate::ui::WindowTheme>, cx: &mut App) -> bool {
+fn follow_appearance(
+    window: &Window,
+    theme: &mut Option<crate::ui::WindowTheme>,
+    cx: &mut App,
+) -> bool {
     let dark = crate::ui::is_dark_appearance(window.appearance());
     crate::ui::set_system_dark(dark, cx);
     let tokens = &gasp_config::Config::defaults().theme;
-    if theme.as_ref().is_some_and(|current| current.matches(tokens, dark)) {
+    if theme
+        .as_ref()
+        .is_some_and(|current| current.matches(tokens, dark))
+    {
         return false;
     }
     let built = theme.insert(crate::ui::WindowTheme::new(tokens, dark, cx));
@@ -717,4 +723,3 @@ impl Render for Tour {
             .children(crate::notices::render(window, ui.space_xl, cx))
     }
 }
-

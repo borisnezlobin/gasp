@@ -789,7 +789,10 @@ impl FileTree {
                 trashed_to,
             }),
             Err(error) => cx.emit(FileTreeEvent::Failed {
-                message: format!("Couldn’t move it to the trash. {}", crate::plain_errors::PlainReason::plain_reason(&error)),
+                message: format!(
+                    "Couldn’t move it to the trash. {}",
+                    crate::plain_errors::PlainReason::plain_reason(&error)
+                ),
             }),
         }
     }

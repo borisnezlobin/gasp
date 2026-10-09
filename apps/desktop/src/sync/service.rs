@@ -543,9 +543,12 @@ impl SyncService {
         let Some(url) = self.remote_url.clone() else {
             return Err("Add the repository’s address first.".to_owned());
         };
-        self.store
-            .save(&url, &token)
-            .map_err(|error| format!("The token couldn’t be saved. {}", crate::plain_errors::PlainReason::plain_reason(&error)))?;
+        self.store.save(&url, &token).map_err(|error| {
+            format!(
+                "The token couldn’t be saved. {}",
+                crate::plain_errors::PlainReason::plain_reason(&error)
+            )
+        })?;
         self.signed_in = true;
         if let Presence::Ready(engine) = &self.presence {
             engine.set_token(Some(token));
@@ -557,9 +560,12 @@ impl SyncService {
     /// Forgets this vault's token.
     pub fn sign_out(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
         if let Some(url) = &self.remote_url {
-            self.store
-                .delete(url)
-                .map_err(|error| format!("The token couldn’t be removed. {}", crate::plain_errors::PlainReason::plain_reason(&error)))?;
+            self.store.delete(url).map_err(|error| {
+                format!(
+                    "The token couldn’t be removed. {}",
+                    crate::plain_errors::PlainReason::plain_reason(&error)
+                )
+            })?;
         }
         if let Presence::Ready(engine) = &self.presence {
             engine.set_token(None);

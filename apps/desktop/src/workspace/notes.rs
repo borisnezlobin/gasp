@@ -233,7 +233,12 @@ impl Workspace {
             return Err(format!("There’s already a note called “{title}”."));
         }
         doc.update(cx, |doc, cx| doc.save_or_log(cx));
-        std::fs::rename(old, &new).map_err(|error| format!("Couldn’t rename the note. {}", crate::plain_errors::PlainReason::plain_reason(&error)))?;
+        std::fs::rename(old, &new).map_err(|error| {
+            format!(
+                "Couldn’t rename the note. {}",
+                crate::plain_errors::PlainReason::plain_reason(&error)
+            )
+        })?;
         self.note_moved(doc, old, &new, cx);
         self.note_history_moved(old, &new, cx);
         if self.config.settings.files.update_links_on_rename {
