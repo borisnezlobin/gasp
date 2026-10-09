@@ -3879,14 +3879,14 @@ dependencies = [
 
 [[package]]
 name = "gasp-bench"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "gasp-config"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "gasp-bench",
  "gasp-migrate",
@@ -3902,7 +3902,7 @@ dependencies = [
 
 [[package]]
 name = "gasp-core"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "gasp-bench",
  "gasp-config",
@@ -3920,7 +3920,7 @@ dependencies = [
 
 [[package]]
 name = "gasp-corpus"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "regex",
  "serde_json",
@@ -3929,7 +3929,7 @@ dependencies = [
 
 [[package]]
 name = "gasp-desktop"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "anyhow",
  "arboard",
@@ -3982,7 +3982,7 @@ dependencies = [
 
 [[package]]
 name = "gasp-export"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "base64 0.22.1",
  "gasp-bench",
@@ -4000,7 +4000,7 @@ dependencies = [
 
 [[package]]
 name = "gasp-ffi"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "gasp-bench",
  "gasp-config",
@@ -4022,7 +4022,7 @@ dependencies = [
 
 [[package]]
 name = "gasp-highlight"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "syntect",
  "two-face",
@@ -4030,7 +4030,7 @@ dependencies = [
 
 [[package]]
 name = "gasp-math"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "gasp-bench",
  "mitex",
@@ -4046,7 +4046,7 @@ dependencies = [
 
 [[package]]
 name = "gasp-mcp"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "base64 0.22.1",
  "dirs 5.0.1",
@@ -4070,7 +4070,7 @@ dependencies = [
 
 [[package]]
 name = "gasp-migrate"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "gasp-config",
  "gasp-snippets",
@@ -4082,11 +4082,11 @@ dependencies = [
 
 [[package]]
 name = "gasp-plugins"
-version = "0.2.4"
+version = "0.2.5"
 
 [[package]]
 name = "gasp-prose"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "gasp-bench",
  "gasp-config",
@@ -4097,7 +4097,7 @@ dependencies = [
 
 [[package]]
 name = "gasp-search"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "gasp-bench",
  "gasp-config",
@@ -4110,7 +4110,7 @@ dependencies = [
 
 [[package]]
 name = "gasp-snippets"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "fancy-regex",
  "serde",
@@ -4119,7 +4119,7 @@ dependencies = [
 
 [[package]]
 name = "gasp-sync"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "gasp-bench",
  "gasp-config",
@@ -4135,7 +4135,7 @@ dependencies = [
 
 [[package]]
 name = "gasp-vault"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "dirs 5.0.1",
  "gasp-bench",
@@ -11177,7 +11177,7 @@ dependencies = [
 
 [[package]]
 name = "uniffi-bindgen"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "uniffi",
 ]
