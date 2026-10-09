@@ -60,6 +60,10 @@ impl Pane {
             .selector(|| "tab-bar".to_owned())
             .map(|bar| Self::catch_drops_on_tabs(bar, cx))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_bar_mouse_down))
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(Self::on_bar_right_mouse_down),
+            )
             .flex()
             .flex_row()
             .flex_none()
@@ -67,6 +71,7 @@ impl Pane {
             .gap(ui.space_xs)
             .h(ui.tab_bar_height)
             .pl(self.corner_inset)
+            .pr(self.controls_inset)
             .children(toggle)
             .child(
                 div()
@@ -123,6 +128,32 @@ impl Pane {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !self.on_empty_top_bar(event, cx) {
+            return;
+        }
+        if event.click_count == 2 {
+            crate::window_drag::double_click(window);
+        } else {
+            crate::window_drag::start(window);
+        }
+    }
+
+    /// A right click on the bar's empty space shows the window menu, where
+    /// the app draws the window's title bar.
+    fn on_bar_right_mouse_down(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.on_empty_top_bar(event, cx) {
+            crate::window_drag::window_menu(window, event.position);
+        }
+    }
+
+    /// Whether a press is on the bar's empty space, with the bar along the
+    /// window's top.
+    fn on_empty_top_bar(&self, event: &MouseDownEvent, cx: &mut Context<Self>) -> bool {
         let ui = ui_theme(cx);
         let at_top = event.position.y < ui.surface_gap + ui.tab_bar_height;
         // The pane's own focus handling runs first and marks every press
@@ -132,15 +163,7 @@ impl Pane {
         let on_tab = (0..self.tab_scroll.children_count())
             .filter_map(|index| self.tab_scroll.bounds_for_item(index))
             .any(hits);
-        let on_control = on_button || on_tab;
-        if on_control || !at_top {
-            return;
-        }
-        if event.click_count == 2 {
-            crate::window_drag::double_click(window);
-        } else {
-            crate::window_drag::start(window);
-        }
+        at_top && !on_button && !on_tab
     }
 
     /// Scrolls the active tab back into view when the strip's width

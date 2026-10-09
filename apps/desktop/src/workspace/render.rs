@@ -447,7 +447,7 @@ impl Render for Workspace {
         self.use_own_theme(cx);
         self.update_window_title(window, cx);
         self.sync_sidebar_toggle(window, cx);
-        self.sync_right_sidebar_toggle(cx);
+        self.sync_right_sidebar_toggle(window, cx);
         self.drop_stale_toolbar_focus(window, cx);
         self.fill_card_bars(window, cx);
         let ui = ui_theme(cx);
@@ -534,6 +534,8 @@ impl Render for Workspace {
                 ui.status_height + ui.space_md,
                 cx,
             ))
+            .children(crate::window_controls::render_edges(window))
+            .children(crate::window_controls::render_buttons(window, cx))
             .children(self.menu.render_overlay(window, cx))
             .children(self.modal.render(&ui, cx))
             .children(self.render_shortcut_sheet(window, cx))
