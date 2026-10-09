@@ -2,8 +2,10 @@ name: Linux release
 
 # Builds the Linux tarball and .deb on the oldest supported Ubuntu, so they
 # run on any distribution with glibc 2.35 or newer (Ubuntu 22.04, Debian 12,
-# Fedora 36 and later), and attaches them to the release. Runs when a
-# release is published, or by hand for a release that already exists.
+# Fedora 36 and later), and attaches them to the release. Run it by hand for
+# a draft release, whose tag must be pushed first. Publishing a release
+# builds them too, unless the release already has both, so files checked
+# while it was a draft are the ones people download.
 
 on:
   release:
@@ -26,24 +28,43 @@ jobs:
     name: Package for Linux
     runs-on: ubuntu-22.04
     steps:
+      - name: See whether the release has them already
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          names=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+          if [ "${{ github.event_name }}" = release ] \
+            && echo "$names" | grep -q -- '-linux-x86_64\.tar\.gz$' \
+            && echo "$names" | grep -q -- '_amd64\.deb$'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
+        if: steps.existing.outputs.skip != 'true'
         with:
           ref: ${{ env.TAG }}
       - uses: dtolnay/rust-toolchain@1.94.1
+        if: steps.existing.outputs.skip != 'true'
       - uses: Swatinem/rust-cache@v2
+        if: steps.existing.outputs.skip != 'true'
       - name: Free disk space
+        if: steps.existing.outputs.skip != 'true'
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - name: Install build packages
+        if: steps.existing.outputs.skip != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
             libvulkan-dev libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev \
             libssl-dev libdbus-1-dev clang
       - name: Build and package
+        if: steps.existing.outputs.skip != 'true'
         run: GLIBC_MAX=2.35 scripts/package-linux.sh
       - name: Check the binary starts
+        if: steps.existing.outputs.skip != 'true'
         run: target/dist/gasp --version
       - name: Attach to the release
+        if: steps.existing.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
