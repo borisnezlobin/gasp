@@ -245,5 +245,5 @@ Copy and layout
 - [x] A changelog page on gaspmd.com that shows every GitHub release's notes. *(Live at gaspmd.com/changelog since 2026-10-03, linked from the footer.)*
 - [x] Images: a friend wants to add images for diagrams without pasting (an upload or insert button). *(Mac: Insert → Insert image; iPhone: Photo library or Files.)*
 - [x] Mac: an Insert menu in the menu bar with images, tables, bold, horizontal rule and the like. iPhone: the image button offers Photo library or Files.
-- [ ] Site: on Linux gaspmd.com still says Download for Mac, and /download just downloads the DMG instead of being a page.
+- [x] Site: on Linux gaspmd.com still says Download for Mac, and /download just downloads the DMG instead of being a page. *(Deployed 2026-10-11 with 0.2.5.)*
 - [x] iPhone TestFlight: no Sign in with GitHub, it still asks for a token. Signing in and granting access to the private repo is the better path. *(A vault that already syncs now offers Sign in with GitHub in Settings → Sync once signed out; the token sits behind "Use a token instead".)*
