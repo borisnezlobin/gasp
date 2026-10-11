@@ -119,7 +119,8 @@ private struct SyncedVaultRows: View {
     }
 }
 
-/// The token: signed in with a way to sign out, or a field to sign in.
+/// Signed in with a way to sign out, or the ways to sign in: GitHub's
+/// own sign-in for a repository there, and a token for any host.
 private struct SyncAccountRow: View {
     @Environment(AppModel.self) private var model
     let overview: SyncOverview
@@ -129,32 +130,49 @@ private struct SyncAccountRow: View {
 
     private var tokens: Tokens { model.library.tokens }
 
+    private var signsInWithGitHub: Bool {
+        GitHubConnection.clientId != nil && overview.repository?.contains("github.com") == true
+    }
+
     var body: some View {
         if overview.signedIn {
-            HStack {
-                Label("Signed in with a token", systemImage: "key.fill")
-                    .foregroundStyle(tokens.swiftUIColor(\.textStrong))
-                Spacer()
-                Button("Sign out", role: .destructive) { confirmingSignOut = true }
+            signedIn
+        } else if overview.takesToken && signsInWithGitHub {
+            Button { model.workspace.sheet = .githubReconnect } label: {
+                Label("Sign in with GitHub", systemImage: "arrow.triangle.branch")
             }
-            .confirmationDialog(
-                "Sign out of sync on this iPhone?", isPresented: $confirmingSignOut, titleVisibility: .visible
-            ) {
-                Button("Sign out", role: .destructive) { attempt { try model.sync.signOut() } }
-            } message: {
-                Text("Your notes stay on this iPhone. They sync again once you paste a token.")
-            }
+            DisclosureGroup("Use a token instead") { tokenField }
         } else if overview.takesToken {
-            HStack(spacing: tokens.spacing.md) {
-                SecureField("Paste a GitHub token", text: $token)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                PasteButton(payloadType: String.self) { token = $0.first ?? "" }
-                    .labelStyle(.iconOnly)
-                    .buttonBorderShape(.capsule)
-                Button("Sign in") { attempt { try model.sync.signIn(token: token) } }
-                    .disabled(token.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
+            tokenField
+        }
+    }
+
+    private var signedIn: some View {
+        HStack {
+            Label("Signed in", systemImage: "person.crop.circle.badge.checkmark")
+                .foregroundStyle(tokens.swiftUIColor(\.textStrong))
+            Spacer()
+            Button("Sign out", role: .destructive) { confirmingSignOut = true }
+        }
+        .confirmationDialog(
+            "Sign out of sync on this iPhone?", isPresented: $confirmingSignOut, titleVisibility: .visible
+        ) {
+            Button("Sign out", role: .destructive) { attempt { try model.sync.signOut() } }
+        } message: {
+            Text("Your notes stay on this iPhone. They sync again once you sign in.")
+        }
+    }
+
+    private var tokenField: some View {
+        HStack(spacing: tokens.spacing.md) {
+            SecureField("Paste a GitHub token", text: $token)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            PasteButton(payloadType: String.self) { token = $0.first ?? "" }
+                .labelStyle(.iconOnly)
+                .buttonBorderShape(.capsule)
+            Button("Sign in") { attempt { try model.sync.signIn(token: token) } }
+                .disabled(token.trimmingCharacters(in: .whitespaces).isEmpty)
         }
     }
 

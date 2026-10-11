@@ -41,6 +41,8 @@ enum WorkspaceSheet: Identifiable {
     case syncChooser
     case icloudSetup
     case githubSignIn
+    /// Signing in with GitHub again, for a vault that already syncs.
+    case githubReconnect
     case icloudDetails
 
     /// Whether it has its own presenter instead of being a sheet: the
@@ -60,6 +62,7 @@ enum WorkspaceSheet: Identifiable {
         case .syncChooser: "sync chooser"
         case .icloudSetup: "icloud setup"
         case .githubSignIn: "github sign-in"
+        case .githubReconnect: "github reconnect"
         case .icloudDetails: "icloud details"
         case .palette: "palette"
         case .settings: "settings"

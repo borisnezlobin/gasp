@@ -3,8 +3,10 @@ import UIKit
 
 /// Signing in with GitHub: the short code to approve on GitHub, then the
 /// person's repositories (or a new private one), then setting up and what
-/// it did. Closing the sheet stops asking GitHub.
+/// it did. For a vault that already syncs, the sign-in goes straight to
+/// it. Closing the sheet stops asking GitHub.
 struct GitHubSignInSheet: View {
+    var connectsSyncedVault = false
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var flow = GitHubSignInFlow()
@@ -29,7 +31,10 @@ struct GitHubSignInSheet: View {
         }
         .font(Font(tokens.uiFont(size: tokens.bodySize)))
         .interactiveDismissDisabled(isWorking)
-        .task(id: attempt) { await flow.signIn() }
+        .task(id: attempt) {
+            if connectsSyncedVault { flow.connect = { [sync = model.sync] in try sync.signIn(token: $0) } }
+            await flow.signIn()
+        }
     }
 
     @ViewBuilder private var stage: some View {
@@ -52,6 +57,10 @@ struct GitHubSignInSheet: View {
             SetupProgress(text: text, tokens: tokens)
         case .done(let finished):
             SetupDone(sentence: finished.sentence, detail: waitingLine(finished.summary), tokens: tokens) { dismiss() }
+        case .connected(let login):
+            SetupDone(sentence: "Signed in as \(login). Your notes sync with GitHub again.", detail: nil, tokens: tokens) {
+                dismiss()
+            }
         }
     }
 

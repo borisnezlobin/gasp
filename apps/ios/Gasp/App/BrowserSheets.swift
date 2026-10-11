@@ -69,6 +69,7 @@ struct BrowserSheets: ViewModifier {
         case .syncChooser: SyncChooserSheet()
         case .icloudSetup: ICloudSetupSheet()
         case .githubSignIn: GitHubSignInSheet()
+        case .githubReconnect: GitHubSignInSheet(connectsSyncedVault: true)
         case .icloudDetails: ICloudDetailsSheet()
         }
     }

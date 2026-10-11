@@ -3,7 +3,8 @@ import Observation
 
 /// Signing in with GitHub and choosing a repository, one step at a time:
 /// the short code to approve, the person's repositories, setting up, and
-/// what setting up did.
+/// what setting up did. For a vault that already syncs, `connect` takes
+/// the sign-in instead and there's no repository to choose.
 @MainActor
 @Observable
 final class GitHubSignInFlow {
@@ -14,9 +15,12 @@ final class GitHubSignInFlow {
         case repositories(GitHubAccount, token: String)
         case working(String)
         case done(GitHubVaultSetUp.Finished)
+        case connected(login: String)
     }
 
     private(set) var stage: Stage = .asking
+    /// Hands the sign-in to the vault that already syncs.
+    @ObservationIgnored var connect: ((String) throws -> Void)?
 
     /// The folder set up to sync, once it is.
     var finishedFolder: URL? {
@@ -57,7 +61,11 @@ final class GitHubSignInFlow {
             switch step {
             case .waiting(let next): wait = next
             case .signedIn(let token):
-                await readAccount(token: token)
+                if let connect {
+                    await connectVault(token: token, connect: connect)
+                } else {
+                    await readAccount(token: token)
+                }
                 return
             case .failed(let message):
                 stage = .failed(message)
@@ -72,6 +80,18 @@ final class GitHubSignInFlow {
         do {
             let account = try await offMainThread { try githubAccount(transport: transport, token: token) }
             stage = .repositories(account, token: token)
+        } catch {
+            stage = .failed(error.shownMessage)
+        }
+    }
+
+    private func connectVault(token: String, connect: (String) throws -> Void) async {
+        stage = .working("Signing in")
+        let transport = transport
+        do {
+            let account = try await offMainThread { try githubAccount(transport: transport, token: token) }
+            try connect(token)
+            stage = .connected(login: account.login)
         } catch {
             stage = .failed(error.shownMessage)
         }
