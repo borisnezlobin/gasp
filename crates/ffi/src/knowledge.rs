@@ -117,7 +117,6 @@ impl VaultFolder {
         };
         results
             .into_iter()
-            .filter(|result| !is_encrypted_result(result, &notes))
             .map(|result| self.search_result(result, &notes))
             .collect()
     }
@@ -143,14 +142,6 @@ impl VaultFolder {
                 .collect(),
         }
     }
-}
-
-/// Whether a result is in an encrypted note, whose text on disk is only
-/// sealed letters and never worth showing.
-fn is_encrypted_result(result: &NoteResult, notes: &[gasp_search::engine::Note]) -> bool {
-    notes
-        .binary_search_by(|note| note.path.cmp(&result.path))
-        .is_ok_and(|at| gasp_crypt::is_encrypted(&notes[at].text))
 }
 
 /// UTF-16 lengths counted forward through a note, as its hits come in

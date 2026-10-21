@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 use gasp_vault::attachments::{attachments_dir, embed, save_attachment};
 use gasp_vault::entries::EntryKind;
 use gasp_vault::knowledge::daily::ensure_daily_note;
-use gasp_vault::knowledge::templates::{TemplateContext, fill, list_templates, templates_folder};
+use gasp_vault::knowledge::templates::{
+    TemplateContext, fill, list_templates, read_template, templates_folder,
+};
 use gasp_vault::knowledge::{dates, links, note_title};
 use gasp_vault::ops::{self, slash_path, unique_name, validate_name};
 
@@ -182,7 +184,7 @@ impl VaultFolder {
     pub fn template_text(&self, name: String, note_path: String) -> Result<String, VaultError> {
         let settings = self.config().settings.templates.clone();
         let file = templates_folder(&self.root, &settings.folder).join(format!("{name}.md"));
-        let template = std::fs::read_to_string(file)?;
+        let template = read_template(&file)?;
         let context = TemplateContext {
             title: note_title(Path::new(&note_path)),
             now: dates::now(),

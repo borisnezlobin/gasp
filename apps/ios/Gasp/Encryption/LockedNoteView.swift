@@ -52,7 +52,14 @@ struct LockedNoteView: View {
             .padding(.horizontal, tokens.spacing.xl)
             .padding(.bottom, TabBarView.clearance)
         }
-        .onAppear { if !offersBiometry { fieldFocused = true } }
+        .onAppear { fieldFocused = takesFocusAtOnce }
+        .onChange(of: model.workspace.overviewOpen) { _, open in if open { fieldFocused = false } }
+    }
+
+    /// The field takes the cursor when the page shows, unless Face ID can
+    /// unlock instead or something sits over the page.
+    private var takesFocusAtOnce: Bool {
+        !offersBiometry && !model.workspace.overviewOpen && !model.workspace.sidebarOpen
     }
 
     private var heading: some View {

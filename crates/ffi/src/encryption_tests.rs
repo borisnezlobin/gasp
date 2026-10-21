@@ -218,7 +218,7 @@ fn moving_a_folder_keeps_its_notes_unlocked() {
 }
 
 #[test]
-fn search_skips_encrypted_notes() {
+fn search_finds_encrypted_notes_by_name_only() {
     let (_dir, vault) = vault_with_password(&[("Map.md", SECRET), ("Open.md", "kelp in the open")]);
     vault
         .encrypt_note("Map.md".into(), SECRET.into(), None)
@@ -229,6 +229,12 @@ fn search_skips_encrypted_notes() {
         .map(|result| result.note.path)
         .collect();
     assert_eq!(found, ["Open.md"]);
+    let by_name: Vec<String> = vault
+        .search("map".into())
+        .into_iter()
+        .map(|result| result.note.path)
+        .collect();
+    assert_eq!(by_name, ["Map.md"]);
 }
 
 #[test]
@@ -245,4 +251,17 @@ fn changing_the_vault_password_counts_its_notes() {
     );
     vault.lock_encrypted_notes();
     assert!(vault.unlock_note("A.md".into(), "new".into()).is_ok());
+}
+
+#[test]
+fn an_encrypted_template_is_refused_rather_than_pasted() {
+    let (_dir, vault) = vault_with_password(&[("Templates/Secret.md", SECRET), ("Note.md", "")]);
+    vault
+        .encrypt_note("Templates/Secret.md".into(), SECRET.into(), None)
+        .unwrap();
+    assert!(
+        vault
+            .template_text("Secret".into(), "Note.md".into())
+            .is_err()
+    );
 }
