@@ -8,9 +8,11 @@ publish = false
 
 [dependencies]
 gasp-config = { path = "../config" }
+gasp-crypt = { path = "../crypt" }
 dirs = "5"
 jiff = "0.2"
 memchr = "2.7"
+thiserror = "2"
 
 [target.'cfg(not(target_os = "ios"))'.dependencies]
 trash = "5"

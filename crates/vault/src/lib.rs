@@ -9,6 +9,7 @@
 
 pub mod attachments;
 pub mod build;
+pub mod encryption;
 pub mod entries;
 pub mod files;
 pub mod index;
