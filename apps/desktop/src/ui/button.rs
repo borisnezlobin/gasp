@@ -4,7 +4,9 @@
 
 use std::rc::Rc;
 
-use gpui::{App, ClickEvent, ElementId, MouseButton, SharedString, Window, div, prelude::*};
+use gpui::{
+    AnyElement, App, ClickEvent, ElementId, MouseButton, SharedString, Window, div, prelude::*,
+};
 
 use crate::ui::Selectable;
 
@@ -31,6 +33,8 @@ pub struct Button {
     kind: ButtonKind,
     focused: bool,
     disabled: bool,
+    /// What the button says while its action runs, and whether it runs.
+    working: Option<(SharedString, bool)>,
     on_click: Option<ClickHandler>,
 }
 
@@ -43,6 +47,7 @@ impl Button {
             kind: ButtonKind::default(),
             focused: false,
             disabled: false,
+            working: None,
             on_click: None,
         }
     }
@@ -72,6 +77,18 @@ impl Button {
         self
     }
 
+    /// Says `label` in place of its own while `active`, ignoring clicks.
+    /// It's always as wide as the longer label, so nothing moves when the
+    /// action starts or ends.
+    pub fn working(mut self, label: impl Into<SharedString>, active: bool) -> Button {
+        self.working = Some((label.into(), active));
+        self
+    }
+
+    fn is_working(&self) -> bool {
+        self.working.as_ref().is_some_and(|(_, active)| *active)
+    }
+
     pub fn on_click(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
@@ -82,7 +99,7 @@ impl Button {
 }
 
 impl RenderOnce for Button {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let ui = ui_theme(cx);
         let (background, text, hover) = match self.kind {
             ButtonKind::Primary => (Some(ui.accent), ui.on_accent, ui.accent.opacity(0.85)),
@@ -93,8 +110,10 @@ impl RenderOnce for Button {
             ),
             ButtonKind::Quiet => (None, ui.text, ui.control_hover),
         };
-        let handler = self.on_click.filter(|_| !self.disabled);
+        let working = self.is_working();
+        let handler = self.on_click.take().filter(|_| !self.disabled && !working);
         let label = self.label.to_string();
+        let shown_labels = self.shown_labels();
         div()
             .id(self.id)
             .selector(move || format!("button-{label}"))
@@ -112,7 +131,7 @@ impl RenderOnce for Button {
                 button.shadow(vec![ui.focus()])
             })
             .when(self.disabled, |button| button.opacity(0.4))
-            .when(!self.disabled, |button| {
+            .when(!self.disabled && !working, |button| {
                 button.hover(move |style| style.bg(hover))
             })
             .when_some(handler, |button, handler| {
@@ -123,7 +142,28 @@ impl RenderOnce for Button {
                         handler(event, window, cx)
                     })
             })
-            .child(self.label)
+            .child(shown_labels)
+    }
+}
+
+impl Button {
+    /// The label in effect, stacked over the other one at no height, so
+    /// the button keeps the wider label's width in either state.
+    fn shown_labels(&self) -> AnyElement {
+        let Some((working_label, active)) = self.working.clone() else {
+            return self.label.clone().into_any_element();
+        };
+        let (shown, held) = match active {
+            true => (working_label, self.label.clone()),
+            false => (self.label.clone(), working_label),
+        };
+        div()
+            .flex()
+            .flex_col()
+            .items_center()
+            .child(shown)
+            .child(div().h_0().overflow_hidden().opacity(0.).child(held))
+            .into_any_element()
     }
 }
 
