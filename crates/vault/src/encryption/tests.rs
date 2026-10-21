@@ -301,3 +301,26 @@ fn a_new_note_password_keeps_the_notes_key_and_title() {
     assert_eq!(encryption.claude_key("Plans.md").unwrap().0, before);
     assert_eq!(encryption.title("Plans.md"), Some("Plans"));
 }
+
+#[test]
+fn a_hidden_name_note_takes_a_new_title_without_a_new_file_name() {
+    let (_dir, mut encryption) = with_password("vault");
+    let options = NoteOptions {
+        claude: ClaudeAccess::Never,
+        name: NameVisibility::Hidden,
+    };
+    let stand_in = hidden_file_name();
+    encryption
+        .encrypt(&stand_in, "body", options, None)
+        .unwrap();
+    encryption.set_title(&stand_in, "Renamed plans").unwrap();
+    let file = encryption.seal(&stand_in, "body").unwrap();
+    assert!(!file.contains("Renamed plans"));
+    encryption.lock_all();
+    assert_eq!(
+        encryption.set_title(&stand_in, "Again"),
+        Err(EncryptionError::VaultLocked)
+    );
+    encryption.unlock_note(&stand_in, &file, "vault").unwrap();
+    assert_eq!(encryption.title(&stand_in), Some("Renamed plans"));
+}
