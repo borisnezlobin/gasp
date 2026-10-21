@@ -257,3 +257,4 @@ Copy and layout
 - [x] Build folders must never reach 80 GB again. *(Cleaned to 2.7 GB; 15 GB cap enforced by hooks after every turn and agent; rules in CLAUDE.md and memory.)*
 - [ ] SEO: "Gasp vs Obsidian" style comparison pages that answer "it depends" honestly while showing Gasp at its best (privacy, speed, free sync, AI agents), plus feature pages and a place that links them all.
 - [ ] Put "Obsidian-compatible" more prominently on the site.
+- [x] Importing from Obsidian must bring over Latex Suite snippets, Smart Typography and Symbols Prettifier from a real vault, which keeps them in `.obsidian/plugins/<id>/data.json`. *(The importer read flattened `plugins/<id>.json` files that only the test fixtures had; it now reads the real layout.)*

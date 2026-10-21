@@ -23,11 +23,11 @@ pub fn migrate(
     let mut entries = Vec::new();
     let mut notes = Vec::new();
     if let Some(text) = smart_typography {
-        let settings = parse_json(text, "obsidian-smart-typography.json")?;
+        let settings = parse_json(text, "Smart Typography's data.json")?;
         entries.extend(smart_typography_entries(&settings));
     }
     if let Some(text) = prettifier {
-        let settings = parse_json(text, "enhanced-symbols-prettifier.json")?;
+        let settings = parse_json(text, "Symbols Prettifier's data.json")?;
         entries.extend(prettifier_entries(&settings, &mut notes));
     }
     let table = Replacements::new(entries);

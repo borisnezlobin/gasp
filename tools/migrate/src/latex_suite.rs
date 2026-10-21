@@ -81,14 +81,14 @@ impl LatexSuiteMigration {
     }
 }
 
-/// Migrates the contents of `plugins/obsidian-latex-suite.json`.
+/// Migrates the contents of `plugins/obsidian-latex-suite/data.json`.
 pub fn migrate(settings_json: &str) -> Result<LatexSuiteMigration, String> {
     let settings: serde_json::Value = serde_json::from_str(settings_json)
-        .map_err(|error| format!("obsidian-latex-suite.json isn't valid JSON: {error}"))?;
+        .map_err(|error| format!("Latex Suite's data.json isn't valid JSON: {error}"))?;
     let source = settings
         .get("snippets")
         .and_then(|value| value.as_str())
-        .ok_or("obsidian-latex-suite.json has no `snippets` text")?;
+        .ok_or("Latex Suite's data.json has no `snippets` text")?;
     let variables = snippet_variables(&settings);
     let parsed = js::parse(source).map_err(|error| format!("Latex Suite snippets, {error}"))?;
     let JsValue::Array(items) = parsed.value else {
