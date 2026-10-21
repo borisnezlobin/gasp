@@ -320,11 +320,17 @@ impl Encryption {
         self.open_notes.contains_key(path)
     }
 
-    /// Keeps a note's keys with it when it's renamed or moved.
+    /// Keeps a note's keys with it when it's renamed or moved. While its
+    /// name shows, the new name is also the title sealed inside, so hiding
+    /// the name later keeps the name it had then.
     pub fn rename(&mut self, from: &str, to: &str) {
-        if let Some(note) = self.open_notes.remove(from) {
-            self.open_notes.insert(to.to_owned(), note);
+        let Some(mut note) = self.open_notes.remove(from) else {
+            return;
+        };
+        if note.options.name == gasp_crypt::NameVisibility::Shown {
+            note.title = Some(note_title(to));
         }
+        self.open_notes.insert(to.to_owned(), note);
     }
 
     fn key_for(&self, path: &str, header: &Header) -> Option<Key> {

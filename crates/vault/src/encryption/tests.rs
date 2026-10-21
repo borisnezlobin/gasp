@@ -191,3 +191,13 @@ fn options_change_from_the_next_save() {
     let saved = encryption.seal("A.md", "a").unwrap();
     assert_eq!(gasp_crypt::peek(&saved).unwrap().options, options);
 }
+
+#[test]
+fn renaming_a_shown_note_changes_the_title_it_keeps() {
+    let (_dir, mut encryption) = with_password("vault");
+    encryption
+        .encrypt("Draft.md", "body", NoteOptions::default(), None)
+        .unwrap();
+    encryption.rename("Draft.md", "Folder/Final plan.md");
+    assert_eq!(encryption.title("Folder/Final plan.md"), Some("Final plan"));
+}
