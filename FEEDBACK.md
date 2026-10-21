@@ -247,3 +247,5 @@ Copy and layout
 - [x] Mac: an Insert menu in the menu bar with images, tables, bold, horizontal rule and the like. iPhone: the image button offers Photo library or Files.
 - [x] Site: on Linux gaspmd.com still says Download for Mac, and /download just downloads the DMG instead of being a page. *(Deployed 2026-10-11 with 0.2.5.)*
 - [x] iPhone TestFlight: no Sign in with GitHub, it still asks for a token. Signing in and granting access to the private repo is the better path. *(A vault that already syncs now offers Sign in with GitHub in Settings → Sync once signed out; the token sits behind "Use a token instead".)*
+- [ ] Multiple vaults: can Gasp handle several easily?
+- [ ] Encrypted notes inside a vault: per-vault password (overridable per note), unlocks only in the app, blurs when focus is lost, re-locks after 120 s away (configurable), optional Face ID / Touch ID unlock.

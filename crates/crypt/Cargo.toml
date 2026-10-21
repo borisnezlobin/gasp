@@ -1,0 +1,23 @@
+[package]
+name = "gasp-crypt"
+description = "Encrypted notes: the file format, keys from passwords, sealing and opening a note's text."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+argon2 = { version = "0.5", default-features = false, features = ["alloc"] }
+base64 = "0.22"
+chacha20poly1305 = { version = "0.10", features = ["std"] }
+getrandom = "0.2"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+toml = "0.8"
+zeroize = { version = "1", features = ["zeroize_derive"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true
