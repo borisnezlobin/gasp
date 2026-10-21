@@ -7,6 +7,8 @@ import Security
 /// and stop working when the enrolled faces or fingers change.
 enum KeptKeys {
     private static let service = "Gasp encryption"
+    /// Keychain writes, in order and off the main thread.
+    private static let writes = DispatchQueue(label: "com.borisnezlobin.gasp.kept-keys", qos: .userInitiated)
 
     /// Whether this iPhone can unlock with Face ID or Touch ID now.
     static var biometryAvailable: Bool {
@@ -24,19 +26,22 @@ enum KeptKeys {
         biometryName == "Touch ID" ? "touchid" : "faceid"
     }
 
-    /// Keeps `key`, replacing one kept under the same id.
+    /// Keeps `key`, replacing one kept under the same id, off the main thread.
     static func keep(_ key: KeptKey) {
-        guard let access = SecAccessControlCreateWithFlags(
-            nil, kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly, .biometryCurrentSet, nil
-        ) else { return }
-        forget(id: key.id)
-        var item = query(id: key.id)
-        item[kSecValueData as String] = Data(key.bytes)
-        item[kSecAttrAccessControl as String] = access
-        SecItemAdd(item as CFDictionary, nil)
+        writes.async {
+            guard let access = SecAccessControlCreateWithFlags(
+                nil, kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly, .biometryCurrentSet, nil
+            ) else { return }
+            SecItemDelete(query(id: key.id) as CFDictionary)
+            var item = query(id: key.id)
+            item[kSecValueData as String] = Data(key.bytes)
+            item[kSecAttrAccessControl as String] = access
+            SecItemAdd(item as CFDictionary, nil)
+        }
     }
 
-    /// Whether a key is kept under `id`, asked without showing Face ID.
+    /// Whether a key is kept under `id`, asked without showing Face ID,
+    /// so it answers at once and never waits on the person.
     static func has(id: String) -> Bool {
         let context = LAContext()
         context.interactionNotAllowed = true
@@ -47,10 +52,11 @@ enum KeptKeys {
     }
 
     /// The key kept under `id`, once Face ID or Touch ID agrees. Nil when
-    /// the person cancels or there's none.
+    /// the person cancels or there's none. Asking blocks its thread while
+    /// Face ID shows, so it runs after any waiting write, off the main thread.
     static func read(id: String, reason: String) async -> Data? {
         await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
+            writes.async {
                 let context = LAContext()
                 context.localizedReason = reason
                 var lookup = query(id: id)
@@ -64,7 +70,7 @@ enum KeptKeys {
     }
 
     static func forget(id: String) {
-        SecItemDelete(query(id: id) as CFDictionary)
+        writes.async { SecItemDelete(query(id: id) as CFDictionary) }
     }
 
     private static func query(id: String) -> [String: Any] {

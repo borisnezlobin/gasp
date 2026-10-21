@@ -10,9 +10,14 @@ struct VaultPasswordSheet: View {
     @State private var confirmation = ""
     @State private var problem: String?
     @State private var working = false
+    @State private var showing = false
 
     private var tokens: Tokens { model.library.tokens }
     private var creating: Bool { model.library.vault?.encryptionState().hasVaultPassword != true }
+
+    private var workingTitle: String {
+        creating ? "Setting password…" : "Unlocking…"
+    }
 
     private var actionTitle: String {
         switch (creating, followUp) {
@@ -42,23 +47,27 @@ struct VaultPasswordSheet: View {
                     )
                 }
                 Section {
-                    SheetActionButton(title: actionTitle, busy: working, tokens: tokens, action: submit)
-                        .disabled(password.isEmpty || working)
+                    SheetActionButton(
+                        title: actionTitle, busyTitle: workingTitle, busy: working, tokens: tokens, action: submit
+                    )
+                    .disabled(password.isEmpty || working)
                 }
             }
             .textCase(nil)
             .navigationTitle(creating ? "Set a vault password" : "Unlock the vault")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(working) }
             }
         }
         .font(Font(tokens.uiFont(size: tokens.bodySize)))
         .interactiveDismissDisabled(working)
+        .onAppear { showing = true }
+        .onDisappear { showing = false }
     }
 
     private func submit() {
-        guard let vault = model.library.vault, !password.isEmpty else { return }
+        guard let vault = model.library.vault, !password.isEmpty, !working else { return }
         if creating && password != confirmation {
             problem = "The two passwords don't match."
             return
@@ -66,21 +75,22 @@ struct VaultPasswordSheet: View {
         working = true
         problem = nil
         let (password, creating) = (password, creating)
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result = Result {
+        Task { @MainActor in
+            let result = await Result.offMain {
                 creating ? try vault.setVaultPassword(password: password) : try vault.unlockVault(password: password)
             }
-            DispatchQueue.main.async { finish(result) }
+            working = false
+            finish(result)
         }
     }
 
+    /// Keeps the vault's key behind Face ID once it's in hand, then carries
+    /// on with what the sheet was opened for, unless it was closed meanwhile.
     private func finish(_ result: Result<Void, Error>) {
-        working = false
         switch result {
         case .success:
-            if EncryptionPreferences(vault: model.library.vault).keepsKeys, let key = model.library.vault?.vaultKey() {
-                KeptKeys.keep(key)
-            }
+            keepVaultKey(model.library.vault)
+            guard showing else { return }
             dismiss()
             model.runner.followUp(followUp)
         case .failure(let error):
@@ -99,6 +109,7 @@ struct ChangeVaultPasswordSheet: View {
     @State private var confirmation = ""
     @State private var problem: String?
     @State private var working = false
+    @State private var showing = false
 
     private var tokens: Tokens { model.library.tokens }
 
@@ -119,23 +130,28 @@ struct ChangeVaultPasswordSheet: View {
                     )
                 }
                 Section {
-                    SheetActionButton(title: "Change password", busy: working, tokens: tokens, action: submit)
-                        .disabled(current.isEmpty || password.isEmpty || working)
+                    SheetActionButton(
+                        title: "Change password", busyTitle: "Changing password…", busy: working,
+                        tokens: tokens, action: submit
+                    )
+                    .disabled(current.isEmpty || password.isEmpty || working)
                 }
             }
             .textCase(nil)
             .navigationTitle("Change vault password")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(working) }
             }
         }
         .font(Font(tokens.uiFont(size: tokens.bodySize)))
         .interactiveDismissDisabled(working)
+        .onAppear { showing = true }
+        .onDisappear { showing = false }
     }
 
     private func submit() {
-        guard let vault = model.library.vault else { return }
+        guard let vault = model.library.vault, !working else { return }
         guard password == confirmation else {
             problem = "The two new passwords don't match."
             return
@@ -144,23 +160,23 @@ struct ChangeVaultPasswordSheet: View {
         problem = nil
         let oldKeyID = vault.vaultKey()?.id
         let (current, password) = (current, password)
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result = Result { try vault.changeVaultPassword(old: current, new: password) }
-            DispatchQueue.main.async { finish(result, replacing: oldKeyID) }
+        Task { @MainActor in
+            let result = await Result.offMain { try vault.changeVaultPassword(old: current, new: password) }
+            working = false
+            finish(result, replacing: oldKeyID)
         }
     }
 
+    /// Swaps the key kept behind Face ID and says how many notes changed.
+    /// Open notes saved while it ran are already sealed again with the new key.
     private func finish(_ result: Result<UInt32, Error>, replacing oldKeyID: String?) {
-        working = false
         switch result {
         case .success(let count):
             if let oldKeyID { KeptKeys.forget(id: oldKeyID) }
-            if EncryptionPreferences(vault: model.library.vault).keepsKeys, let key = model.library.vault?.vaultKey() {
-                KeptKeys.keep(key)
-            }
+            keepVaultKey(model.library.vault)
             model.library.edited()
             model.workspace.tell(count == 1 ? "Password changed for 1 note." : "Password changed for \(count) notes.")
-            dismiss()
+            if showing { dismiss() }
         case .failure(let error):
             problem = error.shownMessage
         }
@@ -181,6 +197,7 @@ struct NoteOptionsSheet: View {
     @State private var password = ""
     @State private var confirmation = ""
     @State private var problem: String?
+    @State private var settingPassword = false
 
     init(path: String) {
         _path = State(initialValue: path)
@@ -226,8 +243,11 @@ struct NoteOptionsSheet: View {
         Section {
             if choosingPassword {
                 NewPasswordFields(password: $password, confirmation: $confirmation, prompt: "Note password")
-                Button("Set note password", action: setOwnPassword)
-                    .disabled(password.isEmpty)
+                SheetActionButton(
+                    title: "Set note password", busyTitle: "Setting password…", busy: settingPassword,
+                    bold: false, tokens: tokens, action: setOwnPassword
+                )
+                .disabled(password.isEmpty || settingPassword)
             } else {
                 Button(hasOwnPassword ? "Change its password" : "Give it its own password") {
                     choosingPassword = true
@@ -263,18 +283,20 @@ struct NoteOptionsSheet: View {
     }
 
     private func setOwnPassword() {
+        guard !settingPassword else { return }
         guard password == confirmation else {
             problem = "The two passwords don't match."
             return
         }
         problem = nil
-        model.runner.setNotePassword(password, for: path) { _ in
+        settingPassword = true
+        model.runner.setNotePassword(password, for: path, whenDone: { settingPassword = false }, done: { _ in
             hasOwnPassword = true
             choosingPassword = false
             password = ""
             confirmation = ""
             model.workspace.tell("The note has its own password now.")
-        }
+        })
     }
 
     private func useVaultPassword() {
@@ -320,21 +342,49 @@ private struct SheetFooter: View {
     }
 }
 
-/// A sheet's main action, filling its row, with a spinner while it runs.
+/// A sheet's action, filling its row. While it runs, a spinner and the
+/// busy title take the title's place, and the row keeps its size.
 private struct SheetActionButton: View {
     let title: String
+    let busyTitle: String
     let busy: Bool
+    var bold = true
     let tokens: Tokens
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: tokens.spacing.md) {
-                if busy { ProgressView() }
+            ZStack {
                 Text(title)
-                    .font(Font(tokens.uiFont(size: tokens.bodySize, bold: true)))
+                    .opacity(busy ? 0 : 1)
+                    .accessibilityHidden(busy)
+                HStack(spacing: tokens.spacing.md) {
+                    ProgressView()
+                    Text(busyTitle)
+                }
+                .opacity(busy ? 1 : 0)
+                .accessibilityHidden(!busy)
             }
+            .font(Font(tokens.uiFont(size: tokens.bodySize, bold: bold)))
             .frame(maxWidth: .infinity, minHeight: 44)
+        }
+    }
+}
+
+/// Keeps the vault's key behind Face ID, when the vault's settings ask
+/// for it.
+private func keepVaultKey(_ vault: VaultFolder?) {
+    guard EncryptionPreferences(vault: vault).keepsKeys, let key = vault?.vaultKey() else { return }
+    KeptKeys.keep(key)
+}
+
+extension Result where Failure == Error {
+    /// What `work` answers or throws, run off the main thread.
+    static func offMain(_ work: @escaping () throws -> Success) async -> Result<Success, Error> {
+        do {
+            return .success(try await offMainThread(work))
+        } catch {
+            return .failure(error)
         }
     }
 }

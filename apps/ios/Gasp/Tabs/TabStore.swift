@@ -41,6 +41,9 @@ final class TabStore {
     /// Set while encrypted notes are being locked, so their pages show
     /// locked before the lock lands on disk.
     @ObservationIgnored private var locking = false
+    /// Counts every lock, so an unlock that finishes after one can tell
+    /// it came too late.
+    @ObservationIgnored private(set) var locks = 0
     /// The locked notes tabs show, so a page asks the disk only once.
     @ObservationIgnored private var lockedPages: [UUID: (path: String, note: LockedNote)] = [:]
 
@@ -99,8 +102,7 @@ final class TabStore {
 
     func title(of tab: BrowserTab) -> String {
         guard let path = tab.path else { return "New tab" }
-        return library.notes.first { $0.path == path }?.title
-            ?? URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+        return library.title(of: path)
     }
 
     // MARK: Opening
@@ -271,6 +273,7 @@ final class TabStore {
     /// from now on, and answers the text of those with edits not yet saved.
     func takeEncryptedSessions() -> [(path: String, text: String)] {
         locking = true
+        locks += 1
         let encrypted = sessions.filter { _, session in session.isEncrypted }
         var unsaved: [(path: String, text: String)] = []
         for (id, session) in encrypted {

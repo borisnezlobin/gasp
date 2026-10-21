@@ -419,9 +419,8 @@ impl Encryption {
         self.open_notes.get(path)?.title.as_deref()
     }
 
-    /// Gives the unlocked note at `path` a new sealed title, from its next
-    /// save: renaming a note whose file name is hidden, without touching
-    /// its file's stand-in name.
+    /// Renames the unlocked note at `path` inside its seal, from its next
+    /// save. Its file keeps its name, which is a stand-in when it's hidden.
     pub fn set_title(&mut self, path: &str, title: &str) -> Result<(), EncryptionError> {
         let note = self
             .open_notes

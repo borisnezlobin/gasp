@@ -265,3 +265,132 @@ fn an_encrypted_template_is_refused_rather_than_pasted() {
             .is_err()
     );
 }
+
+/// A vault whose keys take as long to make as the app's do.
+fn vault_with_slow_keys(notes: &[(&str, &str)]) -> (tempfile::TempDir, Arc<VaultFolder>) {
+    let (dir, vault) = vault_with(notes);
+    *vault.encryption() = Encryption::load_with(dir.path(), KdfParams::STANDARD);
+    vault.set_vault_password(PASSWORD.into()).unwrap();
+    (dir, vault)
+}
+
+#[test]
+fn saves_and_opens_carry_on_while_a_password_is_turned_into_a_key() {
+    let (dir, vault) = vault_with_slow_keys(&[("Map.md", SECRET), ("Open.md", "plain")]);
+    vault
+        .encrypt_note("Map.md".into(), SECRET.into(), None)
+        .unwrap();
+    vault.lock_encrypted_notes();
+    let unlocked = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let (started, has_started) = std::sync::mpsc::channel();
+    let unlocking = {
+        let (vault, unlocked) = (Arc::clone(&vault), Arc::clone(&unlocked));
+        std::thread::spawn(move || {
+            started.send(()).unwrap();
+            vault.unlock_note("Map.md".into(), PASSWORD.into()).unwrap();
+            unlocked.store(true, std::sync::atomic::Ordering::SeqCst);
+        })
+    };
+    has_started.recv().unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    vault.save_note("Open.md".into(), "saved".into()).unwrap();
+    assert!(matches!(
+        vault.open_note("Map.md".into()).unwrap(),
+        OpenedNote::Locked { .. }
+    ));
+    assert!(!unlocked.load(std::sync::atomic::Ordering::SeqCst));
+    unlocking.join().unwrap();
+    assert_eq!(on_disk(&dir, "Open.md"), "saved");
+    assert!(vault.is_note_unlocked("Map.md".into()));
+}
+
+#[test]
+fn unlocking_and_saving_on_many_threads_never_deadlocks() {
+    let notes: Vec<(String, String)> = (0..4)
+        .map(|at| (format!("Note {at}.md"), SECRET.to_owned()))
+        .collect();
+    let borrowed: Vec<(&str, &str)> = notes
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    let (_dir, vault) = vault_with_password(&borrowed);
+    for (path, _) in &notes {
+        vault
+            .encrypt_note(path.clone(), SECRET.into(), None)
+            .unwrap();
+    }
+    vault.lock_encrypted_notes();
+    let workers: Vec<_> = notes
+        .iter()
+        .map(|(path, _)| {
+            let (vault, path) = (Arc::clone(&vault), path.clone());
+            std::thread::spawn(move || {
+                for _ in 0..10 {
+                    vault.unlock_note(path.clone(), PASSWORD.into()).unwrap();
+                    vault.save_note(path.clone(), SECRET.into()).unwrap();
+                    vault.open_note(path.clone()).unwrap();
+                }
+            })
+        })
+        .collect();
+    for worker in workers {
+        worker.join().unwrap();
+    }
+    assert!(vault.is_note_unlocked("Note 0.md".into()));
+}
+
+#[test]
+fn a_save_while_the_vault_password_changes_is_sealed_with_the_new_key() {
+    let (dir, vault) = vault_with_password(&[("Map.md", SECRET)]);
+    vault
+        .encrypt_note("Map.md".into(), SECRET.into(), None)
+        .unwrap();
+    let old_sealing = on_disk(&dir, "Map.md");
+    let job = vault
+        .encryption()
+        .password_change_job(PASSWORD, "new")
+        .unwrap();
+    let changed = job.run().unwrap();
+    std::fs::write(dir.path().join("Map.md"), &old_sealing).unwrap();
+    {
+        let mut encryption = vault.encryption();
+        for path in encryption.finish_password_change(changed) {
+            vault.reseal_with_new_key(&encryption, &path).unwrap();
+        }
+    }
+    vault.lock_encrypted_notes();
+    assert_eq!(
+        vault.unlock_note("Map.md".into(), "new".into()).unwrap(),
+        SECRET
+    );
+}
+
+#[test]
+fn renaming_a_hidden_name_note_changes_its_sealed_title_only() {
+    let (dir, vault) = vault_with_password(&[("Taxes.md", SECRET)]);
+    hide_new_names(&dir, &vault);
+    let path = vault
+        .encrypt_note("Taxes.md".into(), SECRET.into(), None)
+        .unwrap();
+    let renamed = vault
+        .rename_note(path.clone(), "Taxes 2026".into())
+        .unwrap();
+    assert_eq!(renamed, path);
+    vault.lock_encrypted_notes();
+    assert!(matches!(
+        vault.rename_note(path.clone(), "Peek".into()),
+        Err(VaultError::Refused { .. })
+    ));
+    vault.unlock_note(path.clone(), PASSWORD.into()).unwrap();
+    assert_eq!(
+        vault.encrypted_note_options(path.clone()).unwrap().title,
+        "Taxes 2026"
+    );
+    assert_eq!(vault.notes()[0].title, "Taxes 2026");
+    assert_eq!(
+        vault.open_note(path).unwrap(),
+        OpenedNote::Unlocked {
+            text: SECRET.into()
+        }
+    );
+}

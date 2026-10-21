@@ -75,6 +75,24 @@ final class VaultLibrary {
         folders = vault?.folders() ?? []
     }
 
+    /// As `refresh`, listing the notes off the main thread: after notes
+    /// unlock or lock, when every hidden name may change.
+    func refreshOffMain() {
+        guard let vault else { return }
+        Task { @MainActor in
+            guard let (notes, folders) = try? await offMainThread({ (vault.notes(), vault.folders()) }),
+                  self.vault === vault else { return }
+            self.notes = notes
+            self.folders = folders
+        }
+    }
+
+    /// The name a note shows: its file's, or for a note whose file has a
+    /// stand-in name, its own once it's unlocked and "Locked note" until then.
+    func title(of path: String) -> String {
+        notes.first { $0.path == path }?.title ?? EditingController.title(of: path)
+    }
+
     /// Lists the notes again after this phone changed the vault, and tells sync.
     func edited() {
         refresh()

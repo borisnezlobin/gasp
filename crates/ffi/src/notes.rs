@@ -66,22 +66,10 @@ impl VaultFolder {
     pub fn rename_note(&self, path: String, title: String) -> Result<String, VaultError> {
         self.note_path(&path)?;
         validate_name(&title)?;
-        let from = PathBuf::from(&path);
-        let to = from.with_file_name(format!("{}.md", title.trim()));
-        let update_links = self.config().settings.files.update_links_on_rename;
-        let renamed = ops::rename(&self.root, &from, &to, update_links)?;
-        if let Some(store) = self.snapshot_store() {
-            store.moved(&renamed.from, &renamed.to).ok();
+        if self.retitle_hidden_name_note(&path, title.trim())? {
+            return Ok(path);
         }
-        let (from, to) = (slash_path(&renamed.from), slash_path(&renamed.to));
-        let rewritten: Vec<String> = renamed
-            .updated_notes
-            .iter()
-            .map(|note| slash_path(note))
-            .collect();
-        self.follow_encrypted_notes(&from, &to);
-        self.reindex_move(&from, &to, &rewritten);
-        Ok(to)
+        self.rename_note_file(path, title)
     }
 
     /// Moves a note into `folder` (`""` is the vault's top), keeping its
@@ -252,6 +240,31 @@ impl VaultFolder {
 }
 
 impl VaultFolder {
+    /// Renames the note's file to `title`, following links, snapshots and
+    /// keys along. Hidden-name notes get their stand-in names this way.
+    pub(crate) fn rename_note_file(
+        &self,
+        path: String,
+        title: String,
+    ) -> Result<String, VaultError> {
+        let from = PathBuf::from(&path);
+        let to = from.with_file_name(format!("{}.md", title.trim()));
+        let update_links = self.config().settings.files.update_links_on_rename;
+        let renamed = ops::rename(&self.root, &from, &to, update_links)?;
+        if let Some(store) = self.snapshot_store() {
+            store.moved(&renamed.from, &renamed.to).ok();
+        }
+        let (from, to) = (slash_path(&renamed.from), slash_path(&renamed.to));
+        let rewritten: Vec<String> = renamed
+            .updated_notes
+            .iter()
+            .map(|note| slash_path(note))
+            .collect();
+        self.follow_encrypted_notes(&from, &to);
+        self.reindex_move(&from, &to, &rewritten);
+        Ok(to)
+    }
+
     pub(crate) fn relative(&self, path: &Path) -> String {
         slash_path(path.strip_prefix(&self.root).unwrap_or(path))
     }

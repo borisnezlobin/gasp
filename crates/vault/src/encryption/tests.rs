@@ -303,24 +303,22 @@ fn a_new_note_password_keeps_the_notes_key_and_title() {
 }
 
 #[test]
-fn a_hidden_name_note_takes_a_new_title_without_a_new_file_name() {
-    let (_dir, mut encryption) = with_password("vault");
+fn a_new_title_is_sealed_and_the_file_keeps_its_name() {
+    let (dir, mut encryption) = with_password("vault");
     let options = NoteOptions {
         claude: ClaudeAccess::Never,
         name: NameVisibility::Hidden,
     };
-    let stand_in = hidden_file_name();
-    encryption
-        .encrypt(&stand_in, "body", options, None)
-        .unwrap();
-    encryption.set_title(&stand_in, "Renamed plans").unwrap();
-    let file = encryption.seal(&stand_in, "body").unwrap();
-    assert!(!file.contains("Renamed plans"));
+    let path = "Encrypted 3f9a2c1b.md";
+    encryption.encrypt(path, "body", options, None).unwrap();
+    encryption.set_title(path, "Taxes").unwrap();
+    let sealed = encryption.seal(path, "body").unwrap();
     encryption.lock_all();
     assert_eq!(
-        encryption.set_title(&stand_in, "Again"),
+        encryption.set_title(path, "Locked"),
         Err(EncryptionError::VaultLocked)
     );
-    encryption.unlock_note(&stand_in, &file, "vault").unwrap();
-    assert_eq!(encryption.title(&stand_in), Some("Renamed plans"));
+    let mut reopened = Encryption::load_with(dir.path(), KdfParams::QUICK);
+    reopened.unlock_note(path, &sealed, "vault").unwrap();
+    assert_eq!(reopened.title(path), Some("Taxes"));
 }

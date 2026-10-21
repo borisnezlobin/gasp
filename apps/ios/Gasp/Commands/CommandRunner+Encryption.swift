@@ -116,14 +116,21 @@ extension CommandRunner {
     }
 
     /// Gives the note at `path` its own password, or with nil the vault's.
-    func setNotePassword(_ password: String?, for path: String, done: @escaping (String) -> Void) {
-        guard let session = openSession(for: path) else { return }
+    /// `whenDone` runs once it has finished or failed.
+    func setNotePassword(
+        _ password: String?, for path: String, whenDone: @escaping () -> Void = {},
+        done: @escaping (String) -> Void
+    ) {
+        guard let session = openSession(for: path) else {
+            whenDone()
+            return
+        }
         let keepsKeys = EncryptionPreferences(vault: library.vault).keepsKeys
         changeEncryption(of: session) { vault, path, text in
             try vault.setNotePassword(path: path, text: text, password: password)
             if keepsKeys, let key = vault.noteKey(path: path) { KeptKeys.keep(key) }
             return path
-        } then: { done($0) }
+        } then: { done($0) } whenDone: { whenDone() }
     }
 
     /// Runs `change` on the session's note once its waiting saves are
@@ -132,9 +139,10 @@ extension CommandRunner {
     private func changeEncryption(
         of session: EditingController,
         _ change: @escaping (VaultFolder, String, String) throws -> String,
-        then finish: @escaping (String) -> Void
+        then finish: @escaping (String) -> Void,
+        whenDone: @escaping () -> Void = {}
     ) {
-        guard let vault = library.vault else { return }
+        guard let vault = library.vault else { return whenDone() }
         let (path, text) = (session.path, session.document.text())
         session.saveNow()
         let coordination = VaultFileCoordination.active
@@ -142,7 +150,10 @@ extension CommandRunner {
             let result = Result {
                 try VaultFileCoordination.write(path, with: coordination) { try change(vault, path, text) }
             }
-            DispatchQueue.main.async { self?.finishChange(result, from: path, session: session, then: finish) }
+            DispatchQueue.main.async {
+                whenDone()
+                self?.finishChange(result, from: path, session: session, then: finish)
+            }
         }
     }
 
@@ -179,7 +190,7 @@ extension CommandRunner {
             vault.lockEncryptedNotes()
             DispatchQueue.main.async {
                 tabs.encryptedNotesLocked()
-                library.refresh()
+                library.refreshOffMain()
             }
         }
     }
@@ -188,6 +199,6 @@ extension CommandRunner {
     /// hidden until now show.
     func noteUnlocked() {
         tabs.noteUnlocked()
-        library.refresh()
+        library.refreshOffMain()
     }
 }
