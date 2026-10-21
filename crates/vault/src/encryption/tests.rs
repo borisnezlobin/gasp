@@ -301,3 +301,24 @@ fn a_new_note_password_keeps_the_notes_key_and_title() {
     assert_eq!(encryption.claude_key("Plans.md").unwrap().0, before);
     assert_eq!(encryption.title("Plans.md"), Some("Plans"));
 }
+
+#[test]
+fn a_new_title_is_sealed_and_the_file_keeps_its_name() {
+    let (dir, mut encryption) = with_password("vault");
+    let options = NoteOptions {
+        claude: ClaudeAccess::Never,
+        name: NameVisibility::Hidden,
+    };
+    let path = "Encrypted 3f9a2c1b.md";
+    encryption.encrypt(path, "body", options, None).unwrap();
+    encryption.set_title(path, "Taxes").unwrap();
+    let sealed = encryption.seal(path, "body").unwrap();
+    encryption.lock_all();
+    assert_eq!(
+        encryption.set_title(path, "Locked"),
+        Err(EncryptionError::VaultLocked)
+    );
+    let mut reopened = Encryption::load_with(dir.path(), KdfParams::QUICK);
+    reopened.unlock_note(path, &sealed, "vault").unwrap();
+    assert_eq!(reopened.title(path), Some("Taxes"));
+}

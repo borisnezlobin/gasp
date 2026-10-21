@@ -419,6 +419,17 @@ impl Encryption {
         self.open_notes.get(path)?.title.as_deref()
     }
 
+    /// Renames the unlocked note at `path` inside its seal, from its next
+    /// save. Its file keeps its name, which is a stand-in when it's hidden.
+    pub fn set_title(&mut self, path: &str, title: &str) -> Result<(), EncryptionError> {
+        let note = self
+            .open_notes
+            .get_mut(path)
+            .ok_or(EncryptionError::VaultLocked)?;
+        note.title = Some(title.to_owned());
+        Ok(())
+    }
+
     pub fn options(&self, path: &str) -> Option<NoteOptions> {
         self.open_notes.get(path).map(|note| note.options)
     }

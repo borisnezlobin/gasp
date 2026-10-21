@@ -8,7 +8,7 @@ use std::io::Read;
 use std::path::Path;
 use std::sync::MutexGuard;
 
-use gasp_crypt::{ClaudeAccess, CryptError, Key, NameVisibility, NoteOptions};
+use gasp_crypt::{ClaudeAccess, CryptError, Key, KeySource, NameVisibility, NoteOptions};
 use gasp_vault::encryption::{Encryption, EncryptionError, NoteText, hidden_file_name};
 use gasp_vault::files::atomic_write;
 use gasp_vault::link_update::{file_name, parent_dir};
@@ -109,10 +109,13 @@ impl VaultFolder {
     }
 
     /// Opens the encrypted note at `path` with its own password or the
-    /// vault's, and answers its plain text.
+    /// vault's, and answers its plain text. Making the key is slow, and
+    /// happens without holding the session, so saves carry on meanwhile.
     pub fn unlock_note(&self, path: String, password: String) -> Result<String, VaultError> {
         let raw = self.read_note(path.clone())?;
-        let plain = self.encryption().unlock_note(&path, &raw, &password)?;
+        let job = self.encryption().unlock_job(&raw, &password)?;
+        let key = job.run()?;
+        let plain = self.encryption().finish_unlock(&path, &raw, key)?;
         Ok(plain.body.clone())
     }
 
@@ -140,17 +143,33 @@ impl VaultFolder {
 
     /// Gives the vault its first password, and unlocks it.
     pub fn set_vault_password(&self, password: String) -> Result<(), VaultError> {
-        Ok(self.encryption().set_vault_password(&password)?)
+        let job = self.encryption().new_password_job(&password)?;
+        let (lock, key) = job.run_for_vault()?;
+        Ok(self.encryption().finish_first_password(lock, key)?)
     }
 
     pub fn unlock_vault(&self, password: String) -> Result<(), VaultError> {
-        Ok(self.encryption().unlock_vault(&password)?)
+        let job = self.encryption().vault_unlock_job(&password)?;
+        let key = job.run()?;
+        Ok(self.encryption().unlock_vault_with_key(key)?)
     }
 
-    /// A new vault password. Answers how many notes it rewrapped.
+    /// A new vault password. Answers how many notes it rewrapped. Open
+    /// notes saved while it ran are sealed again with the new key.
     pub fn change_vault_password(&self, old: String, new: String) -> Result<u32, VaultError> {
-        let changed = self.encryption().change_vault_password(&old, &new)?;
-        Ok(changed as u32)
+        let job = self.encryption().password_change_job(&old, &new)?;
+        let changed = job.run()?;
+        let count = changed.changed as u32;
+        let resave = {
+            let mut encryption = self.encryption();
+            let resave = encryption.finish_password_change(changed);
+            for path in &resave {
+                self.reseal_with_new_key(&encryption, path)?;
+            }
+            resave
+        };
+        self.reindex(&resave);
+        Ok(count)
     }
 
     /// Forgets every key, so every encrypted note needs unlocking again.
@@ -194,9 +213,10 @@ impl VaultFolder {
     ) -> Result<String, VaultError> {
         let full = self.note_path(&path)?;
         let options = self.new_note_options();
+        let own = self.note_password_key(own_password.as_deref())?;
         {
             let mut encryption = self.encryption();
-            let sealed = encryption.encrypt(&path, &text, options, own_password.as_deref())?;
+            let sealed = encryption.encrypt_with(&path, &text, options, own)?;
             atomic_write(&full, &sealed)?;
         }
         self.reindex(std::slice::from_ref(&path));
@@ -284,7 +304,7 @@ impl VaultFolder {
 
     /// Gives the unlocked note at `path` a password of its own, or with
     /// `None` hands it back to the vault password, sealing `text` with the
-    /// new key. Its options and name stay as they were.
+    /// new key. Its options, title and name stay as they were.
     pub fn set_note_password(
         &self,
         path: String,
@@ -292,20 +312,14 @@ impl VaultFolder {
         password: Option<String>,
     ) -> Result<(), VaultError> {
         let full = self.note_path(&path)?;
+        self.require_new_key_for(&path, password.as_deref())?;
+        let own = self.note_password_key(password.as_deref())?;
         let mut encryption = self.encryption();
         let options = encryption
             .options(&path)
             .ok_or(EncryptionError::VaultLocked)?;
         require_new_key(&encryption, password.as_deref())?;
-        let title = encryption
-            .title(&path)
-            .map_or_else(|| note_title(&path), str::to_owned);
-        // `encrypt` names a note's sealed title after its path, so it's
-        // made under a stand-in path with the right title, then moved.
-        let titled = format!("\0/{title}.md");
-        encryption.decrypt(&path);
-        let sealed = encryption.encrypt(&titled, &text, options, password.as_deref())?;
-        encryption.rename(&titled, &path);
+        let sealed = encryption.encrypt_with(&path, &text, options, own)?;
         atomic_write(&full, &sealed)?;
         Ok(())
     }
@@ -358,6 +372,35 @@ impl VaultFolder {
         (title.unwrap_or_else(|| LOCKED_TITLE.to_owned()), true)
     }
 
+    /// Gives a note whose file has a stand-in name the new `title` inside
+    /// its seal, leaving the file's name alone. Answers false for any other
+    /// note, which renames its file as usual. A locked one can't be
+    /// renamed, since its title is sealed away.
+    pub(crate) fn retitle_hidden_name_note(
+        &self,
+        path: &str,
+        title: &str,
+    ) -> Result<bool, VaultError> {
+        let full = self.note_path(path)?;
+        let Some(header) = encrypted_header(&full) else {
+            return Ok(false);
+        };
+        let raw = std::fs::read_to_string(&full)?;
+        let mut encryption = self.encryption();
+        let hidden = encryption.options(path).unwrap_or(header.options).name;
+        if hidden == NameVisibility::Shown {
+            return Ok(false);
+        }
+        let NoteText::Unlocked(plain) = encryption.read(path, &raw) else {
+            return Err(VaultError::Refused {
+                message: "Unlock this note to rename it.".to_owned(),
+            });
+        };
+        encryption.set_title(path, title)?;
+        self.write_sealed(&encryption, path, &full, &plain.body)?;
+        Ok(true)
+    }
+
     /// Carries unlocked notes' keys along when a note or folder moves from
     /// `from` to `to`.
     pub(crate) fn follow_encrypted_notes(&self, from: &str, to: &str) {
@@ -385,6 +428,49 @@ impl VaultFolder {
         Ok(())
     }
 
+    /// The key source and key for a note's own password, made without
+    /// holding the session; `None` for the vault password.
+    fn note_password_key(
+        &self,
+        password: Option<&str>,
+    ) -> Result<Option<(KeySource, Key)>, VaultError> {
+        let Some(password) = password else {
+            return Ok(None);
+        };
+        let job = self.encryption().new_password_job(password)?;
+        Ok(Some(job.run_for_note()?))
+    }
+
+    /// Refuses a key change for `path` before any key is made for it.
+    fn require_new_key_for(&self, path: &str, password: Option<&str>) -> Result<(), VaultError> {
+        let encryption = self.encryption();
+        encryption
+            .options(path)
+            .ok_or(EncryptionError::VaultLocked)?;
+        require_new_key(&encryption, password)
+    }
+
+    /// Seals the open note at `path` again with the key that wraps it now,
+    /// when its file still needs the old one: it was saved while the
+    /// vault password changed.
+    fn reseal_with_new_key(&self, encryption: &Encryption, path: &str) -> Result<(), VaultError> {
+        let full = self.note_path(path)?;
+        let Ok(raw) = std::fs::read_to_string(&full) else {
+            return Ok(());
+        };
+        let (Some((_, wrapping)), Some((_, note_key))) =
+            (encryption.wrapping_key(path), encryption.claude_key(path))
+        else {
+            return Ok(());
+        };
+        if gasp_crypt::open(&raw, wrapping).is_ok() {
+            return Ok(());
+        }
+        let opened =
+            gasp_crypt::open_with_note_key(&raw, note_key).map_err(EncryptionError::from)?;
+        self.write_sealed(encryption, path, &full, &opened.plain.body)
+    }
+
     fn new_note_options(&self) -> NoteOptions {
         let settings = &self.config().settings.encryption;
         NoteOptions {
@@ -396,7 +482,7 @@ impl VaultFolder {
     fn rename_to_hidden_name(&self, path: &str) -> Result<String, VaultError> {
         let name = hidden_file_name();
         let title = name.strip_suffix(".md").unwrap_or(&name);
-        self.rename_note(path.to_owned(), title.to_owned())
+        self.rename_note_file(path.to_owned(), title.to_owned())
     }
 
     /// Renames the note at `path` to `title`, or `title 2` and so on when
@@ -409,7 +495,7 @@ impl VaultFolder {
             title,
             gasp_vault::entries::EntryKind::Note,
         );
-        self.rename_note(path.to_owned(), free)
+        self.rename_note_file(path.to_owned(), free)
     }
 
     /// Earlier versions of a note that's now encrypted hold its plain
