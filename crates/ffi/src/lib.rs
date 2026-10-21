@@ -11,6 +11,7 @@ mod commands;
 mod display;
 mod document;
 mod edits;
+mod encryption;
 mod export;
 mod folding;
 mod github;
@@ -43,6 +44,10 @@ pub use commands::{CommandInfo, KeyBinding};
 pub use display::SymbolVisibility;
 pub use document::{NoteDocument, OutlineHeading, SentenceLength, SentenceTint};
 pub use edits::{CommandOutcome, TextReplacement};
+pub use encryption::{
+    EncryptedNoteOptions, EncryptionState, KeptKey, LockedNote, NoteClaudeAccess, OpenedNote,
+    is_encrypted_text,
+};
 pub use export::ExportedFile;
 pub use folding::HeadingFold;
 pub use github::{

@@ -57,8 +57,12 @@ impl VaultFolder {
 
     /// Keeps `text` as the note's newest snapshot once the
     /// `recovery.interval-minutes` setting has passed since the last one,
-    /// or right away with `now`. Answers whether it kept one.
+    /// or right away with `now`. Answers whether it kept one. Encrypted
+    /// notes never get snapshots, since one would hold their plain text.
     pub fn record_snapshot(&self, path: String, text: String, now: bool) -> bool {
+        if self.is_encrypted_note(&path) {
+            return false;
+        }
         let Some(store) = self.snapshot_store() else {
             return false;
         };

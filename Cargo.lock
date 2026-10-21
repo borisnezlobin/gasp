@@ -4081,6 +4081,7 @@ dependencies = [
  "gasp-bench",
  "gasp-config",
  "gasp-core",
+ "gasp-crypt",
  "gasp-export",
  "gasp-highlight",
  "gasp-math",

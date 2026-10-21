@@ -77,6 +77,7 @@ impl VaultFolder {
             .iter()
             .map(|note| slash_path(note))
             .collect();
+        self.follow_encrypted_notes(&from, &to);
         self.reindex_move(&from, &to, &rewritten);
         Ok(to)
     }
@@ -102,6 +103,7 @@ impl VaultFolder {
             .iter()
             .map(|note| slash_path(note))
             .collect();
+        self.follow_encrypted_notes(&path, &to);
         self.reindex_move(&path, &to, &rewritten);
         Ok(to)
     }
@@ -283,7 +285,9 @@ impl VaultFolder {
             store.moved(&renamed.from, &renamed.to).ok();
         }
         self.forget_index();
-        Ok(slash_path(&renamed.to))
+        let to = slash_path(&renamed.to);
+        self.follow_encrypted_notes(&slash_path(&renamed.from), &to);
+        Ok(to)
     }
 }
 

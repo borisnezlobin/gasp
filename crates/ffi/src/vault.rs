@@ -7,8 +7,10 @@ use std::time::UNIX_EPOCH;
 
 use gasp_config::settings::ThemeChoice;
 use gasp_config::store::save;
-use gasp_config::{Config, ConfigLoader};
+use gasp_config::{CONFIG_DIR, Config, ConfigLoader};
+use gasp_crypt::LOCK_FILE;
 use gasp_vault::build::{build_index, scan};
+use gasp_vault::encryption::Encryption;
 use gasp_vault::entries::{EntryKind, display_name, is_hidden, natural_cmp};
 use gasp_vault::files::atomic_write;
 use gasp_vault::index::{LinkIndex, is_note_path};
@@ -29,6 +31,9 @@ pub enum VaultError {
     Refused { message: String },
     #[error("{message}")]
     Io { message: String },
+    /// The password, or a key kept behind Face ID, doesn't open the note.
+    #[error("{message}")]
+    WrongPassword { message: String },
 }
 
 impl From<std::io::Error> for VaultError {
@@ -49,6 +54,8 @@ pub struct NoteSummary {
     pub folder: String,
     /// When it last changed, in seconds since 1970.
     pub modified: i64,
+    /// Whether it's an encrypted note.
+    pub encrypted: bool,
 }
 
 /// The notes open as tabs on this device, from `.gasp/device.toml`,
@@ -67,6 +74,8 @@ pub struct VaultFolder {
     /// Built the first time links or tags are asked for.
     index: Mutex<Option<LinkIndex>>,
     pub(crate) search_notes: Mutex<gasp_search::engine::NoteCache>,
+    /// The vault password's lock and the encrypted notes unlocked so far.
+    pub(crate) encryption: Mutex<Encryption>,
 }
 
 #[uniffi::export]
@@ -83,6 +92,7 @@ impl VaultFolder {
             config: Mutex::new(config),
             index: Mutex::new(None),
             search_notes: Mutex::default(),
+            encryption: Mutex::new(Encryption::load(&root)),
             root,
         }))
     }
@@ -122,14 +132,21 @@ impl VaultFolder {
     }
 
     /// Writes the note in one step, so a crash never leaves half of it.
+    /// An unlocked encrypted note is sealed first; its plain text is never
+    /// written or indexed.
     pub fn save_note(&self, path: String, text: String) -> Result<(), VaultError> {
         let full = self.note_path(&path)?;
         if let Some(folder) = full.parent() {
             std::fs::create_dir_all(folder)?;
         }
-        atomic_write(&full, &text)?;
+        let file_text = {
+            let encryption = self.encryption();
+            let file_text = Self::file_text(&encryption, &path, &full, text)?;
+            atomic_write(&full, &file_text)?;
+            file_text
+        };
         if let Some(index) = self.index().as_mut() {
-            index.set_note(&path, text);
+            index.set_note(&path, file_text);
         }
         Ok(())
     }
@@ -143,6 +160,10 @@ impl VaultFolder {
     /// than this vault changed them, such as a sync.
     pub fn files_changed(&self, paths: Vec<String>) {
         self.reindex(&paths);
+        let lock = format!("{CONFIG_DIR}/{LOCK_FILE}");
+        if paths.contains(&lock) {
+            self.encryption().reload_lock();
+        }
     }
 
     /// Reads `.gasp/` again, after its files changed.
@@ -150,6 +171,7 @@ impl VaultFolder {
         let config = load_config(&self.root);
         *self.display.lock() = DisplayState::from_settings(&config.settings);
         *self.config() = config;
+        self.encryption().reload_lock();
     }
 
     /// The built-in theme with the vault's `.gasp/theme.toml` and
@@ -275,10 +297,13 @@ impl VaultFolder {
             .ok()
             .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
             .map_or(0, |since| since.as_secs() as i64);
+        let file_title = display_name(file_name(&path), EntryKind::Note).to_owned();
+        let (title, encrypted) = self.shown_title(&path, file_title);
         NoteSummary {
-            title: display_name(file_name(&path), EntryKind::Note).to_owned(),
+            title,
             folder: parent_dir(&path).to_owned(),
             modified,
+            encrypted,
             path,
         }
     }
