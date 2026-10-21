@@ -173,6 +173,7 @@ fn finish_encrypting(
     let path = doc.read(cx).path().to_path_buf();
     let options = default_options(&super::settings_for(&path, cx));
     doc.update(cx, |doc, cx| doc.encrypt(options, None, cx))?;
+    super::follow_claude_access(&path, cx);
     if options.name == NameVisibility::Hidden {
         rename_doc(this, doc, &hidden_title(), cx)?;
     }
@@ -241,6 +242,9 @@ fn remove_encryption(
 ) -> Result<(), String> {
     let path = doc.read(cx).path().to_path_buf();
     let real_title = hidden_name_title(&path, cx);
+    if let Some(id) = super::claude_key_id(&path, cx) {
+        super::forget_for_claude(id, cx);
+    }
     doc.update(cx, |doc, cx| doc.decrypt(cx))
         .map_err(|error| error.to_string())?;
     if let Some(title) = real_title {
@@ -310,11 +314,17 @@ fn apply_options(
         encryption.title(relative).map(str::to_owned)
     })
     .flatten();
+    let old_claude_id = super::claude_key_id(&path, cx);
     let rekey = needs_new_key(had_own_password, &choice);
     match rekey {
         Some(password) => doc.update(cx, |doc, cx| doc.encrypt(choice.options, password, cx))?,
         None => set_options(doc, &path, choice.options, cx)?,
     }
+    let new_claude_id = super::claude_key_id(&path, cx);
+    if let Some(old) = old_claude_id.filter(|old| Some(old) != new_claude_id.as_ref()) {
+        super::forget_for_claude(old, cx);
+    }
+    super::follow_claude_access(&path, cx);
     super::mark(&path, Some(choice.options.name), cx);
     let was_hidden = hidden_before.is_some();
     rename_for_visibility(this, doc, was_hidden, choice.options.name, real_title, cx)

@@ -441,6 +441,54 @@ pub fn has_unlocked_notes(path: &Path, cx: &App) -> bool {
         .any(|doc| doc.read(cx).is_unlocked_encrypted())
 }
 
+/// The id Claude's connector keeps the open note at `path`'s key under.
+pub fn claude_key_id(path: &Path, cx: &App) -> Option<String> {
+    read_encryption(path, cx, |encryption, relative| {
+        encryption.claude_key(relative).map(|(id, _)| id)
+    })
+    .flatten()
+}
+
+/// Gives Claude's connector the open note at `path`'s own key while its
+/// Claude access is "always", and takes it back otherwise. The vault's key
+/// never goes to Claude.
+pub fn follow_claude_access(path: &Path, cx: &mut App) {
+    let found = read_encryption(path, cx, |encryption, relative| {
+        let (id, key) = encryption.claude_key(relative)?;
+        let always = encryption.options(relative)?.claude == gasp_crypt::ClaudeAccess::Always;
+        Some((id, key.clone(), always))
+    })
+    .flatten();
+    let Some((id, key, always)) = found else {
+        return;
+    };
+    match always {
+        true => keep_for_claude(id, key, cx),
+        false => forget_for_claude(id, cx),
+    }
+}
+
+fn keep_for_claude(id: String, key: gasp_crypt::Key, cx: &App) {
+    if !keychain::keeps_keys() {
+        return;
+    }
+    cx.background_spawn(async move {
+        if let Err(error) = gasp_mcp::claude_keys::remember(&id, &key) {
+            eprintln!("could not keep a key for Claude: {error}");
+        }
+    })
+    .detach();
+}
+
+/// Takes the key kept for Claude under `id` back.
+pub fn forget_for_claude(id: String, cx: &App) {
+    if !keychain::keeps_keys() {
+        return;
+    }
+    cx.background_spawn(async move { gasp_mcp::claude_keys::forget(&id).ok() })
+        .detach();
+}
+
 /// The vault password's lock as it is on disk now, as after sync
 /// brought in a password changed on another device.
 pub fn reload_lock(path: &Path, cx: &mut App) {

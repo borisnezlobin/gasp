@@ -225,7 +225,7 @@ fn open_template_picker(
                 date_format: settings.date_format.clone(),
                 time_format: settings.time_format.clone(),
             };
-            let text = match std::fs::read_to_string(&chosen.0) {
+            let text = match gasp_vault::knowledge::templates::read_template(&chosen.0) {
                 Ok(template) => templates::fill(&template, &context),
                 Err(error) => {
                     crate::notices::open_failed(&chosen.0, error, cx);

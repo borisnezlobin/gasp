@@ -45,7 +45,7 @@ impl std::fmt::Display for TouchIdError {
 
 /// Whether keys may go to the keychain at all: never from a snapshot run
 /// or a test, which keep away from the person's keychain.
-fn keeps_keys() -> bool {
+pub(super) fn keeps_keys() -> bool {
     crate::sandbox::keeps_credentials() && crate::sandbox::kept_app_folder("").is_none()
 }
 
