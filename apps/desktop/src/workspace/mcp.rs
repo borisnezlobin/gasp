@@ -169,8 +169,20 @@ impl Workspace {
     /// session's options for the note (never the file's header, which
     /// could be edited). The workspace's encryption session supplies it;
     /// `None` keeps every encrypted note's text in the app.
-    pub(crate) fn unlocked_text_for_mcp(&self, _path: &str, _cx: &App) -> Option<String> {
-        None
+    pub(crate) fn unlocked_text_for_mcp(&self, path: &str, cx: &App) -> Option<String> {
+        let absolute = self.vault.join(path);
+        let options = crate::encryption::read_encryption(&absolute, cx, |encryption, relative| {
+            encryption
+                .is_unlocked(relative)
+                .then(|| encryption.options(relative))
+                .flatten()
+        })
+        .flatten()?;
+        if !gasp_mcp::encrypted::app_may_share(options) {
+            return None;
+        }
+        let doc = self.doc_for_path(&absolute, cx)?;
+        Some(doc.read(cx).current_text(cx))
     }
 
     /// Whether the note at `path` is encrypted on disk, so its text goes

@@ -146,6 +146,9 @@ pub fn keep_version(path: &Path, text: &str, cx: &mut App) {
 }
 
 fn keep(path: &Path, text: &str, interval: Duration, cx: &mut App) {
+    if is_encrypted(path, text, cx) {
+        return;
+    }
     let Some(recovery) = cx.try_global::<Recovery>() else {
         return;
     };
@@ -165,6 +168,33 @@ fn keep(path: &Path, text: &str, interval: Duration, cx: &mut App) {
         }
     })
     .detach();
+}
+
+/// Snapshots are plain text kept outside the vault, so an encrypted note
+/// never gets one.
+fn is_encrypted(path: &Path, text: &str, cx: &App) -> bool {
+    gasp_crypt::is_encrypted(text)
+        || crate::encryption::is_encrypted_note(path, cx)
+        || crate::encryption::starts_encrypted(path)
+}
+
+/// Deletes every snapshot of the note at `path`, as when it becomes
+/// encrypted and its old plain versions mustn't stay behind.
+pub fn forget(path: &Path, cx: &mut App) {
+    let Some((store, relative, _)) = cx
+        .try_global::<Recovery>()
+        .and_then(|recovery| recovery.locate(path))
+    else {
+        return;
+    };
+    for snapshot in store.list(&relative) {
+        if let Err(error) = std::fs::remove_file(&snapshot.path) {
+            eprintln!(
+                "could not delete a snapshot of {}: {error}",
+                relative.display()
+            );
+        }
+    }
 }
 
 /// A note or folder moved from `from` to `to` (full paths): its
@@ -208,6 +238,15 @@ fn open_dialog(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<
     else {
         return;
     };
+    if crate::encryption::is_encrypted_note(&path, cx) {
+        crate::notices::show(
+            crate::notices::Notice::offer(
+                "Snapshots aren’t kept for encrypted notes, so there are no older versions to restore.",
+            ),
+            cx,
+        );
+        return;
+    }
     let Some((store, relative)) = store_for(&path, cx) else {
         return;
     };

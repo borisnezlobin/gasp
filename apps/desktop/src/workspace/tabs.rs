@@ -4,7 +4,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use gpui::{AppContext, Context, Entity, PromptLevel, Window};
+use gpui::{AppContext, Context, Entity, Focusable, PromptLevel, Window};
 
 use super::file_opening::{FileOpening, opening_for};
 use super::files::note_title;
@@ -14,6 +14,7 @@ use super::note_doc::NoteDoc;
 use super::pane::{NoteTab, Pane, Tab, TabContent};
 use super::{MAX_CLOSED_TABS, OpenIn, Workspace};
 use crate::editor::EditorView;
+use crate::encryption::lock_screen::{LockScreen, LockScreenEvent};
 use crate::text_input::{TextInput, TextInputStyle};
 
 /// The choices when closing a note that changed on disk under edits.
@@ -173,9 +174,10 @@ impl Workspace {
             return Ok(doc);
         }
         let image_dirs = self.image_dirs(path);
-        let doc = NoteDoc::load(path, image_dirs)?
+        let doc = NoteDoc::load(path, image_dirs, cx)?
             .with_attachments(&self.config.settings.files.attachments_folder);
         let doc = cx.new(|_| doc);
+        crate::encryption::register_doc(&doc, cx);
         cx.observe(&doc, |workspace, doc, cx| {
             workspace.index_saved_note(&doc, cx)
         })
@@ -195,7 +197,11 @@ impl Workspace {
         let Some(relative) = crate::vault_index::vault_relative(&self.vault, doc.path()) else {
             return;
         };
-        let text = doc.saved_text().to_string();
+        // An encrypted note gives the index nothing, open or not.
+        let text = match doc.is_encrypted() {
+            true => String::new(),
+            false => doc.saved_text().to_string(),
+        };
         self.vault_index().update(cx, |index, cx| {
             let known = index
                 .links()
@@ -246,12 +252,30 @@ impl Workspace {
         });
         self.cursors
             .insert(editor.entity_id(), super::CursorSeen::default());
+        let lock_screen = cx.new(|cx| LockScreen::new(doc.clone(), window, cx));
+        let unlocked_editor = editor.clone();
+        let locking = (editor.clone(), lock_screen.clone());
         let subscriptions = vec![
             cx.subscribe_in(&editor, window, Self::on_editor_event),
             cx.subscribe_in(&title, window, Self::on_title_event),
-            cx.observe(&doc, |_, _, cx| cx.notify()),
+            cx.observe_in(&doc, window, move |_, doc, window, cx| {
+                follow_focus_into_lock(doc.read(cx).is_locked(), &locking, window, cx);
+                cx.notify();
+            }),
+            cx.subscribe_in(
+                &lock_screen,
+                window,
+                move |_, _, _: &LockScreenEvent, window, cx| {
+                    window.focus(&unlocked_editor.focus_handle(cx));
+                },
+            ),
         ];
-        let content = TabContent::Note(NoteTab { doc, editor, title });
+        let content = TabContent::Note(NoteTab {
+            doc,
+            editor,
+            title,
+            lock_screen,
+        });
         Ok(Tab::new(content, subscriptions))
     }
 
@@ -604,5 +628,18 @@ impl Workspace {
             }
         }
         found
+    }
+}
+
+/// A note that locked while its editor had focus hands focus to its
+/// password field, so typing goes there.
+fn follow_focus_into_lock(
+    locked: bool,
+    (editor, lock_screen): &(Entity<EditorView>, Entity<LockScreen>),
+    window: &mut Window,
+    cx: &mut gpui::App,
+) {
+    if locked && editor.focus_handle(cx).is_focused(window) {
+        window.focus(&lock_screen.focus_handle(cx));
     }
 }

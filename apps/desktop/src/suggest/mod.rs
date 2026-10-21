@@ -203,7 +203,10 @@ impl EditorView {
         }
         let read = cx.background_spawn(async move {
             let text = std::fs::read_to_string(file).unwrap_or_default();
-            headings(&text)
+            match gasp_crypt::is_encrypted(&text) {
+                true => Vec::new(),
+                false => headings(&text),
+            }
         });
         cx.spawn(async move |view, cx| {
             let found = read.await;

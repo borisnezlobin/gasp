@@ -361,9 +361,13 @@ pub fn scan_note(vault: &Path, path: &Path) -> Option<NoteScan> {
         return None;
     }
     let text = std::fs::read_to_string(path).ok()?;
+    let tags = match gasp_crypt::is_encrypted(&text) {
+        true => Vec::new(),
+        false => tags_in(&text),
+    };
     Some(NoteScan {
         path: relative,
-        tags: tags_in(&text),
+        tags,
     })
 }
 
@@ -464,17 +468,31 @@ pub fn index_changes(vault: &Path, changed: &[PathBuf], removed: &[PathBuf]) -> 
         .map(IndexChange::Remove);
     // Each note is read and parsed once, for its tags and its links; a
     // folder that moved in is read whole.
-    let updates = read_changes(vault, changed).into_iter().flat_map(|change| {
-        let scan = match &change {
-            LinkChange::Note(path, _, parsed) => Some(IndexChange::Upsert(NoteScan {
-                path: path.clone(),
-                tags: distinct_tags(parsed),
-            })),
-            LinkChange::File(_) => None,
-        };
-        scan.into_iter().chain([IndexChange::Links(change)])
-    });
+    let updates = read_changes(vault, changed)
+        .into_iter()
+        .map(without_sealed_text)
+        .flat_map(|change| {
+            let scan = match &change {
+                LinkChange::Note(path, _, parsed) => Some(IndexChange::Upsert(NoteScan {
+                    path: path.clone(),
+                    tags: distinct_tags(parsed),
+                })),
+                LinkChange::File(_) => None,
+            };
+            scan.into_iter().chain([IndexChange::Links(change)])
+        });
     removals.chain(updates).collect()
+}
+
+/// An encrypted note as the index takes it: with no text, so its sealed
+/// lines give no tags or links.
+fn without_sealed_text(change: LinkChange) -> LinkChange {
+    match change {
+        LinkChange::Note(path, text, _) if gasp_crypt::is_encrypted(&text) => {
+            LinkChange::Note(path, "".into(), crate::knowledge::parse::parse_note(""))
+        }
+        change => change,
+    }
 }
 
 impl VaultIndex {

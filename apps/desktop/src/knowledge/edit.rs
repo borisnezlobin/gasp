@@ -36,6 +36,9 @@ pub fn edit_note(
     change: impl FnOnce(&str) -> Option<String>,
     cx: &mut Context<Workspace>,
 ) -> io::Result<Option<String>> {
+    if crate::encryption::is_encrypted_note(path, cx) && !crate::encryption::is_unlocked(path, cx) {
+        return Ok(None);
+    }
     if let Some(editor) = open_editor(workspace, path, cx) {
         let old = editor.read(cx).text();
         let Some(new) = change(&old) else {
@@ -48,6 +51,9 @@ pub fn edit_note(
         return Ok(Some(new));
     }
     let old = std::fs::read_to_string(path)?;
+    if gasp_crypt::is_encrypted(&old) {
+        return Ok(None);
+    }
     let Some(new) = change(&old) else {
         return Ok(None);
     };
@@ -59,6 +65,10 @@ pub fn edit_note(
 fn note_indexed(workspace: &Workspace, path: &Path, text: &str, cx: &mut Context<Workspace>) {
     let Some(relative) = relative(workspace.vault(), path) else {
         return;
+    };
+    let text = match crate::encryption::is_encrypted_note(path, cx) {
+        true => "",
+        false => text,
     };
     workspace.vault_index().update(cx, |index, cx| {
         index.note_text_changed(&relative, text);

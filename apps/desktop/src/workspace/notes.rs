@@ -255,6 +255,7 @@ impl Workspace {
         to: &Path,
         cx: &mut Context<Self>,
     ) {
+        crate::encryption::moved(from, to, cx);
         doc.update(cx, |doc, cx| doc.set_path(to.to_path_buf(), cx));
         self.edit_time_moved(from, to, cx);
         for pane in self.panes.panes() {
@@ -466,6 +467,7 @@ impl Workspace {
                 }
             }
         }
+        crate::encryption::files_changed(&changed, &removed, cx);
         self.update_vault_index(changed, removed, cx);
     }
 

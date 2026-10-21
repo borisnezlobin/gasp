@@ -16,8 +16,8 @@ use super::controls::{
 };
 use super::menu::MenuTarget;
 use super::model::{
-    APP_ICON_KEY, FontSlot, ICON_SOURCE_URL, SettingItem, ShortcutQuery, ShortcutRow, choice_label,
-    map_names,
+    APP_ICON_KEY, FontSlot, ICON_SOURCE_URL, SettingItem, ShortcutQuery, ShortcutRow, map_names,
+    setting_choice_label,
 };
 use super::view::{ControlRow, SettingsFocus, SettingsView, theme_key};
 use crate::icons::IconName;
@@ -379,12 +379,13 @@ impl SettingsView {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let value = self.current_value(item);
-        let label = choice_label(value.as_str().unwrap_or_default());
+        let label = setting_choice_label(&item.key, value.as_str().unwrap_or_default());
         let id = format!("dropdown-{}", item.key);
         let options = match &item.kind {
-            SettingKind::Choice(options) => {
-                options.iter().map(|o| choice_label(o).into()).collect()
-            }
+            SettingKind::Choice(options) => options
+                .iter()
+                .map(|o| setting_choice_label(&item.key, o).into())
+                .collect(),
             _ => Vec::new(),
         };
         let label = widest_of(div().child(label), options);

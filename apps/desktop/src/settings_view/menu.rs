@@ -12,7 +12,8 @@ use gpui::{
 
 use super::config_files::default_token;
 use super::model::{
-    FontSlot, SettingItem, choice_label, filter_fonts, font_choices, map_name_label, map_names,
+    FontSlot, SettingItem, filter_fonts, font_choices, map_name_label, map_names,
+    setting_choice_label,
 };
 use super::toolbars_page::{ToolbarField, toolbar_choice_label};
 use super::view::{ControlRow, SettingsView};
@@ -60,7 +61,7 @@ impl OpenMenu {
     /// How an option reads in the menu and on its button.
     pub fn label(&self, option: &str) -> String {
         match self.target {
-            MenuTarget::Choice(_) => choice_label(option),
+            MenuTarget::Choice(ref item) => setting_choice_label(&item.key, option),
             MenuTarget::Font(_) => option.to_string(),
             MenuTarget::MapAdd(ref map) => map_name_label(&map.key, option),
             MenuTarget::ToolbarField { .. } => toolbar_choice_label(option),

@@ -20,6 +20,7 @@ use super::launcher::Launcher;
 use super::note_doc::{Conflict, NoteDoc};
 use super::pane_tree::DropZone;
 use crate::editor::EditorView;
+use crate::encryption::lock_screen::LockScreen;
 use crate::keymap::{KEY_CONTEXT, RunCommand};
 use crate::text_input::TextInput;
 use crate::theme::Theme;
@@ -68,6 +69,8 @@ pub struct NoteTab {
     pub doc: Entity<NoteDoc>,
     pub editor: Entity<EditorView>,
     pub title: Entity<TextInput>,
+    /// What shows in place of the editor while the note is locked.
+    pub lock_screen: Entity<LockScreen>,
 }
 
 /// What a tab holds.
@@ -120,14 +123,23 @@ impl Tab {
         }
     }
 
+    /// The note's name, or for an encrypted note whose file name is
+    /// hidden, its sealed title (or "Locked note" while it's locked).
     pub fn title(&self, cx: &App) -> String {
-        self.path(cx)
-            .map_or_else(|| NEW_TAB_TITLE.to_owned(), note_title)
+        let Some(path) = self.path(cx) else {
+            return NEW_TAB_TITLE.to_owned();
+        };
+        crate::encryption::note_mark(path, cx)
+            .and_then(|mark| mark.shown_name)
+            .unwrap_or_else(|| note_title(path))
     }
 
     /// Where keyboard focus goes when the tab is shown.
     pub fn focus_handle(&self, cx: &App) -> FocusHandle {
         match &self.content {
+            TabContent::Note(note) if note.doc.read(cx).is_locked() => {
+                note.lock_screen.focus_handle(cx)
+            }
             TabContent::Note(note) => note.editor.focus_handle(cx),
             TabContent::Image(image) => image.focus_handle(cx),
             TabContent::Launcher(launcher) => launcher.focus_handle(cx),
@@ -500,10 +512,13 @@ impl Pane {
         }
     }
 
-    fn render_content(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn render_content(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let Some(tab) = self.active_tab() else {
             return div().flex_1().into_any_element();
         };
+        if let Some(note) = tab.note() {
+            return self.render_note_or_lock(note, window, cx);
+        }
         match &tab.content {
             TabContent::Launcher(launcher) => div()
                 .flex_1()
@@ -517,6 +532,40 @@ impl Pane {
                 .into_any_element(),
             TabContent::Note(note) => self.render_note(note, cx),
         }
+    }
+
+    /// The note, its locked view, or the note under the cover an open
+    /// encrypted note gets while the window is away.
+    fn render_note_or_lock(
+        &self,
+        note: &NoteTab,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let doc = note.doc.read(cx);
+        if doc.is_locked() {
+            return div()
+                .flex_1()
+                .min_h_0()
+                .child(note.lock_screen.clone())
+                .into_any_element();
+        }
+        let covered = doc.is_unlocked_encrypted()
+            && !window.is_window_active()
+            && crate::encryption::settings_for(doc.path(), cx).blur_when_away;
+        let shown = self.render_note(note, cx);
+        if !covered {
+            return shown;
+        }
+        div()
+            .relative()
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_h_0()
+            .child(shown)
+            .child(crate::encryption::lock_screen::away_cover(cx))
+            .into_any_element()
     }
 
     /// The inline title. Tab or Down moves into the note.
@@ -706,7 +755,7 @@ impl Render for Pane {
             .min_h_0()
             .min_w_0()
             .children(self.render_sync_banner(cx))
-            .child(self.render_content(cx))
+            .child(self.render_content(window, cx))
             .children(bars.over_note)
             .children(toolbar);
         let surface = div()

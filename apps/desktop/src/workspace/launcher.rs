@@ -364,6 +364,18 @@ fn shape_line(line: ShapeLine, width: Pixels, ui: &UiTheme) -> AnyElement {
             .rounded(ui.menu_row_radius)
             .bg(ui.fill_strong)
             .into_any_element(),
+        ShapeLine::Locked => div()
+            .w(width)
+            .flex_1()
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(
+                icon(IconName::LockSimple)
+                    .size(ui.icon_size * 2.)
+                    .text_color(ui.text_faint),
+            )
+            .into_any_element(),
     }
 }
 

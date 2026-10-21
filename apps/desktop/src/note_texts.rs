@@ -97,13 +97,22 @@ impl NoteTexts {
         } else {
             cache.refresh(&self.root);
         }
-        let notes = Arc::new(cache.notes());
+        let notes = Arc::new(without_encrypted(cache.notes()));
         let mut state = self.state();
         state.cache = Some(cache);
         state.loaded = true;
         state.snapshot = Some(notes.clone());
         notes
     }
+}
+
+/// `notes` less the encrypted ones, whose sealed text must never reach
+/// search, replace or the spelling vocabulary.
+pub fn without_encrypted(notes: Vec<Note>) -> Vec<Note> {
+    notes
+        .into_iter()
+        .filter(|note| !gasp_crypt::is_encrypted(&note.text))
+        .collect()
 }
 
 #[cfg(test)]

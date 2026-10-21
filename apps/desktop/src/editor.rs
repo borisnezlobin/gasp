@@ -810,6 +810,14 @@ impl EditorView {
         self.select(cursor, cursor, cx);
     }
 
+    /// Replaces the whole text and forgets the undo history, so nothing
+    /// that was here can be brought back, as when an encrypted note locks.
+    pub fn reset_text(&mut self, text: &str, cx: &mut Context<Self>) {
+        self.replace_all_text(text, cx);
+        self.state.history_mut().clear();
+        self.select(0, 0, cx);
+    }
+
     /// Replaces the ranges drawn for `kind`.
     pub fn set_highlights(
         &mut self,

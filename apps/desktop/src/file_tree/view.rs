@@ -93,6 +93,8 @@ pub struct FileTree {
     pub(super) image_preview: super::image_preview::ImagePreview,
     _watcher: Option<VaultWatcher>,
     _watch_task: Option<Task<()>>,
+    /// Redraws the padlocks when notes lock, unlock or become encrypted.
+    _encryption_marks: gpui::Subscription,
 }
 
 impl EventEmitter<FileTreeEvent> for FileTree {}
@@ -145,6 +147,7 @@ impl FileTree {
             image_preview: Default::default(),
             _watcher: None,
             _watch_task: None,
+            _encryption_marks: crate::encryption::observe_marks(cx),
         };
         if options.watch {
             tree.start_watching(cx);

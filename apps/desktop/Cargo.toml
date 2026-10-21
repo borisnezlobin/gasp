@@ -32,6 +32,7 @@ gasp-sync = { path = "../../crates/sync", features = ["keychain"] }
 git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }
 gasp-search = { path = "../../crates/search" }
 gasp-vault = { path = "../../crates/vault" }
+gasp-crypt = { path = "../../crates/crypt" }
 gasp-mcp = { path = "../../crates/mcp" }
 gasp-migrate = { path = "../../tools/migrate" }
 gpui = "=0.2.2"
@@ -76,6 +77,10 @@ metal = "0.29"
 # GPUI already builds both.
 core-text = "21"
 core-graphics = "0.24"
+# Touch ID for encrypted notes: the kept key in the login keychain, and
+# the LocalAuthentication reply block. gasp-sync and GPUI already build both.
+keyring = { version = "3", features = ["apple-native"] }
+block = "0.1"
 
 # Updates: comparing versions, checking the download's SHA-256 and, on
 # macOS, reading `hdiutil`'s and the new app's property lists. All three

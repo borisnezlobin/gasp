@@ -237,7 +237,9 @@ impl VaultSearch {
             let _span = crate::trace::span("search-load");
             match texts {
                 Some(texts) => texts.load(),
-                None => Arc::new(engine::load_vault(&root)),
+                None => Arc::new(crate::note_texts::without_encrypted(engine::load_vault(
+                    &root,
+                ))),
             }
         });
         self.load_task = Some(cx.spawn(async move |this, cx| {

@@ -284,10 +284,22 @@ impl EditorView {
             return EmbedContent::Message(message);
         }
         chain.push(shown);
+        if crate::encryption::is_encrypted_note(&root.join(&path), cx) {
+            return EmbedContent::Message(format!(
+                "“{}” is encrypted, so it isn’t shown here.",
+                key.name()
+            ));
+        }
         let text: Arc<str> = match text {
             Some(text) => text,
             None => Arc::from(std::fs::read_to_string(root.join(&path)).unwrap_or_default()),
         };
+        if gasp_crypt::is_encrypted(&text) {
+            return EmbedContent::Message(format!(
+                "“{}” is encrypted, so it isn’t shown here.",
+                key.name()
+            ));
+        }
         let Some(excerpt) = excerpt(&text, key) else {
             return EmbedContent::Message(missing_part(key));
         };
