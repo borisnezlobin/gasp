@@ -16,7 +16,7 @@ mod vault_lock;
 pub use error::CryptError;
 pub use key::{KdfParams, Key, derive_key, random_salt};
 pub use note::{
-    ClaudeAccess, Header, KeySource, NameVisibility, NoteOptions, Opened, Plain, is_encrypted,
-    open, peek, rewrap, seal,
+    ClaudeAccess, Header, KeySource, NameVisibility, NoteOptions, Opened, Plain, claude_key_id,
+    is_encrypted, open, open_with_note_key, peek, reseal, rewrap, seal,
 };
 pub use vault_lock::{LOCK_FILE, VaultLock};

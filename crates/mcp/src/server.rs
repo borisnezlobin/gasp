@@ -34,7 +34,9 @@ const INSTRUCTIONS: &str = concat!(
     ", .trash) are off limits except through the settings, theme, rules, toolbars, \
      snippets and replacements tools. Prefer patch_note over write_note for small changes. editor_state, \
      run_command and open_note need the app running with this vault open; the other tools \
-     work either way."
+     work either way. Notes listed with \"encrypted\": true are sealed: each note's owner \
+     chooses whether Claude may read it never, only while it's unlocked in the app, or \
+     always, and a tool says so when it can't."
 );
 
 /// The server for one vault.

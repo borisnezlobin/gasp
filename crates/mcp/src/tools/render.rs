@@ -7,6 +7,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::context::Context;
+use crate::encrypted::{self, EncryptedNote};
 use crate::tool::{Output, ToolError, ToolResult, ToolSpec};
 
 /// How wide a page is drawn when no width is asked for.
@@ -37,8 +38,11 @@ struct RenderNote {
 
 fn render_note(context: &Context, args: RenderNote) -> ToolResult {
     let note = context.resolve_note(&args.path)?;
-    let text = std::fs::read_to_string(&note.absolute)
-        .map_err(|error| ToolError::io(&note.relative, &error))?;
+    let text = match EncryptedNote::at(&note)? {
+        Some(sealed) => encrypted::read(context, &note, &sealed)?.text,
+        None => std::fs::read_to_string(&note.absolute)
+            .map_err(|error| ToolError::io(&note.relative, &error))?,
+    };
     let options = PdfOptions::default();
     let source = typst_source(&text, Some(&note.absolute), Some(context.root()), &options);
     let compiled = compile_note(&source, &fonts_for(&options))

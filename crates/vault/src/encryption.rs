@@ -160,6 +160,13 @@ impl Encryption {
         Some((id, &note.wrapping_key))
     }
 
+    /// The unlocked note's own key and its keychain name, for keeping it
+    /// where Claude's connector can read it: that key opens this one note.
+    pub fn claude_key(&self, path: &str) -> Option<(String, &Key)> {
+        let note = self.open_notes.get(path)?;
+        Some((gasp_crypt::claude_key_id(&note.note_key), &note.note_key))
+    }
+
     /// The keychain name of the key that opens the note `raw`, without
     /// opening it.
     pub fn key_id_for(&self, raw: &str) -> Option<String> {

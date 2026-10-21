@@ -8,7 +8,7 @@ use gasp_config::settings::{DailyNoteSettings, TemplateSettings};
 use jiff::civil::DateTime;
 
 use super::dates;
-use super::templates::{TemplateContext, fill};
+use super::templates::{TemplateContext, fill, read_template};
 use crate::files::atomic_write;
 
 /// Where the daily note for `now` lives.
@@ -50,7 +50,7 @@ pub fn ensure_daily_note(
                 date_format: templates.date_format.clone(),
                 time_format: templates.time_format.clone(),
             };
-            fill(&std::fs::read_to_string(template)?, &context)
+            fill(&read_template(&template)?, &context)
         }
         None => String::new(),
     };

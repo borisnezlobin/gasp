@@ -15,6 +15,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::SystemTime;
 
 use gasp_config::CONFIG_DIR;
+use gasp_crypt::is_encrypted;
 use memchr::memmem::Finder;
 use rayon::prelude::*;
 
@@ -56,7 +57,14 @@ pub struct Note {
 }
 
 impl Note {
+    /// The note at `path` holding `text`. An encrypted note's file is
+    /// ciphertext, so only its path is searched.
     pub fn new(path: PathBuf, text: String) -> Self {
+        let text = if is_encrypted(&text) {
+            String::new()
+        } else {
+            text
+        };
         let folded = fold(&text);
         let fields = Arc::new(note_fields(&path, &text));
         let same_offsets = folded.same_offsets;
@@ -401,7 +409,7 @@ pub struct ReplaceReport {
 
 /// Replaces `query` in each note of `paths` (relative to `root`), reading
 /// each from disk again so edits since the search aren't lost, and writing
-/// each atomically.
+/// each atomically. Encrypted notes are left as they are.
 pub fn replace_in_vault(
     root: &Path,
     paths: &[PathBuf],
@@ -424,6 +432,9 @@ pub fn replace_in_vault(
 
 fn replace_in_file(path: &Path, query: &str, replacement: &str) -> io::Result<usize> {
     let text = std::fs::read_to_string(path)?;
+    if is_encrypted(&text) {
+        return Ok(0);
+    }
     let (replaced, count) = replace_in_text(&text, query, replacement);
     if count > 0 {
         write_atomically(path, &replaced)?;
@@ -751,5 +762,42 @@ mod tests {
         assert_eq!(text, "new and new");
         let leftovers = std::fs::read_dir(root.join("Maths")).unwrap().count();
         assert_eq!(leftovers, 1);
+    }
+
+    fn encrypted(body: &str) -> String {
+        let plain = gasp_crypt::Plain {
+            body: body.to_owned(),
+            title: None,
+        };
+        let key = gasp_crypt::Key::random();
+        gasp_crypt::seal(
+            &plain,
+            gasp_crypt::NoteOptions::default(),
+            gasp_crypt::KeySource::Vault,
+            &key,
+            &gasp_crypt::Key::random(),
+        )
+    }
+
+    #[test]
+    fn encrypted_notes_are_found_by_name_only_and_never_replaced_in() {
+        let vault = tempfile::tempdir().unwrap();
+        let root = vault.path();
+        let file = encrypted("# Secret heading\n#hidden wrapped");
+        std::fs::write(root.join("Diary.md"), &file).unwrap();
+        let notes = load_vault(root);
+        assert_eq!(&*notes[0].text, "");
+        assert_eq!(notes[0].fields.headings, <[Vec<String>; 3]>::default());
+        assert!(notes[0].fields.tags.is_empty());
+        assert_eq!(run(&notes, "diary").len(), 1);
+        assert!(run(&notes, "gasp-encrypted").is_empty());
+        assert!(run(&notes, "wrapped").is_empty());
+
+        let report = replace_in_vault(root, &[PathBuf::from("Diary.md")], "key", "lock");
+        assert_eq!(report, ReplaceReport::default());
+        assert_eq!(
+            std::fs::read_to_string(root.join("Diary.md")).unwrap(),
+            file
+        );
     }
 }

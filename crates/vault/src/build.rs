@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use super::index::{FileNames, LinkIndex, is_note_path};
+use super::index::{FileNames, LinkIndex, indexed_text, is_note_path};
 use super::parse::{ParsedNote, parse_note};
 
 /// What reading one changed path found.
@@ -153,9 +153,12 @@ pub fn in_parallel<T: Send>(
     })
 }
 
+/// The note at `path`, parsed. An encrypted note reads as empty: see
+/// [`indexed_text`].
 pub fn read_note(root: &Path, path: String) -> Option<(String, Arc<str>, ParsedNote)> {
     let text = std::fs::read_to_string(root.join(&path)).ok()?;
-    let parsed = parse_note(&text);
+    let text = indexed_text(&text);
+    let parsed = parse_note(text);
     Some((path, Arc::from(text), parsed))
 }
 
@@ -178,6 +181,28 @@ mod tests {
         assert_eq!(index.note_count(), 2);
         assert_eq!(index.linking_to("Two.md"), ["a/One.md"]);
         assert_eq!(index.linking_to("a/pic.png"), ["Two.md"]);
+    }
+
+    #[test]
+    fn encrypted_notes_list_and_take_links_but_give_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        std::fs::write(root.join("Index.md"), "[[Diary]]").unwrap();
+        std::fs::write(root.join("Two.md"), "").unwrap();
+        let sealed = "<!-- Encrypted with Gasp. -->\ngasp-encrypted: 1\n\n[[Two]] #secret\n";
+        std::fs::write(root.join("Diary.md"), sealed).unwrap();
+        let index = build_index(root);
+        assert_eq!(index.note_count(), 3);
+        assert_eq!(index.linking_to("Diary.md"), ["Index.md"]);
+        assert!(index.linking_to("Two.md").is_empty());
+        assert!(index.tags().is_empty());
+        assert_eq!(&*index.note("Diary.md").unwrap().text, "");
+
+        let mut edited = LinkIndex::new();
+        edited.set_note("Diary.md", sealed);
+        edited.set_parsed_note("Other.md", sealed.into(), crate::parse::parse_note(sealed));
+        assert!(edited.tags().is_empty());
+        assert!(edited.unresolved().is_empty());
     }
 
     #[test]

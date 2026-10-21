@@ -44,6 +44,16 @@ pub enum Request {
     /// Moves a note or file, updating links as a rename in the app does,
     /// in open editors where it can.
     Move { from: String, to: String },
+    /// The text of an encrypted note, if the app has it unlocked and the
+    /// options it was sealed with let Claude read it: an [`UnlockedText`].
+    Unlocked { path: String },
+}
+
+/// The app's answer to [`Request::Unlocked`].
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UnlockedText {
+    /// `None` when the note is locked in the app, or Claude may not read it.
+    pub text: Option<String>,
 }
 
 /// The app's view of one note.

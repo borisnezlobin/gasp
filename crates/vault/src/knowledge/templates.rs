@@ -3,6 +3,7 @@
 //! Obsidian's core Templates plugin. `{{date:dddd D MMMM}}` gives its own
 //! format.
 
+use std::io;
 use std::path::{Path, PathBuf};
 
 use jiff::civil::DateTime;
@@ -60,6 +61,20 @@ fn placeholder(inner: &str, context: &TemplateContext) -> Option<String> {
     };
     let format = format.filter(|f| !f.is_empty()).unwrap_or(default);
     Some(dates::format(context.now, format))
+}
+
+/// The text of the template file at `file`. An encrypted template is an
+/// error: its file is ciphertext, which would otherwise be pasted in.
+pub fn read_template(file: &Path) -> io::Result<String> {
+    let text = std::fs::read_to_string(file)?;
+    if gasp_crypt::is_encrypted(&text) {
+        let name = super::note_title(file);
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("{name} is encrypted, so it can't be used as a template."),
+        ));
+    }
+    Ok(text)
 }
 
 /// Every template in `folder`, as paths relative to it without `.md`,
@@ -125,5 +140,19 @@ mod tests {
         std::fs::write(dir.path().join("Meetings/One to one.md"), "").unwrap();
         std::fs::write(dir.path().join("notes.txt"), "").unwrap();
         assert_eq!(list_templates(dir.path()), ["Daily", "Meetings/One to one"]);
+    }
+
+    #[test]
+    fn an_encrypted_template_is_an_error_not_ciphertext() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("Secret.md");
+        std::fs::write(&file, "gasp-encrypted: 1\nkey: vault\n\nc2VhbGVk\n").unwrap();
+        let error = read_template(&file).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "Secret is encrypted, so it can't be used as a template."
+        );
+        std::fs::write(&file, "# {{title}}\n").unwrap();
+        assert_eq!(read_template(&file).unwrap(), "# {{title}}\n");
     }
 }
