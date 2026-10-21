@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use super::endpoint::Endpoint;
 use super::listener::{connect_to, exchange};
-use super::{Buffer, Envelope, Reply, Request};
+use super::{Buffer, Envelope, Reply, Request, UnlockedText};
 
 /// How long the app gets to answer. Requests run on its main thread
 /// between frames, so a slow answer means something is stuck.
@@ -89,6 +89,19 @@ impl AppLink {
         };
         match self.call_as::<Buffer>(request) {
             Ok(buffer) => Ok(Some(buffer)),
+            Err(AppError::NotRunning) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// The text of the encrypted note at `path`, if the app has it
+    /// unlocked and lets Claude read it; `None` too when no app is running.
+    pub fn unlocked_text(&self, path: &str) -> Result<Option<String>, AppError> {
+        let request = Request::Unlocked {
+            path: path.to_string(),
+        };
+        match self.call_as::<UnlockedText>(request) {
+            Ok(unlocked) => Ok(unlocked.text),
             Err(AppError::NotRunning) => Ok(None),
             Err(error) => Err(error),
         }

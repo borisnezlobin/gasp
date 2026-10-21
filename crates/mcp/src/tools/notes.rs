@@ -12,8 +12,10 @@ use serde_json::{Value, json};
 
 use super::files::{self, Kind, change_note, move_entry, trash_entry, write_file};
 use crate::context::Context;
+use crate::encrypted::{self, EncryptedNote, is_encrypted_file};
 use crate::frontmatter;
 use crate::patch::{self, Patch};
+use crate::paths::VaultPath;
 use crate::tool::{Output, ToolError, ToolResult, ToolSpec};
 
 pub fn tools() -> Vec<ToolSpec> {
@@ -22,7 +24,8 @@ pub fn tools() -> Vec<ToolSpec> {
             "list_notes",
             concat!(
                 "List the vault's notes (Markdown files), sorted by path, with size and \
-                 modification time (Unix seconds). Hidden folders such as .git, ",
+                 modification time (Unix seconds). Encrypted notes are marked \
+                 `\"encrypted\": true`. Hidden folders such as .git, ",
                 gasp_config::config_dir!(),
                 " and .trash are never listed."
             ),
@@ -38,7 +41,8 @@ pub fn tools() -> Vec<ToolSpec> {
         ToolSpec::reads(
             "search",
             "Search every note's text, ignoring case and accents, ranked as the app's vault \
-             search ranks (file name, folder, headings, tags, then body). `tag:name` or \
+             search ranks (file name, folder, headings, tags, then body). Encrypted notes \
+             match by file name only. `tag:name` or \
              `#name` finds notes tagged name or a tag under it. Returns paths with the \
              matching lines.",
             search,
@@ -119,8 +123,24 @@ struct ReadNote {
     end_line: Option<usize>,
 }
 
-fn read_note(context: &Context, args: ReadNote) -> ToolResult {
-    let note = context.resolve_note(&args.path)?;
+/// A note's text for reading, and where it came from.
+struct NoteText {
+    text: String,
+    source: &'static str,
+    encrypted: bool,
+}
+
+/// The note's text: the app's when it has unsaved edits, else the file's.
+/// An encrypted note's is what [`encrypted::read`] allows.
+fn note_text(context: &Context, note: &VaultPath) -> Result<NoteText, ToolError> {
+    if let Some(sealed) = EncryptedNote::at(note)? {
+        let opened = encrypted::read(context, note, &sealed)?;
+        return Ok(NoteText {
+            text: opened.text,
+            source: opened.source,
+            encrypted: true,
+        });
+    }
     let buffer = context.app().buffer(&note.relative).ok().flatten();
     let (text, source) = match buffer.filter(|b| b.dirty).and_then(|b| b.text) {
         Some(text) => (text, "app"),
@@ -130,6 +150,20 @@ fn read_note(context: &Context, args: ReadNote) -> ToolResult {
             "disk",
         ),
     };
+    Ok(NoteText {
+        text,
+        source,
+        encrypted: false,
+    })
+}
+
+fn read_note(context: &Context, args: ReadNote) -> ToolResult {
+    let note = context.resolve_note(&args.path)?;
+    let NoteText {
+        text,
+        source,
+        encrypted,
+    } = note_text(context, &note)?;
     let total = text.lines().count();
     let start = args.start_line.unwrap_or(1).max(1);
     let end = args.end_line.unwrap_or(total).min(total);
@@ -151,6 +185,9 @@ fn read_note(context: &Context, args: ReadNote) -> ToolResult {
         "end_line": end,
         "text": shown,
     });
+    if encrypted {
+        result["encrypted"] = Value::Bool(true);
+    }
     match frontmatter::parse(&text) {
         Ok(parsed) => result["frontmatter"] = parsed.unwrap_or(Value::Null),
         Err(message) => result["frontmatter_error"] = Value::from(message),
@@ -203,7 +240,11 @@ fn search(context: &Context, args: Search) -> ToolResult {
     };
     let total = results.len();
     let limit = args.limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
-    let shown: Vec<Value> = results.iter().take(limit).map(result_json).collect();
+    let shown: Vec<Value> = results
+        .iter()
+        .take(limit)
+        .map(|result| result_json(context, result))
+        .collect();
     Ok(Output::Json(json!({
         "query": query,
         "total_notes": total,
@@ -211,18 +252,22 @@ fn search(context: &Context, args: Search) -> ToolResult {
     })))
 }
 
-fn result_json(result: &NoteResult) -> Value {
+fn result_json(context: &Context, result: &NoteResult) -> Value {
     let lines: Vec<Value> = result
         .hits
         .iter()
         .map(|hit| json!({ "line": hit.line + 1, "text": hit.excerpt }))
         .collect();
-    json!({
+    let mut value = json!({
         "path": gasp_vault::ops::slash_path(&result.path),
         "score": result.score,
         "matches": result.match_count,
         "lines": lines,
-    })
+    });
+    if is_encrypted_file(&context.root().join(&result.path)) {
+        value["encrypted"] = Value::Bool(true);
+    }
+    value
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]

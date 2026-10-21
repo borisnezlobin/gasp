@@ -7,8 +7,10 @@
 //! desktop app only supplies a handler.
 
 pub mod bridge;
+pub mod claude_keys;
 pub mod clients;
 pub mod context;
+pub mod encrypted;
 pub mod frontmatter;
 pub mod patch;
 pub mod paths;
