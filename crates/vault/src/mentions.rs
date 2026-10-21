@@ -418,6 +418,15 @@ mod tests {
     }
 
     #[test]
+    fn encrypted_notes_have_no_mentions() {
+        let mut index = LinkIndex::new();
+        index.set_note("Wave Packets.md", "");
+        index.set_note("Diary.md", "gasp-encrypted: 1\n\nWave Packets\n");
+        let search = MentionSearch::new(&index, "Wave Packets.md");
+        assert!(search.run(10).is_empty());
+    }
+
+    #[test]
     fn linking_a_mention_keeps_its_words() {
         let text = "About wave packets here.";
         let range = 6..18;

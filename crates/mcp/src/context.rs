@@ -3,7 +3,7 @@
 
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use gasp_config::Settings;
 use gasp_config::loader::build_settings;
@@ -14,6 +14,7 @@ use gasp_vault::index::LinkIndex;
 
 use crate::bridge::client::AppLink;
 use crate::bridge::endpoint::Endpoint;
+use crate::claude_keys::{ClaudeKeys, KeychainKeys};
 use crate::paths::{self, VaultPath};
 use crate::tool::ToolError;
 
@@ -25,6 +26,8 @@ pub struct Context {
     /// what changed on disk.
     notes: Mutex<NoteCache>,
     app: AppLink,
+    /// Keys for the encrypted notes Claude may always read.
+    claude_keys: Arc<dyn ClaudeKeys>,
 }
 
 impl Context {
@@ -48,14 +51,25 @@ impl Context {
             root,
             notes: Mutex::default(),
             app,
+            claude_keys: Arc::new(KeychainKeys),
         }
     }
 
-    /// A vault with no app, for unit tests.
+    /// This context finding keys for encrypted notes in `keys` instead of
+    /// the system keychain, as tests do.
+    pub fn with_claude_keys(self, keys: impl ClaudeKeys + 'static) -> Context {
+        Context {
+            claude_keys: Arc::new(keys),
+            ..self
+        }
+    }
+
+    /// A vault with no app and no kept keys, for unit tests.
     #[cfg(test)]
     pub fn for_tests(root: &Path) -> Context {
         let root = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
         Context::with_app(root, AppLink::new(None))
+            .with_claude_keys(crate::claude_keys::MemoryKeys::default())
     }
 
     pub fn root(&self) -> &Path {
@@ -64,6 +78,10 @@ impl Context {
 
     pub fn app(&self) -> &AppLink {
         &self.app
+    }
+
+    pub fn claude_keys(&self) -> &dyn ClaudeKeys {
+        self.claude_keys.as_ref()
     }
 
     pub fn resolve(&self, path: &str) -> Result<VaultPath, ToolError> {

@@ -406,6 +406,23 @@ mod tests {
     }
 
     #[test]
+    fn renames_leave_encrypted_notes_untouched() {
+        let dir = vault();
+        let sealed = "gasp-encrypted: 1\nkey: vault\n\n[[Roadmap]] [p](Projects/Roadmap.md)\n";
+        fs::write(dir.path().join("Diary.md"), sealed).unwrap();
+        fs::write(dir.path().join("Projects/Sealed.md"), sealed).unwrap();
+        let renamed = rename(dir.path(), Path::new("Projects"), Path::new("Work"), true).unwrap();
+        assert_eq!(read(&dir, "Diary.md"), sealed);
+        assert_eq!(read(&dir, "Work/Sealed.md"), sealed);
+        assert!(!renamed.updated_notes.contains(&PathBuf::from("Diary.md")));
+        assert!(
+            !renamed
+                .updated_notes
+                .contains(&PathBuf::from("Work/Sealed.md"))
+        );
+    }
+
+    #[test]
     fn renaming_without_link_updates_leaves_notes_alone() {
         let dir = vault();
         rename(

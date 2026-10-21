@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 use crate::bridge::Request;
 use crate::bridge::client::AppError;
 use crate::context::Context;
+use crate::encrypted::{self, EncryptedNote, is_encrypted_file};
 use crate::paths::{VaultPath, is_note_name, resolve_folder};
 use crate::tool::ToolError;
 
@@ -72,17 +73,22 @@ fn compile_glob(pattern: &str) -> Result<GlobMatcher, ToolError> {
 }
 
 fn file_entry(root: &Path, path: &str) -> Value {
-    let metadata = std::fs::metadata(root.join(path)).ok();
+    let absolute = root.join(path);
+    let metadata = std::fs::metadata(&absolute).ok();
     let modified = metadata
         .as_ref()
         .and_then(|meta| meta.modified().ok())
         .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
         .map(|since| since.as_secs());
-    json!({
+    let mut entry = json!({
         "path": path,
         "size": metadata.map(|meta| meta.len()),
         "modified": modified,
-    })
+    });
+    if is_note_name(path) && is_encrypted_file(&absolute) {
+        entry["encrypted"] = Value::Bool(true);
+    }
+    entry
 }
 
 /// Where a write went.
@@ -107,11 +113,15 @@ impl Written {
 /// `change` sees the editor's text and the result goes back through the
 /// app, so neither the edits nor undo are lost. Otherwise it sees the
 /// file (empty when there's none yet) and the result is written to it.
+/// An encrypted note changes as [`encrypted::change`] allows.
 pub fn change_note(
     context: &Context,
     note: &VaultPath,
     change: impl FnOnce(&str) -> Result<String, String>,
 ) -> Result<Written, ToolError> {
+    if let Some(sealed) = EncryptedNote::at(note)? {
+        return encrypted::change(context, note, &sealed, change);
+    }
     let buffer = context
         .app()
         .buffer(&note.relative)

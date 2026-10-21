@@ -1,15 +1,21 @@
 //! The server talking to a fake app over the real bridge: requests carry
 //! the token, notes with unsaved edits change through the app, and the
-//! tools say when there's no app.
+//! tools say when there's no app. The fake app treats every note it has
+//! open as unlocked, for encrypted notes Claude may read while unlocked.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use gasp_crypt::{ClaudeAccess, KdfParams, NoteOptions};
 use gasp_mcp::Context;
 use gasp_mcp::bridge::endpoint::{Endpoint, EndpointInfo};
 use gasp_mcp::bridge::listener::BridgeListener;
-use gasp_mcp::bridge::{Buffer, CursorState, EditorState, PaneState, Request, TabState};
+use gasp_mcp::bridge::{
+    Buffer, CursorState, EditorState, PaneState, Request, TabState, UnlockedText,
+};
+use gasp_mcp::claude_keys::MemoryKeys;
 use gasp_mcp::tool::Output;
+use gasp_vault::encryption::Encryption;
 use serde_json::{Value, json};
 
 /// What the fake app has open: path → (text, unsaved).
@@ -48,6 +54,10 @@ fn answer(open: &Open, request: Request) -> Result<Value, String> {
         Request::RunCommand { id } => Err(format!("no command {id}")),
         Request::OpenNote { .. } => Ok(json!({"pane": 0})),
         Request::Move { .. } => Ok(json!({"updated_notes": []})),
+        Request::Unlocked { path } => {
+            let text = open.get(&path).map(|(text, _)| text.clone());
+            Ok(serde_json::to_value(UnlockedText { text }).unwrap())
+        }
     }
 }
 
@@ -180,6 +190,56 @@ fn unsaved_notes_change_in_the_app_and_others_on_disk() {
     app.open.lock().unwrap().get_mut("Open.md").unwrap().1 = true;
     let error = call(&context, "delete_note", json!({"path": "Open"})).unwrap_err();
     assert!(error.contains("unsaved edits"), "{error}");
+}
+
+#[test]
+fn a_note_claude_may_read_while_unlocked_goes_through_the_app() {
+    let (vault, _runtime, endpoint, context) = setup();
+    let context = context.with_claude_keys(MemoryKeys::default());
+    let mut encryption = Encryption::load_with(vault.path(), KdfParams::QUICK);
+    encryption.set_vault_password("seagrass").unwrap();
+    let options = NoteOptions {
+        claude: ClaudeAccess::WhileUnlocked,
+        ..NoteOptions::default()
+    };
+    let sealed = encryption
+        .encrypt("Diary.md", "dear diary\n", options, None)
+        .unwrap();
+    std::fs::write(vault.path().join("Diary.md"), &sealed).unwrap();
+    let app = start_app(endpoint);
+
+    let error = call(&context, "read_note", json!({"path": "Diary"})).unwrap_err();
+    assert!(error.contains("only while it's unlocked"), "{error}");
+
+    app.open
+        .lock()
+        .unwrap()
+        .insert("Diary.md".into(), ("dear diary\n".into(), false));
+    let read = json_of(call(&context, "read_note", json!({"path": "Diary"})).unwrap());
+    assert_eq!(
+        (read["text"].as_str(), read["source"].as_str()),
+        (Some("dear diary\n"), Some("app"))
+    );
+    let said = call(
+        &context,
+        "patch_note",
+        json!({"path": "Diary", "operation": "append", "content": "more"}),
+    )
+    .unwrap();
+    assert!(
+        matches!(said, Output::Text(ref text) if text.contains("open editor")),
+        "{said:?}"
+    );
+    assert_eq!(app.open.lock().unwrap()["Diary.md"].0, "dear diary\nmore\n");
+    // The app seals it when it saves; the file is never written plain.
+    let on_disk = std::fs::read_to_string(vault.path().join("Diary.md")).unwrap();
+    assert_eq!(on_disk, sealed);
+    let requests = app.requests.lock().unwrap().clone();
+    assert!(
+        !requests
+            .iter()
+            .any(|request| matches!(request, Request::Buffer { path } if path == "Diary.md"))
+    );
 }
 
 #[test]

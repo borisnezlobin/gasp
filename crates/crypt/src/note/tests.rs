@@ -167,3 +167,64 @@ fn every_body_line_fits_the_width() {
 fn plain_text_never_prints() {
     assert_eq!(format!("{:?}", plain("secret")), "Plain(6 bytes)");
 }
+
+#[test]
+fn a_notes_own_key_opens_and_reseals_it_without_any_password() {
+    let vault = Key::random();
+    let note_key = Key::random();
+    let options = NoteOptions {
+        claude: ClaudeAccess::Always,
+        name: NameVisibility::Shown,
+    };
+    let text = seal(
+        &plain("first"),
+        options,
+        KeySource::Vault,
+        &vault,
+        &note_key,
+    );
+    assert_eq!(
+        open_with_note_key(&text, &note_key).unwrap().plain.body,
+        "first"
+    );
+    let resealed = reseal(&text, &plain("second"), &note_key).unwrap();
+    assert_eq!(open(&resealed, &vault).unwrap().plain.body, "second");
+    assert_eq!(peek(&resealed).unwrap().options, options);
+}
+
+#[test]
+fn another_notes_key_is_refused() {
+    let (text, _) = sealed_with_vault("x", NoteOptions::default());
+    assert_eq!(
+        open_with_note_key(&text, &Key::random()).unwrap_err(),
+        CryptError::WrongPassword
+    );
+    assert_eq!(
+        reseal(&text, &plain("y"), &Key::random()).unwrap_err(),
+        CryptError::WrongPassword
+    );
+}
+
+#[test]
+fn the_claude_key_name_follows_the_notes_key_across_saves() {
+    let vault = Key::random();
+    let note_key = Key::random();
+    let first = seal(
+        &plain("a"),
+        NoteOptions::default(),
+        KeySource::Vault,
+        &vault,
+        &note_key,
+    );
+    let second = seal(
+        &plain("b"),
+        NoteOptions::default(),
+        KeySource::Vault,
+        &vault,
+        &note_key,
+    );
+    let id = peek(&first).unwrap().claude_key_id();
+    assert_eq!(id, peek(&second).unwrap().claude_key_id());
+    assert_eq!(id, claude_key_id(&note_key));
+    assert_ne!(id, claude_key_id(&Key::random()));
+}

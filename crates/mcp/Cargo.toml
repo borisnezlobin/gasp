@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 gasp-config = { path = "../config" }
+gasp-crypt = { path = "../crypt" }
 gasp-export = { path = "../export" }
 gasp-search = { path = "../search" }
 gasp-snippets = { path = "../snippets" }
@@ -32,6 +33,18 @@ png = "0.18"
 dirs = "5"
 # The bridge's per-session token.
 getrandom = "0.3"
+
+[target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "windows"))'.dependencies]
+keyring = { version = "3", optional = true, features = ["apple-native", "windows-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", optional = true, features = ["sync-secret-service", "crypto-rust"] }
+
+[features]
+default = ["keychain"]
+# Keys for notes Claude may always read, from the system's credential
+# store, as gasp-sync keeps its tokens.
+keychain = ["dep:keyring"]
 
 [dev-dependencies]
 tempfile = "3"

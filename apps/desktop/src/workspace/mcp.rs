@@ -7,6 +7,10 @@
 //! on the main thread, between frames, and sent back. Nothing runs while
 //! no agent asks, and nothing starts until the first frame is on screen.
 //! The `mcp.enabled` setting starts and stops it.
+//!
+//! An encrypted note's text only crosses the bridge while it's unlocked
+//! here and its owner lets Claude read it; see
+//! [`Workspace::unlocked_text_for_mcp`].
 
 use std::path::Path;
 use std::sync::mpsc::{SyncSender, sync_channel};
@@ -17,7 +21,10 @@ use futures::channel::mpsc::{UnboundedSender, unbounded};
 use gasp_config::config_files::known_commands;
 use gasp_mcp::bridge::endpoint::Endpoint;
 use gasp_mcp::bridge::listener::BridgeListener;
-use gasp_mcp::bridge::{Buffer, CursorState, EditorState, PaneState, Request, TabState};
+use gasp_mcp::bridge::{
+    Buffer, CursorState, EditorState, PaneState, Request, TabState, UnlockedText,
+};
+use gasp_mcp::encrypted::is_encrypted_file;
 use gpui::{AnyWindowHandle, App, AppContext, Context, Entity, Task, Window};
 use serde_json::{Value, json};
 
@@ -149,7 +156,36 @@ impl Workspace {
             Request::Buffer { path } => Ok(json!(self.buffer(&path, cx))),
             Request::Edit { path, old, new } => self.edit_for_mcp(&path, &old, &new, cx),
             Request::Move { from, to } => self.move_for_mcp(&from, &to, cx),
+            Request::Unlocked { path } => Ok(json!(UnlockedText {
+                text: self.unlocked_text_for_mcp(&path, cx),
+            })),
         }
+    }
+
+    /// The editor's text of the encrypted note at `path` (vault-relative)
+    /// for Claude: `Some` only while the note is unlocked here and the
+    /// options it was sealed with allow it, as
+    /// [`gasp_mcp::encrypted::app_may_share`] decides from the encryption
+    /// session's options for the note (never the file's header, which
+    /// could be edited). The workspace's encryption session supplies it;
+    /// `None` keeps every encrypted note's text in the app.
+    pub(crate) fn unlocked_text_for_mcp(&self, _path: &str, _cx: &App) -> Option<String> {
+        None
+    }
+
+    /// Whether the note at `path` is encrypted on disk, so its text goes
+    /// to Claude only through [`Workspace::unlocked_text_for_mcp`].
+    fn is_encrypted_for_mcp(&self, path: &str) -> bool {
+        is_encrypted_file(&self.vault.join(path))
+    }
+
+    /// Text from the note at `path` that Claude may see: all of an
+    /// ordinary note's, and an encrypted note's only while it may read it.
+    fn shareable_text(&self, path: &str, text: String, cx: &App) -> Option<String> {
+        if !self.is_encrypted_for_mcp(path) {
+            return Some(text);
+        }
+        self.unlocked_text_for_mcp(path, cx).map(|_| text)
     }
 
     fn relative_path(&self, path: &Path) -> String {
@@ -165,12 +201,20 @@ impl Workspace {
             .position(|pane| *pane == self.active_pane)
             .unwrap_or(0);
         let editor = self.active_editor(cx);
+        let active_note = self.active_path(cx).map(|path| self.relative_path(&path));
         EditorState {
             vault: self.vault.to_string_lossy().into_owned(),
             panes: panes.iter().map(|pane| self.pane_state(pane, cx)).collect(),
             active_pane,
-            active_note: self.active_path(cx).map(|path| self.relative_path(&path)),
-            cursor: editor.map(|editor| cursor_state(&editor, cx)),
+            active_note: active_note.clone(),
+            cursor: editor.map(|editor| {
+                let mut cursor = cursor_state(&editor, cx);
+                let note = active_note.as_deref().unwrap_or_default();
+                cursor.selection = self
+                    .shareable_text(note, cursor.selection, cx)
+                    .unwrap_or_default();
+                cursor
+            }),
         }
     }
 
@@ -249,7 +293,7 @@ impl Workspace {
         Buffer {
             open: doc.has_editors(),
             dirty: doc.is_dirty(),
-            text: Some(doc.current_text(cx)),
+            text: self.shareable_text(path, doc.current_text(cx), cx),
         }
     }
 
@@ -260,6 +304,11 @@ impl Workspace {
         let doc = self
             .doc_for_path(&absolute, cx)
             .ok_or_else(|| format!("{path} isn't open any more; try again"))?;
+        if self.shareable_text(path, String::new(), cx).is_none() {
+            return Err(format!(
+                "{path} is encrypted, and it isn't unlocked for Claude in the app"
+            ));
+        }
         if doc.read(cx).current_text(cx) != old {
             return Err(format!(
                 "{path} changed in the editor since it was read; read it and try again"
