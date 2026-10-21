@@ -352,8 +352,9 @@ impl<'a> Builder<'a> {
         Ok((index.write_tree_to(&self.repo)?, waiting))
     }
 
-    /// Merges a note both sides have: a binary keeps this device's copy,
-    /// text merges line by line or waits for a person.
+    /// Merges a note both sides have: an encrypted note keeps both, the
+    /// other side's as a conflicted copy; a binary keeps this device's
+    /// copy; text merges line by line or waits for a person.
     fn merge_file(
         &self,
         index: &mut Index,
@@ -362,6 +363,16 @@ impl<'a> Builder<'a> {
     ) -> SyncResult<Option<Waiting>> {
         let mine = self.repo.find_blob(file.id)?.content().to_vec();
         let other = self.repo.find_blob(theirs)?.content().to_vec();
+        if is_encrypted_note(&mine) || is_encrypted_note(&other) {
+            index.add(&file.entry())?;
+            let copy = TreeFile {
+                path: free_copy_path(index, &file.path),
+                id: theirs,
+                mode: file.mode,
+            };
+            index.add(&copy.entry())?;
+            return Ok(None);
+        }
         if classify(&file.path, &[&mine, &other]) == FileKind::Binary {
             index.add(&file.entry())?;
             return Ok(None);
@@ -503,6 +514,31 @@ impl<'a> Builder<'a> {
 }
 
 /// A file in a tree: where it is, its blob and its mode.
+fn is_encrypted_note(bytes: &[u8]) -> bool {
+    std::str::from_utf8(bytes).is_ok_and(gasp_crypt::is_encrypted)
+}
+
+/// `Name (conflicted copy).md` beside `path`, numbered when the index
+/// already has it.
+fn free_copy_path(index: &Index, path: &Path) -> PathBuf {
+    let stem = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("Note");
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("md");
+    let name = |number: usize| match number {
+        1 => format!("{stem} (conflicted copy).{extension}"),
+        _ => format!("{stem} (conflicted copy {number}).{extension}"),
+    };
+    (1..)
+        .map(|number| path.with_file_name(name(number)))
+        .find(|candidate| index.get_path(candidate, 0).is_none())
+        .expect("some number is free")
+}
+
 #[derive(Clone)]
 struct TreeFile {
     path: PathBuf,

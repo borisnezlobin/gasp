@@ -84,7 +84,9 @@ pub enum MergeOutcome {
     NothingToMerge,
     UpToDate,
     FastForward,
-    /// A merge commit was made. `kept_local` lists binaries where this device's copy won.
+    /// A merge commit was made. `kept_local` lists binaries and encrypted
+    /// notes where this device's copy won; an encrypted note's other copy
+    /// sits beside it as a conflicted copy.
     Merged {
         commit: Oid,
         kept_local: Vec<PathBuf>,
@@ -114,6 +116,12 @@ pub struct Vault {
 enum Settlement {
     Write(Vec<u8>),
     KeepLocalBinary(Vec<u8>),
+    /// An encrypted note both devices changed: ciphertext can't merge by
+    /// line, so this device's stays and the other's goes beside it.
+    KeepBoth {
+        this_device: Vec<u8>,
+        other_device: Vec<u8>,
+    },
     Delete,
     NeedsPerson(ConflictedFile),
 }
@@ -610,6 +618,15 @@ impl Vault {
                     self.stage_bytes(&mut index, &path, &bytes)?;
                     settled.kept_local.push(path);
                 }
+                Settlement::KeepBoth {
+                    this_device,
+                    other_device,
+                } => {
+                    self.stage_bytes(&mut index, &path, &this_device)?;
+                    let copy = self.free_copy_path(&path);
+                    self.stage_bytes(&mut index, &copy, &other_device)?;
+                    settled.kept_local.push(path);
+                }
                 Settlement::Delete => self.stage_deletion(&mut index, &path)?,
                 Settlement::NeedsPerson(file) => {
                     let parking = Parking {
@@ -664,6 +681,26 @@ impl Vault {
         self.write_file(path, bytes)?;
         index.add_path(path)?;
         Ok(())
+    }
+
+    /// `Name (conflicted copy).md` beside `path`, numbered when taken.
+    fn free_copy_path(&self, path: &Path) -> PathBuf {
+        let stem = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("Note");
+        let extension = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("md");
+        let name = |number: usize| match number {
+            1 => format!("{stem} (conflicted copy).{extension}"),
+            _ => format!("{stem} (conflicted copy {number}).{extension}"),
+        };
+        (1..)
+            .map(|number| path.with_file_name(name(number)))
+            .find(|candidate| !self.root().join(candidate).exists())
+            .expect("some number is free")
     }
 
     fn write_file(&self, path: &Path, bytes: &[u8]) -> SyncResult<()> {
@@ -770,13 +807,20 @@ impl ConflictVersions {
     }
 }
 
-/// Both devices changed the file: binaries keep the local copy, text merges by line.
+/// Both devices changed the file: encrypted notes keep both, binaries
+/// keep the local copy, text merges by line.
 fn settle_both(
     path: PathBuf,
     base: Option<Vec<u8>>,
     this_device: Vec<u8>,
     other_device: Vec<u8>,
 ) -> Settlement {
+    if is_encrypted_note(&this_device) || is_encrypted_note(&other_device) {
+        return Settlement::KeepBoth {
+            this_device,
+            other_device,
+        };
+    }
     let base = base.unwrap_or_default();
     if classify(&path, &[&base, &this_device, &other_device]) == FileKind::Binary {
         return Settlement::KeepLocalBinary(this_device);
@@ -788,6 +832,10 @@ fn settle_both(
             Settlement::NeedsPerson(ConflictedFile { path, segments })
         }
     }
+}
+
+fn is_encrypted_note(bytes: &[u8]) -> bool {
+    std::str::from_utf8(bytes).is_ok_and(gasp_crypt::is_encrypted)
 }
 
 /// What a folder's git clone looks like, read without changing anything.

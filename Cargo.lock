@@ -4199,6 +4199,7 @@ version = "0.2.5"
 dependencies = [
  "gasp-bench",
  "gasp-config",
+ "gasp-crypt",
  "git2",
  "globset",
  "keyring",

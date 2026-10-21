@@ -184,6 +184,36 @@ fn a_note_changed_on_both_sides_is_never_lost() {
 }
 
 #[test]
+fn an_encrypted_note_on_both_sides_keeps_both_whole() {
+    let key = gasp_crypt::Key::random();
+    let sealed = |body: &str| {
+        let plain = gasp_crypt::Plain {
+            body: body.to_owned(),
+            title: None,
+        };
+        gasp_crypt::seal(
+            &plain,
+            gasp_crypt::NoteOptions::default(),
+            gasp_crypt::KeySource::Vault,
+            &key,
+            &gasp_crypt::Key::random(),
+        )
+    };
+    let remote_copy = sealed("from the remote");
+    let laptop_copy = sealed("from the laptop");
+    let world = World::seeded(&[("Diary.md", remote_copy.as_bytes())]);
+    let root = folder_with(&world, "laptop", &[("Diary.md", &laptop_copy)]);
+    let report = set_up(&root, &world.remote_url).unwrap();
+    assert!(report.waiting.is_empty());
+    let opened = |path: &str| {
+        let text = fs::read_to_string(root.join(path)).unwrap();
+        gasp_crypt::open(&text, &key).unwrap().plain.body.clone()
+    };
+    assert_eq!(opened("Diary.md"), "from the laptop");
+    assert_eq!(opened("Diary (conflicted copy).md"), "from the remote");
+}
+
+#[test]
 fn device_only_files_stay_on_the_device() {
     let world = empty_world();
     let config_dir = gasp_config::CONFIG_DIR;

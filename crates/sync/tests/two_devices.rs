@@ -275,6 +275,45 @@ fn resolution_paths_must_stay_inside_the_vault() {
     assert!(matches!(outside, Err(SyncError::OutsideVault(_))));
 }
 
+fn encrypted(body: &str, vault: &gasp_crypt::Key) -> String {
+    let plain = gasp_crypt::Plain {
+        body: body.to_owned(),
+        title: None,
+    };
+    gasp_crypt::seal(
+        &plain,
+        gasp_crypt::NoteOptions::default(),
+        gasp_crypt::KeySource::Vault,
+        vault,
+        &gasp_crypt::Key::random(),
+    )
+}
+
+#[test]
+fn an_encrypted_note_changed_on_both_keeps_both_versions_whole() {
+    let note = "Private/Diary.md";
+    let key = gasp_crypt::Key::random();
+    let world = World::seeded(&[(note, encrypted("base", &key).as_bytes())]);
+    let laptop = world.device("laptop");
+    let phone = world.device("phone");
+    let from_laptop = encrypted("laptop entry", &key);
+    let from_phone = encrypted("phone entry", &key);
+    write(&laptop, note, from_laptop.as_bytes());
+    write(&phone, note, from_phone.as_bytes());
+    sync(&laptop, "laptop");
+    let outcome = sync(&phone, "phone");
+    let MergeOutcome::Merged { kept_local, .. } = outcome else {
+        panic!("expected an automatic merge, got {outcome:?}");
+    };
+    assert_eq!(kept_local, vec![PathBuf::from(note)]);
+    let opened = |text: String| gasp_crypt::open(&text, &key).unwrap().plain.body.clone();
+    assert_eq!(opened(read(&phone, note)), "phone entry");
+    assert_eq!(
+        opened(read(&phone, "Private/Diary (conflicted copy).md")),
+        "laptop entry"
+    );
+}
+
 #[test]
 fn binary_conflict_keeps_the_local_copy() {
     let image = "attachments/diagram.png";
