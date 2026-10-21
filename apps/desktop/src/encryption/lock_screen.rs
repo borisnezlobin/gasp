@@ -33,7 +33,11 @@ impl Global for LockWhale {}
 fn whale(cx: &mut App) -> Option<Arc<RenderImage>> {
     let dark = crate::ui::is_dark(cx);
     let kept = cx.default_global::<LockWhale>();
-    if kept.0.as_ref().is_none_or(|(was_dark, _)| *was_dark != dark) {
+    if kept
+        .0
+        .as_ref()
+        .is_none_or(|(was_dark, _)| *was_dark != dark)
+    {
         kept.0 = crate::tour::WhaleArt::still(dark).map(|still| (dark, still));
     }
     kept.0.as_ref().map(|(_, still)| still.clone())
@@ -146,10 +150,10 @@ impl LockScreen {
     fn unlock_with_touch_id(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let path = self.path(cx);
         let raw = self.doc.read(cx).disk_text().to_owned();
-        let Some(id) = super::read_encryption(&path, cx, |encryption, _| {
-            encryption.key_id_for(&raw)
-        })
-        .flatten() else {
+        let Some(id) =
+            super::read_encryption(&path, cx, |encryption, _| encryption.key_id_for(&raw))
+                .flatten()
+        else {
             return;
         };
         let reason = format!("unlock “{}”", crate::workspace::files::note_title(&path));
@@ -180,7 +184,8 @@ impl LockScreen {
             Ok(()) => self.finish_unlocking(window, cx),
             Err(_) => {
                 keychain::forget(id, cx);
-                let message = "The password changed since Touch ID last unlocked this. Type the new one.";
+                let message =
+                    "The password changed since Touch ID last unlocked this. Type the new one.";
                 self.show_error(Some(message.to_owned()), cx);
             }
         }

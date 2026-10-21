@@ -90,7 +90,12 @@ fn unlock(
 ) -> Option<String> {
     let screen = cx.read(|cx| {
         let pane = workspace.read(cx).active_pane().read(cx);
-        pane.active_tab().unwrap().note().unwrap().lock_screen.clone()
+        pane.active_tab()
+            .unwrap()
+            .note()
+            .unwrap()
+            .lock_screen
+            .clone()
     });
     cx.update(|window, cx| {
         screen.update(cx, |screen, cx| {
@@ -119,7 +124,10 @@ fn an_encrypted_note_opens_locked_and_never_shows_its_sealed_text(cx: &mut TestA
     open(&workspace, cx, "secret.md");
     assert!(is_locked(&workspace, cx));
     assert_eq!(editor_text(&workspace, cx), "");
-    assert!(cx.debug_bounds("lock-screen").is_some(), "the locked view shows");
+    assert!(
+        cx.debug_bounds("lock-screen").is_some(),
+        "the locked view shows"
+    );
     let tab = cx.read(|cx| {
         let pane = workspace.read(cx).active_pane().read(cx);
         pane.active_tab().unwrap().title(cx)
@@ -165,7 +173,10 @@ fn the_lock_command_locks_open_notes_again(cx: &mut TestAppContext) {
     assert!(is_locked(&workspace, cx));
     assert_eq!(editor_text(&workspace, cx), "");
     let file = read(&vault, "secret.md");
-    assert!(is_encrypted(&file), "the edit was saved sealed before locking");
+    assert!(
+        is_encrypted(&file),
+        "the edit was saved sealed before locking"
+    );
     assert_eq!(unlock(&workspace, cx, PASSWORD), None);
     let text = editor_text(&workspace, cx);
     assert!(text.contains(" Unsaved."), "{text:?}");
@@ -179,7 +190,10 @@ fn notes_lock_once_the_window_has_been_away_long_enough(cx: &mut TestAppContext)
     unlock(&workspace, cx, PASSWORD);
     cx.deactivate_window();
     cx.run_until_parked();
-    assert!(cx.debug_bounds("away-cover").is_some(), "covered while away");
+    assert!(
+        cx.debug_bounds("away-cover").is_some(),
+        "covered while away"
+    );
     advance(cx, Duration::from_secs(60));
     assert!(!is_locked(&workspace, cx), "not before the delay");
     cx.update(|window, _| window.activate_window());

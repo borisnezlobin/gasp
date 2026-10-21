@@ -84,11 +84,7 @@ pub struct NoteDoc {
 impl NoteDoc {
     /// Reads the note at `path`. An encrypted note opens only when a key
     /// for it is in hand; otherwise it starts locked, with no text.
-    pub fn load(
-        path: &Path,
-        image_dirs: Vec<PathBuf>,
-        cx: &mut gpui::App,
-    ) -> io::Result<NoteDoc> {
+    pub fn load(path: &Path, image_dirs: Vec<PathBuf>, cx: &mut gpui::App) -> io::Result<NoteDoc> {
         let raw = std::fs::read_to_string(path)?;
         let (sealing, text) = decode(path, &raw, cx);
         let mut doc = NoteDoc::from_text(path, text, image_dirs);
@@ -423,9 +419,7 @@ impl NoteDoc {
         if !self.is_locked() {
             return false;
         }
-        let Ok(raw) = std::fs::read_to_string(&self.path) else {
-            return false;
-        };
+        let raw = self.disk_text.clone();
         let (sealing, text) = decode(&self.path, &raw, cx);
         if sealing == Sealing::Locked {
             return false;
@@ -440,7 +434,7 @@ impl NoteDoc {
         password: &str,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
-        let raw = std::fs::read_to_string(&self.path).map_err(|error| error.to_string())?;
+        let raw = self.disk_text.clone();
         crate::encryption::reload_lock(&self.path, cx);
         crate::encryption::with_encryption(&self.path, cx, |encryption, relative| {
             encryption.unlock_note(relative, &raw, password)
@@ -457,7 +451,7 @@ impl NoteDoc {
         key: gasp_crypt::Key,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
-        let raw = std::fs::read_to_string(&self.path).map_err(|error| error.to_string())?;
+        let raw = self.disk_text.clone();
         crate::encryption::with_encryption(&self.path, cx, |encryption, relative| {
             encryption.unlock_note_with_key(relative, &raw, key)
         })

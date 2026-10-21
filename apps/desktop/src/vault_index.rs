@@ -468,16 +468,19 @@ pub fn index_changes(vault: &Path, changed: &[PathBuf], removed: &[PathBuf]) -> 
         .map(IndexChange::Remove);
     // Each note is read and parsed once, for its tags and its links; a
     // folder that moved in is read whole.
-    let updates = read_changes(vault, changed).into_iter().map(without_sealed_text).flat_map(|change| {
-        let scan = match &change {
-            LinkChange::Note(path, _, parsed) => Some(IndexChange::Upsert(NoteScan {
-                path: path.clone(),
-                tags: distinct_tags(parsed),
-            })),
-            LinkChange::File(_) => None,
-        };
-        scan.into_iter().chain([IndexChange::Links(change)])
-    });
+    let updates = read_changes(vault, changed)
+        .into_iter()
+        .map(without_sealed_text)
+        .flat_map(|change| {
+            let scan = match &change {
+                LinkChange::Note(path, _, parsed) => Some(IndexChange::Upsert(NoteScan {
+                    path: path.clone(),
+                    tags: distinct_tags(parsed),
+                })),
+                LinkChange::File(_) => None,
+            };
+            scan.into_iter().chain([IndexChange::Links(change)])
+        });
     removals.chain(updates).collect()
 }
 

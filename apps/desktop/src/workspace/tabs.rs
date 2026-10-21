@@ -254,13 +254,21 @@ impl Workspace {
             .insert(editor.entity_id(), super::CursorSeen::default());
         let lock_screen = cx.new(|cx| LockScreen::new(doc.clone(), window, cx));
         let unlocked_editor = editor.clone();
+        let locking = (editor.clone(), lock_screen.clone());
         let subscriptions = vec![
             cx.subscribe_in(&editor, window, Self::on_editor_event),
             cx.subscribe_in(&title, window, Self::on_title_event),
-            cx.observe(&doc, |_, _, cx| cx.notify()),
-            cx.subscribe_in(&lock_screen, window, move |_, _, _: &LockScreenEvent, window, cx| {
-                window.focus(&unlocked_editor.focus_handle(cx));
+            cx.observe_in(&doc, window, move |_, doc, window, cx| {
+                follow_focus_into_lock(doc.read(cx).is_locked(), &locking, window, cx);
+                cx.notify();
             }),
+            cx.subscribe_in(
+                &lock_screen,
+                window,
+                move |_, _, _: &LockScreenEvent, window, cx| {
+                    window.focus(&unlocked_editor.focus_handle(cx));
+                },
+            ),
         ];
         let content = TabContent::Note(NoteTab {
             doc,
@@ -620,5 +628,18 @@ impl Workspace {
             }
         }
         found
+    }
+}
+
+/// A note that locked while its editor had focus hands focus to its
+/// password field, so typing goes there.
+fn follow_focus_into_lock(
+    locked: bool,
+    (editor, lock_screen): &(Entity<EditorView>, Entity<LockScreen>),
+    window: &mut Window,
+    cx: &mut gpui::App,
+) {
+    if locked && editor.focus_handle(cx).is_focused(window) {
+        window.focus(&lock_screen.focus_handle(cx));
     }
 }

@@ -36,8 +36,7 @@ pub fn edit_note(
     change: impl FnOnce(&str) -> Option<String>,
     cx: &mut Context<Workspace>,
 ) -> io::Result<Option<String>> {
-    if crate::encryption::is_encrypted_note(path, cx) && !crate::encryption::is_unlocked(path, cx)
-    {
+    if crate::encryption::is_encrypted_note(path, cx) && !crate::encryption::is_unlocked(path, cx) {
         return Ok(None);
     }
     if let Some(editor) = open_editor(workspace, path, cx) {

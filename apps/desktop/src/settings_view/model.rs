@@ -671,6 +671,12 @@ pub fn choice_label(value: &str) -> String {
     gasp_config::setting_texts::choice_label(value).map_or_else(|| humanize(value), str::to_owned)
 }
 
+/// How one option of the setting `key` reads.
+pub fn setting_choice_label(key: &str, value: &str) -> String {
+    gasp_config::setting_texts::choice_label_for(key, value)
+        .map_or_else(|| humanize(value), str::to_owned)
+}
+
 // ---- Fonts ----
 
 /// The fonts a font menu offers: `current` first, then the theme's

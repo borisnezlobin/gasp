@@ -34,9 +34,15 @@ pub enum TouchIdError {
 impl std::fmt::Display for TouchIdError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TouchIdError::Declined => write!(f, "Touch ID didn’t unlock it. Try again or use the password."),
+            TouchIdError::Declined => write!(
+                f,
+                "Touch ID didn’t unlock it. Try again or use the password."
+            ),
             TouchIdError::NothingKept => {
-                write!(f, "Unlock with the password once, then Touch ID can unlock it.")
+                write!(
+                    f,
+                    "Unlock with the password once, then Touch ID can unlock it."
+                )
             }
             TouchIdError::Failed(reason) => write!(f, "Touch ID didn’t work: {reason}"),
         }
@@ -142,13 +148,14 @@ mod platform {
 
     /// Shows the system's Touch ID sheet; the answer arrives once the
     /// person has answered it.
-    pub fn ask_for_touch_id(
-        reason: &str,
-    ) -> oneshot::Receiver<Result<(), TouchIdError>> {
+    pub fn ask_for_touch_id(reason: &str) -> oneshot::Receiver<Result<(), TouchIdError>> {
         let (sender, receiver) = oneshot::channel();
         let sender = Arc::new(Mutex::new(Some(sender)));
         let Some(context_class) = Class::get("LAContext") else {
-            answer(&sender, Err(TouchIdError::Failed("no LocalAuthentication".into())));
+            answer(
+                &sender,
+                Err(TouchIdError::Failed("no LocalAuthentication".into())),
+            );
             return receiver;
         };
         let replied = sender.clone();
@@ -210,9 +217,7 @@ mod platform {
             Err(keyring::Error::NoEntry) => return Err(TouchIdError::NothingKept),
             Err(error) => return Err(TouchIdError::Failed(error.to_string())),
         };
-        let bytes: [u8; 32] = secret
-            .try_into()
-            .map_err(|_| TouchIdError::NothingKept)?;
+        let bytes: [u8; 32] = secret.try_into().map_err(|_| TouchIdError::NothingKept)?;
         Ok(Key::from_bytes(bytes))
     }
 

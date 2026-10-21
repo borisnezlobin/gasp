@@ -104,7 +104,12 @@ impl PasswordDialog {
     }
 
     /// Enter moves to the next field, and from the last one submits.
-    fn advance_from(&mut self, input: &Entity<TextInput>, window: &mut Window, cx: &mut Context<Self>) {
+    fn advance_from(
+        &mut self,
+        input: &Entity<TextInput>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let index = self.inputs.iter().position(|known| known == input);
         match index.and_then(|index| self.inputs.get(index + 1)) {
             Some(next) => window.focus(&next.focus_handle(cx)),
@@ -302,7 +307,8 @@ impl NoteOptionsDialog {
     pub fn fill_password(&mut self, password: &str, confirm: &str, cx: &mut Context<Self>) {
         self.new_password
             .update(cx, |input, cx| input.set_text(password, cx));
-        self.confirm.update(cx, |input, cx| input.set_text(confirm, cx));
+        self.confirm
+            .update(cx, |input, cx| input.set_text(confirm, cx));
     }
 
     pub fn error(&self) -> Option<&str> {
@@ -335,7 +341,8 @@ impl NoteOptionsDialog {
         if needs_password && typed.is_empty() {
             return Err("Choose a password for this note.".to_owned());
         }
-        let new_password = (self.source == PasswordSource::Own && !typed.is_empty()).then_some(typed);
+        let new_password =
+            (self.source == PasswordSource::Own && !typed.is_empty()).then_some(typed);
         Ok(OptionsChoice {
             source: self.source,
             new_password,
@@ -363,8 +370,13 @@ impl NoteOptionsDialog {
             (PasswordSource::Own, "Its own password"),
         ];
         let segments = choices.map(|(source, label)| {
-            segment(("note-password", source as usize), label, self.source == source, &style)
-                .on_click(cx.listener(move |dialog, _, _, cx| dialog.set_source(source, cx)))
+            segment(
+                ("note-password", source as usize),
+                label,
+                self.source == source,
+                &style,
+            )
+            .on_click(cx.listener(move |dialog, _, _, cx| dialog.set_source(source, cx)))
         });
         let text = row_text("Unlocks with", None, Vec::new(), &style);
         two_column_row(
@@ -418,15 +430,25 @@ impl NoteOptionsDialog {
             .child("The file gets a stand-in name like “Encrypted 3f9a2c1b”.")
             .into_any_element();
         let text = row_text("Hide the file name", Some(description), Vec::new(), &style);
-        two_column_row("note-hide-name", text, Some(toggle.into_any_element()), &style)
-            .into_any_element()
+        two_column_row(
+            "note-hide-name",
+            text,
+            Some(toggle.into_any_element()),
+            &style,
+        )
+        .into_any_element()
     }
 
     fn render_claude(&self, cx: &mut Context<Self>) -> AnyElement {
         let style = crate::ui::settings_theme(cx);
         let segments = CLAUDE_LABELS.map(|(access, label)| {
-            segment(("note-claude", access as usize), label, self.options.claude == access, &style)
-                .on_click(cx.listener(move |dialog, _, _, cx| dialog.set_claude(access, cx)))
+            segment(
+                ("note-claude", access as usize),
+                label,
+                self.options.claude == access,
+                &style,
+            )
+            .on_click(cx.listener(move |dialog, _, _, cx| dialog.set_claude(access, cx)))
         });
         let text = row_text("Claude can read it", None, Vec::new(), &style);
         two_column_row(

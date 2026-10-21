@@ -291,7 +291,14 @@ pub const CHOICE_LABELS: &[(&str, &str)] = &[
     ("british", "British"),
     ("canadian", "Canadian"),
     ("australian", "Australian"),
+    ("never", "Never"),
+    ("while-unlocked", "While unlocked"),
 ];
+
+/// Labels for a choice that reads differently in one setting than in the
+/// rest, as (setting, choice, label).
+pub const KEYED_CHOICE_LABELS: &[(&str, &str, &str)] =
+    &[("encryption.claude-access", "always", "Always")];
 
 /// Settings no app shows, by key prefix.
 pub const HIDDEN: &[&str] = &["mobile."];
@@ -306,6 +313,15 @@ pub fn setting_text(key: &str) -> Option<(&'static str, &'static str)> {
         .iter()
         .find(|(known, ..)| *known == key)
         .map(|(_, title, description)| (*title, *description))
+}
+
+/// How the choice `value` of the setting `key` reads, if it has a label.
+pub fn choice_label_for(key: &str, value: &str) -> Option<&'static str> {
+    KEYED_CHOICE_LABELS
+        .iter()
+        .find(|(setting, known, _)| *setting == key && *known == value)
+        .map(|(_, _, label)| *label)
+        .or_else(|| choice_label(value))
 }
 
 /// How the choice `value` reads, if it has a label.

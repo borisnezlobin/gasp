@@ -50,7 +50,10 @@ fn vault_encryption<R>(
 
 fn vault_state(vault: &Path, cx: &App) -> (bool, bool) {
     super::read_encryption(vault, cx, |encryption, _| {
-        (encryption.has_vault_password(), encryption.is_vault_unlocked())
+        (
+            encryption.has_vault_password(),
+            encryption.is_vault_unlocked(),
+        )
     })
     .unwrap_or_default()
 }
@@ -107,9 +110,11 @@ fn ask_for_new_vault_password(
 ) {
     let on_submit: PasswordSubmit = Box::new(move |values, _, cx| {
         matching(&values[0], &values[1])?;
-        vault_encryption(&vault, cx, |encryption| encryption.set_vault_password(&values[0]))
-            .unwrap_or(Err(EncryptionError::NoVaultPassword))
-            .map_err(crypt_message)?;
+        vault_encryption(&vault, cx, |encryption| {
+            encryption.set_vault_password(&values[0])
+        })
+        .unwrap_or(Err(EncryptionError::NoVaultPassword))
+        .map_err(crypt_message)?;
         super::lock_screen::keep_vault_key_for_touch_id(&vault, cx);
         finish_encrypting(&this, &doc, cx)
     });
@@ -177,7 +182,7 @@ fn finish_encrypting(
     if options.name == NameVisibility::Hidden {
         rename_doc(this, doc, &hidden_title(), cx)?;
     }
-    notice("Encrypted. The note locks with the vault.", cx);
+    notice("Encrypted with the vault password.", cx);
     Ok(())
 }
 
@@ -213,7 +218,8 @@ fn decrypt_note(workspace: &mut Workspace, window: &mut Window, cx: &mut Context
         return;
     }
     let message = "Remove encryption from this note?";
-    let detail = "Its text is saved as plain text again, which anyone who can open the file can read.";
+    let detail =
+        "Its text is saved as plain text again, which anyone who can open the file can read.";
     let answer = window.prompt(
         PromptLevel::Warning,
         message,
@@ -289,8 +295,8 @@ fn open_note_options(workspace: &mut Workspace, window: &mut Window, cx: &mut Co
     };
     let own_password = peek(doc.read(cx).disk_text())
         .is_ok_and(|header| matches!(header.source, KeySource::Note { .. }));
-    let title = hidden_name_title(&path, cx)
-        .unwrap_or_else(|| crate::workspace::files::note_title(&path));
+    let title =
+        hidden_name_title(&path, cx).unwrap_or_else(|| crate::workspace::files::note_title(&path));
     let this = cx.entity().downgrade();
     let on_submit = Box::new(move |choice: OptionsChoice, _: &mut Window, cx: &mut App| {
         apply_options(&this, &doc, own_password, choice, cx)
@@ -415,9 +421,11 @@ fn change_form(vault: PathBuf) -> PasswordForm {
 fn first_password_form(vault: PathBuf) -> PasswordForm {
     let on_submit: PasswordSubmit = Box::new(move |values, _, cx| {
         matching(&values[0], &values[1])?;
-        vault_encryption(&vault, cx, |encryption| encryption.set_vault_password(&values[0]))
-            .unwrap_or(Err(EncryptionError::NoVaultPassword))
-            .map_err(crypt_message)?;
+        vault_encryption(&vault, cx, |encryption| {
+            encryption.set_vault_password(&values[0])
+        })
+        .unwrap_or(Err(EncryptionError::NoVaultPassword))
+        .map_err(crypt_message)?;
         super::lock_screen::keep_vault_key_for_touch_id(&vault, cx);
         notice("The vault has a password now.", cx);
         Ok(())

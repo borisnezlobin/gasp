@@ -189,7 +189,10 @@ pub fn forget(path: &Path, cx: &mut App) {
     };
     for snapshot in store.list(&relative) {
         if let Err(error) = std::fs::remove_file(&snapshot.path) {
-            eprintln!("could not delete a snapshot of {}: {error}", relative.display());
+            eprintln!(
+                "could not delete a snapshot of {}: {error}",
+                relative.display()
+            );
         }
     }
 }
