@@ -13,6 +13,7 @@ dirs = "5"
 jiff = "0.2"
 memchr = "2.7"
 thiserror = "2"
+zeroize = "1"
 
 [target.'cfg(not(target_os = "ios"))'.dependencies]
 trash = "5"

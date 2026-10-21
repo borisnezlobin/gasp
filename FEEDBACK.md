@@ -249,3 +249,7 @@ Copy and layout
 - [x] iPhone TestFlight: no Sign in with GitHub, it still asks for a token. Signing in and granting access to the private repo is the better path. *(A vault that already syncs now offers Sign in with GitHub in Settings → Sync once signed out; the token sits behind "Use a token instead".)*
 - [x] Multiple vaults: can Gasp handle several easily? *(Answered: yes on the Mac, one of each kind on the iPhone, one vault per Claude connector.)*
 - [x] Encrypted notes inside a vault: per-vault password (overridable per note), unlocks only in the app, blurs when focus is lost, re-locks after 120 s away (configurable), optional Face ID / Touch ID unlock.
+- [ ] Encrypted notes: an unlocked note with a hidden name must show its real name everywhere, header included.
+- [ ] Encrypted notes: the window must never freeze, not even while a password is checked.
+- [ ] Encrypted notes: a vault password changed on another device is picked up right away, and embeds of encrypted notes never show scrambled text.
+- [ ] Encrypted attachments: can images and files be encrypted too, with an easy way to do it?

@@ -201,3 +201,103 @@ fn renaming_a_shown_note_changes_the_title_it_keeps() {
     encryption.rename("Draft.md", "Folder/Final plan.md");
     assert_eq!(encryption.title("Folder/Final plan.md"), Some("Final plan"));
 }
+
+#[test]
+fn an_unlock_job_runs_apart_from_the_session() {
+    let (dir, mut encryption) = with_password("vault");
+    let file = encryption
+        .encrypt("A.md", "a", NoteOptions::default(), None)
+        .unwrap();
+    write(&dir, "A.md", &file);
+    encryption.lock_all();
+    let job = encryption.unlock_job(&file, "vault").unwrap();
+    let key = std::thread::spawn(move || job.run())
+        .join()
+        .unwrap()
+        .unwrap();
+    let plain = encryption.finish_unlock("A.md", &file, key).unwrap();
+    assert_eq!(plain.body, "a");
+    assert!(encryption.is_vault_unlocked());
+}
+
+#[test]
+fn a_save_during_a_password_change_is_sealed_again_after() {
+    let (dir, mut encryption) = with_password("old");
+    let file = encryption
+        .encrypt("Open.md", "first", NoteOptions::default(), None)
+        .unwrap();
+    write(&dir, "Open.md", &file);
+    let job = encryption.password_change_job("old", "new").unwrap();
+    let changed = job.run().unwrap();
+    // The app saved while the job ran, still with the old key.
+    write(
+        &dir,
+        "Open.md",
+        &encryption.seal("Open.md", "second").unwrap(),
+    );
+    let resave = encryption.finish_password_change(changed);
+    assert_eq!(resave, vec!["Open.md".to_owned()]);
+    write(
+        &dir,
+        "Open.md",
+        &encryption.seal("Open.md", "second").unwrap(),
+    );
+
+    let mut fresh = Encryption::load_with(dir.path(), KdfParams::QUICK);
+    fresh.unlock_vault("new").unwrap();
+    let NoteText::Unlocked(plain) = fresh.read("Open.md", &read(&dir, "Open.md")) else {
+        panic!("the new password opens the saved note");
+    };
+    assert_eq!(plain.body, "second");
+}
+
+#[test]
+fn a_password_change_that_stopped_partway_can_run_again() {
+    let (dir, mut encryption) = with_password("old");
+    for path in ["A.md", "B.md"] {
+        let file = encryption
+            .encrypt(path, path, NoteOptions::default(), None)
+            .unwrap();
+        write(&dir, path, &file);
+    }
+    let old_key = encryption.vault_key().unwrap().clone();
+    // As if a change stopped after writing its next lock and rewrapping B.
+    let (next, next_key) = VaultLock::create("new", KdfParams::QUICK).unwrap();
+    std::fs::write(jobs::next_lock_path(dir.path()), next.to_toml()).unwrap();
+    let rewrapped = gasp_crypt::rewrap(&read(&dir, "B.md"), &old_key, &next_key).unwrap();
+    write(&dir, "B.md", &rewrapped);
+
+    assert_eq!(encryption.change_vault_password("old", "new").unwrap(), 1);
+    assert!(!jobs::next_lock_path(dir.path()).exists());
+    let mut fresh = Encryption::load_with(dir.path(), KdfParams::QUICK);
+    fresh.unlock_vault("new").unwrap();
+    for path in ["A.md", "B.md"] {
+        assert!(matches!(
+            fresh.read(path, &read(&dir, path)),
+            NoteText::Unlocked(_)
+        ));
+    }
+}
+
+#[test]
+fn a_new_note_password_keeps_the_notes_key_and_title() {
+    let (_dir, mut encryption) = with_password("vault");
+    let options = NoteOptions {
+        claude: ClaudeAccess::Always,
+        name: NameVisibility::Hidden,
+    };
+    encryption
+        .encrypt("Plans.md", "body", options, None)
+        .unwrap();
+    let before = encryption.claude_key("Plans.md").unwrap().0;
+    let own = encryption
+        .new_password_job("own")
+        .unwrap()
+        .run_for_note()
+        .unwrap();
+    encryption
+        .encrypt_with("Plans.md", "body", options, Some(own))
+        .unwrap();
+    assert_eq!(encryption.claude_key("Plans.md").unwrap().0, before);
+    assert_eq!(encryption.title("Plans.md"), Some("Plans"));
+}

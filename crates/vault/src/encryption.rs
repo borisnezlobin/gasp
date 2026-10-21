@@ -11,12 +11,19 @@ use std::path::{Path, PathBuf};
 use gasp_config::CONFIG_DIR;
 use gasp_crypt::{
     CryptError, Header, KdfParams, Key, KeySource, LOCK_FILE, NoteOptions, Plain, VaultLock,
-    is_encrypted, open, peek, rewrap, seal,
+    is_encrypted, open, peek, seal,
 };
 
+use zeroize::Zeroizing;
+
 use crate::files::atomic_write;
-use crate::index::is_note_path;
-use crate::ops::vault_files;
+
+mod jobs;
+
+pub use jobs::{
+    ChangedPassword, NEXT_LOCK_FILE, NewPasswordJob, PasswordChangeJob, PasswordKey, UnlockJob,
+    VaultUnlockJob,
+};
 
 /// Why an encryption step couldn't happen, as a sentence to show.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -119,22 +126,79 @@ impl Encryption {
     }
 
     /// Gives a vault with no password its first one, and unlocks it.
+    /// Makes the key on this thread; apps use [`Encryption::new_password_job`].
     pub fn set_vault_password(&mut self, password: &str) -> Result<(), EncryptionError> {
         if self.lock.is_some() {
             return Err(EncryptionError::HasVaultPassword);
         }
-        require_password(password)?;
-        let (lock, key) = VaultLock::create(password, self.params)?;
-        self.write_lock(&lock)?;
+        let (lock, key) = self.new_password_job(password)?.run_for_vault()?;
+        self.finish_first_password(lock, key)
+    }
+
+    /// Unlocks the vault, making its key on this thread; apps use
+    /// [`Encryption::vault_unlock_job`].
+    pub fn unlock_vault(&mut self, password: &str) -> Result<(), EncryptionError> {
+        let key = self.vault_unlock_job(password)?.run()?;
+        self.unlock_vault_with_key(key)
+    }
+
+    /// Making a key for a new password, to run off the main thread.
+    pub fn new_password_job(&self, password: &str) -> Result<NewPasswordJob, EncryptionError> {
+        NewPasswordJob::new(password, self.params)
+    }
+
+    /// Takes a first vault password made by a [`NewPasswordJob`], writes
+    /// its lock file and unlocks the vault.
+    pub fn finish_first_password(
+        &mut self,
+        lock: VaultLock,
+        key: Key,
+    ) -> Result<(), EncryptionError> {
+        if self.lock.is_some() {
+            return Err(EncryptionError::HasVaultPassword);
+        }
+        write_lock(&self.root, &lock)?;
         self.lock = Some(lock);
         self.vault_key = Some(key);
         Ok(())
     }
 
-    pub fn unlock_vault(&mut self, password: &str) -> Result<(), EncryptionError> {
-        let lock = self.lock.as_ref().ok_or(EncryptionError::NoVaultPassword)?;
-        self.vault_key = Some(lock.unlock(password)?);
-        Ok(())
+    /// Unlocking the vault with its password, to run off the main thread;
+    /// hand its key to [`Encryption::unlock_vault_with_key`].
+    pub fn vault_unlock_job(&self, password: &str) -> Result<VaultUnlockJob, EncryptionError> {
+        let lock = self.lock.clone().ok_or(EncryptionError::NoVaultPassword)?;
+        Ok(VaultUnlockJob {
+            lock,
+            password: Zeroizing::new(password.to_owned()),
+        })
+    }
+
+    /// Unlocking the encrypted note `raw` with a password, to run off the
+    /// main thread; hand its key to [`Encryption::finish_unlock`].
+    pub fn unlock_job(&self, raw: &str, password: &str) -> Result<UnlockJob, EncryptionError> {
+        Ok(UnlockJob {
+            source: jobs::source_of(raw)?,
+            lock: self.lock.clone(),
+            password: Zeroizing::new(password.to_owned()),
+        })
+    }
+
+    /// Opens the note `raw` at `path` with what an [`UnlockJob`] made; the
+    /// vault password also unlocks the vault.
+    pub fn finish_unlock(
+        &mut self,
+        path: &str,
+        raw: &str,
+        key: PasswordKey,
+    ) -> Result<Plain, EncryptionError> {
+        let key = match key {
+            PasswordKey::Vault(key) => {
+                self.unlock_vault_with_key(key.clone())?;
+                key
+            }
+            PasswordKey::Note(key) => key,
+        };
+        self.open_with(path, raw, key)
     }
 
     /// Unlocks with a key kept from an earlier unlock, as Touch ID gives.
@@ -184,27 +248,52 @@ impl Encryption {
         self.open_with(path, raw, key)
     }
 
-    /// A new vault password: every note it opens gets its key rewrapped,
-    /// and the lock file changes last. Returns how many notes changed.
+    /// A new vault password, all on this thread: every note it opens gets
+    /// its key rewrapped, and the lock file changes last. Returns how many
+    /// notes changed. Apps use [`Encryption::password_change_job`].
     pub fn change_vault_password(
         &mut self,
         old: &str,
         new: &str,
     ) -> Result<usize, EncryptionError> {
+        let changed = self.password_change_job(old, new)?.run()?;
+        let count = changed.changed;
+        self.finish_password_change(changed);
+        Ok(count)
+    }
+
+    /// Changing the vault password, to run off the main thread.
+    pub fn password_change_job(
+        &self,
+        old: &str,
+        new: &str,
+    ) -> Result<PasswordChangeJob, EncryptionError> {
         require_password(new)?;
-        let lock = self.lock.as_ref().ok_or(EncryptionError::NoVaultPassword)?;
-        let old_key = lock.unlock(old)?;
-        let (new_lock, new_key) = VaultLock::create(new, self.params)?;
-        let changed = self.rewrap_vault_notes(&old_key, &new_key)?;
-        self.write_lock(&new_lock)?;
-        for note in self.open_notes.values_mut() {
+        let lock = self.lock.clone().ok_or(EncryptionError::NoVaultPassword)?;
+        Ok(PasswordChangeJob {
+            root: self.root.clone(),
+            lock,
+            params: self.params,
+            old: Zeroizing::new(old.to_owned()),
+            new: Zeroizing::new(new.to_owned()),
+        })
+    }
+
+    /// Takes the new password a [`PasswordChangeJob`] made. Returns the
+    /// open notes the vault password seals: save each again, since a save
+    /// while the job ran was sealed with the old key.
+    pub fn finish_password_change(&mut self, changed: ChangedPassword) -> Vec<String> {
+        let mut resave = Vec::new();
+        for (path, note) in &mut self.open_notes {
             if note.source == KeySource::Vault {
-                note.wrapping_key = new_key.clone();
+                note.wrapping_key = changed.key.clone();
+                resave.push(path.clone());
             }
         }
-        self.lock = Some(new_lock);
-        self.vault_key = Some(new_key);
-        Ok(changed)
+        self.lock = Some(changed.lock);
+        self.vault_key = Some(changed.key);
+        resave.sort();
+        resave
     }
 
     /// Forgets every key, so every encrypted note needs unlocking again.
@@ -238,15 +327,8 @@ impl Encryption {
         raw: &str,
         password: &str,
     ) -> Result<Plain, EncryptionError> {
-        let header = peek(raw)?;
-        let key = match header.source.note_password_key(password) {
-            Some(key) => key?,
-            None => {
-                self.unlock_vault(password)?;
-                self.vault_key.clone().ok_or(EncryptionError::VaultLocked)?
-            }
-        };
-        self.open_with(path, raw, key)
+        let key = self.unlock_job(raw, password)?.run()?;
+        self.finish_unlock(path, raw, key)
     }
 
     /// The file for the unlocked note at `path` holding `body`; `None`
@@ -267,8 +349,10 @@ impl Encryption {
     }
 
     /// Makes the note at `path` encrypted from now on and returns its
-    /// file. With `own_password` it has its own; otherwise the vault's,
-    /// which must be unlocked.
+    /// file. With `own_password` it has its own, made on this thread;
+    /// otherwise the vault's, which must be unlocked. Apps make a note
+    /// password with [`Encryption::new_password_job`] and call
+    /// [`Encryption::encrypt_with`].
     pub fn encrypt(
         &mut self,
         path: &str,
@@ -276,15 +360,38 @@ impl Encryption {
         options: NoteOptions,
         own_password: Option<&str>,
     ) -> Result<String, EncryptionError> {
-        let (source, wrapping_key) = self.new_note_source(own_password)?;
+        let own = match own_password {
+            Some(password) => Some(self.new_password_job(password)?.run_for_note()?),
+            None => None,
+        };
+        self.encrypt_with(path, body, options, own)
+    }
+
+    /// As [`Encryption::encrypt`], with a note password's source and key
+    /// already made by a [`NewPasswordJob`], or `None` for the vault's.
+    /// A note that's already encrypted keeps its own key and title, so a
+    /// new password changes only what wraps it.
+    pub fn encrypt_with(
+        &mut self,
+        path: &str,
+        body: &str,
+        options: NoteOptions,
+        own: Option<(KeySource, Key)>,
+    ) -> Result<String, EncryptionError> {
+        let (source, wrapping_key) = match own {
+            Some(own) => own,
+            None => self.vault_source()?,
+        };
+        let previous = self.open_notes.remove(path);
+        let title = previous.as_ref().and_then(|note| note.title.clone());
         self.open_notes.insert(
             path.to_owned(),
             OpenNote {
-                note_key: Key::random(),
+                note_key: previous.map_or_else(Key::random, |note| note.note_key),
                 wrapping_key,
                 source,
                 options,
-                title: Some(note_title(path)),
+                title: title.or_else(|| Some(note_title(path))),
             },
         );
         Ok(self.seal(path, body).expect("the note was just opened"))
@@ -363,50 +470,22 @@ impl Encryption {
         Ok(opened.plain)
     }
 
-    fn new_note_source(
-        &self,
-        own_password: Option<&str>,
-    ) -> Result<(KeySource, Key), EncryptionError> {
-        match own_password {
-            Some(password) => {
-                require_password(password)?;
-                Ok(KeySource::new_note_password(password, self.params)?)
-            }
-            None if self.lock.is_none() => Err(EncryptionError::NoVaultPassword),
-            None => {
-                let key = self.vault_key.clone().ok_or(EncryptionError::VaultLocked)?;
-                Ok((KeySource::Vault, key))
-            }
+    fn vault_source(&self) -> Result<(KeySource, Key), EncryptionError> {
+        if self.lock.is_none() {
+            return Err(EncryptionError::NoVaultPassword);
         }
+        let key = self.vault_key.clone().ok_or(EncryptionError::VaultLocked)?;
+        Ok((KeySource::Vault, key))
     }
+}
 
-    fn rewrap_vault_notes(&self, old_key: &Key, new_key: &Key) -> Result<usize, EncryptionError> {
-        let mut changed = 0;
-        for path in vault_files(&self.root)
-            .into_iter()
-            .filter(|path| is_note_path(path))
-        {
-            let absolute = self.root.join(&path);
-            let Ok(raw) = std::fs::read_to_string(&absolute) else {
-                continue;
-            };
-            if !opens_with_vault_key(&raw) {
-                continue;
-            }
-            let rewrapped = rewrap(&raw, old_key, new_key)?;
-            atomic_write(&absolute, &rewrapped).map_err(|error| io_error(&path, &error))?;
-            changed += 1;
-        }
-        Ok(changed)
+/// Writes the vault password's lock file, making `.gasp` when needed.
+fn write_lock(root: &Path, lock: &VaultLock) -> Result<(), EncryptionError> {
+    let path = Encryption::lock_path(root);
+    if let Some(folder) = path.parent() {
+        std::fs::create_dir_all(folder).map_err(|error| io_error(LOCK_FILE, &error))?;
     }
-
-    fn write_lock(&self, lock: &VaultLock) -> Result<(), EncryptionError> {
-        let path = Self::lock_path(&self.root);
-        if let Some(folder) = path.parent() {
-            std::fs::create_dir_all(folder).map_err(|error| io_error(LOCK_FILE, &error))?;
-        }
-        atomic_write(&path, &lock.to_toml()).map_err(|error| io_error(LOCK_FILE, &error))
-    }
+    atomic_write(&path, &lock.to_toml()).map_err(|error| io_error(LOCK_FILE, &error))
 }
 
 /// A stand-in file name for a note whose name is hidden, such as
@@ -418,6 +497,10 @@ pub fn hidden_file_name() -> String {
         .map(|byte| format!("{byte:02x}"))
         .collect();
     format!("Encrypted {hex}.md")
+}
+
+fn read_note_file(root: &Path, path: &str) -> Option<String> {
+    std::fs::read_to_string(root.join(path)).ok()
 }
 
 fn opens_with_vault_key(raw: &str) -> bool {
