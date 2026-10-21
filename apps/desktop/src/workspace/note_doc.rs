@@ -8,7 +8,7 @@ use crate::paste::{PasteContext, set_paste_context};
 use std::time::Duration;
 
 use gasp_config::Config;
-use gasp_vault::encryption::NoteText;
+use gasp_vault::encryption::{NoteText, PasswordKey, UnlockJob};
 use gpui::{AppContext, Context, Entity, Subscription, Task, WeakEntity};
 
 use super::files::{LineEnding, atomic_write};
@@ -428,20 +428,41 @@ impl NoteDoc {
         true
     }
 
-    /// Opens the locked note with `password`: its own, or the vault's.
-    pub fn unlock_with_password(
-        &mut self,
+    /// The slow half of opening the locked note with `password` (its own,
+    /// or the vault's), to run off the main thread, and the file it opens.
+    pub fn unlock_job(
+        &self,
         password: &str,
-        cx: &mut Context<Self>,
-    ) -> Result<(), String> {
+        cx: &gpui::App,
+    ) -> Result<(UnlockJob, String), String> {
         let raw = self.disk_text.clone();
-        crate::encryption::reload_lock(&self.path, cx);
-        crate::encryption::with_encryption(&self.path, cx, |encryption, relative| {
-            encryption.unlock_note(relative, &raw, password)
+        let job = crate::encryption::read_encryption(&self.path, cx, |encryption, _| {
+            encryption.unlock_job(&raw, password)
         })
         .ok_or_else(not_in_vault)?
         .map_err(|error| error.to_string())?;
-        self.reopen_after_unlock(raw, cx);
+        Ok((job, raw))
+    }
+
+    /// Opens the locked note with the key an [`UnlockJob`] made from the
+    /// file `raw`. A note that opened some other way meanwhile stays as
+    /// it is; one whose file changed meanwhile opens its new file.
+    pub fn finish_unlock(
+        &mut self,
+        raw: &str,
+        key: PasswordKey,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        if !self.is_locked() {
+            return Ok(());
+        }
+        crate::encryption::with_encryption(&self.path, cx, |encryption, relative| {
+            encryption.finish_unlock(relative, raw, key)
+        })
+        .ok_or_else(not_in_vault)?
+        .map_err(|error| error.to_string())?;
+        let current = self.disk_text.clone();
+        self.reopen_after_unlock(current, cx);
         Ok(())
     }
 
@@ -468,16 +489,19 @@ impl NoteDoc {
 
     /// Makes this note encrypted from now on and saves it sealed. Its
     /// recovery snapshots, which are plain text, are deleted.
+    /// `own` is a note password's key source and key, made off the main
+    /// thread by a [`gasp_vault::encryption::NewPasswordJob`]; `None`
+    /// encrypts with the vault's key, which must be unlocked.
     pub fn encrypt(
         &mut self,
         options: gasp_crypt::NoteOptions,
-        own_password: Option<&str>,
+        own: Option<(gasp_crypt::KeySource, gasp_crypt::Key)>,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
         let text = self.current_text(cx);
         let body = self.line_ending.apply(&text);
         let sealed = crate::encryption::with_encryption(&self.path, cx, |encryption, relative| {
-            encryption.encrypt(relative, &body, options, own_password)
+            encryption.encrypt_with(relative, &body, options, own)
         })
         .ok_or_else(not_in_vault)?
         .map_err(|error| error.to_string())?;

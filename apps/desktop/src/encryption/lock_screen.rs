@@ -7,9 +7,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use gasp_crypt::{KeySource, peek};
+use gasp_vault::encryption::{EncryptionError, PasswordKey};
 use gpui::{
     AnyElement, App, Context, Entity, EventEmitter, FocusHandle, Focusable, Global, RenderImage,
-    SharedString, Subscription, Window, div, prelude::*, px,
+    SharedString, Subscription, Task, Window, div, prelude::*, px,
 };
 
 use super::keychain::{self, TouchIdError};
@@ -57,6 +58,8 @@ pub struct LockScreen {
     doc: Entity<NoteDoc>,
     password: Entity<TextInput>,
     error: Option<SharedString>,
+    /// The typed password being tried off the main thread.
+    unlocking: Option<Task<()>>,
     focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
 }
@@ -81,6 +84,7 @@ impl LockScreen {
             doc,
             password,
             error: None,
+            unlocking: None,
             focus_handle: cx.focus_handle(),
             _subscriptions: subscriptions,
         }
@@ -94,6 +98,11 @@ impl LockScreen {
     /// Why the last try didn't unlock the note.
     pub fn error(&self) -> Option<&str> {
         self.error.as_ref().map(SharedString::as_ref)
+    }
+
+    /// Whether a typed password is still being tried.
+    pub fn is_unlocking(&self) -> bool {
+        self.unlocking.is_some()
     }
 
     fn path(&self, cx: &App) -> PathBuf {
@@ -119,27 +128,66 @@ impl LockScreen {
         cx.notify();
     }
 
-    /// Tries the typed password on the note.
-    pub fn unlock(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// Tries the typed password on the note. Making a key from it is slow,
+    /// so that runs off the main thread while the button says so; a
+    /// submit meanwhile is ignored.
+    pub fn unlock(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        if self.is_unlocking() {
+            return;
+        }
         let password = self.password.read(cx).text().to_owned();
         if password.is_empty() {
             self.show_error(Some("Type the password first.".to_owned()), cx);
             return;
         }
-        let unlocked = self
-            .doc
-            .update(cx, |doc, cx| doc.unlock_with_password(&password, cx));
+        let path = self.path(cx);
+        super::lock_file_changed(&path, cx);
+        let (job, raw) = match self.doc.read(cx).unlock_job(&password, cx) {
+            Ok(started) => started,
+            Err(error) => return self.show_error(Some(error), cx),
+        };
+        let epoch = super::lock_epoch(&path, cx);
+        let running = cx.background_spawn(async move { job.run() });
+        self.unlocking = Some(cx.spawn(async move |screen, cx| {
+            let key = running.await;
+            screen
+                .update(cx, |screen, cx| {
+                    screen.take_password_key(key, &raw, epoch, cx)
+                })
+                .ok();
+        }));
+        self.show_error(None, cx);
+    }
+
+    /// Opens the note with the key the typed password made, unless the
+    /// vault locked again while it was being made.
+    fn take_password_key(
+        &mut self,
+        key: Result<PasswordKey, EncryptionError>,
+        raw: &str,
+        epoch: u64,
+        cx: &mut Context<Self>,
+    ) {
+        self.unlocking = None;
         self.password.update(cx, |field, cx| field.set_text("", cx));
-        match unlocked {
+        let path = self.path(cx);
+        if super::lock_epoch(&path, cx) != epoch {
+            return cx.notify();
+        }
+        let opened = key.map_err(|error| error.to_string()).and_then(|key| {
+            self.doc
+                .update(cx, |doc, cx| doc.finish_unlock(raw, key, cx))
+        });
+        match opened {
             Ok(()) => {
-                keep_key_for_touch_id(&self.path(cx), cx);
-                self.finish_unlocking(window, cx);
+                keep_key_for_touch_id(&path, cx);
+                self.finish_unlocking(cx);
             }
             Err(error) => self.show_error(Some(error), cx),
         }
     }
 
-    fn finish_unlocking(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+    fn finish_unlocking(&mut self, cx: &mut Context<Self>) {
         self.error = None;
         super::reopen_locked_notes(&self.path(cx), cx);
         cx.emit(LockScreenEvent::Unlocked);
@@ -148,6 +196,9 @@ impl LockScreen {
 
     /// Asks for Touch ID, then opens the note with the key it kept.
     fn unlock_with_touch_id(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.is_unlocking() {
+            return;
+        }
         let path = self.path(cx);
         let raw = self.doc.read(cx).disk_text().to_owned();
         let Some(id) =
@@ -156,13 +207,14 @@ impl LockScreen {
         else {
             return;
         };
-        let reason = format!("unlock “{}”", crate::workspace::files::note_title(&path));
+        let reason = format!("unlock “{}”", super::shown_title(&path, cx));
         let reading = keychain::read_with_touch_id(id.clone(), reason, cx);
+        let epoch = super::lock_epoch(&path, cx);
         cx.spawn_in(window, async move |screen, cx| {
             let read = reading.await;
             screen
-                .update_in(cx, |screen, window, cx| {
-                    screen.take_touch_id_key(read, &id, window, cx)
+                .update(cx, |screen, cx| {
+                    screen.take_touch_id_key(read, &id, epoch, cx)
                 })
                 .ok();
         })
@@ -173,15 +225,19 @@ impl LockScreen {
         &mut self,
         read: Result<gasp_crypt::Key, TouchIdError>,
         id: &str,
-        window: &mut Window,
+        epoch: u64,
         cx: &mut Context<Self>,
     ) {
         let key = match read {
             Ok(key) => key,
             Err(error) => return self.show_error(Some(error.to_string()), cx),
         };
+        let relocked = super::lock_epoch(&self.path(cx), cx) != epoch;
+        if relocked || !self.doc.read(cx).is_locked() {
+            return;
+        }
         match self.doc.update(cx, |doc, cx| doc.unlock_with_key(key, cx)) {
-            Ok(()) => self.finish_unlocking(window, cx),
+            Ok(()) => self.finish_unlocking(cx),
             Err(_) => {
                 keychain::forget(id, cx);
                 let message =
@@ -203,6 +259,7 @@ impl LockScreen {
 
     fn render_form(&self, ui: &UiTheme, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let unlock = Button::new("lock-screen-unlock", "Unlock")
+            .working("Unlocking…", self.is_unlocking())
             .primary()
             .on_click(cx.listener(|screen, _, window, cx| screen.unlock(window, cx)));
         let row = div()

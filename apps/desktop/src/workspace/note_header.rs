@@ -79,7 +79,8 @@ impl Pane {
 
     fn render_trail(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let path = self.active_tab()?.path(cx)?.to_path_buf();
-        let (folders, title) = note_trail(&self.vault, &path);
+        let (folders, _) = note_trail(&self.vault, &path);
+        let title = crate::encryption::shown_title(&path, cx);
         let pane = cx.entity().downgrade();
         let mut crumbs: Vec<Crumb> = folders
             .into_iter()

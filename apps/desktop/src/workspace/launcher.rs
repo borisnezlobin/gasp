@@ -21,7 +21,7 @@ use gpui::{
     Pixels, RenderImage, SharedString, Task, Window, canvas, div, prelude::*, px,
 };
 
-use super::files::{note_title, notes_by_recency};
+use super::files::notes_by_recency;
 use super::note_shape::{ShapeLine, read_shape};
 use crate::icons::{IconName, icon};
 use crate::keymap::RunCommand;
@@ -235,6 +235,7 @@ impl Launcher {
         let selected = focused && index == self.selected;
         let shape = self.shapes.get(path).map(Vec::as_slice).unwrap_or_default();
         let folder = self.folder_label(path);
+        let title = crate::encryption::shown_title(path, cx);
         let group = SharedString::from(format!("launcher-card-{index}"));
         div()
             .id(("recent", index))
@@ -264,7 +265,7 @@ impl Launcher {
                         div()
                             .flex()
                             .text_color(if selected { ui.text_strong } else { ui.text })
-                            .child(truncated(SharedString::from(note_title(path))).grow()),
+                            .child(truncated(SharedString::from(title)).grow()),
                     )
                     .children(folder.map(|folder| {
                         div()

@@ -277,7 +277,7 @@ impl Workspace {
     fn update_window_title(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let vault = super::files::folder_name(&self.vault);
         let title = match self.active_path(cx) {
-            Some(path) => format!("{} — {vault}", super::files::note_title(&path)),
+            Some(path) => format!("{} — {vault}", crate::encryption::shown_title(&path, cx)),
             None => vault,
         };
         if title != self.window_title {

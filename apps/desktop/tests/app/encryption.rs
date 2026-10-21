@@ -6,11 +6,13 @@
 use std::path::Path;
 use std::time::Duration;
 
-use gasp_crypt::{KdfParams, NoteOptions, is_encrypted};
+use gasp_crypt::{KdfParams, NameVisibility, NoteOptions, is_encrypted};
 use gasp_desktop::actions::bind_keys;
-use gasp_desktop::encryption::dialogs::PasswordDialog;
+use gasp_desktop::encryption::dialogs::{NoteOptionsDialog, PasswordDialog, PasswordSource};
+use gasp_desktop::encryption::lock_screen::LockScreen;
 use gasp_desktop::workspace::note_doc::AUTOSAVE_DELAY;
 use gasp_desktop::workspace::note_shape::{ShapeLine, read_shape};
+use gasp_desktop::workspace::watcher::DiskChange;
 use gasp_desktop::workspace::{OpenIn, Workspace};
 use gasp_vault::encryption::Encryption;
 use gpui::{Entity, TestAppContext, VisualTestContext};
@@ -278,4 +280,247 @@ fn encrypting_a_note_asks_for_a_vault_password_first(cx: &mut TestAppContext) {
     assert_eq!(editor_text(&workspace, cx), "Dear diary");
     run(&workspace, cx, "encryption.lock");
     assert!(is_locked(&workspace, cx));
+}
+
+fn lock_screen(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<LockScreen> {
+    cx.read(|cx| {
+        let pane = workspace.read(cx).active_pane().read(cx);
+        let note = pane.active_tab().unwrap().note().unwrap();
+        note.lock_screen.clone()
+    })
+}
+
+/// Types `password` and presses Unlock, leaving the key to be made.
+fn submit_password(screen: &Entity<LockScreen>, cx: &mut VisualTestContext, password: &str) {
+    cx.update(|window, cx| {
+        screen.update(cx, |screen, cx| {
+            let field = screen.password_field().clone();
+            field.update(cx, |field, cx| field.set_text(password, cx));
+            screen.unlock(window, cx);
+        })
+    });
+}
+
+#[gpui::test]
+fn the_lock_screen_keeps_working_while_the_password_is_tried(cx: &mut TestAppContext) {
+    let vault = encrypted_vault();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "secret.md");
+    let screen = lock_screen(&workspace, cx);
+    submit_password(&screen, cx, PASSWORD);
+    assert!(cx.read(|cx| screen.read(cx).is_unlocking()));
+    assert!(is_locked(&workspace, cx), "the key is still being made");
+    // The main thread is free: the field still takes typing, and a second
+    // submit while the first runs is ignored.
+    submit_password(&screen, cx, "wrong");
+    assert!(cx.read(|cx| screen.read(cx).is_unlocking()));
+    cx.run_until_parked();
+    assert!(!cx.read(|cx| screen.read(cx).is_unlocking()));
+    assert!(!is_locked(&workspace, cx));
+    assert_eq!(editor_text(&workspace, cx), SECRET);
+}
+
+#[gpui::test]
+fn a_password_tried_while_the_vault_locks_again_opens_nothing(cx: &mut TestAppContext) {
+    let vault = encrypted_vault();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "secret.md");
+    let screen = lock_screen(&workspace, cx);
+    submit_password(&screen, cx, PASSWORD);
+    let note = cx.read(|cx| workspace.read(cx).vault().join("secret.md"));
+    cx.update(|_, cx| gasp_desktop::encryption::lock_vault(&note, cx));
+    cx.run_until_parked();
+    assert!(is_locked(&workspace, cx));
+    assert!(!cx.read(|cx| screen.read(cx).is_unlocking()));
+    assert_eq!(unlock(&workspace, cx, PASSWORD), None);
+    assert!(!is_locked(&workspace, cx));
+}
+
+#[gpui::test]
+fn a_password_dialog_works_off_the_main_thread(cx: &mut TestAppContext) {
+    let vault = tempfile::tempdir().unwrap();
+    std::fs::write(vault.path().join("diary.md"), "Dear diary").unwrap();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "diary.md");
+    run(&workspace, cx, "encryption.encrypt-note");
+    let dialog = cx
+        .read(|cx| workspace.read(cx).active_modal::<PasswordDialog>())
+        .expect("the password form opened");
+    cx.update(|window, cx| {
+        dialog.update(cx, |dialog, cx| {
+            dialog.fill(&["pw", "pw"], cx);
+            dialog.submit(window, cx);
+            dialog.submit(window, cx);
+        })
+    });
+    assert!(cx.read(|cx| dialog.read(cx).is_working()));
+    assert!(
+        !is_encrypted(&read(&vault, "diary.md")),
+        "not before the key is made"
+    );
+    cx.run_until_parked();
+    assert!(is_encrypted(&read(&vault, "diary.md")));
+    let still_open = cx.read(|cx| workspace.read(cx).active_modal::<PasswordDialog>());
+    assert!(still_open.is_none(), "the dialog closed once it was done");
+}
+
+#[gpui::test]
+fn changing_the_vault_password_runs_off_the_main_thread(cx: &mut TestAppContext) {
+    let vault = encrypted_vault();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "secret.md");
+    unlock(&workspace, cx, PASSWORD);
+    run(&workspace, cx, "encryption.change-password");
+    let dialog = cx
+        .read(|cx| workspace.read(cx).active_modal::<PasswordDialog>())
+        .expect("the password form opened");
+    cx.update(|window, cx| {
+        dialog.update(cx, |dialog, cx| {
+            dialog.fill(&[PASSWORD, "kelp forest", "kelp forest"], cx);
+            dialog.submit(window, cx);
+        })
+    });
+    assert!(cx.read(|cx| dialog.read(cx).is_working()));
+    cx.run_until_parked();
+    let still_open = cx.read(|cx| workspace.read(cx).active_modal::<PasswordDialog>());
+    assert!(still_open.is_none(), "the dialog closed once it was done");
+    assert!(!is_locked(&workspace, cx), "open notes stay open");
+    run(&workspace, cx, "encryption.lock");
+    assert!(unlock(&workspace, cx, PASSWORD).is_some());
+    assert_eq!(unlock(&workspace, cx, "kelp forest"), None);
+    assert_eq!(editor_text(&workspace, cx), SECRET);
+}
+
+#[gpui::test]
+fn a_note_password_is_made_off_the_main_thread(cx: &mut TestAppContext) {
+    let vault = encrypted_vault();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "secret.md");
+    unlock(&workspace, cx, PASSWORD);
+    run(&workspace, cx, "encryption.note-options");
+    let dialog = cx
+        .read(|cx| workspace.read(cx).active_modal::<NoteOptionsDialog>())
+        .expect("the options dialog opened");
+    cx.update(|window, cx| {
+        dialog.update(cx, |dialog, cx| {
+            dialog.set_source(PasswordSource::Own, cx);
+            dialog.fill_password("barnacle", "barnacle", cx);
+            dialog.submit(window, cx);
+        })
+    });
+    assert!(cx.read(|cx| dialog.read(cx).is_working()));
+    cx.run_until_parked();
+    let still_open = cx.read(|cx| workspace.read(cx).active_modal::<NoteOptionsDialog>());
+    assert!(still_open.is_none(), "the dialog closed once it was done");
+    run(&workspace, cx, "encryption.lock");
+    assert!(unlock(&workspace, cx, PASSWORD).is_some());
+    assert_eq!(unlock(&workspace, cx, "barnacle"), None);
+    assert_eq!(editor_text(&workspace, cx), SECRET);
+}
+
+const STAND_IN: &str = "Encrypted 3f9a2c1b.md";
+
+/// A vault with a password and an encrypted note called "Diary" whose
+/// file is `STAND_IN`.
+fn hidden_name_vault() -> TempDir {
+    let vault = tempfile::tempdir().unwrap();
+    let mut encryption = Encryption::load_with(vault.path(), KdfParams::QUICK);
+    encryption.set_vault_password(PASSWORD).unwrap();
+    let options = NoteOptions {
+        name: NameVisibility::Hidden,
+        ..NoteOptions::default()
+    };
+    encryption
+        .encrypt("Diary.md", SECRET, options, None)
+        .unwrap();
+    encryption.rename("Diary.md", STAND_IN);
+    let sealed = encryption.seal(STAND_IN, SECRET).unwrap();
+    std::fs::write(vault.path().join(STAND_IN), sealed).unwrap();
+    vault
+}
+
+fn title_field(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> String {
+    cx.read(|cx| {
+        let pane = workspace.read(cx).active_pane().read(cx);
+        let note = pane.active_tab().unwrap().note().unwrap();
+        note.title.read(cx).text().to_owned()
+    })
+}
+
+fn tab_title(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> String {
+    cx.read(|cx| {
+        let pane = workspace.read(cx).active_pane().read(cx);
+        pane.active_tab().unwrap().title(cx)
+    })
+}
+
+#[gpui::test]
+fn a_hidden_name_shows_as_the_real_name_once_unlocked(cx: &mut TestAppContext) {
+    let vault = hidden_name_vault();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, STAND_IN);
+    assert_eq!(tab_title(&workspace, cx), "Locked note");
+    assert_eq!(title_field(&workspace, cx), "Locked note");
+    unlock(&workspace, cx, PASSWORD);
+    assert_eq!(tab_title(&workspace, cx), "Diary");
+    assert_eq!(title_field(&workspace, cx), "Diary");
+    let shown = cx.read(|cx| gasp_desktop::encryption::shown_names(workspace.read(cx).vault(), cx));
+    assert_eq!(shown.get(STAND_IN).map(String::as_str), Some("Diary"));
+    run(&workspace, cx, "encryption.lock");
+    assert_eq!(tab_title(&workspace, cx), "Locked note");
+    assert_eq!(title_field(&workspace, cx), "Locked note");
+}
+
+#[gpui::test]
+fn renaming_a_hidden_name_note_changes_its_sealed_title_not_its_file(cx: &mut TestAppContext) {
+    let vault = hidden_name_vault();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, STAND_IN);
+    unlock(&workspace, cx, PASSWORD);
+    run(&workspace, cx, "note.rename");
+    cx.simulate_input("Plans");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(tab_title(&workspace, cx), "Plans");
+    assert_eq!(title_field(&workspace, cx), "Plans");
+    assert!(vault.path().join(STAND_IN).is_file(), "the stand-in stays");
+    assert!(!vault.path().join("Plans.md").exists());
+    let file = read(&vault, STAND_IN);
+    assert!(is_encrypted(&file) && !file.contains("Plans"));
+    let mut fresh = Encryption::load_with(vault.path(), KdfParams::QUICK);
+    fresh.unlock_note(STAND_IN, &file, PASSWORD).unwrap();
+    assert_eq!(fresh.title(STAND_IN), Some("Plans"));
+}
+
+#[gpui::test]
+fn a_password_changed_elsewhere_locks_open_notes_at_once(cx: &mut TestAppContext) {
+    let vault = encrypted_vault();
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    open(&workspace, cx, "secret.md");
+    unlock(&workspace, cx, PASSWORD);
+    let mut elsewhere = Encryption::load_with(vault.path(), KdfParams::QUICK);
+    elsewhere
+        .change_vault_password(PASSWORD, "kelp forest")
+        .unwrap();
+    let lock = cx.read(|cx| Encryption::lock_path(workspace.read(cx).vault()));
+    cx.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            workspace.apply_disk_changes(vec![DiskChange::Changed(lock)], window, cx)
+        })
+    });
+    cx.run_until_parked();
+    assert!(is_locked(&workspace, cx), "asks for the new password");
+    let note = cx.read(|cx| workspace.read(cx).vault().join("secret.md"));
+    cx.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            workspace.apply_disk_changes(vec![DiskChange::Changed(note)], window, cx)
+        })
+    });
+    cx.run_until_parked();
+    assert!(
+        unlock(&workspace, cx, PASSWORD).is_some(),
+        "the old password no longer opens it"
+    );
+    assert_eq!(unlock(&workspace, cx, "kelp forest"), None);
+    assert_eq!(editor_text(&workspace, cx), SECRET);
 }

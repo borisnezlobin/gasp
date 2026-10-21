@@ -4,14 +4,17 @@
 
 use std::path::{Path, PathBuf};
 
+use futures::channel::oneshot;
 use gasp_config::settings::{EncryptedClaudeAccess, EncryptionSettings};
-use gasp_crypt::{ClaudeAccess, KeySource, NameVisibility, NoteOptions, peek};
-use gasp_vault::encryption::{Encryption, EncryptionError, hidden_file_name};
-use gpui::{App, Context, Entity, PromptLevel, WeakEntity, Window};
+use gasp_crypt::{ClaudeAccess, Key, KeySource, NameVisibility, NoteOptions, VaultLock, peek};
+use gasp_vault::encryption::{
+    ChangedPassword, Encryption, EncryptionError, PasswordChangeJob, hidden_file_name,
+};
+use gpui::{App, AppContext, Context, Entity, PromptLevel, Task, WeakEntity, Window};
 
 use super::dialogs::{
     NoteOptionsDialog, OptionsChoice, PasswordDialog, PasswordForm, PasswordSource, PasswordSubmit,
-    matching,
+    PasswordWork, matching,
 };
 use crate::workspace::Workspace;
 use crate::workspace::note_doc::NoteDoc;
@@ -76,6 +79,35 @@ fn crypt_message(error: EncryptionError) -> String {
     error.to_string()
 }
 
+/// Takes a job from the vault's session, or says why there's none.
+fn vault_job<J>(
+    vault: &Path,
+    cx: &mut App,
+    take: impl FnOnce(&mut Encryption) -> Result<J, EncryptionError>,
+) -> Result<J, String> {
+    vault_encryption(vault, cx, take)
+        .unwrap_or(Err(EncryptionError::NoVaultPassword))
+        .map_err(crypt_message)
+}
+
+const APP_CLOSING: &str = "Gasp closed before it finished.";
+
+/// Runs a slow password `job` off the main thread, then `finish` with
+/// what it made back on the main thread. Dropping the task drops the
+/// result.
+fn in_background<T: Send + 'static>(
+    job: impl FnOnce() -> Result<T, EncryptionError> + Send + 'static,
+    finish: impl FnOnce(T, &mut App) -> Result<(), String> + 'static,
+    cx: &mut App,
+) -> PasswordWork {
+    let running = cx.background_spawn(async move { job() });
+    cx.spawn(async move |cx| {
+        let made = running.await.map_err(crypt_message)?;
+        cx.update(|cx| finish(made, cx))
+            .unwrap_or_else(|_| Err(APP_CLOSING.to_owned()))
+    })
+}
+
 /// `encryption.encrypt-note`: encrypts the active note with the vault
 /// password, asking for one first when the vault has none or it's locked.
 fn encrypt_note(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
@@ -110,13 +142,15 @@ fn ask_for_new_vault_password(
 ) {
     let on_submit: PasswordSubmit = Box::new(move |values, _, cx| {
         matching(&values[0], &values[1])?;
-        vault_encryption(&vault, cx, |encryption| {
-            encryption.set_vault_password(&values[0])
-        })
-        .unwrap_or(Err(EncryptionError::NoVaultPassword))
-        .map_err(crypt_message)?;
-        super::lock_screen::keep_vault_key_for_touch_id(&vault, cx);
-        finish_encrypting(&this, &doc, cx)
+        let job = vault_job(&vault, cx, |encryption| {
+            encryption.new_password_job(&values[0])
+        })?;
+        let (vault, this, doc) = (vault.clone(), this.clone(), doc.clone());
+        let finish = move |(lock, key), cx: &mut App| {
+            take_first_password(&vault, lock, key, cx)?;
+            finish_encrypting(&this, &doc, cx)
+        };
+        Ok(in_background(move || job.run_for_vault(), finish, cx))
     });
     let form = PasswordForm {
         title: "Choose a vault password",
@@ -125,6 +159,7 @@ fn ask_for_new_vault_password(
         ),
         fields: vec!["Vault password", "Type it again"],
         submit_label: "Encrypt note",
+        working_label: "Encrypting…",
         on_submit,
     };
     open_password_dialog(workspace, form, window, cx);
@@ -139,22 +174,52 @@ fn ask_for_vault_password(
     cx: &mut Context<Workspace>,
 ) {
     let on_submit: PasswordSubmit = Box::new(move |values, _, cx| {
-        super::reload_lock(&vault, cx);
-        vault_encryption(&vault, cx, |encryption| encryption.unlock_vault(&values[0]))
-            .unwrap_or(Err(EncryptionError::NoVaultPassword))
-            .map_err(crypt_message)?;
-        super::lock_screen::keep_vault_key_for_touch_id(&vault, cx);
-        super::reopen_locked_notes(&vault, cx);
-        finish_encrypting(&this, &doc, cx)
+        super::lock_file_changed(&vault, cx);
+        let job = vault_job(&vault, cx, |encryption| {
+            encryption.vault_unlock_job(&values[0])
+        })?;
+        let (vault, this, doc) = (vault.clone(), this.clone(), doc.clone());
+        let finish = move |key, cx: &mut App| {
+            take_vault_key(&vault, key, cx)?;
+            finish_encrypting(&this, &doc, cx)
+        };
+        Ok(in_background(move || job.run(), finish, cx))
     });
     let form = PasswordForm {
         title: "Type the vault password",
         detail: Some("The note is encrypted with the password the vault already has.".to_owned()),
         fields: vec!["Vault password"],
         submit_label: "Encrypt note",
+        working_label: "Encrypting…",
         on_submit,
     };
     open_password_dialog(workspace, form, window, cx);
+}
+
+/// Writes a first vault password a job made, and keeps its key behind
+/// Touch ID.
+fn take_first_password(
+    vault: &Path,
+    lock: VaultLock,
+    key: Key,
+    cx: &mut App,
+) -> Result<(), String> {
+    vault_job(vault, cx, |encryption| {
+        encryption.finish_first_password(lock, key)
+    })?;
+    super::lock_screen::keep_vault_key_for_touch_id(vault, cx);
+    Ok(())
+}
+
+/// Unlocks the vault with the key a job made from its password: notes
+/// waiting for it open, and the key goes behind Touch ID.
+fn take_vault_key(vault: &Path, key: Key, cx: &mut App) -> Result<(), String> {
+    vault_job(vault, cx, |encryption| {
+        encryption.unlock_vault_with_key(key)
+    })?;
+    super::lock_screen::keep_vault_key_for_touch_id(vault, cx);
+    super::reopen_locked_notes(vault, cx);
+    Ok(())
 }
 
 fn open_password_dialog(
@@ -299,21 +364,69 @@ fn open_note_options(workspace: &mut Workspace, window: &mut Window, cx: &mut Co
         hidden_name_title(&path, cx).unwrap_or_else(|| crate::workspace::files::note_title(&path));
     let this = cx.entity().downgrade();
     let on_submit = Box::new(move |choice: OptionsChoice, _: &mut Window, cx: &mut App| {
-        apply_options(&this, &doc, own_password, choice, cx)
+        apply_options(this.clone(), doc.clone(), own_password, choice, cx)
     });
     workspace.toggle_modal(window, cx, move |window, cx| {
         NoteOptionsDialog::new(title, options, own_password, on_submit, window, cx)
     });
 }
 
-/// Applies the options dialog's choice to the open note.
+/// How an options change rekeys the note.
+enum Rekey {
+    /// It keeps the key source it has.
+    Keep,
+    /// It moves to the vault password.
+    Vault,
+    /// It gets a new password of its own, made by a job.
+    Own((KeySource, Key)),
+}
+
+/// Applies the options dialog's choice to the open note. A new password
+/// of its own is made off the main thread first.
 fn apply_options(
-    this: &WeakEntity<Workspace>,
-    doc: &Entity<NoteDoc>,
+    this: WeakEntity<Workspace>,
+    doc: Entity<NoteDoc>,
     had_own_password: bool,
     choice: OptionsChoice,
     cx: &mut App,
+) -> Result<PasswordWork, String> {
+    let path = doc.read(cx).path().to_path_buf();
+    let Some(password) = new_own_password(&choice) else {
+        let rekey = match choice.source == PasswordSource::Vault && had_own_password {
+            true => Rekey::Vault,
+            false => Rekey::Keep,
+        };
+        finish_options(&this, &doc, rekey, choice, cx)?;
+        return Ok(Task::ready(Ok(())));
+    };
+    let job = vault_job(&path, cx, |encryption| {
+        encryption.new_password_job(password)
+    })?;
+    let finish = move |own, cx: &mut App| finish_options(&this, &doc, Rekey::Own(own), choice, cx);
+    Ok(in_background(move || job.run_for_note(), finish, cx))
+}
+
+/// The note's new password of its own, when the choice makes one.
+fn new_own_password(choice: &OptionsChoice) -> Option<&str> {
+    match (choice.source, choice.new_password.as_deref()) {
+        (PasswordSource::Own, Some(password)) => Some(password),
+        _ => None,
+    }
+}
+
+/// Puts the chosen options on the note, which must still be unlocked.
+fn finish_options(
+    this: &WeakEntity<Workspace>,
+    doc: &Entity<NoteDoc>,
+    rekey: Rekey,
+    choice: OptionsChoice,
+    cx: &mut App,
 ) -> Result<(), String> {
+    if !doc.read(cx).is_unlocked_encrypted() {
+        return Err(
+            "The note locked before the change was saved. Unlock it and try again.".to_owned(),
+        );
+    }
     let path = doc.read(cx).path().to_path_buf();
     let hidden_before = hidden_name_title(&path, cx);
     let real_title = super::read_encryption(&path, cx, |encryption, relative| {
@@ -321,10 +434,10 @@ fn apply_options(
     })
     .flatten();
     let old_claude_id = super::claude_key_id(&path, cx);
-    let rekey = needs_new_key(had_own_password, &choice);
     match rekey {
-        Some(password) => doc.update(cx, |doc, cx| doc.encrypt(choice.options, password, cx))?,
-        None => set_options(doc, &path, choice.options, cx)?,
+        Rekey::Own(own) => doc.update(cx, |doc, cx| doc.encrypt(choice.options, Some(own), cx))?,
+        Rekey::Vault => doc.update(cx, |doc, cx| doc.encrypt(choice.options, None, cx))?,
+        Rekey::Keep => set_options(doc, &path, choice.options, cx)?,
     }
     let new_claude_id = super::claude_key_id(&path, cx);
     if let Some(old) = old_claude_id.filter(|old| Some(old) != new_claude_id.as_ref()) {
@@ -334,16 +447,6 @@ fn apply_options(
     super::mark(&path, Some(choice.options.name), cx);
     let was_hidden = hidden_before.is_some();
     rename_for_visibility(this, doc, was_hidden, choice.options.name, real_title, cx)
-}
-
-/// The note's new key source when it changes: `Some(None)` for the vault
-/// password, `Some(Some(password))` for a new password of its own.
-fn needs_new_key(had_own_password: bool, choice: &OptionsChoice) -> Option<Option<&str>> {
-    match (choice.source, choice.new_password.as_deref()) {
-        (PasswordSource::Own, Some(password)) => Some(Some(password)),
-        (PasswordSource::Vault, _) if had_own_password => Some(None),
-        _ => None,
-    }
 }
 
 fn set_options(
@@ -394,41 +497,84 @@ fn change_password(workspace: &mut Workspace, window: &mut Window, cx: &mut Cont
 fn change_form(vault: PathBuf) -> PasswordForm {
     let on_submit: PasswordSubmit = Box::new(move |values, _, cx| {
         matching(&values[1], &values[2])?;
-        super::reload_lock(&vault, cx);
-        let old_id = vault_encryption(&vault, cx, |encryption| encryption.vault_key_id()).flatten();
-        let changed = vault_encryption(&vault, cx, |encryption| {
-            encryption.change_vault_password(&values[0], &values[1])
-        })
-        .unwrap_or(Err(EncryptionError::NoVaultPassword))
-        .map_err(crypt_message)?;
-        if let Some(id) = old_id {
-            super::keychain::forget(&id, cx);
-        }
-        super::lock_screen::keep_vault_key_for_touch_id(&vault, cx);
-        super::reopen_locked_notes(&vault, cx);
-        notice(&changed_sentence(changed), cx);
-        Ok(())
+        super::lock_file_changed(&vault, cx);
+        let job = vault_job(&vault, cx, |encryption| {
+            encryption.password_change_job(&values[0], &values[1])
+        })?;
+        Ok(change_in_background(vault.clone(), job, cx))
     });
     PasswordForm {
         title: "Change the vault password",
         detail: None,
         fields: vec!["Current password", "New password", "Type the new one again"],
         submit_label: "Change password",
+        working_label: "Changing…",
         on_submit,
     }
+}
+
+/// Runs a password change off the main thread. It finishes even if its
+/// dialog closes, so the session always takes the new key that the
+/// rewritten files need.
+fn change_in_background(vault: PathBuf, job: PasswordChangeJob, cx: &mut App) -> PasswordWork {
+    let old_id = vault_encryption(&vault, cx, |encryption| encryption.vault_key_id()).flatten();
+    super::set_changing_password(&vault, true, cx);
+    let running = cx.background_spawn(async move { job.run() });
+    let (answer, answered) = oneshot::channel();
+    cx.spawn(async move |cx| {
+        let changed = running.await;
+        let result = cx
+            .update(|cx| take_changed_password(&vault, old_id, changed, cx))
+            .unwrap_or_else(|_| Err(APP_CLOSING.to_owned()));
+        answer.send(result).ok();
+    })
+    .detach();
+    cx.spawn(async move |_| {
+        answered
+            .await
+            .unwrap_or_else(|_| Err(APP_CLOSING.to_owned()))
+    })
+}
+
+/// Takes a finished password change. Notes saved while it ran are sealed
+/// again with the new key, and Touch ID keeps the new key in place of the
+/// old one.
+fn take_changed_password(
+    vault: &Path,
+    old_id: Option<String>,
+    changed: Result<ChangedPassword, EncryptionError>,
+    cx: &mut App,
+) -> Result<(), String> {
+    super::set_changing_password(vault, false, cx);
+    let changed = changed.map_err(crypt_message)?;
+    let count = changed.changed;
+    let resave = vault_encryption(vault, cx, |encryption| {
+        encryption.finish_password_change(changed)
+    })
+    .unwrap_or_default();
+    super::reseal_notes(vault, &resave, cx);
+    if let Some(id) = old_id {
+        super::keychain::forget(&id, cx);
+    }
+    super::lock_screen::keep_vault_key_for_touch_id(vault, cx);
+    super::reopen_locked_notes(vault, cx);
+    notice(&changed_sentence(count), cx);
+    Ok(())
 }
 
 fn first_password_form(vault: PathBuf) -> PasswordForm {
     let on_submit: PasswordSubmit = Box::new(move |values, _, cx| {
         matching(&values[0], &values[1])?;
-        vault_encryption(&vault, cx, |encryption| {
-            encryption.set_vault_password(&values[0])
-        })
-        .unwrap_or(Err(EncryptionError::NoVaultPassword))
-        .map_err(crypt_message)?;
-        super::lock_screen::keep_vault_key_for_touch_id(&vault, cx);
-        notice("The vault has a password now.", cx);
-        Ok(())
+        let job = vault_job(&vault, cx, |encryption| {
+            encryption.new_password_job(&values[0])
+        })?;
+        let vault = vault.clone();
+        let finish = move |(lock, key), cx: &mut App| {
+            take_first_password(&vault, lock, key, cx)?;
+            notice("The vault has a password now.", cx);
+            Ok(())
+        };
+        Ok(in_background(move || job.run_for_vault(), finish, cx))
     });
     PasswordForm {
         title: "Choose a vault password",
@@ -437,6 +583,7 @@ fn first_password_form(vault: PathBuf) -> PasswordForm {
         ),
         fields: vec!["Vault password", "Type it again"],
         submit_label: "Set password",
+        working_label: "Setting password…",
         on_submit,
     }
 }

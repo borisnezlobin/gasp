@@ -35,6 +35,9 @@ pub enum FileTreeEvent {
     /// path under `from` moved to the same place under `to`. Links to it
     /// are the workspace's to rewrite, in open editors where it can.
     Renamed { from: PathBuf, to: PathBuf },
+    /// A note whose file name is hidden was given a new name, which goes
+    /// inside it as its title while its file keeps its stand-in name.
+    Retitle { path: PathBuf, title: String },
     /// A note or folder was created.
     Created { path: PathBuf },
     /// A file or folder went to the trash.

@@ -544,7 +544,9 @@ impl FileTree {
         let Some(entry) = self.selected_entry() else {
             return;
         };
-        let label = entry.label().to_string();
+        let label = crate::encryption::note_mark(&self.absolute(&entry.path), cx)
+            .and_then(|mark| mark.shown_name)
+            .unwrap_or_else(|| entry.label().to_string());
         let stem_len = if entry.kind == EntryKind::Image || entry.kind == EntryKind::Pdf {
             label.rfind('.').unwrap_or(label.len())
         } else {
@@ -654,12 +656,34 @@ impl FileTree {
         typed: &str,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
+        let path = self.absolute(&entry.path);
+        if crate::encryption::hides_name(&path, cx) {
+            return self.retitle(path, typed, cx);
+        }
         if typed == entry.label() {
             return Ok(());
         }
         validate_name(typed).map_err(|error| error.to_string())?;
         let to = entry.parent().join(ops::file_name_for(typed, entry.kind));
         self.rename_entry(&entry.path, &to, cx)
+    }
+
+    /// A note whose file name is hidden keeps its stand-in file; the
+    /// workspace seals the typed name inside it as its title.
+    fn retitle(
+        &mut self,
+        path: PathBuf,
+        typed: &str,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        if typed != crate::encryption::shown_title(&path, cx) {
+            validate_name(typed).map_err(|error| error.to_string())?;
+            cx.emit(FileTreeEvent::Retitle {
+                path,
+                title: typed.to_owned(),
+            });
+        }
+        Ok(())
     }
 
     fn create(

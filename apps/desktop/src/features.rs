@@ -213,6 +213,11 @@ fn on_tree_event(
         FileTreeEvent::Renamed { from, to } => {
             workspace.entry_moved(from, to, cx);
         }
+        FileTreeEvent::Retitle { path, title } => {
+            if let Err(message) = workspace.retitle_note_at(path, title, cx) {
+                crate::notices::problem(message, cx);
+            }
+        }
         FileTreeEvent::Dismissed => workspace.leave_left_panel(window, cx),
         FileTreeEvent::Trashed {
             path,
@@ -614,8 +619,9 @@ fn open_switcher(
         .iter()
         .filter_map(|path| relative(&vault, path))
         .collect();
+    let shown_names = crate::encryption::shown_names(&vault, cx);
     workspace.toggle_modal(window, cx, |window, cx| {
-        QuickSwitcher::new(paths, recent, window, cx)
+        QuickSwitcher::new(paths, recent, shown_names, window, cx)
     });
     let Some(switcher) = workspace.active_modal::<QuickSwitcher>() else {
         return;

@@ -5,7 +5,7 @@
 use gasp_crypt::{ClaudeAccess, NoteOptions};
 use gpui::{
     AnyElement, App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
-    SharedString, Subscription, Window, div, prelude::*,
+    SharedString, Subscription, Task, Window, div, prelude::*,
 };
 
 use crate::settings_view::controls::{row_text, segment, segmented, toggle_switch, two_column_row};
@@ -13,9 +13,14 @@ use crate::text_input::{TextInput, TextInputEvent};
 use crate::theme::UiTheme;
 use crate::ui::{Button, Selectable, ui_theme};
 
+/// A password step under way off the main thread: `Ok` closes its form,
+/// `Err` shows the sentence under the fields.
+pub type PasswordWork = Task<Result<(), String>>;
+
 /// What a password form does with the typed passwords, in field order:
-/// `Ok` closes it, `Err` shows the sentence under the fields.
-pub type PasswordSubmit = Box<dyn FnMut(&[String], &mut Window, &mut App) -> Result<(), String>>;
+/// starts the work, or says at once why it can't.
+pub type PasswordSubmit =
+    Box<dyn FnMut(&[String], &mut Window, &mut App) -> Result<PasswordWork, String>>;
 
 /// One password question.
 pub struct PasswordForm {
@@ -24,6 +29,8 @@ pub struct PasswordForm {
     /// Each field's label.
     pub fields: Vec<&'static str>,
     pub submit_label: &'static str,
+    /// What the main button says while the work runs.
+    pub working_label: &'static str,
     pub on_submit: PasswordSubmit,
 }
 
@@ -31,6 +38,7 @@ pub struct PasswordDialog {
     form: PasswordForm,
     inputs: Vec<Entity<TextInput>>,
     error: Option<SharedString>,
+    working: Option<Task<()>>,
     focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
 }
@@ -73,6 +81,7 @@ impl PasswordDialog {
             form,
             inputs,
             error: None,
+            working: None,
             focus_handle: cx.focus_handle(),
             _subscriptions: subscriptions,
         }
@@ -87,6 +96,11 @@ impl PasswordDialog {
 
     pub fn error(&self) -> Option<&str> {
         self.error.as_ref().map(SharedString::as_ref)
+    }
+
+    /// Whether a submitted password is still being worked on.
+    pub fn is_working(&self) -> bool {
+        self.working.is_some()
     }
 
     fn on_input_event(
@@ -117,19 +131,29 @@ impl PasswordDialog {
         }
     }
 
+    /// Starts the form's work; a submit while it runs is ignored.
     pub fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.is_working() {
+            return;
+        }
         let values: Vec<String> = self
             .inputs
             .iter()
             .map(|input| input.read(cx).text().to_owned())
             .collect();
         match (self.form.on_submit)(&values, window, cx) {
-            Ok(()) => cx.emit(DismissEvent),
-            Err(error) => {
-                self.error = Some(error.into());
-                cx.notify();
+            Ok(work) => {
+                self.error = None;
+                self.working = Some(await_work(work, cx, Self::finish));
             }
+            Err(error) => self.error = Some(error.into()),
         }
+        cx.notify();
+    }
+
+    fn finish(&mut self, result: Result<(), String>, cx: &mut Context<Self>) {
+        self.working = None;
+        finish_work(result, &mut self.error, cx);
     }
 
     fn render_field(&self, index: usize, ui: &UiTheme) -> AnyElement {
@@ -146,6 +170,35 @@ impl PasswordDialog {
             .child(self.inputs[index].clone())
             .into_any_element()
     }
+}
+
+/// Waits for `work` and hands its result to `finish` on the dialog.
+/// Dropping the returned task, as when the dialog closes, drops the
+/// result.
+fn await_work<D: 'static>(
+    work: PasswordWork,
+    cx: &mut Context<D>,
+    finish: fn(&mut D, Result<(), String>, &mut Context<D>),
+) -> Task<()> {
+    cx.spawn(async move |dialog, cx| {
+        let result = work.await;
+        dialog
+            .update(cx, |dialog, cx| finish(dialog, result, cx))
+            .ok();
+    })
+}
+
+/// Closes a dialog whose work went through, or shows why it didn't.
+fn finish_work<D: EventEmitter<DismissEvent>>(
+    result: Result<(), String>,
+    error: &mut Option<SharedString>,
+    cx: &mut Context<D>,
+) {
+    match result {
+        Ok(()) => cx.emit(DismissEvent),
+        Err(message) => *error = Some(message.into()),
+    }
+    cx.notify();
 }
 
 /// The line under a form's fields that says why it didn't go through. It
@@ -177,6 +230,7 @@ impl Render for PasswordDialog {
             .map(|index| self.render_field(index, &ui))
             .collect();
         let submit = Button::new("password-dialog-submit", self.form.submit_label)
+            .working(self.form.working_label, self.is_working())
             .on_click(cx.listener(|dialog, _, window, cx| dialog.submit(window, cx)));
         let cancel = Button::new("password-dialog-cancel", "Cancel")
             .on_click(cx.listener(|_, _, _, cx| cx.emit(DismissEvent)));
@@ -221,8 +275,10 @@ pub struct OptionsChoice {
     pub options: NoteOptions,
 }
 
-/// What saving the options does: `Err` shows the sentence in the dialog.
-pub type OptionsSubmit = Box<dyn FnMut(OptionsChoice, &mut Window, &mut App) -> Result<(), String>>;
+/// What saving the options does: starts the work, or says at once why it
+/// can't. An `Err` either way shows the sentence in the dialog.
+pub type OptionsSubmit =
+    Box<dyn FnMut(OptionsChoice, &mut Window, &mut App) -> Result<PasswordWork, String>>;
 
 /// The options of one open encrypted note.
 pub struct NoteOptionsDialog {
@@ -233,6 +289,7 @@ pub struct NoteOptionsDialog {
     new_password: Entity<TextInput>,
     confirm: Entity<TextInput>,
     error: Option<SharedString>,
+    working: Option<Task<()>>,
     on_submit: OptionsSubmit,
     focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
@@ -279,6 +336,7 @@ impl NoteOptionsDialog {
             new_password,
             confirm,
             error: None,
+            working: None,
             on_submit,
             focus_handle: cx.focus_handle(),
             _subscriptions: subscriptions,
@@ -350,17 +408,33 @@ impl NoteOptionsDialog {
         })
     }
 
+    /// Whether a saved change, such as a new password, is still being
+    /// worked on.
+    pub fn is_working(&self) -> bool {
+        self.working.is_some()
+    }
+
+    /// Starts saving the choice; a submit while that runs is ignored.
     pub fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let result = self
+        if self.is_working() {
+            return;
+        }
+        let started = self
             .choice(cx)
             .and_then(|choice| (self.on_submit)(choice, window, cx));
-        match result {
-            Ok(()) => cx.emit(DismissEvent),
-            Err(error) => {
-                self.error = Some(error.into());
-                cx.notify();
+        match started {
+            Ok(work) => {
+                self.error = None;
+                self.working = Some(await_work(work, cx, Self::finish));
             }
+            Err(error) => self.error = Some(error.into()),
         }
+        cx.notify();
+    }
+
+    fn finish(&mut self, result: Result<(), String>, cx: &mut Context<Self>) {
+        self.working = None;
+        finish_work(result, &mut self.error, cx);
     }
 
     fn render_source(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -465,6 +539,7 @@ impl Render for NoteOptionsDialog {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let ui = ui_theme(cx);
         let save = Button::new("note-options-save", "Save changes")
+            .working("Saving…", self.is_working())
             .on_click(cx.listener(|dialog, _, window, cx| dialog.submit(window, cx)));
         let cancel = Button::new("note-options-cancel", "Cancel")
             .on_click(cx.listener(|_, _, _, cx| cx.emit(DismissEvent)));

@@ -5,7 +5,7 @@
 //! boost. When nothing matches, the only row offers to create a note named
 //! after the query.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use gpui::{
     AnyElement, App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
@@ -39,7 +39,10 @@ pub enum SwitcherEvent {
 pub struct NoteEntry {
     /// Vault-relative, with `/` separators.
     pub path: String,
-    /// The byte offset where the file name starts.
+    /// What's shown and matched: the path, with the shown name in place of
+    /// a hidden file name.
+    text: String,
+    /// The byte offset in `text` where the name starts.
     name_start: usize,
     /// The char index where the file name starts.
     name_char_start: usize,
@@ -48,27 +51,33 @@ pub struct NoteEntry {
 }
 
 impl NoteEntry {
-    fn new(path: String, recent_rank: Option<usize>) -> NoteEntry {
+    fn new(path: String, recent_rank: Option<usize>, shown_name: Option<&String>) -> NoteEntry {
         let name_start = path.rfind('/').map_or(0, |slash| slash + 1);
-        let candidate = Candidate::new(&path);
+        let text = match shown_name {
+            Some(name) => format!("{}{name}{NOTE_EXTENSION}", &path[..name_start]),
+            None => path.clone(),
+        };
+        let candidate = Candidate::new(&text);
         NoteEntry {
             name_char_start: candidate.char_index_of_byte(name_start),
             name_start,
             path,
+            text,
             recent_rank,
             candidate,
         }
     }
 
-    /// The name shown: the file name without `.md`.
+    /// The name shown: the file name without `.md`, or the name shown in
+    /// place of a hidden one.
     pub fn name(&self) -> &str {
-        let file = &self.path[self.name_start..];
+        let file = &self.text[self.name_start..];
         file.strip_suffix(NOTE_EXTENSION).unwrap_or(file)
     }
 
     /// The folder path, empty at the vault root.
     pub fn folder(&self) -> &str {
-        self.path[..self.name_start].trim_end_matches('/')
+        self.text[..self.name_start].trim_end_matches('/')
     }
 }
 
@@ -99,6 +108,17 @@ impl SwitcherDelegate {
     /// Every path in `paths` and `recent` (most recent first), recent ones
     /// first and the rest by path.
     pub fn new(paths: Vec<String>, recent: Vec<String>) -> Self {
+        Self::with_shown_names(paths, recent, &HashMap::new())
+    }
+
+    /// As [`SwitcherDelegate::new`], showing and matching each note in
+    /// `shown_names` (by path) under that name: an encrypted note's
+    /// sealed title in place of its hidden file name.
+    pub fn with_shown_names(
+        paths: Vec<String>,
+        recent: Vec<String>,
+        shown_names: &HashMap<String, String>,
+    ) -> Self {
         let recent: Vec<String> = recent.into_iter().map(normalize).collect();
         let mut seen = HashSet::new();
         let mut entries: Vec<NoteEntry> = recent
@@ -108,7 +128,8 @@ impl SwitcherDelegate {
             .filter(|path| !path.is_empty() && seen.insert(path.clone()))
             .map(|path| {
                 let rank = recent.iter().position(|recent| *recent == path);
-                NoteEntry::new(path, rank)
+                let shown_name = shown_names.get(&path);
+                NoteEntry::new(path, rank, shown_name)
             })
             .collect();
         entries.sort_by(|a, b| {
@@ -297,14 +318,16 @@ impl Focusable for QuickSwitcher {
 
 impl QuickSwitcher {
     /// A switcher over the vault-relative note `paths`, with the recently
-    /// opened ones in `recent` (most recent first).
+    /// opened ones in `recent` (most recent first), and the names to show
+    /// in place of hidden file names in `shown_names`.
     pub fn new(
         paths: Vec<String>,
         recent: Vec<String>,
+        shown_names: HashMap<String, String>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let delegate = SwitcherDelegate::new(paths, recent);
+        let delegate = SwitcherDelegate::with_shown_names(paths, recent, &shown_names);
         let picker = cx.new(|cx| Picker::new(delegate, window, cx));
         let subscriptions = vec![
             cx.subscribe(&picker, |_, _, event: &Confirmed<SwitcherEvent>, cx| {

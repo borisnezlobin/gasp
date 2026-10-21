@@ -55,10 +55,30 @@ pub(super) fn keeps_keys() -> bool {
     crate::sandbox::keeps_credentials() && crate::sandbox::kept_app_folder("").is_none()
 }
 
-/// Whether this Mac can unlock with Touch ID now.
+/// Whether this Mac has Touch ID, once [`check_availability`] has asked.
+static AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+/// Whether this Mac can unlock with Touch ID now. Never asks the system
+/// itself, so drawing never waits on it: until [`check_availability`]
+/// has an answer, it's no.
 pub fn is_available() -> bool {
-    static AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    keeps_keys() && *AVAILABLE.get_or_init(platform::biometrics_available)
+    keeps_keys() && AVAILABLE.get() == Some(&true)
+}
+
+/// Asks the system once, off the main thread, whether Touch ID is here,
+/// and redraws when it knows.
+pub fn check_availability(cx: &mut App) {
+    if !keeps_keys() || AVAILABLE.get().is_some() {
+        return;
+    }
+    let asking =
+        cx.background_spawn(async { *AVAILABLE.get_or_init(platform::biometrics_available) });
+    cx.spawn(async move |cx| {
+        if asking.await {
+            cx.update(|cx| cx.refresh_windows()).ok();
+        }
+    })
+    .detach();
 }
 
 /// Keeps `key` under `id` for Touch ID to unlock with later.
@@ -86,13 +106,14 @@ pub fn forget(id: &str, cx: &App) {
         .detach();
 }
 
-/// Asks for Touch ID, giving `reason`, then reads the key kept under `id`.
+/// Asks for Touch ID, giving `reason`, then reads the key kept under `id`,
+/// all off the main thread.
 pub fn read_with_touch_id(id: String, reason: String, cx: &App) -> Task<Result<Key, TouchIdError>> {
     if !keeps_keys() {
         return Task::ready(Err(TouchIdError::NothingKept));
     }
-    let approval = platform::ask_for_touch_id(&reason);
     cx.background_spawn(async move {
+        let approval = platform::ask_for_touch_id(&reason);
         approval.await.map_err(|_| TouchIdError::Declined)??;
         platform::load(&id)
     })
@@ -132,8 +153,9 @@ mod platform {
             return false;
         };
         // SAFETY: a new LAContext answers canEvaluatePolicy:error: with a
-        // null error pointer, and is released once asked.
-        unsafe {
+        // null error pointer, and is released once asked. This runs off the
+        // main thread, so a pool catches what the framework autoreleases.
+        objc::rc::autoreleasepool(|| unsafe {
             let context: *mut Object = send(class_object(context_class), "new", ());
             let error: *mut *mut Object = std::ptr::null_mut();
             let available: BOOL = send(
@@ -143,7 +165,7 @@ mod platform {
             );
             let _: () = send(context, "release", ());
             available != NO
-        }
+        })
     }
 
     /// Shows the system's Touch ID sheet; the answer arrives once the
@@ -171,8 +193,9 @@ mod platform {
         // SAFETY: the context and string are live for the call; the reply
         // block is copied to the heap and LocalAuthentication retains it
         // until it has run. The context is released after the call; the
-        // framework keeps it alive while its sheet shows.
-        unsafe {
+        // framework keeps it alive while its sheet shows. This runs off the
+        // main thread, so a pool catches what the framework autoreleases.
+        objc::rc::autoreleasepool(|| unsafe {
             let context: *mut Object = send(class_object(context_class), "new", ());
             let string: *mut Object = send(class("NSString"), "alloc", ());
             let string: *mut Object = send(
@@ -188,7 +211,7 @@ mod platform {
             );
             let _: () = send(string, "release", ());
             let _: () = send(context, "release", ());
-        }
+        });
         receiver
     }
 

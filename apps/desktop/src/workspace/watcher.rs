@@ -42,8 +42,32 @@ impl DiskChange {
 }
 
 /// The changes one notify event describes, leaving out hidden files such
-/// as our own temporary files and `.gasp/`.
+/// as our own temporary files and `.gasp/`, all but the vault password's
+/// lock file: sync bringing a new one in means the password changed on
+/// another device.
 pub fn classify(event: &Event, vault: &Path) -> Vec<DiskChange> {
+    let mut changes = visible_changes(event, vault);
+    if touches_lock_file(event, vault) {
+        changes.push(DiskChange::Changed(lock_file(vault)));
+    }
+    changes
+}
+
+/// The vault password's lock file, `.gasp/encryption.toml`.
+pub fn lock_file(vault: &Path) -> PathBuf {
+    gasp_vault::encryption::Encryption::lock_path(vault)
+}
+
+fn touches_lock_file(event: &Event, vault: &Path) -> bool {
+    let content_change = !matches!(
+        event.kind,
+        EventKind::Modify(ModifyKind::Metadata(_)) | EventKind::Access(_)
+    );
+    let lock = lock_file(vault);
+    content_change && event.paths.iter().any(|path| *path == lock)
+}
+
+fn visible_changes(event: &Event, vault: &Path) -> Vec<DiskChange> {
     let visible: Vec<&PathBuf> = event
         .paths
         .iter()
@@ -118,6 +142,21 @@ mod tests {
             event = event.add_path(PathBuf::from(path));
         }
         event
+    }
+
+    #[test]
+    fn a_new_lock_file_from_sync_is_a_change() {
+        let vault = Path::new("/v");
+        let lock = format!("/v/{}/encryption.toml", gasp_config::CONFIG_DIR);
+        let temporary = format!("/v/{}/.encryption.toml.1.tmp", gasp_config::CONFIG_DIR);
+        let replaced = event(
+            EventKind::Modify(ModifyKind::Name(RenameMode::Both)),
+            &[&temporary, &lock],
+        );
+        assert_eq!(
+            classify(&replaced, vault),
+            vec![DiskChange::Changed(lock.into())]
+        );
     }
 
     #[test]

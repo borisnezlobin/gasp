@@ -17,6 +17,9 @@ use super::{CursorSeen, OpenIn, Workspace};
 use crate::editor::{EditorEvent, EditorView};
 use crate::text_input::{TextInput, TextInputEvent};
 
+/// Why a typed title can't be a note's name.
+const BAD_TITLE: &str = "A note’s title can’t be empty or contain / \\ : * ? \" < > |";
+
 impl Workspace {
     pub(crate) fn on_editor_event(
         &mut self,
@@ -128,13 +131,13 @@ impl Workspace {
                 }
             }
             TextInputEvent::Cancelled => {
-                let current = note_title(note.doc.read(cx).path());
+                let current = crate::encryption::shown_title(note.doc.read(cx).path(), cx);
                 title.update(cx, |title, cx| title.set_text(&current, cx));
                 window.focus(&note.editor.read(cx).focus_handle);
             }
             TextInputEvent::Blurred => {
                 if !self.commit_title(&note, cx) {
-                    let current = note_title(note.doc.read(cx).path());
+                    let current = crate::encryption::shown_title(note.doc.read(cx).path(), cx);
                     self.set_titles(&note.doc, &current, cx);
                 }
             }
@@ -149,10 +152,15 @@ impl Workspace {
         if let Some(id) = self.rename_notice.take() {
             crate::notices::dismiss(id, cx);
         }
-        if typed == note_title(note.doc.read(cx).path()) {
+        let path = note.doc.read(cx).path().to_path_buf();
+        if typed == crate::encryption::shown_title(&path, cx) {
             return true;
         }
-        match self.rename_note(&note.doc, &typed, cx) {
+        let renamed = match crate::encryption::hides_name(&path, cx) {
+            true => self.retitle_hidden_note(&note.doc, &typed, cx),
+            false => self.rename_note(&note.doc, &typed, cx),
+        };
+        match renamed {
             Ok(()) => true,
             Err(message) => {
                 self.rename_notice = Some(crate::notices::problem(message, cx));
@@ -214,8 +222,46 @@ impl Workspace {
     ) -> Result<(), String> {
         let old = doc.read(cx).path().to_path_buf();
         clean_title(title)
-            .map_err(|_| "A note’s title can’t be empty or contain / \\ : * ? \" < > |".to_owned())
+            .map_err(|_| BAD_TITLE.to_owned())
             .and_then(|title| self.move_note_file(doc, &old, title, cx))
+    }
+
+    /// Renames a note whose file name is hidden: the new title is sealed
+    /// inside it, and its file keeps its stand-in name.
+    pub fn retitle_hidden_note(
+        &mut self,
+        doc: &Entity<NoteDoc>,
+        title: &str,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        let title = clean_title(title).map_err(|_| BAD_TITLE.to_owned())?;
+        if !doc.read(cx).is_unlocked_encrypted() {
+            return Err("Unlock the note first, then rename it.".to_owned());
+        }
+        let path = doc.read(cx).path().to_path_buf();
+        crate::encryption::set_title(&path, title, cx)?;
+        doc.update(cx, |doc, cx| doc.reseal(cx))
+            .map_err(|error| error.to_string())?;
+        self.set_titles(doc, title, cx);
+        cx.notify();
+        Ok(())
+    }
+
+    /// As [`Workspace::retitle_hidden_note`], for the note at `path`, as
+    /// the file tree asks.
+    pub fn retitle_note_at(
+        &mut self,
+        path: &Path,
+        title: &str,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        let doc = self.doc(path, cx).map_err(|error| {
+            format!(
+                "Couldn’t rename the note. {}",
+                crate::plain_errors::PlainReason::plain_reason(&error)
+            )
+        })?;
+        self.retitle_hidden_note(&doc, title, cx)
     }
 
     fn move_note_file(
@@ -266,7 +312,7 @@ impl Workspace {
                 *path = to.to_path_buf();
             }
         }
-        let (old_title, title) = (note_title(from), note_title(to));
+        let (old_title, title) = (note_title(from), crate::encryption::shown_title(to, cx));
         for (pane, index) in self.tabs_showing(doc, cx) {
             let note = pane.read(cx).tabs()[index].note().cloned();
             if let Some(note) = note {
@@ -411,6 +457,13 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let lock_file = super::watcher::lock_file(&self.vault);
+        let (lock_changes, changes): (Vec<_>, Vec<_>) = changes
+            .into_iter()
+            .partition(|change| *change == DiskChange::Changed(lock_file.clone()));
+        if !lock_changes.is_empty() {
+            crate::encryption::lock_file_changed(&self.vault, cx);
+        }
         self.note_texts.apply(&changes);
         self.index_disk_changes(&changes, cx);
         self.refresh_changed_images(&changes, cx);

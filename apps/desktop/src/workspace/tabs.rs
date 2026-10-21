@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 use gpui::{AppContext, Context, Entity, Focusable, PromptLevel, Window};
 
 use super::file_opening::{FileOpening, opening_for};
-use super::files::note_title;
 use super::history::Location;
 use super::launcher::{Launcher, MAX_RECENT, OpenRecent, SearchFrom};
 use super::note_doc::NoteDoc;
@@ -169,7 +168,11 @@ impl Workspace {
     }
 
     /// The open note for `path`, loading it if needed.
-    fn doc(&mut self, path: &Path, cx: &mut Context<Self>) -> io::Result<Entity<NoteDoc>> {
+    pub(crate) fn doc(
+        &mut self,
+        path: &Path,
+        cx: &mut Context<Self>,
+    ) -> io::Result<Entity<NoteDoc>> {
         if let Some(doc) = self.doc_for_path(path, cx) {
             return Ok(doc);
         }
@@ -242,7 +245,7 @@ impl Workspace {
             editor.update(cx, |editor, cx| editor.place_cursor_after_frontmatter(cx));
         }
         drop(span);
-        let title_text = note_title(path);
+        let title_text = crate::encryption::shown_title(path, cx);
         let title = cx.new(|cx| {
             let mut title = TextInput::new(window, cx)
                 .with_style(TextInputStyle::Title)
@@ -255,11 +258,14 @@ impl Workspace {
         let lock_screen = cx.new(|cx| LockScreen::new(doc.clone(), window, cx));
         let unlocked_editor = editor.clone();
         let locking = (editor.clone(), lock_screen.clone());
+        let shown_title = title.clone();
         let subscriptions = vec![
             cx.subscribe_in(&editor, window, Self::on_editor_event),
             cx.subscribe_in(&title, window, Self::on_title_event),
             cx.observe_in(&doc, window, move |_, doc, window, cx| {
                 follow_focus_into_lock(doc.read(cx).is_locked(), &locking, window, cx);
+                let path = doc.read(cx).path().to_path_buf();
+                follow_shown_title(&shown_title, &path, window, cx);
                 cx.notify();
             }),
             cx.subscribe_in(
@@ -447,7 +453,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let title = note_title(doc.read(cx).path());
+        let title = crate::encryption::shown_title(doc.read(cx).path(), cx);
         let message = format!("“{title}” changed on disk while you were editing it.");
         let answer = window.prompt(
             PromptLevel::Warning,
@@ -641,5 +647,23 @@ fn follow_focus_into_lock(
 ) {
     if locked && editor.focus_handle(cx).is_focused(window) {
         window.focus(&lock_screen.focus_handle(cx));
+    }
+}
+
+/// Keeps a note's title field on the name it shows everywhere, as when an
+/// encrypted note with a hidden file name locks or unlocks, unless
+/// someone is typing in it.
+fn follow_shown_title(
+    title: &Entity<TextInput>,
+    path: &Path,
+    window: &mut Window,
+    cx: &mut gpui::App,
+) {
+    if title.focus_handle(cx).is_focused(window) {
+        return;
+    }
+    let shown = crate::encryption::shown_title(path, cx);
+    if title.read(cx).text() != shown {
+        title.update(cx, |title, cx| title.set_text(&shown, cx));
     }
 }

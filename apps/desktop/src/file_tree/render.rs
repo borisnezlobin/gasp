@@ -261,7 +261,7 @@ impl FileTree {
     ) -> AnyElement {
         let row = self.model.rows()[index].clone();
         let state = self.row_state(&row.entry.path, window, cx);
-        let mark = crate::encryption::note_mark(&row.entry.path, cx);
+        let mark = crate::encryption::note_mark(&self.absolute(&row.entry.path), cx);
         let content = self.row_content(&row, state, mark, ui);
         let menu = self
             .menu

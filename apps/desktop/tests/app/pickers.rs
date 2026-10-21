@@ -402,7 +402,13 @@ fn switcher(cx: &mut TestAppContext) -> Opened<'_, QuickSwitcher, SwitcherEvent>
     ];
     let paths: Vec<String> = paths.iter().map(|p| p.to_string()).collect();
     open(cx, move |window, cx| {
-        QuickSwitcher::new(paths, vec!["reading list.md".into()], window, cx)
+        QuickSwitcher::new(
+            paths,
+            vec!["reading list.md".into()],
+            Default::default(),
+            window,
+            cx,
+        )
     })
 }
 

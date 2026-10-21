@@ -13,7 +13,6 @@ use gpui::{
     Subscription, Window, canvas, div, prelude::*, px,
 };
 
-use super::files::note_title;
 use super::history::NavHistory;
 use super::image_tab::ImageView;
 use super::launcher::Launcher;
@@ -129,9 +128,7 @@ impl Tab {
         let Some(path) = self.path(cx) else {
             return NEW_TAB_TITLE.to_owned();
         };
-        crate::encryption::note_mark(path, cx)
-            .and_then(|mark| mark.shown_name)
-            .unwrap_or_else(|| note_title(path))
+        crate::encryption::shown_title(path, cx)
     }
 
     /// Where keyboard focus goes when the tab is shown.

@@ -44,6 +44,12 @@ struct VaultLocks {
     notes: HashMap<String, NameVisibility>,
     /// Every open note of the vault, in any window, for locking them all.
     docs: Vec<WeakEntity<NoteDoc>>,
+    /// Counts the vault's locks, so a password step that finishes after
+    /// one can tell and drop its result.
+    lock_epoch: u64,
+    /// While this vault's password changes, its lock file changes under
+    /// the session on purpose and isn't news from another device.
+    changing_password: bool,
 }
 
 /// Every open vault's encryption.
@@ -113,7 +119,10 @@ pub fn register_vault(root: &Path, settings: &EncryptionSettings, cx: &mut App) 
         settings: settings.clone(),
         notes: HashMap::new(),
         docs: Vec::new(),
+        lock_epoch: 0,
+        changing_password: false,
     });
+    keychain::check_availability(cx);
     let scan_root = root.to_path_buf();
     let found = cx.background_spawn(async move { encrypted_notes(&scan_root) });
     let root = root.to_path_buf();
@@ -338,18 +347,44 @@ pub fn moved(from: &Path, to: &Path, cx: &mut App) {
 }
 
 /// Reads again whether each changed file is encrypted, after the watcher
-/// saw it change, move in or go.
+/// saw it change, move in or go. The files are read off the main thread.
 pub fn files_changed(changed: &[PathBuf], removed: &[PathBuf], cx: &mut App) {
     for path in removed {
         forget_under(path, cx);
     }
-    for path in changed {
+    if changed.is_empty() || cx.try_global::<EncryptedVaults>().is_none() {
+        return;
+    }
+    let changed = changed.to_vec();
+    let reading = cx.background_spawn(async move { marks_on_disk(&changed) });
+    cx.spawn(async move |cx| {
+        let marks = reading.await;
+        cx.update(|cx| {
+            for (path, visibility) in marks {
+                mark(&path, visibility, cx);
+            }
+        })
+        .ok();
+    })
+    .detach();
+}
+
+/// Whether each of `paths` is an encrypted note now, and every
+/// encrypted note in those that are folders.
+fn marks_on_disk(paths: &[PathBuf]) -> Vec<(PathBuf, Option<NameVisibility>)> {
+    let mut marks = Vec::new();
+    for path in paths {
         if path.is_dir() {
-            mark_folder(path, cx);
+            marks.extend(
+                encrypted_notes(path)
+                    .into_iter()
+                    .map(|(relative, visibility)| (path.join(relative), Some(visibility))),
+            );
         } else if is_note_file(path) {
-            mark(path, name_visibility_on_disk(path), cx);
+            marks.push((path.clone(), name_visibility_on_disk(path)));
         }
     }
+    marks
 }
 
 /// Forgets the marks of the note at `path`, or of every note under it
@@ -372,13 +407,6 @@ fn forget_under(path: &Path, cx: &mut App) {
     cx.global_mut::<EncryptedVaults>().vaults[index]
         .notes
         .retain(|note, _| *note != relative && !note.starts_with(&folder));
-}
-
-/// Marks the encrypted notes in a folder that moved into the vault.
-fn mark_folder(folder: &Path, cx: &mut App) {
-    for (relative, visibility) in encrypted_notes(folder) {
-        mark(&folder.join(relative), Some(visibility), cx);
-    }
 }
 
 fn is_note_file(path: &Path) -> bool {
@@ -422,7 +450,51 @@ pub fn lock_vault(path: &Path, cx: &mut App) {
         doc.update(cx, |doc, cx| doc.relock(cx));
     }
     with_encryption(path, cx, |encryption, _| encryption.lock_all());
+    with_vault(path, cx, |vault| vault.lock_epoch += 1);
     cx.refresh_windows();
+}
+
+/// Runs `action` on the open vault `path` is in.
+fn with_vault<R>(
+    path: &Path,
+    cx: &mut App,
+    action: impl FnOnce(&mut VaultLocks) -> R,
+) -> Option<R> {
+    let vaults = cx.try_global::<EncryptedVaults>()?;
+    let (index, _) = vaults.locate(path)?;
+    Some(action(
+        &mut cx.global_mut::<EncryptedVaults>().vaults[index],
+    ))
+}
+
+/// How many times the vault `path` is in has locked: a password step
+/// notes it when it starts, and drops its result if it changed.
+pub fn lock_epoch(path: &Path, cx: &App) -> u64 {
+    cx.try_global::<EncryptedVaults>()
+        .and_then(|vaults| {
+            let (index, _) = vaults.locate(path)?;
+            Some(vaults.vaults[index].lock_epoch)
+        })
+        .unwrap_or_default()
+}
+
+/// Marks the vault `path` is in as changing its password, or done.
+pub fn set_changing_password(path: &Path, changing: bool, cx: &mut App) {
+    with_vault(path, cx, |vault| vault.changing_password = changing);
+}
+
+/// Saves the open notes at `relative_paths` of the vault `path` is in
+/// again, sealed with the keys in hand now, as after a password change.
+pub fn reseal_notes(path: &Path, relative_paths: &[String], cx: &mut App) {
+    for doc in vault_docs(path, cx) {
+        let relative = cx
+            .try_global::<EncryptedVaults>()
+            .and_then(|vaults| vaults.locate(doc.read(cx).path()))
+            .map(|(_, relative)| relative);
+        if relative.is_some_and(|relative| relative_paths.contains(&relative)) {
+            doc.update(cx, |doc, cx| doc.reseal(cx)).ok();
+        }
+    }
 }
 
 /// After a password or Touch ID opened the vault, every locked note the
@@ -489,8 +561,80 @@ pub fn forget_for_claude(id: String, cx: &App) {
         .detach();
 }
 
-/// The vault password's lock as it is on disk now, as after sync
-/// brought in a password changed on another device.
-pub fn reload_lock(path: &Path, cx: &mut App) {
+/// Reads the vault password's lock file again, as after sync brought in
+/// a password changed on another device. When the vault's key no longer
+/// fits, every encrypted note locks (saving first) to ask for the new
+/// password. Does nothing while this app changes the password itself.
+pub fn lock_file_changed(path: &Path, cx: &mut App) {
+    let Some((changing, was_unlocked)) = read_vault(path, cx, |vault| {
+        (
+            vault.changing_password,
+            vault.encryption.is_vault_unlocked(),
+        )
+    }) else {
+        return;
+    };
+    if changing {
+        return;
+    }
     with_encryption(path, cx, |encryption, _| encryption.reload_lock());
+    let still_unlocked =
+        read_encryption(path, cx, |encryption, _| encryption.is_vault_unlocked()).unwrap_or(false);
+    if was_unlocked && !still_unlocked {
+        lock_vault(path, cx);
+    }
+}
+
+fn read_vault<R>(path: &Path, cx: &App, action: impl FnOnce(&VaultLocks) -> R) -> Option<R> {
+    let vaults = cx.try_global::<EncryptedVaults>()?;
+    let (index, _) = vaults.locate(path)?;
+    Some(action(&vaults.vaults[index]))
+}
+
+/// What to call the note at `path` everywhere it's named: its sealed
+/// title while it's unlocked and its file name is hidden, "Locked note"
+/// while it's locked, and otherwise its file name.
+pub fn shown_title(path: &Path, cx: &App) -> String {
+    note_mark(path, cx)
+        .and_then(|mark| mark.shown_name)
+        .unwrap_or_else(|| crate::workspace::files::note_title(path))
+}
+
+/// Whether the note at `path` is encrypted with its file name hidden.
+pub fn hides_name(path: &Path, cx: &App) -> bool {
+    note_mark(path, cx).is_some_and(|mark| mark.shown_name.is_some())
+}
+
+/// The shown title of every encrypted note under `vault` whose file
+/// name is hidden, by vault-relative path.
+pub fn shown_names(vault: &Path, cx: &App) -> HashMap<String, String> {
+    let Some(hidden) = read_vault(vault, cx, |locks| {
+        locks
+            .notes
+            .iter()
+            .filter(|(_, visibility)| **visibility == NameVisibility::Hidden)
+            .map(|(relative, _)| locks.root.join(relative))
+            .collect::<Vec<_>>()
+    }) else {
+        return HashMap::new();
+    };
+    hidden
+        .into_iter()
+        .filter_map(|path| {
+            let relative = crate::vault_index::vault_relative(vault, &path)?;
+            Some((relative, shown_title(&path, cx)))
+        })
+        .collect()
+}
+
+/// Gives the unlocked note at `path`, whose file name is hidden, a new
+/// title sealed inside it. The file keeps its stand-in name.
+pub fn set_title(path: &Path, title: &str, cx: &mut App) -> Result<(), String> {
+    with_encryption(path, cx, |encryption, relative| {
+        encryption.set_title(relative, title)
+    })
+    .unwrap_or(Err(gasp_vault::encryption::EncryptionError::VaultLocked))
+    .map_err(|error| error.to_string())?;
+    cx.refresh_windows();
+    Ok(())
 }

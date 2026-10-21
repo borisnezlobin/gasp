@@ -28,7 +28,7 @@ pub fn window_activation_changed(
     window.refresh();
     if window.is_window_active() {
         cx.default_global::<AwayTimers>().0.remove(&id);
-        super::reload_lock(workspace.vault(), cx);
+        super::lock_file_changed(workspace.vault(), cx);
         return;
     }
     let vault = workspace.vault().to_path_buf();
