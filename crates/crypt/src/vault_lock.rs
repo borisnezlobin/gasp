@@ -4,7 +4,7 @@
 //! The file syncs with the vault, so every device asks for the same one.
 
 use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::engine::general_purpose::{STANDARD as BASE64, URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
 
 use crate::CryptError;
@@ -61,6 +61,12 @@ impl VaultLock {
         } else {
             Err(CryptError::WrongPassword)
         }
+    }
+
+    /// A name for this vault password that never reveals it, for naming a
+    /// key kept in the system keychain. It changes with the password.
+    pub fn id(&self) -> String {
+        format!("vault-{}", URL_SAFE_NO_PAD.encode(&self.salt))
     }
 
     /// Whether `key` is this vault's key: a key kept for Touch ID stops

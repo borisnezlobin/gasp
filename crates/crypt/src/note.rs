@@ -21,7 +21,7 @@
 use std::collections::HashMap;
 
 use base64::Engine;
-use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::engine::general_purpose::{STANDARD as BASE64, URL_SAFE_NO_PAD};
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::CryptError;
@@ -115,6 +115,16 @@ impl KeySource {
         match self {
             KeySource::Vault => None,
             KeySource::Note { salt, params } => Some(derive_key(password, salt, *params)),
+        }
+    }
+
+    /// A name for a note password that never reveals it, for naming a key
+    /// kept in the system keychain; `None` for the vault password, which
+    /// [`crate::VaultLock::id`] names.
+    pub fn id(&self) -> Option<String> {
+        match self {
+            KeySource::Vault => None,
+            KeySource::Note { salt, .. } => Some(format!("note-{}", URL_SAFE_NO_PAD.encode(salt))),
         }
     }
 

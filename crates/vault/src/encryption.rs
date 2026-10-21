@@ -147,6 +147,36 @@ impl Encryption {
         Ok(())
     }
 
+    /// A name for the vault password's key in the system keychain.
+    pub fn vault_key_id(&self) -> Option<String> {
+        self.lock.as_ref().map(VaultLock::id)
+    }
+
+    /// The key that opens the unlocked note at `path`, and its keychain
+    /// name: the vault's, or the note password's.
+    pub fn wrapping_key(&self, path: &str) -> Option<(String, &Key)> {
+        let note = self.open_notes.get(path)?;
+        let id = note.source.id().or_else(|| self.vault_key_id())?;
+        Some((id, &note.wrapping_key))
+    }
+
+    /// The keychain name of the key that opens the note `raw`, without
+    /// opening it.
+    pub fn key_id_for(&self, raw: &str) -> Option<String> {
+        let header = peek(raw).ok()?;
+        header.source.id().or_else(|| self.vault_key_id())
+    }
+
+    /// Opens the note `raw` at `path` with a key kept in the keychain.
+    pub fn unlock_note_with_key(
+        &mut self,
+        path: &str,
+        raw: &str,
+        key: Key,
+    ) -> Result<Plain, EncryptionError> {
+        self.open_with(path, raw, key)
+    }
+
     /// A new vault password: every note it opens gets its key rewrapped,
     /// and the lock file changes last. Returns how many notes changed.
     pub fn change_vault_password(
