@@ -4177,6 +4177,7 @@ version = "0.2.5"
 dependencies = [
  "gasp-bench",
  "gasp-config",
+ "gasp-crypt",
  "gasp-vault",
  "memchr",
  "rayon",

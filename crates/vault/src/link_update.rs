@@ -56,8 +56,12 @@ impl LinkUpdater {
     }
 
     /// The note's text with its links updated, or `None` when nothing
-    /// changed. `note` is where the note was before the moves.
+    /// changed. `note` is where the note was before the moves. An
+    /// encrypted note's file is ciphertext, so it's never changed.
     pub fn rewrite(&self, note: &str, text: &str) -> Option<String> {
+        if gasp_crypt::is_encrypted(text) {
+            return None;
+        }
         if !self.moves.contains_key(note) && !self.may_link(text) {
             return None;
         }

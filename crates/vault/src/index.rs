@@ -10,6 +10,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
+use gasp_crypt::is_encrypted;
+
 use super::parse::{Link, ParsedNote, Tag, parse_note};
 use crate::link_update::{
     candidate_forms, file_name, join, normalize, parent_dir, strip_note_extension,
@@ -58,6 +60,13 @@ pub fn is_note_path(path: &str) -> bool {
     // Only ASCII letters lowercase to `m` and `d`, so the last three bytes
     // decide it.
     path.len() >= 3 && path.as_bytes()[path.len() - 3..].eq_ignore_ascii_case(b".md")
+}
+
+/// The text the index reads of a note's file. An encrypted note's is
+/// ciphertext, so it's indexed as an empty note: it lists and links to it
+/// resolve, but it has no links, tags or text of its own.
+pub fn indexed_text(text: &str) -> &str {
+    if is_encrypted(text) { "" } else { text }
 }
 
 /// The key links and files meet on: the lowercased file name without
@@ -127,7 +136,7 @@ impl LinkIndex {
     /// Reads `text` as the note at `path`, adding the note if it's new.
     pub fn set_note(&mut self, path: &str, text: impl Into<Arc<str>>) {
         let text = text.into();
-        let parsed = parse_note(&text);
+        let parsed = parse_note(indexed_text(&text));
         self.set_parsed_note(path, text, parsed);
     }
 
@@ -216,6 +225,11 @@ impl LinkIndex {
         parsed: ParsedNote,
         resolved: Vec<Option<String>>,
     ) {
+        let (text, parsed, resolved) = if is_encrypted(&text) {
+            (Arc::from(""), ParsedNote::default(), Vec::new())
+        } else {
+            (text, parsed, resolved)
+        };
         // Notes link to the same few places many times; each goes in once.
         for key in link_keys(&parsed.links) {
             let sources = self.by_key.entry(key).or_default();
