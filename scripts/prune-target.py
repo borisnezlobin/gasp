@@ -9,7 +9,8 @@ mistake only costs a recompile: Cargo sees it's missing and builds it again.
 
 With `--cap GB` it also holds Cargo's folders under a hard limit, in steps
 that stop as soon as they're under it: every incremental cache, then all but
-the newest build of each crate, then whole profile folders. It also deletes
+the newest build of each crate, then whole profile folders, but never a release
+build made in the last day, since packaging uses it. It also deletes
 build folders agents left in worktrees and old Xcode builds of Gasp. The cap
 steps wait while a cargo, rustc or xcodebuild process runs, so they never
 pull files from under a build; the next run catches up.
@@ -39,6 +40,10 @@ STRAY_BUILD_FOLDERS = (
     "target/ios-sim-check",
 )
 XCODE_BUILDS = pathlib.Path.home() / "Library/Developer/Xcode/DerivedData"
+# Release builds feed `make dmg` and uploads, so the cap leaves one alone
+# for a day after it was last built.
+RELEASE_PROFILES = ("dist", "release")
+RELEASE_KEEP_SECONDS = 24 * 60 * 60
 
 
 def profile_dirs():
@@ -98,6 +103,17 @@ def cargo_size():
     return sum(size_of(profile) for profile in profile_dirs())
 
 
+def is_fresh_release(profile, now):
+    if profile.name not in RELEASE_PROFILES:
+        return False
+    return now - profile.lstat().st_mtime < RELEASE_KEEP_SECONDS
+
+
+def cappable_profiles(now):
+    """Every profile folder but a release build made in the last day."""
+    return [profile for profile in profile_dirs() if not is_fresh_release(profile, now)]
+
+
 def a_build_is_running():
     for name in BUILD_PROCESSES:
         found = subprocess.run(["pgrep", "-x", name], capture_output=True, check=False)
@@ -106,12 +122,21 @@ def a_build_is_running():
     return False
 
 
-def drop_incremental_caches():
-    return sum(remove(profile / "incremental") for profile in profile_dirs())
+def drop_incremental_caches(now):
+    return sum(remove(profile / "incremental") for profile in cappable_profiles(now))
 
 
-def drop_profiles():
-    return sum(remove(profile) for profile in profile_dirs())
+def drop_old_builds(now):
+    freed = 0
+    for profile in cappable_profiles(now):
+        deps = profile / "deps"
+        if deps.is_dir():
+            freed += sum(remove(path) for path in list(stale_paths(deps, now, 1, 0)))
+    return freed
+
+
+def drop_profiles(now):
+    return sum(remove(profile) for profile in cappable_profiles(now))
 
 
 def drop_stray_build_folders():
@@ -135,15 +160,10 @@ def drop_old_xcode_builds(now):
 def enforce_cap(cap_bytes, now):
     """The cap's steps, mildest first, until Cargo's folders fit."""
     freed = drop_stray_build_folders() + drop_old_xcode_builds(now)
-    steps = (
-        drop_incremental_caches,
-        lambda: prune_profiles(now, keep=1, grace=0),
-        drop_profiles,
-    )
-    for step in steps:
+    for step in (drop_incremental_caches, drop_old_builds, drop_profiles):
         if cargo_size() <= cap_bytes:
             break
-        freed += step()
+        freed += step(now)
     return freed
 
 
