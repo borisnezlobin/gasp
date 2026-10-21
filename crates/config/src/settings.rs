@@ -23,6 +23,7 @@ pub struct Settings {
     pub daily_notes: DailyNoteSettings,
     pub templates: TemplateSettings,
     pub recovery: RecoverySettings,
+    pub encryption: EncryptionSettings,
     pub mcp: McpSettings,
     pub telemetry: TelemetrySettings,
     pub updates: UpdateSettings,
@@ -384,6 +385,47 @@ impl Default for RecoverySettings {
             keep_days: 7,
         }
     }
+}
+
+/// Encrypted notes: when unlocked ones lock again, and what newly
+/// encrypted ones start with. Each note can change its own name and
+/// Claude settings later.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct EncryptionSettings {
+    /// Seconds Gasp can be in the background before unlocked notes lock.
+    pub relock_after_seconds: u32,
+    /// Whether unlocked notes blur while another app is in front.
+    pub blur_when_away: bool,
+    /// Whether newly encrypted notes get a stand-in file name.
+    pub hide_names: bool,
+    /// Whether Claude's Gasp connector can read newly encrypted notes.
+    pub claude_access: EncryptedClaudeAccess,
+    /// Whether Touch ID or Face ID can unlock the vault.
+    pub biometric_unlock: bool,
+}
+
+impl Default for EncryptionSettings {
+    fn default() -> Self {
+        EncryptionSettings {
+            relock_after_seconds: 120,
+            blur_when_away: true,
+            hide_names: false,
+            claude_access: EncryptedClaudeAccess::Never,
+            biometric_unlock: false,
+        }
+    }
+}
+
+/// When Claude's Gasp connector can read an encrypted note: never, only
+/// while it's unlocked in Gasp, or always.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum EncryptedClaudeAccess {
+    #[default]
+    Never,
+    WhileUnlocked,
+    Always,
 }
 
 /// Agents' access to the running app through `gasp mcp`.

@@ -71,6 +71,31 @@ pub const SETTING_TEXTS: &[(&str, &str, &str)] = &[
         "Days before a snapshot is deleted.",
     ),
     (
+        "encryption.relock-after-seconds",
+        "Lock again after",
+        "Seconds Gasp can be in the background before unlocked notes need the password again.",
+    ),
+    (
+        "encryption.blur-when-away",
+        "Blur when away",
+        "Unlocked notes blur while another app is in front.",
+    ),
+    (
+        "encryption.hide-names",
+        "Hide names of new encrypted notes",
+        "They get a stand-in file name, so the title doesn't show in the file list or on GitHub.",
+    ),
+    (
+        "encryption.claude-access",
+        "Claude can read new encrypted notes",
+        "Never, only while the note is unlocked in Gasp, or always.",
+    ),
+    (
+        "encryption.biometric-unlock",
+        "Unlock with Touch ID or Face ID",
+        "After you type the vault password once on a device, your fingerprint or face unlocks it there.",
+    ),
+    (
         "files.attachments-folder",
         "Attachments folder",
         "Where pasted and dropped images go, relative to the note.",

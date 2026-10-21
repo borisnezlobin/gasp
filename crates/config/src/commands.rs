@@ -487,6 +487,36 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     #[cfg(not(target_os = "ios"))]
     MOVE_NOTE,
     spec("note.import-image", "Insert image", "Editing").icon("image"),
+    spec(
+        "encryption.encrypt-note",
+        "Encrypt note",
+        "Notes and navigation",
+    )
+    .icon("lock-simple"),
+    spec(
+        "encryption.decrypt-note",
+        "Remove encryption from note",
+        "Notes and navigation",
+    )
+    .icon("lock-simple-open"),
+    spec(
+        "encryption.lock",
+        "Lock encrypted notes",
+        "Notes and navigation",
+    )
+    .icon("lock"),
+    spec(
+        "encryption.note-options",
+        "Change how this note is encrypted",
+        "Notes and navigation",
+    )
+    .icon("lock-key"),
+    spec(
+        "encryption.change-password",
+        "Change the vault password",
+        "Notes and navigation",
+    )
+    .icon("password"),
     spec("edit.paste-plain", "Paste as plain text", "Editing").icon("clipboard-text"),
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     LOOK_UP,
