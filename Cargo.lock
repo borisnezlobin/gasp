@@ -4009,6 +4009,7 @@ version = "0.2.5"
 dependencies = [
  "anyhow",
  "arboard",
+ "block",
  "core-graphics 0.24.0",
  "core-text",
  "ctor",
@@ -4018,6 +4019,7 @@ dependencies = [
  "futures",
  "gasp-config",
  "gasp-core",
+ "gasp-crypt",
  "gasp-export",
  "gasp-highlight",
  "gasp-math",
@@ -4032,6 +4034,7 @@ dependencies = [
  "gpui",
  "image",
  "jiff",
+ "keyring",
  "lyon",
  "metal 0.29.0",
  "notify",
