@@ -8,8 +8,7 @@
 use std::io::Read;
 use std::path::Path;
 
-use gasp_crypt::{ClaudeAccess, NoteOptions, Plain, is_encrypted, peek};
-use gasp_vault::encryption::Encryption;
+use gasp_crypt::{ClaudeAccess, Key, NoteOptions, Plain, is_encrypted, peek};
 
 use crate::bridge::Request;
 use crate::context::Context;
@@ -122,11 +121,14 @@ pub fn change(
     if encrypted.access != ClaudeAccess::Always {
         return Err(locked_in_app(note));
     }
-    let (encryption, plain) = open_with_claude_key(context, note, encrypted)?;
+    let (note_key, plain) = open_with_claude_key(context, note, encrypted)?;
     let new = change(&plain.body).map_err(ToolError::new)?;
-    let sealed = encryption
-        .seal(&note.relative, &new)
-        .ok_or_else(|| key_doesnt_open(note))?;
+    let changed = Plain {
+        body: new,
+        title: plain.title.clone(),
+    };
+    let sealed = gasp_crypt::reseal(&encrypted.raw, &changed, &note_key)
+        .map_err(|_| key_doesnt_open(note))?;
     write_file(note, &sealed)?;
     Ok(Written::OnDisk)
 }
@@ -138,28 +140,24 @@ fn text_in_app(context: &Context, note: &VaultPath) -> Result<Option<String>, To
         .map_err(app_error)
 }
 
-/// Opens the note with the key kept for Claude, and checks the options it
-/// was sealed with still let Claude in always.
+/// Opens the note with its own key, kept for Claude, and checks the
+/// options it was sealed with still let Claude in always.
 fn open_with_claude_key(
     context: &Context,
     note: &VaultPath,
     encrypted: &EncryptedNote,
-) -> Result<(Encryption, Plain), ToolError> {
-    let mut encryption = Encryption::load(context.root());
-    let key = encryption
-        .key_id_for(&encrypted.raw)
-        .and_then(|id| context.claude_keys().key(&id))
+) -> Result<(Key, Plain), ToolError> {
+    let header = gasp_crypt::peek(&encrypted.raw).map_err(|_| key_doesnt_open(note))?;
+    let note_key = context
+        .claude_keys()
+        .key(&header.claude_key_id())
         .ok_or_else(|| no_key(note))?;
-    let plain = encryption
-        .unlock_note_with_key(&note.relative, &encrypted.raw, key)
+    let opened = gasp_crypt::open_with_note_key(&encrypted.raw, &note_key)
         .map_err(|_| key_doesnt_open(note))?;
-    let sealed_access = encryption
-        .options(&note.relative)
-        .map(|options| options.claude);
-    if sealed_access != Some(ClaudeAccess::Always) {
+    if opened.header.options.claude != ClaudeAccess::Always {
         return Err(not_shared(note));
     }
-    Ok((encryption, plain))
+    Ok((note_key, opened.plain))
 }
 
 fn not_shared(note: &VaultPath) -> ToolError {

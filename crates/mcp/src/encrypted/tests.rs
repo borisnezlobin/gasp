@@ -1,5 +1,5 @@
 use gasp_crypt::{KdfParams, NameVisibility};
-use gasp_vault::encryption::NoteText;
+use gasp_vault::encryption::{Encryption, NoteText};
 use serde_json::json;
 
 use super::*;
@@ -16,7 +16,7 @@ fn options(claude: ClaudeAccess) -> NoteOptions {
 }
 
 /// A vault with `Diary.md` sealed by the vault password, Claude's access
-/// to it set to `claude`, and the vault key kept for Claude when `kept`.
+/// to it set to `claude`, and its own key kept for Claude when `kept`.
 fn sealed_vault(claude: ClaudeAccess, kept: bool) -> (tempfile::TempDir, Context) {
     let (dir, context) = vault(&[("Plain.md", "plain words\n")]);
     let mut encryption = Encryption::load_with(dir.path(), KdfParams::QUICK);
@@ -27,8 +27,8 @@ fn sealed_vault(claude: ClaudeAccess, kept: bool) -> (tempfile::TempDir, Context
     std::fs::write(dir.path().join("Diary.md"), file).unwrap();
     let keys = MemoryKeys::default();
     if kept {
-        let id = encryption.vault_key_id().unwrap();
-        keys.insert(&id, encryption.vault_key().unwrap().clone());
+        let (id, key) = encryption.claude_key("Diary.md").unwrap();
+        keys.insert(&id, key.clone());
     }
     (dir, context.with_claude_keys(keys))
 }
@@ -119,13 +119,26 @@ fn a_note_password_key_opens_its_note() {
         )
         .unwrap();
     std::fs::write(dir.path().join("Own.md"), file).unwrap();
-    let (id, key) = encryption.wrapping_key("Own.md").unwrap();
-    assert!(id.starts_with("note-"));
+    let (id, key) = encryption.claude_key("Own.md").unwrap();
+    assert!(id.starts_with("claude-"));
     let keys = MemoryKeys::default();
     keys.insert(&id, key.clone());
     let context = context.with_claude_keys(keys);
     let read = call(&context, "read_note", json!({"path": "Own"}));
     assert_eq!(read["text"], "mine\n");
+}
+
+#[test]
+fn one_notes_kept_key_opens_no_other_note() {
+    let (dir, context) = sealed_vault(ClaudeAccess::Always, true);
+    let mut encryption = Encryption::load_with(dir.path(), KdfParams::QUICK);
+    encryption.unlock_vault("seagrass").unwrap();
+    let other = encryption
+        .encrypt("Other.md", "other\n", options(ClaudeAccess::Always), None)
+        .unwrap();
+    std::fs::write(dir.path().join("Other.md"), other).unwrap();
+    let error = call_err(&context, "read_note", json!({"path": "Other"}));
+    assert!(error.contains("isn't in this device's keychain"), "{error}");
 }
 
 #[test]

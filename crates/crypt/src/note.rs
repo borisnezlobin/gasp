@@ -12,7 +12,9 @@
 //! ```
 //!
 //! A note with its own password says `key: note` and adds its `salt:` and
-//! `kdf: <KiB> <passes> <lanes>`. Every header line but `wrapped` is bound
+//! `kdf: <KiB> <passes> <lanes>`. `id:` is a hash of the note's own key:
+//! it names that key when it's kept for Claude, and reveals nothing about
+//! it. Every header line but `wrapped` is bound
 //! into the seal: changing `claude: never` to `always` by hand makes the
 //! note fail to open instead of changing who may read it. `wrapped` is
 //! left out so a new password can rewrap the note's key without
@@ -143,7 +145,29 @@ impl KeySource {
 pub struct Header {
     pub source: KeySource,
     pub options: NoteOptions,
+    id: String,
     wrapped: Vec<u8>,
+}
+
+impl Header {
+    /// The name of this note's own key when it's kept for Claude: one
+    /// note's key opens that note and nothing else.
+    pub fn claude_key_id(&self) -> String {
+        format!("claude-{}", self.id)
+    }
+}
+
+/// The name [`Header::claude_key_id`] gives the note sealed with `note_key`.
+pub fn claude_key_id(note_key: &Key) -> String {
+    format!("claude-{}", note_id(note_key))
+}
+
+fn note_id(note_key: &Key) -> String {
+    use blake2::{Blake2b, Digest, digest::consts::U16};
+    let mut hasher = Blake2b::<U16>::new();
+    hasher.update(b"gasp note id v1");
+    hasher.update(note_key.bytes());
+    URL_SAFE_NO_PAD.encode(hasher.finalize())
 }
 
 /// A note's text, and its title when the file's name hides it. Wiped
@@ -204,17 +228,50 @@ pub fn seal(
     let header = Header {
         source,
         options,
+        id: note_id(note_key),
         wrapped,
     };
-    let payload = payload_of(plain, options);
-    let sealed = seal_bytes(note_key, payload.as_bytes(), &bound_header(&header));
-    serialize(&header, &BASE64.encode(sealed))
+    seal_body(&header, plain, note_key)
+}
+
+/// `text` holding `plain` instead, sealed with the note's own key and its
+/// header kept, wrapped key included: how Claude saves a note it may
+/// always read, holding that note's key and no password's.
+pub fn reseal(text: &str, plain: &Plain, note_key: &Key) -> Result<String, CryptError> {
+    let (header, _) = parse(text)?;
+    check_note_key(&header, note_key)?;
+    Ok(seal_body(&header, plain, note_key))
+}
+
+/// The note in `text`, opened with its own key rather than a password's.
+pub fn open_with_note_key(text: &str, note_key: &Key) -> Result<Opened, CryptError> {
+    let (header, body) = parse(text)?;
+    check_note_key(&header, note_key)?;
+    open_body(header, &body, note_key.clone())
+}
+
+fn seal_body(header: &Header, plain: &Plain, note_key: &Key) -> String {
+    let payload = payload_of(plain, header.options);
+    let sealed = seal_bytes(note_key, payload.as_bytes(), &bound_header(header));
+    serialize(header, &BASE64.encode(sealed))
+}
+
+fn check_note_key(header: &Header, note_key: &Key) -> Result<(), CryptError> {
+    if header.id == note_id(note_key) {
+        Ok(())
+    } else {
+        Err(CryptError::WrongPassword)
+    }
 }
 
 /// The note in `text`, opened with `wrapping_key`.
 pub fn open(text: &str, wrapping_key: &Key) -> Result<Opened, CryptError> {
     let (header, body) = parse(text)?;
     let note_key = unwrap_note_key(&header, wrapping_key)?;
+    open_body(header, &body, note_key)
+}
+
+fn open_body(header: Header, body: &str, note_key: Key) -> Result<Opened, CryptError> {
     let sealed = BASE64.decode(body).map_err(|_| CryptError::Corrupt)?;
     let payload =
         open_bytes(&note_key, &sealed, &bound_header(&header)).ok_or(CryptError::Corrupt)?;
@@ -279,8 +336,9 @@ fn plain_from(payload: &str) -> Result<Plain, CryptError> {
 /// The header lines bound into the seal, in a fixed form.
 fn bound_header(header: &Header) -> Vec<u8> {
     format!(
-        "{MARKER} {VERSION}\nkey {}\nclaude {}\nname {}",
+        "{MARKER} {VERSION}\nkey {}\nid {}\nclaude {}\nname {}",
         header.source.describe(),
+        header.id,
         header.options.claude.name(),
         header.options.name.name()
     )
@@ -298,7 +356,8 @@ fn serialize(header: &Header, body: &str) -> String {
         )),
     }
     out.push_str(&format!(
-        "claude: {}\nname: {}\nwrapped: {}\n\n",
+        "id: {}\nclaude: {}\nname: {}\nwrapped: {}\n\n",
+        header.id,
         header.options.claude.name(),
         header.options.name.name(),
         BASE64.encode(&header.wrapped)
@@ -345,6 +404,7 @@ fn header_from(fields: &HashMap<&str, &str>) -> Result<Header, CryptError> {
     Ok(Header {
         source: source_from(fields)?,
         options,
+        id: field(fields, "id")?.to_owned(),
         wrapped: decode(field(fields, "wrapped")?)?,
     })
 }
