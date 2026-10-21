@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+use gasp_migrate::import::import_into;
 use gasp_migrate::latex_suite::{Outcome, SourceKind};
 use gasp_migrate::{Migration, migrate_obsidian};
 use gasp_snippets::{
@@ -265,4 +266,41 @@ fn command_line_writes_every_file() {
         .output()
         .unwrap();
     assert!(!usage.status.success());
+}
+
+#[test]
+fn an_obsidian_vault_brings_its_plugin_settings_into_the_report() {
+    let vault = tempfile::tempdir().unwrap();
+    let obsidian = vault.path().join(".obsidian");
+    for plugin in [
+        "obsidian-latex-suite",
+        "obsidian-smart-typography",
+        "enhanced-symbols-prettifier",
+    ] {
+        let folder = obsidian.join("plugins").join(plugin);
+        std::fs::create_dir_all(&folder).unwrap();
+        let settings = reference_dir()
+            .join("plugins")
+            .join(plugin)
+            .join("data.json");
+        std::fs::copy(settings, folder.join("data.json")).unwrap();
+    }
+    let config = vault.path().join(".gasp");
+    let outcome = import_into(&obsidian, &config).unwrap();
+    assert!(outcome.written.contains(&"snippets.txt"));
+    assert!(outcome.written.contains(&"replacements.toml"));
+    let report = std::fs::read_to_string(config.join("migration-report.txt")).unwrap();
+    assert!(
+        report.contains("Latex Suite snippets (snippets.txt)"),
+        "{report}"
+    );
+    assert!(
+        report.contains("Replacements (replacements.toml)"),
+        "{report}"
+    );
+    let not_found = report.lines().find(|line| line.starts_with("Not found"));
+    assert!(
+        !not_found.unwrap_or_default().contains("plugins/"),
+        "{report}"
+    );
 }

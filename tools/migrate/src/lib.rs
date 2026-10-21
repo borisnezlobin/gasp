@@ -43,9 +43,9 @@ pub const SETTINGS_FILE: &str = "settings.toml";
 pub const THEME_FILE: &str = "theme.toml";
 pub const REPORT_FILE: &str = "migration-report.txt";
 
-const LATEX_SUITE: &str = "plugins/obsidian-latex-suite.json";
-const SMART_TYPOGRAPHY: &str = "plugins/obsidian-smart-typography.json";
-const PRETTIFIER: &str = "plugins/enhanced-symbols-prettifier.json";
+const LATEX_SUITE: &str = "plugins/obsidian-latex-suite/data.json";
+const SMART_TYPOGRAPHY: &str = "plugins/obsidian-smart-typography/data.json";
+const PRETTIFIER: &str = "plugins/enhanced-symbols-prettifier/data.json";
 const HOTKEYS: &str = "hotkeys.json";
 const APP: &str = "app.json";
 const APPEARANCE: &str = "appearance.json";

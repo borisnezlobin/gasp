@@ -260,3 +260,4 @@ Copy and layout
 - [x] Comparisons should read as tradeoffs, not "Gasp has nothing": teams share a vault through GitHub, AI comes through MCP, and the Notion page must mention encryption.
 - [x] Icons beside text weren't vertically balanced.
 - [x] Site copy must be plain and easy for someone who knows nothing about Gasp or the other apps: simple full sentences, no tacked-on qualifiers like "though not live".
+- [x] Importing from Obsidian must bring over Latex Suite snippets, Smart Typography and Symbols Prettifier from a real vault, which keeps them in `.obsidian/plugins/<id>/data.json`. *(The importer read flattened `plugins/<id>.json` files that only the test fixtures had; it now reads the real layout.)*
