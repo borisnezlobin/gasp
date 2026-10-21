@@ -13,6 +13,7 @@ mod agent_apps;
 mod edit_time;
 mod editor_view;
 mod embeds;
+mod encryption;
 mod export;
 mod features;
 mod file_tree;
