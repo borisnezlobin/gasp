@@ -64,7 +64,7 @@ fn touches_lock_file(event: &Event, vault: &Path) -> bool {
         EventKind::Modify(ModifyKind::Metadata(_)) | EventKind::Access(_)
     );
     let lock = lock_file(vault);
-    content_change && event.paths.iter().any(|path| *path == lock)
+    content_change && event.paths.contains(&lock)
 }
 
 fn visible_changes(event: &Event, vault: &Path) -> Vec<DiskChange> {
