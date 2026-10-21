@@ -138,7 +138,7 @@ function HowItWasMeasured() {
         type="button"
         popoverTarget="race-method"
         aria-label="How this was measured"
-        className="grid size-10 cursor-pointer place-items-center rounded-lg text-ink-muted transition-colors duration-150 hover:bg-fill hover:text-ink"
+        className="grid size-11 cursor-pointer place-items-center rounded-lg text-ink-muted transition-colors duration-150 hover:bg-fill hover:text-ink"
       >
         <Info size={20} aria-hidden />
       </button>
@@ -184,7 +184,7 @@ export function LaunchRace() {
           type="button"
           onClick={start}
           disabled={!finished}
-          className="inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-3 font-bold transition-[background-color,opacity] duration-150 hover:bg-fill active:scale-[0.96] disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+          className="inline-flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-3 font-bold transition-[background-color,opacity] duration-150 hover:bg-fill active:scale-[0.96] disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <ArrowCounterClockwise size={18} aria-hidden />
           Replay

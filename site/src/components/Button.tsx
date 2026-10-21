@@ -9,7 +9,7 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 const SIZES: Record<Size, string> = {
-  regular: "h-10 px-4 gap-2 text-base rounded-lg",
+  regular: "h-11 px-4 gap-2 text-base rounded-lg",
   large: "h-12 px-5 gap-2.5 text-lg rounded-xl",
 };
 

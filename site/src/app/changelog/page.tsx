@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { ArrowUpRight } from "@phosphor-icons/react/dist/ssr";
-import { SiteFooter } from "@/components/SiteFooter";
-import { SiteHeader } from "@/components/SiteHeader";
 import { LiveText } from "@/components/glyphs/LiveText";
+import { PageShell, PageTitle } from "@/components/PageShell";
+import { proseLinkStyle as linkStyle } from "@/components/styles";
 import { changelogEntries, gitHubReleases, type ChangelogEntry } from "@/lib/releases";
 import { parseReleaseNotes, type NoteBlock, type NoteSpan } from "@/lib/releaseNotes";
 import { RELEASES_URL } from "@/lib/site";
@@ -15,8 +15,6 @@ export const metadata: Metadata = {
 /** Ten minutes, like the update check, so a new release shows up soon
     after it's published. */
 export const revalidate = 600;
-
-const linkStyle = "underline decoration-ink-muted underline-offset-4 hover:decoration-ink";
 
 const releaseDate = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "UTC" });
 
@@ -105,23 +103,17 @@ export default async function Changelog() {
   const releases = await gitHubReleases(revalidate);
   const entries = releases === null ? [] : changelogEntries(releases);
   return (
-    <>
-      <SiteHeader />
-      <main className="mx-auto max-w-4xl px-4 pt-12 pb-20 sm:px-8 lg:pt-20">
-        <h1 className="heading">
-          <LiveText text="Changelog" />
-        </h1>
-        {entries.length === 0 ? (
-          <Unreachable />
-        ) : (
-          <ol className="mt-12 space-y-20 lg:mt-16">
-            {entries.map((entry) => (
-              <Release key={entry.version} entry={entry} />
-            ))}
-          </ol>
-        )}
-      </main>
-      <SiteFooter />
-    </>
+    <PageShell width="medium">
+      <PageTitle title="Changelog" />
+      {entries.length === 0 ? (
+        <Unreachable />
+      ) : (
+        <ol className="mt-12 space-y-20 lg:mt-16">
+          {entries.map((entry) => (
+            <Release key={entry.version} entry={entry} />
+          ))}
+        </ol>
+      )}
+    </PageShell>
   );
 }

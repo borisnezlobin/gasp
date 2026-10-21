@@ -255,5 +255,8 @@ Copy and layout
 - [ ] Encrypted notes: a vault password changed on another device is picked up right away, and embeds of encrypted notes never show scrambled text.
 - [ ] Encrypted attachments: can images and files be encrypted too, with an easy way to do it?
 - [x] Build folders must never reach 80 GB again. *(Cleaned to 2.7 GB; 15 GB cap enforced by hooks after every turn and agent; rules in CLAUDE.md and memory.)*
-- [ ] SEO: "Gasp vs Obsidian" style comparison pages that answer "it depends" honestly while showing Gasp at its best (privacy, speed, free sync, AI agents), plus feature pages and a place that links them all.
-- [ ] Put "Obsidian-compatible" more prominently on the site.
+- [x] SEO: "Gasp vs Obsidian" style comparison pages that answer "it depends" honestly while showing Gasp at its best (privacy, speed, free sync, AI agents), plus feature pages and a place that links them all. *(Seven comparisons under /compare and six feature pages under /features, linked from the header and footer.)*
+- [x] Put "Obsidian-compatible" more prominently on the site. *(A link under the hero's tagline.)*
+- [x] Comparisons should read as tradeoffs, not "Gasp has nothing": teams share a vault through GitHub, AI comes through MCP, and the Notion page must mention encryption.
+- [x] Icons beside text weren't vertically balanced.
+- [x] Site copy must be plain and easy for someone who knows nothing about Gasp or the other apps: simple full sentences, no tacked-on qualifiers like "though not live".

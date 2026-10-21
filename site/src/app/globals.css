@@ -7,7 +7,7 @@
   --surface: #ffffff;
   --ink: #18181b;
   --ink-soft: #3f3f46;
-  --ink-muted: #71717a;
+  --ink-muted: #68686f;
   --rule: #e4e4e7;
   --sea: #dcdce0;
   --fill: #ececee;
@@ -144,6 +144,20 @@
   .small {
     font-size: 0.9375rem;
     line-height: 1.5;
+  }
+  /* An icon beside text, centred on the text's first line, then dropped
+     to the middle of the lowercase letters, where the eye reads the line
+     (measured in Charter: 0.1em below the line box's centre). */
+  .line-icon {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    height: 1lh;
+    padding-top: 0.2em;
+  }
+  /* A comfortable line length for reading, set in the text's own size. */
+  .measure {
+    max-width: 60ch;
   }
   .figure {
     font-variant-numeric: tabular-nums lining-nums;
