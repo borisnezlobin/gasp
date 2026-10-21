@@ -184,7 +184,7 @@ struct BrowserPrompts: ViewModifier {
 
     private func prefillName() {
         switch model.workspace.prompt {
-        case .rename(let path): newName = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+        case .rename(let path): newName = model.library.title(of: path)
         case .newFolder: newName = ""
         default: break
         }

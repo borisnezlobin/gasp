@@ -12,6 +12,9 @@ struct LockedNoteView: View {
     @State private var unlocking = false
     @State private var shake = 0
     @State private var keptKeyWorks = true
+    /// Whether the page is on screen, so an unlock that finishes after it
+    /// closed changes nothing on it.
+    @State private var showing = false
     @FocusState private var fieldFocused: Bool
 
     /// Whether a key for this note is kept behind Face ID, read once so
@@ -29,7 +32,7 @@ struct LockedNoteView: View {
     private var vault: VaultFolder? { model.library.vault }
 
     private var title: String {
-        model.library.notes.first { $0.path == path }?.title ?? EditingController.title(of: path)
+        model.library.title(of: path)
     }
 
     var body: some View {
@@ -43,8 +46,11 @@ struct LockedNoteView: View {
                     .modifier(Shake(amount: CGFloat(shake)))
                 problemLine
                 VStack(spacing: tokens.spacing.sm) {
-                    WideButton(title: "Unlock note", style: .primary, busy: unlocking, tokens: tokens, action: unlock)
-                        .disabled(password.isEmpty || unlocking)
+                    WideButton(
+                        title: "Unlock note", busyTitle: "Unlocking…", style: .primary, busy: unlocking,
+                        tokens: tokens, action: unlock
+                    )
+                    .disabled(password.isEmpty || unlocking)
                     if offersBiometry { biometryButton }
                 }
             }
@@ -52,7 +58,11 @@ struct LockedNoteView: View {
             .padding(.horizontal, tokens.spacing.xl)
             .padding(.bottom, TabBarView.clearance)
         }
-        .onAppear { fieldFocused = takesFocusAtOnce }
+        .onAppear {
+            showing = true
+            fieldFocused = takesFocusAtOnce
+        }
+        .onDisappear { showing = false }
         .onChange(of: model.workspace.overviewOpen) { _, open in if open { fieldFocused = false } }
     }
 
@@ -115,43 +125,74 @@ struct LockedNoteView: View {
 
     private func unlock() {
         guard let vault, !password.isEmpty, !unlocking else { return }
-        unlocking = true
         let (path, password) = (path, password)
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result = Result { try vault.unlockNote(path: path, password: password) }
-            DispatchQueue.main.async { finishUnlock(result) }
-        }
-    }
-
-    private func unlockWithKeptKey() {
-        guard let vault, let id = note.keyId else { return }
         Task { @MainActor in
-            guard let key = await KeptKeys.read(id: id, reason: "Unlock your encrypted notes") else { return }
-            do {
-                _ = try vault.unlockNoteWithKey(path: path, key: key)
+            unlocking = true
+            let result = await outcome { try vault.unlockNote(path: path, password: password) }
+            unlocking = false
+            guard let result = stillWanted(result) else { return }
+            switch result {
+            case .success:
+                keepKey()
                 model.runner.noteUnlocked()
-            } catch VaultError.WrongPassword {
-                KeptKeys.forget(id: id)
-                keptKeyWorks = false
-                problem = "The password changed since \(KeptKeys.biometryName) was set up. Type the new one."
-                fieldFocused = true
-            } catch {
-                problem = error.shownMessage
+            case .failure(let error):
+                showWrongPassword(error)
             }
         }
     }
 
-    private func finishUnlock(_ result: Result<String, Error>) {
-        unlocking = false
-        switch result {
-        case .success:
-            keepKey()
-            model.runner.noteUnlocked()
-        case .failure(let error):
-            problem = error.shownMessage
-            Haptics.warning()
-            withAnimation(.linear(duration: 0.3)) { shake += 1 }
+    private func unlockWithKeptKey() {
+        guard let vault, let id = note.keyId, !unlocking else { return }
+        let path = path
+        Task { @MainActor in
+            unlocking = true
+            defer { unlocking = false }
+            guard let key = await KeptKeys.read(id: id, reason: "Unlock your encrypted notes") else { return }
+            let result = await outcome { try vault.unlockNoteWithKey(path: path, key: key) }
+            guard let result = stillWanted(result) else { return }
+            switch result {
+            case .success:
+                model.runner.noteUnlocked()
+            case .failure(let error):
+                showKeptKeyProblem(error, id: id)
+            }
         }
+    }
+
+    /// Runs an unlock off the main thread, so making the key never holds
+    /// up the screen.
+    private func outcome(_ work: @escaping () throws -> String) async -> Result<String, Error> {
+        let locksBefore = model.tabs.locks
+        let result = await Result.offMain(work)
+        guard case .success = result, model.tabs.locks != locksBefore else { return result }
+        return .failure(UnlockCameTooLate())
+    }
+
+    /// The result, unless the page closed or the notes locked while the
+    /// unlock ran. A late unlock is undone, so the lock holds.
+    private func stillWanted(_ result: Result<String, Error>) -> Result<String, Error>? {
+        if case .failure(let error) = result, error is UnlockCameTooLate {
+            model.runner.lockEncryptedNotes()
+            return nil
+        }
+        return showing ? result : nil
+    }
+
+    private func showWrongPassword(_ error: Error) {
+        problem = error.shownMessage
+        Haptics.warning()
+        withAnimation(.linear(duration: 0.3)) { shake += 1 }
+    }
+
+    private func showKeptKeyProblem(_ error: Error, id: String) {
+        guard case VaultError.WrongPassword = error else {
+            problem = error.shownMessage
+            return
+        }
+        KeptKeys.forget(id: id)
+        keptKeyWorks = false
+        problem = "The password changed since \(KeptKeys.biometryName) was set up. Type the new one."
+        fieldFocused = true
     }
 
     /// Keeps the key that just opened the note behind Face ID, when the
@@ -161,6 +202,9 @@ struct LockedNoteView: View {
         KeptKeys.keep(key)
     }
 }
+
+/// The notes locked while an unlock was making its key.
+private struct UnlockCameTooLate: Error {}
 
 /// The tour's whale, gliding slowly over a few lines of still water.
 private struct RestingWhale: View {
@@ -210,8 +254,8 @@ private struct Shake: GeometryEffect {
 }
 
 /// A full-width button on a capsule: the strong ink for the main action,
-/// a quiet fill for the one beside it. Busy shows a spinner in place of
-/// the title without changing the button's size.
+/// a quiet fill for the one beside it. Busy shows a spinner and the busy
+/// title in place of the title without changing the button's size.
 struct WideButton: View {
     enum Style {
         case primary
@@ -219,6 +263,7 @@ struct WideButton: View {
     }
 
     let title: String
+    var busyTitle: String?
     var symbol: String?
     let style: Style
     var busy = false
@@ -228,8 +273,8 @@ struct WideButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                label.opacity(busy ? 0 : 1)
-                if busy { ProgressView().tint(foreground) }
+                label.opacity(busy ? 0 : 1).accessibilityHidden(busy)
+                busyLabel.opacity(busy ? 1 : 0)
             }
             .frame(maxWidth: .infinity, minHeight: 48)
             .background(Capsule().fill(background))
@@ -247,6 +292,18 @@ struct WideButton: View {
         .labelStyle(.titleAndIcon)
         .font(Font(tokens.uiFont(size: tokens.bodySize, bold: style == .primary)))
         .foregroundStyle(foreground)
+    }
+
+    private var busyLabel: some View {
+        HStack(spacing: tokens.spacing.sm) {
+            ProgressView().tint(foreground)
+            if let busyTitle {
+                Text(busyTitle)
+                    .font(Font(tokens.uiFont(size: tokens.bodySize, bold: style == .primary)))
+                    .foregroundStyle(foreground)
+            }
+        }
+        .accessibilityHidden(!busy)
     }
 
     private var foreground: Color {
