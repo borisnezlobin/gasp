@@ -12,6 +12,7 @@ final class AppModel {
     let workspace = Workspace()
     let sync = SyncCenter()
     let icloud = ICloudCenter()
+    let locker = NoteLocker()
     let welcome: WelcomeFlow
     private(set) var tabs: TabStore
     private(set) var runner: CommandRunner
@@ -34,6 +35,7 @@ final class AppModel {
             self?.sync.noteEdited()
         }
         attachSync()
+        attachLocker()
     }
 
     /// Names this iPhone's own state file in a vault kept in iCloud, so
@@ -85,12 +87,29 @@ final class AppModel {
     func sceneChanged(to phase: ScenePhase) {
         switch phase {
         case .active:
+            locker.cameBack()
             sync.syncForAppEvent()
             icloud.rescan()
             UsagePing.sendIfDue { [weak self] in self?.allowsUsagePing ?? false }
-        case .background: sync.syncForBackground()
-        default: break
+        case .inactive:
+            locker.wentAway(toBackground: false)
+        case .background:
+            locker.wentAway(toBackground: true)
+            sync.syncForBackground()
+        @unknown default: break
         }
+    }
+
+    private func attachLocker() {
+        locker.encryptedNotesOpen = { [weak self] in
+            self?.tabs.openSessions.contains { $0.isEncrypted } ?? false
+        }
+        locker.holdsKeys = { [weak self] in
+            guard let self, let vault = library.vault else { return false }
+            return vault.encryptionState().hasVaultPassword || locker.encryptedNotesOpen()
+        }
+        locker.preferences = { [weak self] in EncryptionPreferences(vault: self?.library.vault) }
+        locker.lock = { [weak self] in self?.runner.lockEncryptedNotes() }
     }
 
     /// The vault's `telemetry.enabled`, or its default while no vault is open.

@@ -9,6 +9,7 @@ struct GaspApp: App {
     var body: some Scene {
         WindowGroup {
             root
+                .modifier(AwayCover(isOn: model.locker.coversNotes, tokens: model.library.tokens))
                 .environment(model)
                 .tint(model.library.tokens.swiftUIColor(\.accent))
                 .onAppear {

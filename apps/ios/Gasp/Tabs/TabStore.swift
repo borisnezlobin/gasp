@@ -10,6 +10,16 @@ struct BrowserTab: Identifiable, Equatable {
     var forward: [String] = []
 }
 
+/// What a tab's page shows.
+enum TabContent {
+    case note(EditingController)
+    /// An encrypted note there's no key for yet.
+    case locked(path: String, note: LockedNote)
+    /// A note that can't be read, such as one that was moved away.
+    case missing
+    case start
+}
+
 /// The open tabs, like Safari's: which is showing, the ones closed
 /// recently, and one editing session per open note so switching back
 /// keeps its cursor, scroll and undo. The open notes are saved to the
@@ -28,6 +38,11 @@ final class TabStore {
     @ObservationIgnored private var cursorsToKeep: [UUID: Int] = [:]
     @ObservationIgnored private let library: VaultLibrary
     @ObservationIgnored var makeSession: ((String, String) -> EditingController?)?
+    /// Set while encrypted notes are being locked, so their pages show
+    /// locked before the lock lands on disk.
+    @ObservationIgnored private var locking = false
+    /// The locked notes tabs show, so a page asks the disk only once.
+    @ObservationIgnored private var lockedPages: [UUID: (path: String, note: LockedNote)] = [:]
 
     init(library: VaultLibrary) {
         self.library = library
@@ -48,11 +63,34 @@ final class TabStore {
     }
 
     func session(for tab: BrowserTab) -> EditingController? {
-        guard let path = tab.path else { return nil }
-        if let session = sessions[tab.id], session.path == path { return session }
-        guard let vault = library.vault,
-              let text = try? VaultFileCoordination.read(path, { try vault.readNote(path: path) }),
-              let session = makeSession?(path, text) else { return nil }
+        guard case .note(let session) = content(for: tab) else { return nil }
+        return session
+    }
+
+    func content(for tab: BrowserTab) -> TabContent {
+        guard let path = tab.path else { return .start }
+        if let session = sessions[tab.id], session.path == path { return .note(session) }
+        if let locked = lockedPages[tab.id], locked.path == path { return .locked(path: path, note: locked.note) }
+        guard let opened = opened(path) else { return .missing }
+        switch opened {
+        case .plain(let text), .unlocked(let text):
+            return startSession(for: tab, path: path, text: text).map(TabContent.note) ?? .missing
+        case .locked(let note):
+            if !locking { lockedPages[tab.id] = (path, note) }
+            return .locked(path: path, note: note)
+        }
+    }
+
+    private func opened(_ path: String) -> OpenedNote? {
+        guard let vault = library.vault else { return nil }
+        if locking, vault.isNoteUnlocked(path: path) {
+            return .locked(note: LockedNote(hasOwnPassword: false, keyId: nil))
+        }
+        return try? VaultFileCoordination.read(path, { try vault.openNote(path: path) })
+    }
+
+    private func startSession(for tab: BrowserTab, path: String, text: String) -> EditingController? {
+        guard let session = makeSession?(path, text) else { return nil }
         sessions[tab.id]?.saveNow()
         sessions[tab.id] = session
         if let cursor = cursorsToKeep.removeValue(forKey: tab.id) { session.placeCursor(at: cursor) }
@@ -209,7 +247,7 @@ final class TabStore {
     /// saved yet are folded into it first; when they clash with it on the
     /// same lines the session stays, and its edits save over the note.
     private func yieldsToDisk(_ session: EditingController) -> Bool {
-        guard let vault = library.vault, let onDisk = try? vault.readNote(path: session.path) else { return false }
+        guard let vault = library.vault, let onDisk = textOnDisk(session.path, in: vault) else { return false }
         let text = session.document.text()
         guard onDisk != text else { return false }
         guard session.hasUnsavedEdits else { return true }
@@ -219,6 +257,47 @@ final class TabStore {
               })) != nil else { return false }
         NotificationCenter.default.post(name: .vaultEdited, object: nil)
         return true
+    }
+
+    // MARK: Encrypted notes
+
+    /// Rebuilds the pages after a note was unlocked.
+    func noteUnlocked() {
+        lockedPages = [:]
+        generation += 1
+    }
+
+    /// Takes every encrypted note out of its tab, which shows it locked
+    /// from now on, and answers the text of those with edits not yet saved.
+    func takeEncryptedSessions() -> [(path: String, text: String)] {
+        locking = true
+        let encrypted = sessions.filter { _, session in session.isEncrypted }
+        var unsaved: [(path: String, text: String)] = []
+        for (id, session) in encrypted {
+            if session.hasUnsavedEdits { unsaved.append((session.path, session.document.text())) }
+            session.retire()
+            sessions.removeValue(forKey: id)
+        }
+        if !encrypted.isEmpty { generation += 1 }
+        return unsaved
+    }
+
+    /// The notes have locked on disk too.
+    func encryptedNotesLocked() {
+        locking = false
+        let activeShowsNoEditor = active.path != nil && sessions[active.id] == nil
+        let showedLocked = !lockedPages.isEmpty || activeShowsNoEditor
+        lockedPages = [:]
+        if showedLocked { generation += 1 }
+    }
+
+    /// The note's text on disk, opened when it's encrypted; nil when it
+    /// can't be read or opened, so the editor's text stays.
+    private func textOnDisk(_ path: String, in vault: VaultFolder) -> String? {
+        switch try? vault.openNote(path: path) {
+        case .plain(let text), .unlocked(let text): text
+        case .locked, nil: nil
+        }
     }
 
     // MARK: Saving

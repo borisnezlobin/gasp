@@ -156,16 +156,19 @@ private struct TabPage: View {
     let tab: BrowserTab
 
     var body: some View {
-        if let session = model.tabs.session(for: tab) {
+        switch model.tabs.content(for: tab) {
+        case .note(let session):
             MarkdownEditor(session: session)
                 .ignoresSafeArea(.container, edges: .bottom)
-        } else if tab.path != nil {
+        case .locked(let path, let note):
+            LockedNoteView(path: path, note: note, preferences: EncryptionPreferences(vault: model.library.vault))
+        case .missing:
             ContentUnavailableView(
                 "Can't open this note",
                 systemImage: "doc.questionmark",
                 description: Text("It may have been moved or deleted.")
             )
-        } else {
+        case .start:
             StartPage()
         }
     }

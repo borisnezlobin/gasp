@@ -36,6 +36,13 @@ final class NoteSaver {
         Self.disk.sync {}
     }
 
+    /// Runs `work` off the main thread once every save handed to the disk
+    /// so far is written, such as locking encrypted notes, which no
+    /// earlier save may come after.
+    static func afterWrites(_ work: @escaping () -> Void) {
+        Self.disk.async(execute: work)
+    }
+
     /// Forgets text waiting to be saved, for a note sync is replacing.
     func discardUnsaved() {
         timer?.cancel()

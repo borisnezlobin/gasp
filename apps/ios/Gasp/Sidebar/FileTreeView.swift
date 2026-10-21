@@ -106,7 +106,10 @@ private struct TreeNoteRow: View {
     var body: some View {
         let isCurrent = model.tabs.active.path == note.path
         Button { model.runner.show(note.path) } label: {
-            TreeLabel(title: note.title, symbol: "doc.text", depth: depth, tokens: tokens, isCurrent: isCurrent)
+            TreeLabel(
+                title: note.title, symbol: note.encrypted ? "lock.doc" : "doc.text",
+                depth: depth, tokens: tokens, isCurrent: isCurrent
+            )
         }
         .buttonStyle(.plain)
         .onDrag { model.workspace.pickUp(.note(note.path)) }

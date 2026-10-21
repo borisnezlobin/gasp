@@ -341,6 +341,7 @@ final class EditingController: NSObject, UITextViewDelegate {
     private func keepSnapshot() {
         guard let before = textBeforeEdits else { return }
         textBeforeEdits = nil
+        guard !isEncrypted else { return }
         _ = vault.recordSnapshot(path: path, text: before, now: false)
     }
 
@@ -377,5 +378,13 @@ final class EditingController: NSObject, UITextViewDelegate {
     private func applyPlan(to storage: NSTextStorage, edited: NSRange?, whole: Bool) -> Bool {
         let update = document.planUpdate(selection: TextRange(textView.selectedRange), whole: whole)
         return styler.apply(update, prose: prose, code: code, to: storage, edited: edited)
+    }
+}
+
+extension EditingController {
+    /// Whether this is an encrypted note, unlocked: its text lives only
+    /// in memory and is sealed on every save.
+    var isEncrypted: Bool {
+        vault.isNoteUnlocked(path: path)
     }
 }

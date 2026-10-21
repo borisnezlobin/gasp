@@ -48,6 +48,8 @@ targets:
         LSSupportsOpeningDocumentsInPlace: true
         # Sync now and then while the app is in the background.
         UIBackgroundModes: [fetch]
+        # Face ID unlocks encrypted notes when encryption.biometric-unlock is on.
+        NSFaceIDUsageDescription: Face ID unlocks your encrypted notes without typing the vault password.
         # Only standard HTTPS (GitHub sync, the update and usage pings), which is exempt,
         # so App Store Connect doesn't ask about encryption for every build.
         ITSAppUsesNonExemptEncryption: false

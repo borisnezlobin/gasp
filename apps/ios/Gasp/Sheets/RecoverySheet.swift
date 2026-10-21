@@ -28,8 +28,8 @@ struct RecoverySheet: View {
                 if snapshots.isEmpty {
                     ContentUnavailableView(
                         "No earlier versions",
-                        systemImage: "clock.arrow.circlepath",
-                        description: Text("A version is kept every few minutes while you edit.")
+                        systemImage: isEncrypted ? "lock" : "clock.arrow.circlepath",
+                        description: Text(emptyExplanation)
                     )
                 }
             }
@@ -39,6 +39,16 @@ struct RecoverySheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
             }
         }
+    }
+
+    private var isEncrypted: Bool {
+        model.library.vault?.isNoteUnlocked(path: path) ?? false
+    }
+
+    private var emptyExplanation: String {
+        isEncrypted
+            ? "Encrypted notes don't keep earlier versions, since each one would hold the note unencrypted."
+            : "A version is kept every few minutes while you edit."
     }
 
     static func when(_ snapshot: SnapshotInfo) -> String {

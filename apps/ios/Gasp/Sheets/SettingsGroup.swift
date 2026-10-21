@@ -14,6 +14,7 @@ enum SettingsGroup: String, CaseIterable, Identifiable, Hashable {
     case dailyNotes = "daily-notes"
     case prose
     case snippets
+    case encryption
 
     var id: String { rawValue }
 
@@ -41,7 +42,8 @@ enum SettingsGroup: String, CaseIterable, Identifiable, Hashable {
         .files: ("Files and links", "folder"),
         .dailyNotes: ("Daily notes and templates", "calendar"),
         .prose: ("Prose", "text.alignleft"),
-        .snippets: ("Snippets and replacements", "function")
+        .snippets: ("Snippets and replacements", "function"),
+        .encryption: ("Encrypted notes", "lock")
     ]
 
     private static let sectionGroups: [String: SettingsGroup] = [
@@ -55,7 +57,8 @@ enum SettingsGroup: String, CaseIterable, Identifiable, Hashable {
         "Daily notes": .dailyNotes,
         "Templates": .dailyNotes,
         "Prose": .prose,
-        "Math": .snippets
+        "Math": .snippets,
+        "Encryption": .encryption
     ]
 
     private static let keyGroups: [String: SettingsGroup] = [
@@ -74,7 +77,7 @@ enum SettingsShelf: String, CaseIterable, Identifiable {
     var groups: [SettingsGroup] {
         switch self {
         case .app: [.general, .sync, .appearance, .sidebar, .toolbars]
-        case .writing: [.editor, .files, .dailyNotes, .prose, .snippets]
+        case .writing: [.editor, .files, .dailyNotes, .prose, .snippets, .encryption]
         }
     }
 }

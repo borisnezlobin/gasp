@@ -63,6 +63,16 @@ struct BrowserSheets: ViewModifier {
         case .share(let url): ShareSheet(items: [url])
         case .lookUp(let term): LookUpView(term: term)
         case .photos, .imageFiles, .imageSource: EmptyView()
+        case .syncSetup, .syncDetails, .resolver, .syncChooser, .icloudSetup, .githubSignIn, .githubReconnect,
+             .icloudDetails:
+            syncSheet(sheet)
+        case .vaultPassword, .noteOptions, .changeVaultPassword:
+            encryptionSheet(sheet)
+        }
+    }
+
+    @ViewBuilder private func syncSheet(_ sheet: WorkspaceSheet) -> some View {
+        switch sheet {
         case .syncSetup(let draft): SyncSetupView(draft: draft)
         case .syncDetails: SyncDetailsSheet()
         case .resolver: ConflictResolverView()
@@ -71,6 +81,16 @@ struct BrowserSheets: ViewModifier {
         case .githubSignIn: GitHubSignInSheet()
         case .githubReconnect: GitHubSignInSheet(connectsSyncedVault: true)
         case .icloudDetails: ICloudDetailsSheet()
+        default: EmptyView()
+        }
+    }
+
+    @ViewBuilder private func encryptionSheet(_ sheet: WorkspaceSheet) -> some View {
+        switch sheet {
+        case .vaultPassword(let followUp): VaultPasswordSheet(followUp: followUp)
+        case .noteOptions(let path): NoteOptionsSheet(path: path)
+        case .changeVaultPassword: ChangeVaultPasswordSheet()
+        default: EmptyView()
         }
     }
 
@@ -139,6 +159,16 @@ struct BrowserPrompts: ViewModifier {
                 }
                 Button("Cancel", role: .cancel) {}
             }
+            .confirmationDialog(
+                "Decrypt this note?", isPresented: showing(\.isDecrypt),
+                titleVisibility: .visible, presenting: model.workspace.prompt
+            ) { prompt in
+                Button("Decrypt note", role: .destructive) {
+                    if case .decrypt(let path) = prompt { model.runner.decrypt(path) }
+                }
+            } message: { _ in
+                Text("It's saved as plain text from now on, so anyone with the file can read it.")
+            }
             .fileImporter(isPresented: showing(\.isPickVault), allowedContentTypes: [.folder]) { result in
                 if case .success(let folder) = result { model.switchVault(to: folder) }
             }
@@ -167,6 +197,7 @@ extension WorkspacePrompt {
     var isExport: Bool { if case .export = self { true } else { false } }
     var isPickVault: Bool { if case .pickVault = self { true } else { false } }
     var isNewFolder: Bool { if case .newFolder = self { true } else { false } }
+    var isDecrypt: Bool { if case .decrypt = self { true } else { false } }
 }
 
 /// The system share sheet, for an exported file.

@@ -44,6 +44,10 @@ enum WorkspaceSheet: Identifiable {
     /// Signing in with GitHub again, for a vault that already syncs.
     case githubReconnect
     case icloudDetails
+    /// Setting the vault's first password, or typing it, before `then`.
+    case vaultPassword(then: VaultPasswordFollowUp)
+    case noteOptions(path: String)
+    case changeVaultPassword
 
     /// Whether it has its own presenter instead of being a sheet: the
     /// photo picker, the file picker and the dialog that chooses one.
@@ -64,6 +68,9 @@ enum WorkspaceSheet: Identifiable {
         case .githubSignIn: "github sign-in"
         case .githubReconnect: "github reconnect"
         case .icloudDetails: "icloud details"
+        case .vaultPassword(let followUp): "vault password \(followUp.path)"
+        case .noteOptions(let path): "note options \(path)"
+        case .changeVaultPassword: "change vault password"
         case .palette: "palette"
         case .settings: "settings"
         case .toolbars: "toolbars"
@@ -86,6 +93,7 @@ enum WorkspacePrompt: Identifiable {
     case pickVault
     /// A name for a new folder in `parent`, `""` for the top of the vault.
     case newFolder(parent: String)
+    case decrypt(path: String)
 
     var id: String {
         switch self {
@@ -94,6 +102,7 @@ enum WorkspacePrompt: Identifiable {
         case .export(let path): "export \(path)"
         case .pickVault: "pick vault"
         case .newFolder(let parent): "new folder in \(parent)"
+        case .decrypt(let path): "decrypt \(path)"
         }
     }
 }

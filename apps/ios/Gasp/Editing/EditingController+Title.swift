@@ -35,9 +35,13 @@ extension EditingController {
     }
 
     /// Puts the note's name in the title, unless it's being typed in.
+    /// A note whose file has a stand-in name shows its own name, which
+    /// can't be typed over since renaming would put it back on the file.
     func showTitle() {
         guard !titleView.isFirstResponder else { return }
-        titleView.text = Self.title(of: path)
+        let hiddenName = vault.encryptedNoteOptions(path: path).flatMap { $0.hidesName ? $0.title : nil }
+        titleView.text = hiddenName ?? Self.title(of: path)
+        titleView.isEditable = hiddenName == nil
         titleHeightMayHaveChanged()
     }
 

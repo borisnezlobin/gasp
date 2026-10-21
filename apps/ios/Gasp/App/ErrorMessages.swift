@@ -20,7 +20,7 @@ private extension VaultError {
         switch self {
         case .NoFolder(let path): "There's no folder at \(path)."
         case .NotANote(let path): "\(path) isn't a note in this vault."
-        case .Refused(let message), .Io(let message): message
+        case .Refused(let message), .Io(let message), .WrongPassword(let message): message
         }
     }
 }

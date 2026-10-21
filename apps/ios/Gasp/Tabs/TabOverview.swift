@@ -66,6 +66,7 @@ private struct TabCard: View {
     let open: () -> Void
     let close: () -> Void
     @State private var preview = ""
+    @State private var isEncrypted = false
     @State private var swipe: CGFloat = 0
     @State private var swipeAxis: Axis?
     @State private var cardWidth: CGFloat = 0
@@ -94,7 +95,7 @@ private struct TabCard: View {
             .onChange(of: touching) { _, stillTouching in
                 if !stillTouching && !closing { springBack() }
             }
-            .task(id: tab.path) { preview = readPreview() }
+            .task(id: tab.path) { readPreview() }
     }
 
     private var face: some View {
@@ -104,10 +105,18 @@ private struct TabCard: View {
                 .foregroundStyle(tokens.swiftUIColor(\.textStrong))
                 .lineLimit(2)
                 .padding(.trailing, 28)
-            Text(preview)
-                .font(Font(tokens.textFont(size: tokens.smallSize * 0.85)))
-                .foregroundStyle(tokens.swiftUIColor(\.textMuted))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            if isEncrypted {
+                Image(systemName: "lock.fill")
+                    .font(tokens.symbolFont(1.5))
+                    .foregroundStyle(tokens.swiftUIColor(\.textFaint))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityLabel("Encrypted")
+            } else {
+                Text(preview)
+                    .font(Font(tokens.textFont(size: tokens.smallSize * 0.85)))
+                    .foregroundStyle(tokens.swiftUIColor(\.textMuted))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
         }
         .padding(tokens.spacing.lg)
         .frame(height: 220)
@@ -203,11 +212,18 @@ private struct TabCard: View {
         (#"[*_=`]{1,2}"#, "")
     ]
 
-    /// The note's first lines as they read, without their Markdown.
-    private func readPreview() -> String {
+    /// The note's first lines as they read, without their Markdown. An
+    /// encrypted note shows a lock instead, even while it's unlocked.
+    private func readPreview() {
         guard let path = tab.path, let text = try? model.library.vault?.readNote(path: path) else {
-            return tab.path == nil ? "Search or pick a note." : ""
+            preview = tab.path == nil ? "Search or pick a note." : ""
+            return
         }
+        isEncrypted = isEncryptedText(text: text)
+        preview = isEncrypted ? "" : plainPreview(of: text)
+    }
+
+    private func plainPreview(of text: String) -> String {
         let plain = Self.plainText.reduce(String(text.prefix(800))) { preview, rule in
             preview.replacingOccurrences(of: rule.pattern, with: rule.keep, options: .regularExpression)
         }

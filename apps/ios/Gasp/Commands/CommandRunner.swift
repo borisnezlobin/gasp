@@ -16,7 +16,8 @@ final class CommandRunner: EditingHost {
 
     /// Every command the browser handles itself, by id.
     private static let handlers: [String: Handler] = [
-        tabHandlers, navigationHandlers, noteHandlers, viewHandlers, textHandlers, syncHandlers
+        tabHandlers, navigationHandlers, noteHandlers, viewHandlers, textHandlers, syncHandlers,
+        encryptionHandlers
     ].reduce(into: [:]) { all, group in all.merge(group) { first, _ in first } }
 
     init(library: VaultLibrary, tabs: TabStore, workspace: Workspace, sync: SyncCenter) {
