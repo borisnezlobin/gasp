@@ -253,3 +253,4 @@ Copy and layout
 - [ ] Encrypted notes: the window must never freeze, not even while a password is checked.
 - [ ] Encrypted notes: a vault password changed on another device is picked up right away, and embeds of encrypted notes never show scrambled text.
 - [ ] Encrypted attachments: can images and files be encrypted too, with an easy way to do it?
+- [x] Build folders must never reach 80 GB again. *(Cleaned to 2.7 GB; 15 GB cap enforced by hooks after every turn and agent; rules in CLAUDE.md and memory.)*

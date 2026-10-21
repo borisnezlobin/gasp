@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/prune-target.py\" --cap 15 >/dev/null 2>&1 || true",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/prune-target.py\" --cap 15 >/dev/null 2>&1 || true",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}
