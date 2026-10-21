@@ -318,7 +318,7 @@ Verification covers this too: a CI test walks every command in the registry and 
 
 - **Markdown symbols** (`**`, `#`, `[]()`, `$`, `>` and so on) can be shown or hidden, and switching is one command with a hotkey. There are three modes:
   - *Always shown*, like a plain source editor.
-  - *Revealed around the cursor*, like Obsidian's live preview and Typora. The reveal scope is configurable: only the element the cursor is in (Typora), the whole line, or the whole block.
+  - *Revealed around the cursor*, like Obsidian's live preview and Typora. The reveal scope is configurable: only the element the cursor is in (Typora), the whole line, or the whole block. In element scope a list or task marker or a callout header is drawn (bullet, number, checkbox, header) as soon as it's typed, and shows its source only while the cursor is inside it; `- ` under a line of text starts a list at once, and `- [ ]` on the note's last line is already a checkbox.
   - *Always hidden*, so the note reads like a finished page while staying editable.
 
   Each kind of syntax can override the mode. For example, link URLs can stay hidden while emphasis marks follow the cursor. Because the mode is a setting, rules can switch it too, such as showing everything while a search-and-replace is open.

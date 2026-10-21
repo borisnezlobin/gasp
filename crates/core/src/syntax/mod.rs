@@ -13,6 +13,7 @@ mod html;
 mod incremental;
 mod inline;
 mod kinds;
+mod list_start;
 mod markup;
 mod prefix;
 mod segments;
@@ -63,6 +64,7 @@ pub fn plain(text: &str) -> SyntaxTree {
 fn process(mut nodes: Vec<Node>, text: &str, lines: &LineIndex) -> Vec<Node> {
     trim_text_newlines(&mut nodes, text);
     trim_block_ranges(&mut nodes, text);
+    list_start::split_starting_lists(&mut nodes, text);
     convert_math_blocks(&mut nodes);
     add_leaf_markup(&mut nodes, text);
     add_table_markup(&mut nodes, text);
@@ -103,14 +105,18 @@ fn trim_text_newlines(nodes: &mut [Node], text: &str) {
 
 /// Drops trailing newlines and spaces from block ranges, never cutting into
 /// a child. Children come after their parents in the arena, so walking it
-/// backwards trims children first.
+/// backwards trims children first. An empty list item keeps the space
+/// after its marker, so `- ` is drawn as a bullet before anything follows.
 fn trim_block_ranges(nodes: &mut [Node], text: &str) {
     for index in (1..nodes.len()).rev() {
         if !nodes[index].kind.is_block() {
             continue;
         }
         let range = nodes[index].range.clone();
-        let trimmed_end = range.start + text[range.clone()].trim_end().len();
+        let mut trimmed_end = range.start + text[range.clone()].trim_end().len();
+        if is_empty_list_item(&nodes[index]) {
+            trimmed_end = build::skip_one_space(text, trimmed_end);
+        }
         let children_end = nodes[index]
             .children
             .iter()
@@ -119,6 +125,10 @@ fn trim_block_ranges(nodes: &mut [Node], text: &str) {
             .unwrap_or(range.start);
         nodes[index].range.end = trimmed_end.max(children_end).min(range.end);
     }
+}
+
+fn is_empty_list_item(node: &Node) -> bool {
+    matches!(node.kind, NodeKind::ListItem { .. }) && node.children.is_empty()
 }
 
 /// A paragraph holding nothing but `$$…$$` becomes a math block.

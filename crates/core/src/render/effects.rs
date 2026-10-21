@@ -9,7 +9,7 @@ use crate::syntax::{
 
 use super::html;
 use super::output::{LineStyle, Placement, StyleKey, TableRowPlan, Widget, WidgetKind};
-use super::reveal::{Revealer, is_line_marker};
+use super::reveal::{Revealer, drawn_marker_of, is_line_marker};
 use super::widgets;
 
 #[derive(Default)]
@@ -467,6 +467,9 @@ impl<'a> Planner<'a> {
                 .chain(tree.ancestors(id))
                 .find(|&a| matches!(tree.node(a).kind, NodeKind::Table { .. }));
             return table.is_some_and(|table| self.revealer.table_shows_source(table));
+        }
+        if let Some(marker) = drawn_marker_of(self.revealer.text, node, token) {
+            return self.revealer.drawn_marker_revealed(id, marker);
         }
         let line_marker = is_line_marker(&node.kind, token.kind).then_some(&token.range);
         matches!(node.kind, NodeKind::LinkDefinition { .. })

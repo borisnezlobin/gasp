@@ -293,7 +293,7 @@ pub(crate) fn list_marker(text: &str, start: usize, end: usize) -> Range<usize> 
     let line_rest = &after[..after.find('\n').unwrap_or(after.len())];
     let spaces = run_len_of(line_rest, b" \t");
     let spaces = match spaces {
-        _ if spaces == line_rest.len() => 0,
+        _ if spaces == line_rest.len() => spaces.min(1),
         0..=4 => spaces,
         _ => 1,
     };
@@ -334,6 +334,8 @@ mod tests {
         assert_eq!(list_marker("- a", 0, 3), 0..2);
         assert_eq!(list_marker("12. a", 0, 5), 0..4);
         assert_eq!(list_marker("-", 0, 1), 0..1);
+        assert_eq!(list_marker("- ", 0, 2), 0..2);
+        assert_eq!(list_marker("1.   ", 0, 5), 0..3);
         assert_eq!(list_marker("-      code", 0, 11), 0..2);
     }
 }

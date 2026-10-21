@@ -169,6 +169,7 @@ Copy and layout
   - [x] When an embed you just pasted is removed, offer to delete its image file too. *(Owner: "good idea". Undo withdraws the offer.)*
 - [x] Show whether iCloud is syncing; the owner on 0.2.1 can't tell.
   - The owner's vault syncs through GitHub, not iCloud (it's a git clone in ~/Documents). The sync popover now names the repository, like "borisnezlobin/notes on GitHub".
+- [x] List markers turn into what they'll become as soon as they're typed: `- ` into a bullet, `- [ ]` into a checkbox, `1. ` into a number, without waiting for a new line. *(Element scope, the default: the source shows only with the caret inside the marker. Callout headers too.)*
 
 ## Releases
 

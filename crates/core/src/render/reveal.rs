@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use crate::syntax::{MarkupKind, NodeId, NodeKind, SyntaxKind, SyntaxTree};
+use crate::syntax::{Markup, MarkupKind, Node, NodeId, NodeKind, SyntaxKind, SyntaxTree};
 
 use super::settings::{RevealMode, RevealScope, RevealSettings};
 
@@ -25,6 +25,38 @@ pub(crate) fn is_line_marker(node: &NodeKind, kind: MarkupKind) -> bool {
         MarkupKind::FootnoteMarker => matches!(node, NodeKind::FootnoteDefinition { .. }),
         _ => false,
     }
+}
+
+/// Markers drawn as something else (a bullet, number, checkbox or callout
+/// header). In element scope they show their source only while a selection
+/// is inside them, so the drawing appears as soon as the marker is typed.
+pub(crate) fn is_drawn_marker(kind: MarkupKind) -> bool {
+    matches!(
+        kind,
+        MarkupKind::ListMarker | MarkupKind::TaskMarker | MarkupKind::CalloutHeader
+    )
+}
+
+/// The drawn marker `token` shows and hides with: itself, or for the `>`
+/// just before a callout's header, the header.
+pub(crate) fn drawn_marker_of<'a>(
+    text: &str,
+    node: &'a Node,
+    token: &'a Markup,
+) -> Option<&'a Markup> {
+    if is_drawn_marker(token.kind) {
+        return Some(token);
+    }
+    if token.kind != MarkupKind::QuoteMarker {
+        return None;
+    }
+    node.markup.iter().find(|markup| {
+        markup.kind == MarkupKind::CalloutHeader
+            && token.range.end <= markup.range.start
+            && text[token.range.end..markup.range.start]
+                .bytes()
+                .all(|byte| matches!(byte, b' ' | b'\t'))
+    })
 }
 
 fn is_leaf_block(kind: &NodeKind) -> bool {
@@ -56,6 +88,65 @@ impl Revealer<'_> {
             RevealMode::AlwaysHidden => false,
             RevealMode::AroundCursor { scope } => self.touches(&self.region(id, scope, marker)),
         }
+    }
+
+    /// Whether drawn marker `token` of node `id` shows its source. In
+    /// element scope that's while a selection is inside the node's drawn
+    /// markers (a task's `- [ ] ` counts as one), or while the caret sits
+    /// right after a list marker that has no space after it yet, such as
+    /// a `-` that may still become `--`.
+    pub fn drawn_marker_revealed(&self, id: NodeId, token: &Markup) -> bool {
+        let kind = token.kind.syntax_kind();
+        let element = RevealMode::AroundCursor {
+            scope: RevealScope::Element,
+        };
+        if self.settings.mode_for(kind) != element {
+            return self.revealed(id, kind, Some(&token.range));
+        }
+        let span = self.drawn_marker_span(id, token);
+        let being_typed = span == token.range
+            && token.kind == MarkupKind::ListMarker
+            && self.is_bare_marker(&span)
+            && self.caret_at(span.end);
+        being_typed || self.enters(&span)
+    }
+
+    /// The node's drawn markers and the `>` before a callout header, as
+    /// one range.
+    fn drawn_marker_span(&self, id: NodeId, token: &Markup) -> Range<usize> {
+        let node = self.tree.node(id);
+        node.markup
+            .iter()
+            .filter(|markup| drawn_marker_of(self.text, node, markup).is_some())
+            .fold(token.range.clone(), |span, markup| {
+                span.start.min(markup.range.start)..span.end.max(markup.range.end)
+            })
+    }
+
+    /// Whether `marker` ends its line without a space after it.
+    fn is_bare_marker(&self, marker: &Range<usize>) -> bool {
+        let ends_in_space = self.text[..marker.end].ends_with([' ', '\t']);
+        let ends_line = self.text[marker.end..]
+            .chars()
+            .next()
+            .is_none_or(|next| matches!(next, '\n' | '\r'));
+        !ends_in_space && ends_line
+    }
+
+    fn caret_at(&self, at: usize) -> bool {
+        self.selections
+            .iter()
+            .any(|selection| selection.is_empty() && selection.start == at)
+    }
+
+    /// Whether a selection is inside `range`: a caret before one of its
+    /// characters, or a selection overlapping them. A caret at its end is
+    /// past it.
+    pub fn enters(&self, range: &Range<usize>) -> bool {
+        self.selections.iter().any(|selection| {
+            let caret_inside = selection.is_empty() && range.contains(&selection.start);
+            caret_inside || (selection.start < range.end && selection.end > range.start)
+        })
     }
 
     /// Whether table `id` shows its Markdown source rather than its grid:

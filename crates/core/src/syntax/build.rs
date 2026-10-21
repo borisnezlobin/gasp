@@ -1,5 +1,6 @@
 //! Turns pulldown-cmark events into arena nodes.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::Range;
 
@@ -55,6 +56,17 @@ pub(crate) fn build_region(text: &str, region: Range<usize>, context: &str) -> O
     let source = format!("{}{context}", &text[region.clone()]);
     builder.add_source(&source, region, &LinkDefs::new());
     (!builder.overflowed).then_some(builder.nodes)
+}
+
+/// `source` ending in a line break when it ends in `]`. pulldown-cmark
+/// reads `[ ]` as a task box only when whitespace follows it, so a `- [ ]`
+/// typed on a note's last line needs the break it will have later. Events
+/// reaching into the added break are clamped like any other context.
+fn with_line_end_after_task_box(source: &str) -> Cow<'_, str> {
+    match source.ends_with(']') {
+        true => Cow::Owned(format!("{source}\n")),
+        false => Cow::Borrowed(source),
+    }
 }
 
 /// Clamps an event's end to `limit` when it only overshoots by whitespace.
@@ -193,13 +205,14 @@ impl Builder<'_> {
             defs.get(&link.reference.to_lowercase())
                 .map(|(dest, title)| (CowStr::from(dest.clone()), CowStr::from(title.clone())))
         };
-        let mut events = Parser::new_with_broken_link_callback(source, options(), Some(callback))
+        let source = with_line_end_after_task_box(source);
+        let mut events = Parser::new_with_broken_link_callback(&source, options(), Some(callback))
             .into_offset_iter();
         for (event, span) in events.by_ref() {
             if span.start >= limit && self.stack.len() == depth {
                 break;
             }
-            let Some(end) = clamp_end(source, span.end, limit).filter(|_| span.start <= limit)
+            let Some(end) = clamp_end(&source, span.end, limit).filter(|_| span.start <= limit)
             else {
                 self.overflowed = true;
                 return;

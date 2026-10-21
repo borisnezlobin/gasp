@@ -274,6 +274,11 @@ impl Shifter<'_> {
             .rev()
             .find_map(|&id| self.block_of(id))
             .unwrap_or(Block::Fixed);
+        if let Block::Item(item) = block
+            && self.is_empty_item_under_text(item)
+        {
+            return Block::MarkerLine(self.quotes_on(&path));
+        }
         let starts_like_item = marker_width(&text[markers..]) > 0;
         if !starts_like_item
             || !self.may_hide_an_item(block, &path)
@@ -298,6 +303,22 @@ impl Shifter<'_> {
             }),
             _ => false,
         }
+    }
+
+    /// Whether `item` is an empty item starting a list right under a
+    /// paragraph, as `- ` typed under some text makes. Markdown would fold
+    /// it into the text above, so it moves as a line of its own.
+    fn is_empty_item_under_text(&self, item: NodeId) -> bool {
+        let node = self.tree.node(item);
+        let Some(list) = node.parent else {
+            return false;
+        };
+        let starts_list = self.tree.node(list).children.first() == Some(&item);
+        let after_paragraph = self.previous_item(list).is_some_and(|before| {
+            self.tree.node(before).kind == NodeKind::Paragraph
+                && *self.node_lines(before).end() + 1 == *self.node_lines(item).start()
+        });
+        node.children.is_empty() && starts_list && after_paragraph
     }
 
     /// Whether a list item on `path` starts on `line`, rather than the

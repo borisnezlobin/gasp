@@ -346,8 +346,47 @@ fn starting_a_list_under_a_paragraph_keeps_the_paragraph() {
     check(
         "The authors are:\n- ‸",
         &element(),
-        &["The authors are:", "- "],
+        &["The authors are:", "⟦•1⟧"],
     );
+    check("Steps:\n1. ‸", &element(), &["Steps:", "⟦1.⟧"]);
+    check(
+        "The authors are:\n-‸",
+        &element(),
+        &["The authors are:", "-"],
+    );
+}
+
+#[test]
+fn list_markers_draw_as_soon_as_they_are_typed() {
+    check("- ‸", &element(), &["⟦•1⟧"]);
+    check("1. ‸", &element(), &["⟦1.⟧"]);
+    check("- [ ]‸", &element(), &["⟦•1⟧⟦[ ]⟧"]);
+    check("- [ ] ‸", &element(), &["⟦•1⟧⟦[ ]⟧"]);
+    check("- [ ]‸\n\nnext", &element(), &["⟦•1⟧⟦[ ]⟧", "", "next"]);
+    check("Todo:\n- [ ]‸", &element(), &["Todo:", "⟦•1⟧⟦[ ]⟧"]);
+}
+
+#[test]
+fn a_list_marker_shows_while_the_caret_is_inside_it() {
+    check("‸- two", &element(), &["{markup-dimmed:- }two"]);
+    check("-‸ two", &element(), &["{markup-dimmed:- }two"]);
+    check("- ‸two", &element(), &["⟦•1⟧two"]);
+    check(
+        "- [‸x] done",
+        &element(),
+        &["{markup-dimmed:- [x] }{task-done:done}"],
+    );
+    check("-‸ [ ] todo", &element(), &["{markup-dimmed:- [ ] }todo"]);
+}
+
+#[test]
+fn line_and_block_scopes_still_show_list_markers_on_the_caret_line() {
+    for scope in [RevealScope::Line, RevealScope::Block] {
+        check("- tw‸o", &around(scope), &["{markup-dimmed:- }two"]);
+        check("- ‸", &around(scope), &["{markup-dimmed:- }"]);
+    }
+    check("- ‸", &shown(), &["{markup-dimmed:- }"]);
+    check("- [ ]‸", &hidden(), &["⟦•1⟧⟦[ ]⟧"]);
 }
 
 #[test]
@@ -369,12 +408,8 @@ fn bullets_replace_list_markers() {
 }
 
 #[test]
-fn list_marker_shows_on_cursor_line() {
-    check(
-        "- one\n- tw‸o",
-        &element(),
-        &["⟦•1⟧one", "{markup-dimmed:- }two"],
-    );
+fn list_marker_stays_a_bullet_with_the_caret_in_its_text() {
+    check("- one\n- tw‸o", &element(), &["⟦•1⟧one", "⟦•1⟧two"]);
 }
 
 #[test]
@@ -396,19 +431,15 @@ fn tasks_become_checkboxes() {
 }
 
 #[test]
-fn task_marker_shows_on_cursor_line() {
-    check(
-        "- [x] do‸ne",
-        &element(),
-        &["{markup-dimmed:- [x] }{task-done:done}"],
-    );
+fn task_marker_stays_a_checkbox_with_the_caret_in_its_text() {
+    check("- [x] do‸ne", &element(), &["⟦•1⟧⟦[x]⟧{task-done:done}"]);
 }
 
 #[test]
 fn a_shown_list_marker_is_named_so_the_text_after_it_can_stay_put() {
     let text = "- [x] done\n\n1. one\n\n- plain";
     let tree = syntax::parse(text);
-    let selections = [text.find("done").unwrap()..text.find("done").unwrap(); 1];
+    let selections = [text.find("[x]").unwrap()..text.find("[x]").unwrap(); 1];
     let settings = element();
     let marker_of = |selections: &[Range<usize>]| {
         plan(&RenderInput {
@@ -426,7 +457,7 @@ fn a_shown_list_marker_is_named_so_the_text_after_it_can_stay_put() {
         marker_of(&selections),
         [Some("- [x] "), None, None, None, None]
     );
-    let on_number = text.find("1. one").unwrap() + 3;
+    let on_number = text.find("1. one").unwrap() + 1;
     assert_eq!(
         marker_of(&[on_number..on_number; 1]),
         [None, None, Some("1. "), None, None]
@@ -502,12 +533,28 @@ fn folded_callout_opens_with_cursor_in_body() {
 }
 
 #[test]
-fn callout_header_shows_on_its_line() {
+fn callout_header_shows_while_the_caret_is_inside_it() {
+    check(
+        "> [!t‸ip]+ Title\n> body",
+        &element(),
+        &[
+            "[callout-tip1 callout-header] {markup-dimmed:> [!tip]+ }{callout-title:Title}",
+            "[callout-tip1] body",
+        ],
+    );
+    check(
+        ">‸ [!tip]+ Title\n> body",
+        &element(),
+        &[
+            "[callout-tip1 callout-header] {markup-dimmed:> [!tip]+ }{callout-title:Title}",
+            "[callout-tip1] body",
+        ],
+    );
     check(
         "> [!tip]+ Ti‸tle\n> body",
         &element(),
         &[
-            "[callout-tip1 callout-header] {markup-dimmed:> [!tip]+ }{callout-title:Title}",
+            "[callout-tip1 callout-header] ⟦callout:Tip:Title⟧{callout-title:Title}",
             "[callout-tip1] body",
         ],
     );

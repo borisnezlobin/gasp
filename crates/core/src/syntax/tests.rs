@@ -193,6 +193,60 @@ fn task_items() {
 }
 
 #[test]
+fn an_empty_item_under_a_paragraph_starts_a_list() {
+    check(
+        "Para\n- ",
+        &[
+            "Paragraph \"Para\"",
+            "  Text \"Para\"",
+            "List{ordered: false,start: None} \"- \"",
+            "  ListItem{task: None} \"- \" [ListMarker\"- \"]",
+        ],
+    );
+}
+
+#[test]
+fn a_task_box_on_the_last_line_is_a_task() {
+    check(
+        "- [ ]",
+        &[
+            "List{ordered: false,start: None} \"- [ ]\"",
+            "  ListItem{task: Some(false)} \"- [ ]\" [ListMarker\"- \" TaskMarker\"[ ]\"]",
+        ],
+    );
+}
+
+/// Types list markers under a paragraph one character at a time and
+/// checks each keystroke leaves the tree a full parse would give.
+#[test]
+fn typing_a_list_under_a_paragraph_matches_a_full_parse() {
+    for typed in ["\n- [ ] x", "\n1. y", "\n  - z"] {
+        let mut current = "# A\n\nPara\n\n## B\n\nEnd".to_owned();
+        let mut tree = parse(&current);
+        let mut at = current.find("Para").unwrap() + 4;
+        for ch in typed.chars() {
+            let new_text = format!("{}{ch}{}", &current[..at], &current[at..]);
+            tree.edit(
+                &new_text,
+                &Edit {
+                    old: at..at,
+                    new_len: ch.len_utf8(),
+                },
+            );
+            let expected = parse(&new_text);
+            assert!(
+                tree == expected,
+                "typing differs\n--- text ---\n{new_text}\n--- got ---\n{}\n--- expected ---\n{}",
+                dump_tree(&tree, &new_text),
+                dump_tree(&expected, &new_text)
+            );
+            at += ch.len_utf8();
+            current = new_text;
+        }
+    }
+}
+
+#[test]
 fn nested_blockquotes() {
     check(
         "> a\n> > b\n> > c\nlazy",
