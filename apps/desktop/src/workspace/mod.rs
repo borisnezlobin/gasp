@@ -283,6 +283,7 @@ impl Workspace {
             window_theme: None,
             _subscriptions: Vec::new(),
         };
+        crate::encryption::commands::install(&mut workspace, cx);
         workspace.scan_vault_index(cx);
         workspace.subscribe_to_pane(&pane, window, cx);
         workspace.observe_window(window, cx);
@@ -478,6 +479,7 @@ impl Workspace {
         self.apply_theme(cx);
         self.show_dock_icon(cx);
         crate::recovery::configure(&self.vault, &self.config.settings.recovery, cx);
+        crate::encryption::configure(&self.vault, &self.config.settings.encryption, cx);
         let grammar = &self.config.settings.prose.grammar;
         crate::prose::checker::configure(&self.vault, grammar, cx);
         self.sync_mcp_bridge(cx);

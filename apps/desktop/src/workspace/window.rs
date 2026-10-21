@@ -284,6 +284,7 @@ impl Workspace {
             } else {
                 workspace.save_all(cx);
             }
+            crate::encryption::focus::window_activation_changed(workspace, window, cx);
         });
         let quit = cx.on_app_quit(|workspace, cx| {
             workspace.prepare_to_close(cx);

@@ -26,6 +26,8 @@ pub enum ShapeLine {
     Quote(f32),
     Code(f32),
     Picture,
+    /// The whole card of an encrypted note, whose lines stay hidden.
+    Locked,
 }
 
 /// The first `lines` lines of the card for `text`.
@@ -130,7 +132,11 @@ pub fn read_shape(path: &Path, lines: usize) -> Vec<ShapeLine> {
     if file.take(READ_BYTES).read_to_end(&mut start).is_err() {
         return Vec::new();
     }
-    shape_of(&String::from_utf8_lossy(&start), lines)
+    let start = String::from_utf8_lossy(&start);
+    if gasp_crypt::is_encrypted(&start) {
+        return vec![ShapeLine::Locked];
+    }
+    shape_of(&start, lines)
 }
 
 #[cfg(test)]
@@ -147,6 +153,7 @@ mod tests {
             ShapeLine::Quote(_) => "quote",
             ShapeLine::Code(_) => "code",
             ShapeLine::Picture => "picture",
+            ShapeLine::Locked => "locked",
         }
     }
 

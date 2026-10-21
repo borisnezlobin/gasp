@@ -14,6 +14,7 @@ use super::menu::ContextMenu;
 use super::model::Row;
 use super::selection::RowClick;
 use super::view::{DisplayRow, EditTarget, FileTree};
+use crate::encryption::NoteMark;
 use crate::icons::{IconName, icon};
 use crate::theme::UiTheme;
 use crate::ui::Selectable;
@@ -79,6 +80,15 @@ fn kind_icon(entry: &Entry, expanded: bool) -> IconName {
         (EntryKind::Note, _) => IconName::File,
         (EntryKind::Image, _) => IconName::Image,
         (EntryKind::Pdf, _) => IconName::FilePdf,
+    }
+}
+
+/// An encrypted note's icon: a closed padlock while it's locked, an open
+/// one while it's unlocked.
+fn encrypted_icon(mark: &NoteMark) -> IconName {
+    match mark.unlocked {
+        true => IconName::LockSimpleOpen,
+        false => IconName::LockSimple,
     }
 }
 
@@ -251,7 +261,8 @@ impl FileTree {
     ) -> AnyElement {
         let row = self.model.rows()[index].clone();
         let state = self.row_state(&row.entry.path, window, cx);
-        let content = self.row_content(&row, state, ui);
+        let mark = crate::encryption::note_mark(&row.entry.path, cx);
+        let content = self.row_content(&row, state, mark, ui);
         let menu = self
             .menu
             .as_ref()
@@ -311,24 +322,34 @@ impl FileTree {
     /// A folder's disclosure caret, icon and name, or the rename field.
     /// Files leave the caret's room empty so every name at a level lines
     /// up.
-    fn row_content(&self, row: &Row, state: RowState, ui: &UiTheme) -> Vec<AnyElement> {
+    fn row_content(
+        &self,
+        row: &Row,
+        state: RowState,
+        mark: Option<NoteMark>,
+        ui: &UiTheme,
+    ) -> Vec<AnyElement> {
         let color = if state.active {
             ui.icon_active
         } else {
             ui.icon
         };
-        let kind = icon(kind_icon(&row.entry, row.expanded))
+        let kind_name = mark
+            .as_ref()
+            .map_or_else(|| kind_icon(&row.entry, row.expanded), encrypted_icon);
+        let kind = icon(kind_name)
             .flex_none()
             .size(ui.icon_size)
             .text_color(color);
+        let shown_name = mark.and_then(|mark| mark.shown_name);
         vec![
             disclosure(row, ui).into_any_element(),
             kind.into_any_element(),
-            self.row_label(row, ui),
+            self.row_label(row, shown_name, ui),
         ]
     }
 
-    fn row_label(&self, row: &Row, ui: &UiTheme) -> AnyElement {
+    fn row_label(&self, row: &Row, shown_name: Option<String>, ui: &UiTheme) -> AnyElement {
         let renaming = self
             .edit
             .as_ref()
@@ -336,9 +357,8 @@ impl FileTree {
         if let Some(edit) = renaming {
             return self.name_field(&edit.field, edit.error.clone(), ui);
         }
-        crate::ui::truncated(row.entry.label().to_string())
-            .grow()
-            .into_any_element()
+        let label = shown_name.unwrap_or_else(|| row.entry.label().to_string());
+        crate::ui::truncated(label).grow().into_any_element()
     }
 
     fn name_field(

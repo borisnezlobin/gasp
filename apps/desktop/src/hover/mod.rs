@@ -451,7 +451,8 @@ async fn read_note(path: PathBuf, cached_modified: Option<Option<SystemTime>>) -
     let source = if current {
         None
     } else {
-        Some(Source::new(&std::fs::read_to_string(&path).ok()?))
+        let text = std::fs::read_to_string(&path).ok()?;
+        Some(Source::new(crate::encryption::preview_text(&text)))
     };
     Some(Loaded {
         path,

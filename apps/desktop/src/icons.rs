@@ -96,7 +96,12 @@ pub enum IconName {
     ListBullets,
     ListDashes,
     ListNumbers,
+    Fingerprint,
+    Lock,
+    LockKey,
     LockSimple,
+    LockSimpleOpen,
+    Password,
     MagnifyingGlass,
     MagnifyingGlassMinus,
     MagnifyingGlassPlus,
@@ -151,7 +156,7 @@ pub enum IconName {
     XCircle,
 }
 
-const ICONS: [(IconName, &str, &[u8]); 140] = [
+const ICONS: [(IconName, &str, &[u8]); 145] = [
     (
         IconName::AppWindow,
         "app-window",
@@ -588,9 +593,34 @@ const ICONS: [(IconName, &str, &[u8]); 140] = [
         include_bytes!("../assets/icons/list-numbers.svg"),
     ),
     (
+        IconName::Fingerprint,
+        "fingerprint",
+        include_bytes!("../assets/icons/fingerprint.svg"),
+    ),
+    (
+        IconName::Lock,
+        "lock",
+        include_bytes!("../assets/icons/lock.svg"),
+    ),
+    (
+        IconName::LockKey,
+        "lock-key",
+        include_bytes!("../assets/icons/lock-key.svg"),
+    ),
+    (
         IconName::LockSimple,
         "lock-simple",
         include_bytes!("../assets/icons/lock-simple.svg"),
+    ),
+    (
+        IconName::LockSimpleOpen,
+        "lock-simple-open",
+        include_bytes!("../assets/icons/lock-simple-open.svg"),
+    ),
+    (
+        IconName::Password,
+        "password",
+        include_bytes!("../assets/icons/password.svg"),
     ),
     (
         IconName::MagnifyingGlass,
