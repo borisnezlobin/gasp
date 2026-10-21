@@ -35,6 +35,11 @@ fn main() -> ExitCode {
     {
         use_worker_process(exe);
     }
+    run(command)
+}
+
+/// Does what the command line asked.
+fn run(command: Command) -> ExitCode {
     match command {
         Command::GrammarWorker => grammar_worker(),
         Command::Help => {

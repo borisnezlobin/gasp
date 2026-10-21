@@ -176,6 +176,28 @@ impl SettingsView {
             let control = self.toolbar_control(index, row, focused, cx);
             return Some(self.with_error_note(row, control));
         }
+        if *row == ControlRow::SyncRemote {
+            return self.remote_control(row, focused, cx);
+        }
+        // The version has no control, and the Snippets page's rows are
+        // drawn above.
+        let control = match self.value_control(index, row, focused, window, cx) {
+            Some(control) => control,
+            None => self.other_control(row, focused, cx)?,
+        };
+        Some(self.with_error_note(row, control))
+    }
+
+    /// The control of a row that holds a value: a setting, a font, the
+    /// accent or a shortcut. `None` for any other row.
+    fn value_control(
+        &self,
+        index: usize,
+        row: &ControlRow,
+        focused: bool,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
         let control = match row {
             ControlRow::Setting(item) => self.setting_control(index, item, focused, cx),
             ControlRow::MapAdd(map) => self.map_add_control(index, map, row, focused, cx),
@@ -185,22 +207,32 @@ impl SettingsView {
                 let typing = self.hex_field.focus_handle(cx).is_focused(window);
                 self.accent_control(focused && !typing, typing, cx)
             }
+            ControlRow::Shortcut(shortcut) => self.shortcut_control(shortcut, focused, cx),
+            _ => return None,
+        };
+        Some(control)
+    }
+
+    /// The control of a button, sync or list row.
+    fn other_control(
+        &self,
+        row: &ControlRow,
+        focused: bool,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let control = match row {
             ControlRow::Vault | ControlRow::IconCredit | ControlRow::ObsidianImport => {
                 self.general_control(row, focused, cx)
             }
-            ControlRow::Shortcut(shortcut) => self.shortcut_control(shortcut, focused, cx),
-            ControlRow::SyncRemote => return self.remote_control(row, focused, cx),
             ControlRow::SyncAccount => self.account_control(focused, cx),
             ControlRow::ICloudFolder => self.icloud_control(focused, cx),
             ControlRow::ListAdd(item) => self.list_add_control(item, row, focused, cx),
             ControlRow::ListEntry { list, value } => {
                 self.list_entry_control(list, value, focused, cx)
             }
-            // The version has no control, and the Snippets page's rows
-            // are drawn above.
             _ => return None,
         };
-        Some(self.with_error_note(row, control))
+        Some(control)
     }
 
     /// A row's control with the error from its last write hung under it,

@@ -188,25 +188,43 @@ impl ControlRow {
 
     /// The row's title, as the screen shows it.
     pub fn title(&self) -> String {
-        match self {
-            ControlRow::Setting(item) | ControlRow::MapAdd(item) => item.title.clone(),
+        self.item_title()
+            .or_else(|| self.fixed_title().map(str::to_owned))
+            .unwrap_or_else(|| self.page_list_title())
+    }
+
+    /// The title a row takes from what it shows: a setting, a font, a
+    /// shortcut or a list entry.
+    fn item_title(&self) -> Option<String> {
+        let title = match self {
+            ControlRow::Setting(item) | ControlRow::MapAdd(item) | ControlRow::ListAdd(item) => {
+                item.title.clone()
+            }
             ControlRow::MapEntry { item, .. } => item.title.clone(),
             ControlRow::Font(slot) => slot.title().to_string(),
-            ControlRow::Accent => ACCENT_TITLE.to_string(),
-            ControlRow::Vault => "Vault".to_string(),
-            ControlRow::IconCredit => "App icon".to_string(),
-            ControlRow::ObsidianImport => OBSIDIAN_IMPORT_TITLE.to_string(),
-            ControlRow::Version => format!("Version {}", env!("CARGO_PKG_VERSION")),
             ControlRow::Shortcut(shortcut) => shortcut.title.clone(),
-            ControlRow::SyncRemote => "Notes repository".to_string(),
-            ControlRow::SyncAccount => "GitHub token".to_string(),
-            ControlRow::ICloudFolder => "iCloud Drive".to_string(),
-            ControlRow::AgentApps => AGENT_APPS_TITLE.to_string(),
-            ControlRow::NoAgentApps => NO_AGENT_APPS.to_string(),
-            ControlRow::ListAdd(item) => item.title.clone(),
             ControlRow::ListEntry { value, .. } => value.clone(),
-            _ => self.page_list_title(),
-        }
+            ControlRow::Version => format!("Version {}", env!("CARGO_PKG_VERSION")),
+            _ => return None,
+        };
+        Some(title)
+    }
+
+    /// The title of a row that's always the same.
+    fn fixed_title(&self) -> Option<&'static str> {
+        let title = match self {
+            ControlRow::Accent => ACCENT_TITLE,
+            ControlRow::Vault => "Vault",
+            ControlRow::IconCredit => "App icon",
+            ControlRow::ObsidianImport => OBSIDIAN_IMPORT_TITLE,
+            ControlRow::SyncRemote => "Notes repository",
+            ControlRow::SyncAccount => "GitHub token",
+            ControlRow::ICloudFolder => "iCloud Drive",
+            ControlRow::AgentApps => AGENT_APPS_TITLE,
+            ControlRow::NoAgentApps => NO_AGENT_APPS,
+            _ => return None,
+        };
+        Some(title)
     }
 }
 
@@ -833,13 +851,19 @@ impl SettingsView {
     }
 
     fn rows_for_spec(&self, spec: &RowSpec, query: &str) -> Vec<ControlRow> {
+        match fixed_row(spec) {
+            Some(row) => self.matching(vec![row], query),
+            None => self.conditional_rows(spec, query),
+        }
+    }
+
+    /// The rows of a spec that depends on the vault: settings (none of
+    /// sync's in an iCloud vault), sync's rows and the agent apps.
+    fn conditional_rows(&self, spec: &RowSpec, query: &str) -> Vec<ControlRow> {
         let row = match spec {
             RowSpec::Setting(key) if self.in_icloud && key.starts_with("sync.") => {
                 return Vec::new();
             }
-            RowSpec::SyncRemote if self.in_icloud => ControlRow::ICloudFolder,
-            RowSpec::SyncAccount if self.in_icloud => return Vec::new(),
-            RowSpec::AgentApps => return self.agent_app_rows(query),
             RowSpec::Setting(key) => {
                 return self
                     .item_for(key)
@@ -847,15 +871,14 @@ impl SettingsView {
                     .map(|item| self.rows_for_item(item))
                     .unwrap_or_default();
             }
-            RowSpec::Font(slot) => ControlRow::Font(*slot),
-            RowSpec::Accent => ControlRow::Accent,
-            RowSpec::Vault => ControlRow::Vault,
-            RowSpec::Version => ControlRow::Version,
-            RowSpec::IconCredit => ControlRow::IconCredit,
-            RowSpec::ObsidianImport => ControlRow::ObsidianImport,
+            RowSpec::AgentApps => return self.agent_app_rows(query),
+            RowSpec::SyncRemote if self.in_icloud => ControlRow::ICloudFolder,
             RowSpec::SyncRemote => ControlRow::SyncRemote,
-            RowSpec::SyncAccount if !self.remote_takes_token() => return Vec::new(),
+            RowSpec::SyncAccount if self.in_icloud || !self.remote_takes_token() => {
+                return Vec::new();
+            }
             RowSpec::SyncAccount => ControlRow::SyncAccount,
+            _ => return Vec::new(),
         };
         self.matching(vec![row], query)
     }
@@ -898,29 +921,27 @@ impl SettingsView {
 
     /// The muted line under a row's title.
     pub(super) fn row_description(&self, row: &ControlRow) -> String {
-        match row {
+        fixed_description(row)
+            .map(str::to_owned)
+            .or_else(|| self.computed_description(row))
+            .unwrap_or_else(|| self.toolbar_row_description(row))
+    }
+
+    /// The description of a row that reads the vault or the sync state.
+    fn computed_description(&self, row: &ControlRow) -> Option<String> {
+        let description = match row {
             ControlRow::Setting(item) | ControlRow::MapAdd(item) | ControlRow::ListAdd(item) => {
                 item.description.clone()
             }
-            ControlRow::MapEntry { .. } | ControlRow::Version | ControlRow::ListEntry { .. } => {
-                String::new()
-            }
+            ControlRow::Font(slot) => slot.description().to_string(),
             ControlRow::SyncRemote => self.remote_description(),
             ControlRow::SyncAccount => self.account_description(),
             ControlRow::ICloudFolder => self.icloud_description(),
-            ControlRow::Font(slot) => slot.description().to_string(),
-            ControlRow::Accent => ACCENT_DESCRIPTION.to_string(),
             ControlRow::Vault => crate::workspace::files::display_path(&self.vault_root),
-            ControlRow::IconCredit => ICON_CREDIT.to_string(),
-            ControlRow::ObsidianImport => OBSIDIAN_IMPORT_DESCRIPTION.to_string(),
-            ControlRow::AgentApps => AGENT_APPS_LINE.to_string(),
-            ControlRow::Shortcut(_) | ControlRow::NoAgentApps => String::new(),
             ControlRow::SnippetsFile => self.snippets_file_description(),
-            ControlRow::Snippet(_) | ControlRow::SnippetEditor | ControlRow::Replacement(_) => {
-                String::new()
-            }
-            _ => self.toolbar_row_description(row),
-        }
+            _ => return None,
+        };
+        Some(description)
     }
 
     // ---- Focus ----
@@ -1078,4 +1099,39 @@ impl SettingsView {
         cx.emit(SettingsRequest::RunCommand(command.to_string()));
         cx.emit(DismissEvent);
     }
+}
+
+/// The row a spec always gives, whatever the vault.
+fn fixed_row(spec: &RowSpec) -> Option<ControlRow> {
+    let row = match spec {
+        RowSpec::Font(slot) => ControlRow::Font(*slot),
+        RowSpec::Accent => ControlRow::Accent,
+        RowSpec::Vault => ControlRow::Vault,
+        RowSpec::Version => ControlRow::Version,
+        RowSpec::IconCredit => ControlRow::IconCredit,
+        RowSpec::ObsidianImport => ControlRow::ObsidianImport,
+        _ => return None,
+    };
+    Some(row)
+}
+
+/// The description of a row that's always the same, empty for rows with
+/// none.
+fn fixed_description(row: &ControlRow) -> Option<&'static str> {
+    let description = match row {
+        ControlRow::Accent => ACCENT_DESCRIPTION,
+        ControlRow::IconCredit => ICON_CREDIT,
+        ControlRow::ObsidianImport => OBSIDIAN_IMPORT_DESCRIPTION,
+        ControlRow::AgentApps => AGENT_APPS_LINE,
+        ControlRow::MapEntry { .. }
+        | ControlRow::Version
+        | ControlRow::ListEntry { .. }
+        | ControlRow::Shortcut(_)
+        | ControlRow::NoAgentApps
+        | ControlRow::Snippet(_)
+        | ControlRow::SnippetEditor
+        | ControlRow::Replacement(_) => "",
+        _ => return None,
+    };
+    Some(description)
 }

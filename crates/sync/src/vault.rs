@@ -126,6 +126,15 @@ enum Settlement {
     NeedsPerson(ConflictedFile),
 }
 
+/// What settling a merge's conflicts carries from one path to the next.
+struct Settling {
+    index: git2::Index,
+    parked: ParkedConflicts,
+    settled: Settled,
+    keeps: BranchKeeps,
+    run: MergeRun,
+}
+
 /// The three versions of a conflicting path, read from the index or from
 /// a parked conflict.
 struct ConflictVersions {
@@ -604,45 +613,67 @@ impl Vault {
     /// Applies the merge policy to every index conflict, parking the text
     /// files that need a person.
     fn settle_conflicts(&self, keeps: BranchKeeps, run: MergeRun) -> SyncResult<Settled> {
-        let mut index = self.current_index()?;
-        let mut parked = self.parked()?;
-        let mut settled = Settled {
-            kept_local: Vec::new(),
-            parked: 0,
+        let mut settling = Settling {
+            index: self.current_index()?,
+            parked: self.parked()?,
+            settled: Settled {
+                kept_local: Vec::new(),
+                parked: 0,
+            },
+            keeps,
+            run,
         };
-        for versions in self.conflict_versions(&index)? {
-            let path = versions.path.clone();
-            match versions.settle() {
-                Settlement::Write(bytes) => self.stage_bytes(&mut index, &path, &bytes)?,
-                Settlement::KeepLocalBinary(bytes) => {
-                    self.stage_bytes(&mut index, &path, &bytes)?;
-                    settled.kept_local.push(path);
-                }
-                Settlement::KeepBoth {
-                    this_device,
-                    other_device,
-                } => {
-                    self.stage_bytes(&mut index, &path, &this_device)?;
-                    let copy = self.free_copy_path(&path);
-                    self.stage_bytes(&mut index, &copy, &other_device)?;
-                    settled.kept_local.push(path);
-                }
-                Settlement::Delete => self.stage_deletion(&mut index, &path)?,
-                Settlement::NeedsPerson(file) => {
-                    let parking = Parking {
-                        versions: &versions,
-                        file: &file,
-                        keeps,
-                        run,
-                    };
-                    let waits = self.settle_by_person(&mut index, &mut parked, parking)?;
-                    settled.parked += usize::from(waits);
-                }
+        for versions in self.conflict_versions(&settling.index)? {
+            self.settle_one(&mut settling, &versions)?;
+        }
+        settling.index.write()?;
+        self.save_parked(&settling.parked)?;
+        Ok(settling.settled)
+    }
+
+    /// Applies the merge policy to one conflicting path.
+    fn settle_one(&self, settling: &mut Settling, versions: &ConflictVersions) -> SyncResult<()> {
+        let path = versions.path.clone();
+        let index = &mut settling.index;
+        match versions.settle() {
+            Settlement::Write(bytes) => self.stage_bytes(index, &path, &bytes)?,
+            Settlement::KeepLocalBinary(bytes) => {
+                self.stage_bytes(index, &path, &bytes)?;
+                settling.settled.kept_local.push(path);
+            }
+            Settlement::KeepBoth {
+                this_device,
+                other_device,
+            } => {
+                self.keep_both(index, &path, &this_device, &other_device)?;
+                settling.settled.kept_local.push(path);
+            }
+            Settlement::Delete => self.stage_deletion(index, &path)?,
+            Settlement::NeedsPerson(file) => {
+                let parking = Parking {
+                    versions,
+                    file: &file,
+                    keeps: settling.keeps,
+                    run: settling.run,
+                };
+                let waits = self.settle_by_person(index, &mut settling.parked, parking)?;
+                settling.settled.parked += usize::from(waits);
             }
         }
-        index.write()?;
-        self.save_parked(&parked)?;
-        Ok(settled)
+        Ok(())
+    }
+
+    /// This device's version stays at `path`; the other's goes beside it.
+    fn keep_both(
+        &self,
+        index: &mut git2::Index,
+        path: &Path,
+        this_device: &[u8],
+        other_device: &[u8],
+    ) -> SyncResult<()> {
+        self.stage_bytes(index, path, this_device)?;
+        let copy = self.free_copy_path(path);
+        self.stage_bytes(index, &copy, other_device)
     }
 
     fn conflict_versions(&self, index: &git2::Index) -> SyncResult<Vec<ConflictVersions>> {

@@ -212,6 +212,23 @@ impl SettingsView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
+        let handled = match self.value_row_key(index, row, keystroke, window, cx) {
+            Some(handled) => handled,
+            None => self.other_row_key(index, row, keystroke, window, cx),
+        };
+        handled || self.type_to_search(keystroke, window, cx)
+    }
+
+    /// Keys for rows that hold a value: settings, fonts, the accent and
+    /// shortcuts. `None` for any other row.
+    fn value_row_key(
+        &mut self,
+        index: usize,
+        row: &ControlRow,
+        keystroke: &Keystroke,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<bool> {
         let key = keystroke.key.as_str();
         let handled = match row {
             ControlRow::Setting(item) | ControlRow::MapEntry { item, .. } => {
@@ -219,21 +236,36 @@ impl SettingsView {
             }
             ControlRow::Font(slot) => self.font_key(index, slot.token(), key, window, cx),
             ControlRow::Accent => self.accent_key(key, window, cx),
-            ControlRow::Vault | ControlRow::ObsidianImport => self.button_key(key, row, cx),
-            ControlRow::IconCredit => open_url_key(key, ICON_SOURCE_URL, cx),
             ControlRow::Shortcut(shortcut) => self.shortcut_key(row, &shortcut.id, key, window, cx),
             ControlRow::MapAdd(_) => self.menu_button_key(index, row, key, window, cx),
+            ControlRow::ListEntry { list, value } => self.list_entry_key(list, value, key, cx),
+            _ => return None,
+        };
+        Some(handled)
+    }
+
+    /// Keys for buttons, sync, the agent apps, snippets and toolbars.
+    fn other_row_key(
+        &mut self,
+        index: usize,
+        row: &ControlRow,
+        keystroke: &Keystroke,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let key = keystroke.key.as_str();
+        match row {
+            ControlRow::Vault | ControlRow::ObsidianImport => self.button_key(key, row, cx),
+            ControlRow::IconCredit => open_url_key(key, ICON_SOURCE_URL, cx),
             ControlRow::SyncAccount | ControlRow::SyncRemote => self.sync_row_key(row, key, cx),
             ControlRow::ICloudFolder => self.icloud_key(key, cx),
             ControlRow::AgentApps => self.agent_apps_key(key, cx),
-            ControlRow::ListEntry { list, value } => self.list_entry_key(list, value, key, cx),
             ControlRow::SnippetsFile | ControlRow::Snippet(_) | ControlRow::Replacement(_) => {
                 self.typing_row_key(row, key, window, cx)
             }
             _ if row.is_toolbar_row() => self.toolbar_key(index, row, keystroke, window, cx),
             _ => false,
-        };
-        handled || self.type_to_search(keystroke, window, cx)
+        }
     }
 
     /// Enter or Space opens the row's menu, for rows that are only a menu.
