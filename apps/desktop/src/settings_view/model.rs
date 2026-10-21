@@ -55,6 +55,24 @@ const MINIMUMS: &[(&str, i64)] = &[
     ("prose.sentence-length.long-above", 1),
 ];
 
+/// The encrypted notes card. Touch ID shows only where there is one.
+#[cfg(target_os = "macos")]
+const ENCRYPTION_CARD: &[RowSpec] = &[
+    setting("encryption.relock-after-seconds"),
+    setting("encryption.blur-when-away"),
+    setting("encryption.hide-names"),
+    setting("encryption.claude-access"),
+    setting("encryption.biometric-unlock"),
+];
+
+#[cfg(not(target_os = "macos"))]
+const ENCRYPTION_CARD: &[RowSpec] = &[
+    setting("encryption.relock-after-seconds"),
+    setting("encryption.blur-when-away"),
+    setting("encryption.hide-names"),
+    setting("encryption.claude-access"),
+];
+
 /// One page of the settings screen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Page {
@@ -285,6 +303,7 @@ pub const PAGES: &[PageSpec] = &[
                 setting("recovery.interval-minutes"),
                 setting("recovery.keep-days"),
             ],
+            ENCRYPTION_CARD,
         ],
     },
     PageSpec {
@@ -376,7 +395,7 @@ fn fallback_page(key: &str) -> Page {
     match key.split('.').next().unwrap_or_default() {
         "appearance" => Page::Appearance,
         "editor" | "markdown" => Page::Editor,
-        "files" | "recovery" => Page::Files,
+        "files" | "recovery" | "encryption" => Page::Files,
         "sidebar" => Page::Sidebar,
         "prose" => Page::Prose,
         "daily-notes" | "templates" => Page::DailyNotes,
@@ -952,6 +971,8 @@ mod tests {
             "prose.grammar.enabled",
             "recovery.keep-days",
             "files.trash",
+            "encryption.relock-after-seconds",
+            "encryption.claude-access",
         ] {
             assert!(keys.contains(&key.to_string()), "{key}");
         }
