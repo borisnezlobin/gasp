@@ -1,10 +1,10 @@
 //! The commands the editor view runs, looked up by id.
 
 use gasp_core::commands::{
-    FootnoteCommand, Format, duplicate_lines, insert_callout, insert_code_block,
+    FootnoteCommand, Format, check_checkboxes, duplicate_lines, insert_callout, insert_code_block,
     insert_horizontal_rule, insert_link, insert_math_block, insert_or_jump_footnote,
-    move_lines_down, move_lines_up, toggle_bullet_list, toggle_format, toggle_numbered_list,
-    toggle_tasks,
+    move_lines_down, move_lines_up, toggle_bullet_list, toggle_checkboxes, toggle_format,
+    toggle_numbered_list,
 };
 use gasp_core::footnotes::FootnoteSettings;
 use gasp_core::motion;
@@ -64,8 +64,11 @@ const HANDLERS: &[(&str, Handler)] = &[
     ("edit.duplicate-line", |view, _, cx| {
         view.run_edit(duplicate_lines, cx)
     }),
-    ("edit.toggle-task", |view, _, cx| {
-        view.run_edit(toggle_tasks, cx)
+    ("edit.toggle-checkbox", |view, _, cx| {
+        view.run_edit(toggle_checkboxes, cx)
+    }),
+    ("edit.check-checkboxes", |view, _, cx| {
+        view.run_edit(check_checkboxes, cx)
     }),
     ("format.bullet-list", |view, _, cx| {
         view.run_edit(toggle_bullet_list, cx)

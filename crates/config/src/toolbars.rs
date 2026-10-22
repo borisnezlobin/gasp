@@ -11,6 +11,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use toml_edit::DocumentMut;
 
+use crate::commands::current_command_id;
 use crate::diagnostics::Diagnostic;
 use crate::loader::Built;
 use crate::rules::parse_duration;
@@ -282,7 +283,7 @@ impl ToolbarItem {
             SEPARATOR => ToolbarItem::Separator,
             SPACER => ToolbarItem::Spacer,
             _ => Widget::from_name(text).map_or_else(
-                || ToolbarItem::Command(text.to_owned()),
+                || ToolbarItem::Command(current_command_id(text).to_owned()),
                 ToolbarItem::Widget,
             ),
         }
@@ -732,6 +733,14 @@ fn unknown_item(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_renamed_command_is_read_by_its_new_id() {
+        assert_eq!(
+            ToolbarItem::parse("edit.toggle-task"),
+            ToolbarItem::Command("edit.toggle-checkbox".into())
+        );
+    }
 
     #[test]
     fn the_built_in_toolbars_are_the_status_bar_selection_and_the_phones_two() {

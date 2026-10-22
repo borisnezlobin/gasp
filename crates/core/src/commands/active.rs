@@ -25,7 +25,7 @@ fn block_command_for(kind: &NodeKind) -> Option<&'static str> {
     let id = match kind {
         NodeKind::List { ordered: true, .. } => "format.numbered-list",
         NodeKind::List { ordered: false, .. } => "format.bullet-list",
-        NodeKind::ListItem { task: Some(_) } => "edit.toggle-task",
+        NodeKind::ListItem { task: Some(_) } => "edit.toggle-checkbox",
         NodeKind::Callout(_) => "format.callout",
         NodeKind::Table { .. } => "table.insert",
         _ => return None,
@@ -78,7 +78,7 @@ mod tests {
         );
         assert_eq!(
             active_at("- [x] done\n", "done"),
-            ["format.bullet-list", "edit.toggle-task"]
+            ["format.bullet-list", "edit.toggle-checkbox"]
         );
     }
 }

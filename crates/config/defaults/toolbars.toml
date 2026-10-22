@@ -58,7 +58,7 @@ items     = [
   "format.math-inline", "footnote.insert-or-jump",
   "prose.toggle-sentence-highlighting", "table.insert", "find.open",
   "format.bold", "format.italic", "format.highlight", "format.link",
-  "format.code", "edit.toggle-task", "palette.open",
+  "format.code", "edit.toggle-checkbox", "palette.open",
 ]
 
 # The iPhone's bar at the bottom of the screen. The spacer is where the
@@ -81,7 +81,7 @@ items = [
   "note.import-image", "table.insert", "format.horizontal-rule",
   "format.code-block", "format.math-block", "format.callout", "separator",
   "format.link", "footnote.insert-or-jump", "template.insert", "separator",
-  "format.bullet-list", "format.numbered-list", "edit.toggle-task", "separator",
+  "format.bullet-list", "format.numbered-list", "edit.toggle-checkbox", "edit.check-checkboxes", "separator",
   "format.bold", "format.italic", "format.strikethrough", "format.highlight",
   "format.code", "format.math-inline",
 ]

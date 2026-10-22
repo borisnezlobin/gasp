@@ -664,7 +664,13 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     spec("edit.move-line-up", "Move line up", "Editing").icon("arrow-up"),
     spec("edit.move-line-down", "Move line down", "Editing").icon("arrow-down"),
     spec("edit.duplicate-line", "Duplicate line", "Editing").icon("copy"),
-    spec("edit.toggle-task", "Toggle task", "Editing").icon("check-square"),
+    spec("edit.toggle-checkbox", "Toggle checkbox", "Editing").icon("check-square"),
+    spec(
+        "edit.check-checkboxes",
+        "Check or uncheck checkboxes",
+        "Editing",
+    )
+    .icon("check-circle"),
     spec("edit.outdent", "Outdent", "Editing").icon("text-outdent"),
     spec("edit.undo", "Undo", "Editing").icon("arrow-counter-clockwise"),
     spec("edit.redo", "Redo", "Editing").icon("arrow-clockwise"),
@@ -690,6 +696,18 @@ const PLATFORM_SPECS: [CommandSpec; 13] = [
     RESTART_TO_UPDATE,
     SHOW_RELEASE_NOTES,
 ];
+
+/// Commands that were renamed, by their old id. A vault's own toolbars and
+/// rules may still name the old one.
+const RENAMED_COMMANDS: &[(&str, &str)] = &[("edit.toggle-task", "edit.toggle-checkbox")];
+
+/// The id a command goes by now, for an id read from a vault's files.
+pub fn current_command_id(id: &str) -> &str {
+    RENAMED_COMMANDS
+        .iter()
+        .find(|(old, _)| *old == id)
+        .map_or(id, |(_, new)| new)
+}
 
 /// A built-in command's description by id, on any platform.
 pub fn command_spec(id: &str) -> Option<&'static CommandSpec> {

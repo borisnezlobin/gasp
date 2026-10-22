@@ -347,7 +347,7 @@ place     = \"editor-top\"
 behaviour = \"always\"
 style     = \"icons-and-labels\"
 density   = \"comfortable\"
-items     = [\"note.new\", \"menu:insert\", \"format.bold\", \"format.italic\", \"format.highlight\", \"format.link\", \"format.code\", \"edit.toggle-task\", \"table.insert\"]
+items     = [\"note.new\", \"menu:insert\", \"format.bold\", \"format.italic\", \"format.highlight\", \"format.link\", \"format.code\", \"edit.toggle-checkbox\", \"table.insert\"]
 ";
 
 #[gpui::test]
