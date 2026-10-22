@@ -38,6 +38,12 @@ pub enum FileTreeEvent {
     /// A note whose file name is hidden was given a new name, which goes
     /// inside it as its title while its file keeps its stand-in name.
     Retitle { path: PathBuf, title: String },
+    /// Open the note at `path` and run `command` on it, as the menu's
+    /// Lock note does.
+    RunOnNote {
+        path: PathBuf,
+        command: &'static str,
+    },
     /// A note or folder was created.
     Created { path: PathBuf },
     /// A file or folder went to the trash.

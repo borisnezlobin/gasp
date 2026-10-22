@@ -24,7 +24,7 @@ extension CommandRunner {
         },
         "encryption.lock": { runner in
             runner.lockEncryptedNotes()
-            runner.workspace.tell("Encrypted notes are locked.")
+            runner.workspace.tell("Locked notes are locked again.")
         },
         "encryption.note-options": { runner in
             runner.withUnlockedNote { runner.workspace.sheet = .noteOptions(path: $0.path) }
@@ -40,7 +40,7 @@ extension CommandRunner {
             return
         }
         guard session.isEncrypted else {
-            workspace.tell("This note isn't encrypted.")
+            workspace.tell("This note isn't locked.")
             return
         }
         body(session)
@@ -49,7 +49,7 @@ extension CommandRunner {
     private func encryptNoteShowing() {
         withSession { session in
             guard !session.isEncrypted else {
-                workspace.tell("This note is already encrypted.")
+                workspace.tell("This note is already locked.")
                 return
             }
             guard let state = library.vault?.encryptionState() else { return }
@@ -63,7 +63,7 @@ extension CommandRunner {
 
     private func changeVaultPassword() {
         guard library.vault?.encryptionState().hasVaultPassword == true else {
-            workspace.tell("Encrypt a note first to set a vault password.")
+            workspace.tell("Lock a note first to set a vault password.")
             return
         }
         workspace.sheet = .changeVaultPassword
@@ -91,7 +91,7 @@ extension CommandRunner {
         changeEncryption(of: session) { vault, path, text in
             try vault.encryptNote(path: path, text: text, ownPassword: nil)
         } then: { [weak self] _ in
-            self?.workspace.tell("This note is encrypted.")
+            self?.workspace.tell("This note is locked.")
         }
     }
 

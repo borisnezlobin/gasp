@@ -21,9 +21,9 @@ struct VaultPasswordSheet: View {
 
     private var actionTitle: String {
         switch (creating, followUp) {
-        case (true, .encrypt): "Set password and encrypt"
+        case (true, .encrypt): "Set password and lock"
         case (true, .useForNote): "Set vault password"
-        case (false, .encrypt): "Unlock and encrypt"
+        case (false, .encrypt): "Enter password and lock"
         case (false, .useForNote): "Unlock vault"
         }
     }

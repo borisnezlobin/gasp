@@ -115,7 +115,7 @@ fn encrypt_note(workspace: &mut Workspace, window: &mut Window, cx: &mut Context
         return;
     };
     if doc.read(cx).is_encrypted() {
-        notice("This note is already encrypted.", cx);
+        notice("This note is already locked.", cx);
         return;
     }
     let vault = workspace.vault().to_path_buf();
@@ -158,8 +158,8 @@ fn ask_for_new_vault_password(
             "It unlocks every encrypted note in this vault. Gasp can’t recover it if it’s forgotten, so keep it somewhere safe.".to_owned(),
         ),
         fields: vec!["Vault password", "Type it again"],
-        submit_label: "Encrypt note",
-        working_label: "Encrypting…",
+        submit_label: "Lock note",
+        working_label: "Locking…",
         on_submit,
     };
     open_password_dialog(workspace, form, window, cx);
@@ -187,10 +187,10 @@ fn ask_for_vault_password(
     });
     let form = PasswordForm {
         title: "Type the vault password",
-        detail: Some("The note is encrypted with the password the vault already has.".to_owned()),
+        detail: Some("The note is locked with the password the vault already has.".to_owned()),
         fields: vec!["Vault password"],
-        submit_label: "Encrypt note",
-        working_label: "Encrypting…",
+        submit_label: "Lock note",
+        working_label: "Locking…",
         on_submit,
     };
     open_password_dialog(workspace, form, window, cx);
@@ -247,7 +247,7 @@ fn finish_encrypting(
     if options.name == NameVisibility::Hidden {
         rename_doc(this, doc, &hidden_title(), cx)?;
     }
-    notice("Encrypted with the vault password.", cx);
+    notice("Locked with the vault password.", cx);
     Ok(())
 }
 
@@ -275,21 +275,21 @@ fn decrypt_note(workspace: &mut Workspace, window: &mut Window, cx: &mut Context
     };
     let unlocked = doc.read(cx).is_unlocked_encrypted();
     if !doc.read(cx).is_encrypted() {
-        notice("This note isn’t encrypted.", cx);
+        notice("This note isn’t locked.", cx);
         return;
     }
     if !unlocked {
-        notice("Unlock the note first, then remove its encryption.", cx);
+        notice("Unlock the note first, then remove its lock.", cx);
         return;
     }
-    let message = "Remove encryption from this note?";
+    let message = "Remove the lock from this note?";
     let detail =
         "Its text is saved as plain text again, which anyone who can open the file can read.";
     let answer = window.prompt(
         PromptLevel::Warning,
         message,
         Some(detail),
-        &["Remove encryption", "Cancel"],
+        &["Remove lock", "Cancel"],
         cx,
     );
     cx.spawn_in(window, async move |workspace, cx| {
@@ -345,8 +345,8 @@ fn open_note_options(workspace: &mut Workspace, window: &mut Window, cx: &mut Co
     };
     if !doc.read(cx).is_unlocked_encrypted() {
         let message = match doc.read(cx).is_locked() {
-            true => "Unlock the note first, then change how it’s encrypted.",
-            false => "This note isn’t encrypted. Encrypt it first.",
+            true => "Unlock the note first, then change how it’s locked.",
+            false => "This note isn’t locked. Lock it first.",
         };
         notice(message, cx);
         return;

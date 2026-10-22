@@ -487,34 +487,26 @@ pub const BUILTIN_COMMANDS: &[CommandSpec] = &[
     #[cfg(not(target_os = "ios"))]
     MOVE_NOTE,
     spec("note.import-image", "Insert image", "Editing").icon("image"),
-    spec(
-        "encryption.encrypt-note",
-        "Encrypt note",
-        "Notes and navigation",
-    )
-    .icon("lock-simple"),
+    // Their titles say "lock", the word people look for; the category
+    // still finds them for "encrypt".
+    spec("encryption.encrypt-note", "Lock note", "Encryption").icon("lock-simple"),
     spec(
         "encryption.decrypt-note",
-        "Remove encryption from note",
-        "Notes and navigation",
+        "Remove lock from note",
+        "Encryption",
     )
     .icon("lock-simple-open"),
-    spec(
-        "encryption.lock",
-        "Lock encrypted notes",
-        "Notes and navigation",
-    )
-    .icon("lock"),
+    spec("encryption.lock", "Re-lock all locked notes", "Encryption").icon("lock"),
     spec(
         "encryption.note-options",
-        "Change how this note is encrypted",
-        "Notes and navigation",
+        "Change how this note is locked",
+        "Encryption",
     )
     .icon("lock-key"),
     spec(
         "encryption.change-password",
         "Change the vault password",
-        "Notes and navigation",
+        "Encryption",
     )
     .icon("password"),
     spec("edit.paste-plain", "Paste as plain text", "Editing").icon("clipboard-text"),

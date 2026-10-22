@@ -210,6 +210,9 @@ fn on_tree_event(
             open_note(workspace, path, open_in, window, cx);
             tree.update(cx, |tree, cx| tree.set_active_path(Some(path), cx));
         }
+        FileTreeEvent::RunOnNote { path, command } => {
+            run_on_note(workspace, tree, path, command, window, cx);
+        }
         FileTreeEvent::Renamed { from, to } => {
             workspace.entry_moved(from, to, cx);
         }
@@ -246,6 +249,24 @@ fn reveal_active(
         return;
     };
     workspace.reveal_in_tree(&path, true, window, cx);
+}
+
+/// Opens the note in the current tab, then runs `command` on it once it's
+/// the active note.
+fn run_on_note(
+    workspace: &mut Workspace,
+    tree: &Entity<FileTree>,
+    path: &Path,
+    command: &'static str,
+    window: &mut Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    let open_in = workspace.open_in_for(false, cx);
+    open_note(workspace, path, open_in, window, cx);
+    tree.update(cx, |tree, cx| tree.set_active_path(Some(path), cx));
+    cx.defer_in(window, move |workspace, window, cx| {
+        workspace.run_command(command, window, cx);
+    });
 }
 
 fn open_note(
