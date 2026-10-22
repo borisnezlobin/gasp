@@ -360,6 +360,8 @@ Verification covers this too: a CI test walks every command in the registry and 
 | `Mod+Shift+H` | Highlight (`==`) |
 | `Mod+Shift+M` | Inline math |
 | `Mod+/` | Toggle `%%` comment |
+| `Mod+Shift+8` | Toggle a bulleted list on the selected lines |
+| `Mod+Shift+7` | Toggle a numbered list on the selected lines |
 | `Mod+;` | Cycle Markdown symbols: always shown, revealed at cursor, always hidden |
 | `Alt+0` | Insert or jump to footnote |
 | `Mod+J` | Toggle sentence-length highlighting |
