@@ -234,7 +234,9 @@ impl Pane {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let active = index == self.active_index();
-        let raised = active && (self.marked_focused || !self.in_split);
+        let focused_pane = self.marked_focused || !self.in_split;
+        let raised = active && focused_pane;
+        let marks_focus = active && self.in_split && self.marked_focused;
         let group: SharedString = format!("tab-{index}").into();
         let state = TabState::of(tab, cx);
         let title: SharedString = state.title.clone().into();
@@ -258,7 +260,7 @@ impl Pane {
             .pl(ui.tab_padding_x)
             .pr(ui.space_sm)
             .rounded(ui.tab_radius)
-            .text_color(if active { ui.text } else { ui.text_muted })
+            .text_color(if raised { ui.text } else { ui.text_muted })
             .when(active, |tab| tab.bg(ui.note_background))
             .when(raised, |tab| tab.shadow(ui.tab_shadows()))
             .when(!active, |tab| tab.hover(|style| style.bg(ui.control_hover)))
@@ -298,6 +300,7 @@ impl Pane {
                         .text_color(ui.icon),
                 )
             })
+            .when(marks_focus, |tab| tab.child(focus_mark(ui)))
             .when(state.conflict.is_some(), |tab| {
                 tab.child(
                     icon(IconName::WarningCircle)
@@ -405,6 +408,20 @@ fn close_tooltip(active: bool, cx: &gpui::App) -> Tooltip {
 }
 
 /// The bar between two tabs where a dragged tab would go.
+/// The red line along the bottom of the current tab in the pane commands
+/// act on, so a split window shows which side that is even while focus is
+/// in the sidebar or the palette. It's drawn over the tab, so nothing moves.
+fn focus_mark(ui: &UiTheme) -> impl IntoElement {
+    div()
+        .absolute()
+        .bottom_0()
+        .left(ui.tab_padding_x)
+        .right(ui.tab_padding_x)
+        .h(ui.tab_focus_mark_height)
+        .rounded_full()
+        .bg(ui.caret_mark)
+}
+
 fn drop_bar(ui: &UiTheme) -> gpui::Div {
     div()
         .absolute()

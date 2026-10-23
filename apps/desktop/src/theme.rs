@@ -2139,6 +2139,9 @@ pub struct UiTheme {
     pub tab_gap: Pixels,
     pub tab_shadow: Hsla,
     pub tab_shadow_blur: Pixels,
+    /// The red line under the current tab of the pane commands act on,
+    /// when the window is split.
+    pub tab_focus_mark_height: Pixels,
     pub dirty_dot_size: Pixels,
     pub conflict: Hsla,
     /// The sync indicator at rest (synced).
@@ -2518,6 +2521,7 @@ impl UiTheme {
             tab_gap: px(2.),
             tab_shadow: p.tab_shadow,
             tab_shadow_blur: px(3.),
+            tab_focus_mark_height: px(2.),
             dirty_dot_size: px(7.),
             conflict: p.conflict,
             sync_quiet: p.text_faint,

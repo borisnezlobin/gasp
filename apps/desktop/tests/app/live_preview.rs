@@ -402,7 +402,8 @@ fn a_list_item_keeps_its_text_and_wraps_as_its_marker_shows(cx: &mut TestAppCont
         (line.rows[0].x_for(text_start), hangs, breaks)
     };
     let with_bullet = layout(&visual(&view, cx, 0));
-    place_cursor(&view, cx, text_start + 4);
+    // The marker's source shows only with the cursor inside the marker.
+    place_cursor(&view, cx, 1);
     let shown = visual(&view, cx, 0);
     assert!(shows_text_at(&shown, 0), "the marker shows at the cursor");
     let with_marker = layout(&shown);
