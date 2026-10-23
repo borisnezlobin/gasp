@@ -290,6 +290,14 @@ impl Pane {
             .when(last && slot == Some(index + 1), |tab| {
                 tab.child(drop_bar(ui).right(-(ui.tab_gap + ui.drop_indicator_width) / 2.))
             })
+            .when_some(state.lock.as_ref(), |tab, lock| {
+                tab.child(
+                    icon(crate::encryption::lock_icon(lock))
+                        .flex_none()
+                        .size(ui.small_icon_size)
+                        .text_color(ui.icon),
+                )
+            })
             .when(state.conflict.is_some(), |tab| {
                 tab.child(
                     icon(IconName::WarningCircle)

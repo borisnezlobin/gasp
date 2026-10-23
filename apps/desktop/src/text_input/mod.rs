@@ -480,9 +480,10 @@ impl Render for TextInput {
                     .px(theme.padding_x)
                     .rounded(theme.radius)
                     .bg(background)
-                    .when(crate::ui::focus_visible::ring(focused, cx), |field| {
-                        field.shadow(vec![theme.focus_ring()])
-                    })
+                    // A text field always shows that it has focus, however
+                    // it got it, as browsers do: its fill can match the
+                    // surface it sits on.
+                    .when(focused, |field| field.shadow(vec![theme.focus_ring()]))
             })
             .child(TextLine::new(cx.entity()))
     }

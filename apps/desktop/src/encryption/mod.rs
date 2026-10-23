@@ -93,6 +93,15 @@ pub struct NoteMark {
     pub shown_name: Option<String>,
 }
 
+/// An encrypted note's icon: a closed padlock while it's locked, an open
+/// one while it's unlocked.
+pub fn lock_icon(mark: &NoteMark) -> crate::icons::IconName {
+    match mark.unlocked {
+        true => crate::icons::IconName::LockSimpleOpen,
+        false => crate::icons::IconName::LockSimple,
+    }
+}
+
 /// Redraws `V` whenever a note locks, unlocks or becomes encrypted.
 pub fn observe_marks<V: 'static>(cx: &mut gpui::Context<V>) -> gpui::Subscription {
     cx.observe_global::<EncryptedVaults>(|_, cx| cx.notify())
