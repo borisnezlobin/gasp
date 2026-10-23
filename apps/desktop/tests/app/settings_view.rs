@@ -320,11 +320,11 @@ fn general_shows_the_vault_and_opens_another(cx: &mut TestAppContext) {
             .title()
             .contains(env!("CARGO_PKG_VERSION"))
     );
-    // Version has nothing to press, so Down skips it.
+    // Version holds the update button, so Down stops on it.
     cx.simulate_keystrokes("down");
     assert_eq!(
         view.read_with(cx, |view, _| view.focus_state()),
-        SettingsFocus::Control(2)
+        SettingsFocus::Control(1)
     );
     cx.simulate_keystrokes("up enter");
     assert_eq!(
@@ -405,12 +405,12 @@ fn tab_walks_search_sections_and_controls(cx: &mut TestAppContext) {
     let (view, cx, _) = open(cx, dir.path());
     let focus = |cx: &mut VisualTestContext| view.read_with(cx, |view, _| view.focus_state());
     assert_eq!(focus(cx), SettingsFocus::Sections);
-    // General's controls are the vault button, the Obsidian import, the
-    // agents switch, the usage data and update switches and the icon
-    // credit's link. Version is skipped.
+    // General's controls are the vault button, the update button beside
+    // the version, the Obsidian import, the agents switch, the usage data
+    // and update switches and the icon credit's link.
     cx.simulate_keystrokes("tab");
     assert_eq!(focus(cx), SettingsFocus::Control(0));
-    for control in 2..=6 {
+    for control in 1..=6 {
         cx.simulate_keystrokes("tab");
         assert_eq!(focus(cx), SettingsFocus::Control(control));
     }
@@ -426,6 +426,8 @@ fn tab_walks_search_sections_and_controls(cx: &mut TestAppContext) {
     assert_eq!(focus(cx), SettingsFocus::Control(3));
     cx.simulate_keystrokes("up");
     assert_eq!(focus(cx), SettingsFocus::Control(2));
+    cx.simulate_keystrokes("up");
+    assert_eq!(focus(cx), SettingsFocus::Control(1));
     cx.simulate_keystrokes("up");
     assert_eq!(focus(cx), SettingsFocus::Control(0));
     cx.simulate_keystrokes("up");

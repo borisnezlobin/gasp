@@ -267,6 +267,7 @@ Copy and layout
 - [x] Locking "Pandema" locked "Standard Physics Full Description" instead: the dialog never said which note it would lock. *(The dialog is now titled Lock “name”. Why the command picked the other note is still open: see below.)*
 - [x] Find out why Lock note acted on a different note than the one the owner meant. *(Split view: commands act on the active side, marked only by a faint tab shadow. Its current tab now has a red line under it, and the other side's tab title is greyed; a test checks that clicking into a note makes its side active.)*
 - [x] Locked notes need a lock icon in the file tree and the tab bar. *(Tabs now show a closed or open padlock, like the file tree.)*
+- [x] Settings should show a Check for updates button, and Update now once there is one. *(The General page's Version row: Check for updates, Update now, then Restart to update; Checking… and Downloading… while it works.)*
 - [ ] When the next version ships, change the website's locked-notes steps from "Encrypt note" to "Lock note" and mention the right-click menu.
 - [ ] Multi-cursor on the desktop: the core handles several carets, but the desktop app has no way to add one.
 - [x] Importing from Obsidian must bring over Latex Suite snippets, Smart Typography and Symbols Prettifier from a real vault, which keeps them in `.obsidian/plugins/<id>/data.json`. *(The importer read flattened `plugins/<id>.json` files that only the test fixtures had; it now reads the real layout.)*

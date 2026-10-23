@@ -522,6 +522,62 @@ fn say(notice: Notice, cx: &mut App) {
     updater(cx).notice = Some(id);
 }
 
+/// What the settings page's update button offers, from what the updater
+/// is doing now.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UpdateButton {
+    Check,
+    Checking,
+    /// A check found this newer version.
+    Install(Version),
+    Installing,
+    /// The new version is downloaded and waits for a restart.
+    Restart,
+}
+
+impl UpdateButton {
+    pub fn label(&self) -> &'static str {
+        match self {
+            UpdateButton::Check => "Check for updates",
+            UpdateButton::Checking => "Checking…",
+            UpdateButton::Install(_) => "Update now",
+            UpdateButton::Installing => "Downloading…",
+            UpdateButton::Restart => "Restart to update",
+        }
+    }
+
+    /// The command a press runs, or `None` while work is under way.
+    pub fn command(&self) -> Option<&'static str> {
+        match self {
+            UpdateButton::Check => Some(CHECK_COMMAND),
+            UpdateButton::Install(_) => Some(INSTALL_COMMAND),
+            UpdateButton::Restart => Some(RESTART_COMMAND),
+            UpdateButton::Checking | UpdateButton::Installing => None,
+        }
+    }
+}
+
+/// The update button's state right now.
+pub fn button_state(cx: &App) -> UpdateButton {
+    let Some(updater) = cx.try_global::<Updater>() else {
+        return UpdateButton::Check;
+    };
+    match (&updater.phase, &updater.found) {
+        (Phase::Checking, _) => UpdateButton::Checking,
+        (Phase::Installing, _) => UpdateButton::Installing,
+        (Phase::Staged, _) => UpdateButton::Restart,
+        (Phase::Idle, Some(found)) if is_newer(&found.version, &running_version()) => {
+            UpdateButton::Install(found.version.clone())
+        }
+        (Phase::Idle, _) => UpdateButton::Check,
+    }
+}
+
+/// Redraws `V` whenever the updater's state changes.
+pub fn observe<V: 'static>(cx: &mut gpui::Context<V>) -> gpui::Subscription {
+    cx.observe_global::<Updater>(|_, cx| cx.notify())
+}
+
 fn updater(cx: &mut App) -> &mut Updater {
     cx.default_global::<Updater>()
 }

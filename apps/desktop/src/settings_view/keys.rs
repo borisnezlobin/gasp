@@ -257,6 +257,7 @@ impl SettingsView {
         match row {
             ControlRow::Vault | ControlRow::ObsidianImport => self.button_key(key, row, cx),
             ControlRow::IconCredit => open_url_key(key, ICON_SOURCE_URL, cx),
+            ControlRow::Version => self.update_key(key, cx),
             ControlRow::SyncAccount | ControlRow::SyncRemote => self.sync_row_key(row, key, cx),
             ControlRow::ICloudFolder => self.icloud_key(key, cx),
             ControlRow::AgentApps => self.agent_apps_key(key, cx),
@@ -396,6 +397,18 @@ impl SettingsView {
             _ => return false,
         }
         true
+    }
+
+    /// Enter or Space on the update button presses it, when it can be.
+    fn update_key(&mut self, key: &str, cx: &mut Context<Self>) -> bool {
+        let command = crate::update::button_state(cx).command();
+        match (command, matches!(key, "space" | "enter")) {
+            (Some(command), true) => {
+                self.run_command_here(command, cx);
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Enter or Space on a General page button runs its command.

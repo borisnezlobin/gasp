@@ -11,8 +11,9 @@ use serde_json::Value;
 
 use super::controls::{
     FieldState, button, capture_prompt, control_note, dropdown_button_in, field_box, field_box_in,
-    focus_frame, icon_button, menu_option, menu_panel, popover, removable_keycap, reset_slot,
-    row_text, small_icon_button, stepper, swatch, toggle_switch, tooltip_keys, widest_of,
+    focus_frame, icon_button, inert_button, menu_option, menu_panel, popover, removable_keycap,
+    reset_slot, row_text, small_icon_button, stepper, swatch, toggle_switch, tooltip_keys,
+    widest_of,
 };
 use super::menu::MenuTarget;
 use super::model::{
@@ -224,6 +225,7 @@ impl SettingsView {
             ControlRow::Vault | ControlRow::IconCredit | ControlRow::ObsidianImport => {
                 self.general_control(row, focused, cx)
             }
+            ControlRow::Version => self.update_control(focused, cx),
             ControlRow::SyncAccount => self.account_control(focused, cx),
             ControlRow::ICloudFolder => self.icloud_control(focused, cx),
             ControlRow::ListAdd(item) => self.list_add_control(item, row, focused, cx),
@@ -261,6 +263,23 @@ impl SettingsView {
             ControlRow::ObsidianImport => self.obsidian_import_control(focused, cx),
             _ => self.icon_credit_control(focused),
         }
+    }
+
+    /// Check for updates, or Update now once a check found a newer
+    /// version, or Restart to update once it's downloaded. While the app
+    /// checks or downloads, the button says so and can't be pressed.
+    fn update_control(&self, focused: bool, cx: &mut Context<Self>) -> AnyElement {
+        let state = crate::update::button_state(cx);
+        let Some(command) = state.command() else {
+            return inert_button("update", state.label(), &self.style).into_any_element();
+        };
+        let primary = !matches!(state, crate::update::UpdateButton::Check);
+        button("update", state.label(), primary, focused, &self.style)
+            .selector(|| "update".to_string())
+            .on_click(
+                cx.listener(move |view, _: &ClickEvent, _, cx| view.run_command_here(command, cx)),
+            )
+            .into_any_element()
     }
 
     fn obsidian_import_control(&self, focused: bool, cx: &mut Context<Self>) -> AnyElement {
