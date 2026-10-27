@@ -3,6 +3,7 @@
 //! [`PdfOptions`].
 
 use gasp_export::pdf::{Margins, PdfOptions};
+use serde::{Deserialize, Serialize};
 
 /// Lines the drop cap spans when it's on, as in PDF Export Plus.
 pub const DROP_CAP_LINES: u32 = 3;
@@ -426,6 +427,81 @@ impl PrintSettings {
     }
 }
 
+/// The dialog's choices as `state.toml` keeps them, so the next print,
+/// after a restart too, starts from them. Each is stored by the name its
+/// button shows; one that's missing or no longer offered reads as the
+/// default.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct SavedPrint {
+    pub paper: Option<String>,
+    pub margins: Option<String>,
+    pub font: Option<String>,
+    pub text_size: Option<u8>,
+    pub line_spacing: Option<String>,
+    pub indent: Option<String>,
+    pub page_numbers: Option<bool>,
+    pub title: Option<bool>,
+    pub drop_cap: Option<bool>,
+}
+
+impl From<PrintSettings> for SavedPrint {
+    fn from(settings: PrintSettings) -> SavedPrint {
+        SavedPrint {
+            paper: Some(settings.paper.label().to_owned()),
+            margins: Some(settings.margins.label().to_owned()),
+            font: Some(settings.font.to_owned()),
+            text_size: Some(settings.text_size),
+            line_spacing: Some(settings.line_spacing.label().to_owned()),
+            indent: Some(settings.indent.label().to_owned()),
+            page_numbers: Some(settings.page_numbers),
+            title: Some(settings.title),
+            drop_cap: Some(settings.drop_cap),
+        }
+    }
+}
+
+/// The choice in `all` whose label is `name`, if it's still offered.
+fn by_label<T: Copy>(all: &[T], name: Option<&str>, label: fn(T) -> &'static str) -> Option<T> {
+    let name = name?;
+    all.iter().copied().find(|item| label(*item) == name)
+}
+
+impl PrintSettings {
+    /// The settings `saved` names, with the default for anything it
+    /// doesn't.
+    pub fn from_saved(saved: &SavedPrint) -> PrintSettings {
+        let default = PrintSettings::default();
+        let size_offered = |size: &u8| TEXT_SIZES.iter().any(|(offered, _)| offered == size);
+        PrintSettings {
+            paper: by_label(&Paper::ALL, saved.paper.as_deref(), Paper::label)
+                .unwrap_or(default.paper),
+            margins: by_label(
+                &MarginSize::ALL,
+                saved.margins.as_deref(),
+                MarginSize::label,
+            )
+            .unwrap_or(default.margins),
+            font: saved.font.as_deref().map_or(default.font, print_font),
+            text_size: saved
+                .text_size
+                .filter(size_offered)
+                .unwrap_or(default.text_size),
+            line_spacing: by_label(
+                &LineSpacing::ALL,
+                saved.line_spacing.as_deref(),
+                LineSpacing::label,
+            )
+            .unwrap_or(default.line_spacing),
+            indent: by_label(&Indent::ALL, saved.indent.as_deref(), Indent::label)
+                .unwrap_or(default.indent),
+            page_numbers: saved.page_numbers.unwrap_or(default.page_numbers),
+            title: saved.title.unwrap_or(default.title),
+            drop_cap: saved.drop_cap.unwrap_or(default.drop_cap),
+        }
+    }
+}
+
 /// A menu line and the settings choosing it gives.
 pub type Choice = (String, PrintSettings);
 
@@ -572,6 +648,28 @@ mod tests {
             fonts,
             ["Iowan Old Style", "Charter", "Georgia", BUNDLED_FONT]
         );
+    }
+
+    #[test]
+    fn saved_choices_come_back_and_unknown_ones_read_as_defaults() {
+        let settings = PrintSettings {
+            font: "Georgia",
+            text_size: 14,
+            line_spacing: LineSpacing::Single,
+            indent: Indent::None,
+            title: false,
+            ..PrintSettings::default()
+        };
+        assert_eq!(
+            PrintSettings::from_saved(&SavedPrint::from(settings)),
+            settings
+        );
+        let odd = SavedPrint {
+            paper: Some("B5".into()),
+            text_size: Some(40),
+            ..SavedPrint::default()
+        };
+        assert_eq!(PrintSettings::from_saved(&odd), PrintSettings::default());
     }
 
     #[test]

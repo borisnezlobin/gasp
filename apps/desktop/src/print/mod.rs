@@ -24,16 +24,17 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui::{
-    App, Context, DismissEvent, EventEmitter, FocusHandle, Focusable, Global, KeyBinding,
-    ScrollHandle, Task, Window, actions,
+    App, AppContext, Context, DismissEvent, EventEmitter, FocusHandle, Focusable, Global,
+    KeyBinding, ScrollHandle, Task, Window, actions,
 };
 
 use crate::export_ui;
 use crate::theme::{SettingsTheme, UiTheme};
 use crate::ui::{HasMenuSlot, MenuAnchor, MenuItem, MenuSlot};
 
+use crate::workspace::state::AppState;
 pub use preview::{LayoutFailure, Preview, PreviewJob};
-pub use settings::{Control, MarginSize, Paper, PrintSettings};
+pub use settings::{Control, MarginSize, Paper, PrintSettings, SavedPrint};
 
 /// The key context the dialog sets.
 pub const PRINT_CONTEXT: &str = "PrintDialog";
@@ -72,10 +73,15 @@ struct LastSettings(PrintSettings);
 
 impl Global for LastSettings {}
 
+/// The choices from earlier in this session, or else the ones saved on
+/// this computer, or else the defaults.
 fn last_settings(cx: &App) -> PrintSettings {
-    cx.try_global::<LastSettings>()
-        .map(|last| last.0)
-        .unwrap_or_default()
+    if let Some(last) = cx.try_global::<LastSettings>() {
+        return last.0;
+    }
+    AppState::saved_print().map_or_else(PrintSettings::default, |saved| {
+        PrintSettings::from_saved(&saved)
+    })
 }
 
 /// Where Print… sends the PDF in place of the system, when set: tests
@@ -295,6 +301,9 @@ impl PrintDialog {
         }
         self.settings = settings;
         cx.set_global(LastSettings(settings));
+        let saved = SavedPrint::from(settings);
+        cx.background_spawn(async move { AppState::remember_print(saved) })
+            .detach();
         self.status = None;
         self.lay_out(true, window, cx);
     }

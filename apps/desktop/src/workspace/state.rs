@@ -17,6 +17,7 @@ use gpui::{Bounds, Pixels, WindowBounds, point, px, size};
 use serde::{Deserialize, Serialize};
 
 use super::files::atomic_write;
+use crate::print::SavedPrint;
 
 const STATE_FILE: &str = "state.toml";
 
@@ -41,6 +42,8 @@ pub struct AppState {
     pub recent_vaults: Vec<PathBuf>,
     /// The day the last usage ping went out, such as `2026-09-30`.
     pub last_ping: Option<String>,
+    /// The print dialog's last choices.
+    pub print: Option<SavedPrint>,
 }
 
 /// Vaults the switcher remembers.
@@ -104,6 +107,27 @@ impl AppState {
         }
         state.recent_vaults.retain(|vault| vault.is_dir());
         state.recent_vaults
+    }
+
+    /// The print dialog's last choices, saved on this computer.
+    pub fn saved_print() -> Option<SavedPrint> {
+        if crate::sandbox::is_test_run() {
+            return None;
+        }
+        AppState::load(&AppState::default_path()?).print
+    }
+
+    /// Keeps the print dialog's choices for the next print, logging a
+    /// failure.
+    pub fn remember_print(print: SavedPrint) {
+        let Some(path) = AppState::default_path().filter(|_| !crate::sandbox::is_test_run()) else {
+            return;
+        };
+        let mut state = AppState::load(&path);
+        state.print = Some(print);
+        if let Err(error) = state.save(&path) {
+            eprintln!("could not save the print settings: {error}");
+        }
     }
 
     /// The last vault, if it still exists.
@@ -182,6 +206,7 @@ mod tests {
             last_vault: Some(PathBuf::from("vaults/notes")),
             recent_vaults: vec![PathBuf::from("vaults/notes")],
             last_ping: Some("2026-09-30".to_string()),
+            print: Some(crate::print::PrintSettings::default().into()),
         };
         state.save(&path).unwrap();
         assert_eq!(AppState::load(&path), state);
