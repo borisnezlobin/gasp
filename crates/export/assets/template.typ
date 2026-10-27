@@ -235,9 +235,12 @@
     hyphenate: false,
   )
   set block(spacing: 1em + half-leading)
+  // An indent marks where a paragraph starts, so indented paragraphs sit
+  // one line apart. Without one, they need a gap of their own.
+  let paragraph-gap = if paragraph-indent == 0in { 0.8em } else { 0em }
   set par(
     leading: (line-height - 1) * 1em,
-    spacing: (line-height - 1) * 1em,
+    spacing: (line-height - 1) * 1em + paragraph-gap,
     first-line-indent: paragraph-indent,
     justify: false,
   )

@@ -151,8 +151,9 @@ fn changing_a_setting_lays_the_note_out_again(cx: &mut TestAppContext) {
         assert!((preview.pages[0].aspect - 11. / 8.5).abs() < 0.01);
     });
 
-    // Down twice reaches page numbers; Space turns them off.
-    window.simulate_keystrokes("down down space");
+    // Down six times reaches page numbers, past margins, font, text size,
+    // line spacing and indent; Space turns them off.
+    window.simulate_keystrokes("down down down down down down space");
     dialog.read_with(window, |dialog, _| {
         assert_eq!(dialog.focused_control(), Control::PageNumbers);
         assert!(!dialog.settings().page_numbers);

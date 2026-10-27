@@ -545,7 +545,7 @@ The export emits clean semantic HTML instead of Obsidian's markup. It uses plain
 
 This ports PDF Export Plus to Typst, a Rust typesetting engine that runs on every platform including the iPhone. Typst places footnotes at the bottom of the page that cites them natively, which removes the Paged.js machinery the plugin needs inside Electron. LaTeX math converts to Typst math with `mitex`.
 
-Your current settings carry over: A4 pages, 18/16/12/12 mm margins, page numbers, 8.5 pt footnotes, and the professional style in Iowan Old Style at 12 pt with line height 2. The drop cap is off by default, as in your PDF Export Plus settings (`applyLedeStyles: false`), and can be turned on with its line count. Page breaks from the Break Page plugin's markup are honoured, and header and footer templates from Better Export PDF become an option. The live preview renders pages as you change settings.
+Your current settings carry over: A4 pages, 18/16/12/12 mm margins, page numbers, 8.5 pt footnotes, and the professional style in Iowan Old Style at 12 pt with line height 2. The drop cap is off by default, as in your PDF Export Plus settings (`applyLedeStyles: false`), and can be turned on with its line count. Page breaks from the Break Page plugin's markup are honoured, and header and footer templates from Better Export PDF become an option. The live preview renders pages as you change settings. The print dialog offers paper, margins, font (print faces this computer has, and the bundled Libertinus Serif), text size, line spacing (single, 1.5 or double), first-line indent (none or a tab; with none, paragraphs get a gap instead), page numbers, the note title and the drop cap.
 
 ## MCP and agent access
 

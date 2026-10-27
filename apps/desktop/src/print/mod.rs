@@ -349,23 +349,8 @@ impl PrintDialog {
 
     fn menu_items(&self, control: Control, cx: &mut Context<Self>) -> Vec<MenuItem> {
         let current = self.settings;
-        let choices: Vec<(String, PrintSettings)> = match control {
-            Control::Paper => Paper::ALL
-                .into_iter()
-                .map(|paper| {
-                    let label = format!("{} ({})", paper.label(), paper.detail());
-                    (label, PrintSettings { paper, ..current })
-                })
-                .collect(),
-            Control::Margins => MarginSize::ALL
-                .into_iter()
-                .map(|margins| {
-                    let label = format!("{} ({})", margins.label(), margins.detail());
-                    (label, PrintSettings { margins, ..current })
-                })
-                .collect(),
-            _ => Vec::new(),
-        };
+        let installed = crate::ui::installed_fonts(cx);
+        let choices = current.choices(control, installed.as_deref());
         let this = cx.entity().downgrade();
         choices
             .into_iter()

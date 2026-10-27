@@ -122,20 +122,130 @@ impl MarginSize {
     }
 }
 
+/// The font Gasp carries inside itself, so a PDF always has a body font
+/// even where none of the others is installed.
+pub const BUNDLED_FONT: &str = "Libertinus Serif";
+
+/// The body fonts the dialog offers, print faces first. The menu lists
+/// the ones this computer has, and always the bundled one.
+pub const PRINT_FONTS: [&str; 9] = [
+    "Iowan Old Style",
+    "Charter",
+    "Palatino",
+    "Baskerville",
+    "Georgia",
+    "Times New Roman",
+    "Helvetica Neue",
+    "Avenir Next",
+    BUNDLED_FONT,
+];
+
+/// Text sizes in points, with how the button shows each.
+pub const TEXT_SIZES: [(u8, &str); 5] = [
+    (10, "10 pt"),
+    (11, "11 pt"),
+    (12, "12 pt"),
+    (13, "13 pt"),
+    (14, "14 pt"),
+];
+
+/// The space between lines, as word processors name it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LineSpacing {
+    Single,
+    OneAndAHalf,
+    Double,
+}
+
+impl LineSpacing {
+    pub const ALL: [LineSpacing; 3] = [
+        LineSpacing::Single,
+        LineSpacing::OneAndAHalf,
+        LineSpacing::Double,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            LineSpacing::Single => "Single",
+            LineSpacing::OneAndAHalf => "1.5 lines",
+            LineSpacing::Double => "Double",
+        }
+    }
+
+    /// Each line's height as a multiple of the text size.
+    pub fn line_height(self) -> f64 {
+        match self {
+            LineSpacing::Single => 1.2,
+            LineSpacing::OneAndAHalf => 1.5,
+            LineSpacing::Double => 2.0,
+        }
+    }
+
+    /// The choice nearest `line_height`.
+    pub fn nearest(line_height: f64) -> LineSpacing {
+        let distance = |spacing: &LineSpacing| (spacing.line_height() - line_height).abs();
+        LineSpacing::ALL
+            .into_iter()
+            .min_by(|a, b| distance(a).total_cmp(&distance(b)))
+            .unwrap_or(LineSpacing::Double)
+    }
+}
+
+/// How far the first line of a paragraph that follows another paragraph
+/// is pushed in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Indent {
+    None,
+    Tab,
+}
+
+impl Indent {
+    pub const ALL: [Indent; 2] = [Indent::None, Indent::Tab];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Indent::None => "None",
+            Indent::Tab => "Tab",
+        }
+    }
+
+    pub fn detail(self) -> &'static str {
+        match self {
+            Indent::None => "every line starts at the margin",
+            Indent::Tab => "half an inch",
+        }
+    }
+
+    pub fn inches(self) -> f64 {
+        match self {
+            Indent::None => 0.,
+            Indent::Tab => 0.5,
+        }
+    }
+}
+
 /// One control in the dialog, in the order they're listed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Control {
     Paper,
     Margins,
+    Font,
+    TextSize,
+    LineSpacing,
+    Indent,
     PageNumbers,
     Title,
     DropCap,
 }
 
 impl Control {
-    pub const ALL: [Control; 5] = [
+    pub const ALL: [Control; 9] = [
         Control::Paper,
         Control::Margins,
+        Control::Font,
+        Control::TextSize,
+        Control::LineSpacing,
+        Control::Indent,
         Control::PageNumbers,
         Control::Title,
         Control::DropCap,
@@ -145,6 +255,10 @@ impl Control {
         match self {
             Control::Paper => "Paper",
             Control::Margins => "Margins",
+            Control::Font => "Font",
+            Control::TextSize => "Text size",
+            Control::LineSpacing => "Line spacing",
+            Control::Indent => "First-line indent",
             Control::PageNumbers => "Page numbers",
             Control::Title => "Note title at the top",
             Control::DropCap => "Drop cap",
@@ -164,6 +278,10 @@ impl Control {
         match self {
             Control::Paper => "paper",
             Control::Margins => "margins",
+            Control::Font => "font",
+            Control::TextSize => "text-size",
+            Control::LineSpacing => "line-spacing",
+            Control::Indent => "indent",
             Control::PageNumbers => "page-numbers",
             Control::Title => "title",
             Control::DropCap => "drop-cap",
@@ -176,6 +294,12 @@ impl Control {
 pub struct PrintSettings {
     pub paper: Paper,
     pub margins: MarginSize,
+    /// One of [`PRINT_FONTS`].
+    pub font: &'static str,
+    /// Points, one of [`TEXT_SIZES`].
+    pub text_size: u8,
+    pub line_spacing: LineSpacing,
+    pub indent: Indent,
     pub page_numbers: bool,
     pub title: bool,
     pub drop_cap: bool,
@@ -188,11 +312,35 @@ impl Default for PrintSettings {
         PrintSettings {
             paper: Paper::from_page_size(&options.page_size),
             margins: MarginSize::Standard,
+            font: print_font(options.font_family.first().map_or("", String::as_str)),
+            text_size: options.font_size_pt.round() as u8,
+            line_spacing: LineSpacing::nearest(options.line_height),
+            indent: if options.paragraph_indent_in > 0. {
+                Indent::Tab
+            } else {
+                Indent::None
+            },
             page_numbers: options.show_page_numbers,
             title: options.include_title,
             drop_cap: options.drop_cap_lines > 0,
         }
     }
+}
+
+/// The offered font named `family`, or the first one.
+fn print_font(family: &str) -> &'static str {
+    PRINT_FONTS
+        .into_iter()
+        .find(|font| font.eq_ignore_ascii_case(family))
+        .unwrap_or(PRINT_FONTS[0])
+}
+
+/// How the button shows a text size.
+fn size_label(points: u8) -> &'static str {
+    TEXT_SIZES
+        .iter()
+        .find(|(size, _)| *size == points)
+        .map_or("", |(_, label)| label)
 }
 
 /// The item after (or before) `current` in `all`, wrapping.
@@ -216,8 +364,21 @@ impl PrintSettings {
             show_page_numbers: self.page_numbers,
             include_title: self.title,
             drop_cap_lines: if self.drop_cap { DROP_CAP_LINES } else { 0 },
+            font_family: self.font_family(),
+            font_size_pt: f64::from(self.text_size),
+            line_height: self.line_spacing.line_height(),
+            paragraph_indent_in: self.indent.inches(),
             ..PdfOptions::default()
         }
+    }
+
+    /// The chosen font, then the bundled one for any letters it lacks.
+    fn font_family(&self) -> Vec<String> {
+        let mut family = vec![self.font.to_owned()];
+        if self.font != BUNDLED_FONT {
+            family.push(BUNDLED_FONT.to_owned());
+        }
+        family
     }
 
     /// Whether `control`'s switch is on; false for a list.
@@ -226,7 +387,7 @@ impl PrintSettings {
             Control::PageNumbers => self.page_numbers,
             Control::Title => self.title,
             Control::DropCap => self.drop_cap,
-            Control::Paper | Control::Margins => false,
+            _ => false,
         }
     }
 
@@ -235,6 +396,10 @@ impl PrintSettings {
         match control {
             Control::Paper => self.paper.label(),
             Control::Margins => self.margins.label(),
+            Control::Font => self.font,
+            Control::TextSize => size_label(self.text_size),
+            Control::LineSpacing => self.line_spacing.label(),
+            Control::Indent => self.indent.label(),
             _ => "",
         }
     }
@@ -245,12 +410,103 @@ impl PrintSettings {
         match control {
             Control::Paper => self.paper = cycle(&Paper::ALL, self.paper, forward),
             Control::Margins => self.margins = cycle(&MarginSize::ALL, self.margins, forward),
+            Control::Font => self.font = cycle(&PRINT_FONTS, self.font, forward),
+            Control::TextSize => {
+                self.text_size = cycle(&TEXT_SIZES.map(|(size, _)| size), self.text_size, forward)
+            }
+            Control::LineSpacing => {
+                self.line_spacing = cycle(&LineSpacing::ALL, self.line_spacing, forward)
+            }
+            Control::Indent => self.indent = cycle(&Indent::ALL, self.indent, forward),
             Control::PageNumbers => self.page_numbers = !self.page_numbers,
             Control::Title => self.title = !self.title,
             Control::DropCap => self.drop_cap = !self.drop_cap,
         }
         self
     }
+}
+
+/// A menu line and the settings choosing it gives.
+pub type Choice = (String, PrintSettings);
+
+impl PrintSettings {
+    /// The choices `control`'s menu lists, each as the whole settings it
+    /// would give. `installed` names this computer's fonts, when known, so
+    /// the font menu leaves out the ones it lacks.
+    pub fn choices(&self, control: Control, installed: Option<&[String]>) -> Vec<Choice> {
+        let current = *self;
+        match control {
+            Control::Paper => Paper::ALL
+                .into_iter()
+                .map(|paper| {
+                    (
+                        format!("{} ({})", paper.label(), paper.detail()),
+                        PrintSettings { paper, ..current },
+                    )
+                })
+                .collect(),
+            Control::Margins => MarginSize::ALL
+                .into_iter()
+                .map(|margins| {
+                    (
+                        format!("{} ({})", margins.label(), margins.detail()),
+                        PrintSettings { margins, ..current },
+                    )
+                })
+                .collect(),
+            Control::Font => font_choices(current, installed),
+            Control::TextSize => TEXT_SIZES
+                .into_iter()
+                .map(|(text_size, label)| {
+                    (
+                        label.to_owned(),
+                        PrintSettings {
+                            text_size,
+                            ..current
+                        },
+                    )
+                })
+                .collect(),
+            Control::LineSpacing => LineSpacing::ALL
+                .into_iter()
+                .map(|line_spacing| {
+                    (
+                        line_spacing.label().to_owned(),
+                        PrintSettings {
+                            line_spacing,
+                            ..current
+                        },
+                    )
+                })
+                .collect(),
+            Control::Indent => Indent::ALL
+                .into_iter()
+                .map(|indent| {
+                    (
+                        format!("{} ({})", indent.label(), indent.detail()),
+                        PrintSettings { indent, ..current },
+                    )
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+}
+
+/// The offered fonts this computer has, the bundled one always, and the
+/// current one even if it's gone, so the menu still shows what's chosen.
+fn font_choices(current: PrintSettings, installed: Option<&[String]>) -> Vec<Choice> {
+    let has = |font: &str| {
+        font == BUNDLED_FONT
+            || font == current.font
+            || installed
+                .is_none_or(|names| names.iter().any(|name| name.eq_ignore_ascii_case(font)))
+    };
+    PRINT_FONTS
+        .into_iter()
+        .filter(|font| has(font))
+        .map(|font| (font.to_owned(), PrintSettings { font, ..current }))
+        .collect()
 }
 
 #[cfg(test)]
@@ -267,6 +523,10 @@ mod tests {
         let settings = PrintSettings {
             paper: Paper::Letter,
             margins: MarginSize::Wide,
+            font: "Charter",
+            text_size: 11,
+            line_spacing: LineSpacing::Single,
+            indent: Indent::None,
             page_numbers: false,
             title: false,
             drop_cap: true,
@@ -276,6 +536,10 @@ mod tests {
         assert_eq!(options.margins.left, 25.);
         assert!(!options.show_page_numbers && !options.include_title);
         assert_eq!(options.drop_cap_lines, DROP_CAP_LINES);
+        assert_eq!(options.font_family, ["Charter", BUNDLED_FONT]);
+        assert_eq!(options.font_size_pt, 11.);
+        assert_eq!(options.line_height, 1.2);
+        assert_eq!(options.paragraph_indent_in, 0.);
         assert_eq!(Paper::from_page_size("letter"), Paper::Letter);
         assert_eq!(Paper::from_page_size("B5"), Paper::A4);
     }
@@ -294,6 +558,26 @@ mod tests {
         );
         assert!(!settings.stepped(Control::PageNumbers, true).page_numbers);
         assert!(settings.stepped(Control::DropCap, false).drop_cap);
+    }
+
+    #[test]
+    fn the_font_menu_lists_installed_fonts_and_the_bundled_one() {
+        let installed = ["Charter".to_owned(), "Georgia".to_owned()];
+        let fonts: Vec<String> = PrintSettings::default()
+            .choices(Control::Font, Some(&installed))
+            .into_iter()
+            .map(|(label, _)| label)
+            .collect();
+        assert_eq!(
+            fonts,
+            ["Iowan Old Style", "Charter", "Georgia", BUNDLED_FONT]
+        );
+    }
+
+    #[test]
+    fn line_spacing_reads_the_nearest_choice() {
+        assert_eq!(LineSpacing::nearest(2.0), LineSpacing::Double);
+        assert_eq!(LineSpacing::nearest(1.4), LineSpacing::OneAndAHalf);
     }
 
     #[test]
