@@ -164,9 +164,7 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     workspace.on_command("export.html", |ws, window, cx| {
         export_now(ws, export_ui::ExportFormat::Html, window, cx)
     });
-    workspace.on_command("export.pdf", |ws, window, cx| {
-        export_now(ws, export_ui::ExportFormat::Pdf, window, cx)
-    });
+    workspace.on_command("export.pdf", print_note);
     workspace.on_command("toolbar.customize", open_toolbar_settings);
     workspace.on_command("app.print", print_note);
     workspace.on_command("file-tree.reveal-active", reveal_active);
@@ -933,6 +931,16 @@ fn open_export(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     workspace.toggle_modal(window, cx, |_, cx| {
         ExportDialog::new(text, path, cx).with_vault_root(vault)
     });
+    let Some(dialog) = workspace.active_modal::<ExportDialog>() else {
+        return;
+    };
+    // Lives as long as the dialog.
+    cx.subscribe_in(&dialog, window, |_, _, request, window, cx| match request {
+        export_ui::ExportRequest::Print => cx.defer_in(window, |workspace, window, cx| {
+            print_note(workspace, window, cx)
+        }),
+    })
+    .detach();
 }
 
 /// Opens the export dialog already exporting as `format`.

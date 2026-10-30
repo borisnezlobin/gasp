@@ -308,3 +308,54 @@ fn app_print_opens_the_print_dialog(cx: &mut TestAppContext) {
             .is_none()
     );
 }
+
+#[gpui::test]
+fn exporting_as_pdf_opens_the_print_dialog(cx: &mut TestAppContext) {
+    let vault = tempfile::tempdir().unwrap();
+    std::fs::write(vault.path().join("Note.md"), SHORT_NOTE).unwrap();
+    cx.update(|cx| {
+        gasp_desktop::actions::bind_keys(cx);
+        features::bind_view_keys(cx);
+    });
+    let root = vault.path().to_path_buf();
+    let (workspace, cx) = cx.add_window_view(move |window, cx| {
+        let mut workspace = Workspace::new(&root, window, cx);
+        features::install(&mut workspace, window, cx);
+        workspace
+    });
+    let run = |cx: &mut VisualTestContext, command: &str| {
+        cx.update(|window, cx| {
+            workspace.update(cx, |workspace, cx| {
+                workspace.run_command(command, window, cx)
+            })
+        });
+        cx.run_until_parked();
+    };
+    cx.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            workspace
+                .open_path(Path::new("Note.md"), OpenIn::ActiveTab, window, cx)
+                .unwrap()
+        })
+    });
+    cx.run_until_parked();
+    let print_dialog =
+        |cx: &mut VisualTestContext| cx.read(|cx| workspace.read(cx).active_modal::<PrintDialog>());
+
+    // The export picker's PDF choice, which is selected first.
+    run(cx, "app.export");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    let dialog = print_dialog(cx).expect("PDF in the export picker opens the print dialog");
+    dialog.read_with(cx, |dialog, _| assert!(dialog.preview().is_some()));
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(print_dialog(cx).is_none());
+
+    // Export as PDF from the command palette or the menu.
+    run(cx, "export.pdf");
+    assert!(
+        print_dialog(cx).is_some(),
+        "Export as PDF opens the print dialog"
+    );
+}
