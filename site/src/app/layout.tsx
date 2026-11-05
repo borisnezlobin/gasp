@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Charis_SIL } from "next/font/google";
 import { GlyphDrift } from "@/components/glyphs/GlyphDrift";
 import { WaterFilter } from "@/components/WaterFilter";
-import { SITE_URL } from "@/lib/site";
+import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 // Charter is the app's font and ships with every Mac and iPhone; Charis
@@ -16,12 +16,11 @@ const charis = Charis_SIL({
   display: "swap",
 });
 
-const description =
-  "A Markdown editor for Mac and Linux that's ready to edit in under half a second, stays quick in 48,000-line notes, and syncs for free.";
+const description = SITE_DESCRIPTION;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: "Gasp, a fast Markdown editor", template: "%s | Gasp" },
+  title: { default: SITE_TITLE, template: "%s | Gasp" },
   description,
   openGraph: { title: "Gasp", description, url: SITE_URL, siteName: "Gasp", type: "website" },
   twitter: { card: "summary_large_image", title: "Gasp", description },

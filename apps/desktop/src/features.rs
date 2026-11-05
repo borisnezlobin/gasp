@@ -164,9 +164,7 @@ pub fn install(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     workspace.on_command("export.html", |ws, window, cx| {
         export_now(ws, export_ui::ExportFormat::Html, window, cx)
     });
-    workspace.on_command("export.pdf", |ws, window, cx| {
-        export_now(ws, export_ui::ExportFormat::Pdf, window, cx)
-    });
+    workspace.on_command("export.pdf", print_note);
     workspace.on_command("toolbar.customize", open_toolbar_settings);
     workspace.on_command("app.print", print_note);
     workspace.on_command("file-tree.reveal-active", reveal_active);
@@ -210,6 +208,9 @@ fn on_tree_event(
             open_note(workspace, path, open_in, window, cx);
             tree.update(cx, |tree, cx| tree.set_active_path(Some(path), cx));
         }
+        FileTreeEvent::RunOnNote { path, command } => {
+            run_on_note(workspace, tree, path, command, window, cx);
+        }
         FileTreeEvent::Renamed { from, to } => {
             workspace.entry_moved(from, to, cx);
         }
@@ -246,6 +247,24 @@ fn reveal_active(
         return;
     };
     workspace.reveal_in_tree(&path, true, window, cx);
+}
+
+/// Opens the note in the current tab, then runs `command` on it once it's
+/// the active note.
+fn run_on_note(
+    workspace: &mut Workspace,
+    tree: &Entity<FileTree>,
+    path: &Path,
+    command: &'static str,
+    window: &mut Window,
+    cx: &mut gpui::Context<Workspace>,
+) {
+    let open_in = workspace.open_in_for(false, cx);
+    open_note(workspace, path, open_in, window, cx);
+    tree.update(cx, |tree, cx| tree.set_active_path(Some(path), cx));
+    cx.defer_in(window, move |workspace, window, cx| {
+        workspace.run_command(command, window, cx);
+    });
 }
 
 fn open_note(
@@ -912,6 +931,16 @@ fn open_export(workspace: &mut Workspace, window: &mut Window, cx: &mut gpui::Co
     workspace.toggle_modal(window, cx, |_, cx| {
         ExportDialog::new(text, path, cx).with_vault_root(vault)
     });
+    let Some(dialog) = workspace.active_modal::<ExportDialog>() else {
+        return;
+    };
+    // Lives as long as the dialog.
+    cx.subscribe_in(&dialog, window, |_, _, request, window, cx| match request {
+        export_ui::ExportRequest::Print => cx.defer_in(window, |workspace, window, cx| {
+            print_note(workspace, window, cx)
+        }),
+    })
+    .detach();
 }
 
 /// Opens the export dialog already exporting as `format`.

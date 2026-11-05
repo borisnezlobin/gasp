@@ -136,10 +136,10 @@ fn lines_move_and_duplicate_from_their_keys(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn toggle_task_checks_the_line(cx: &mut TestAppContext) {
+fn check_checkboxes_checks_the_line(cx: &mut TestAppContext) {
     let (view, cx) = open(cx, "- [ ] milk");
     view.update(cx, |view, cx| {
-        view.run_edit(gasp_core::commands::toggle_tasks, cx)
+        view.run_edit(gasp_core::commands::check_checkboxes, cx)
     });
     assert_eq!(text(&view, cx), "- [x] milk");
 }

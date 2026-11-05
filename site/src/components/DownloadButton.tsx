@@ -59,7 +59,7 @@ export function DownloadButton({ size = "regular", others = false }: { size?: Si
     <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
       {button}
       {showOthers && (
-        <a href={DOWNLOAD_PATH} className="small text-ink-soft underline decoration-rule underline-offset-4 hover:decoration-ink">
+        <a href={DOWNLOAD_PATH} className="small inline-flex min-h-11 items-center text-ink-soft underline decoration-rule underline-offset-4 hover:decoration-ink">
           Other systems
         </a>
       )}

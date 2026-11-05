@@ -14,3 +14,9 @@ export const WHALE_CREDIT = {
   licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
   noticesPath: "/THIRD_PARTY_NOTICES.txt",
 };
+export const FEATURES_PATH = "/features";
+export const COMPARE_PATH = "/compare";
+
+export const SITE_TITLE = "Gasp, a fast Obsidian-compatible Markdown editor";
+export const SITE_DESCRIPTION =
+  "An Obsidian-compatible Markdown editor for Mac and Linux that's ready to edit in under half a second, stays quick in 48,000-line notes, and syncs for free.";

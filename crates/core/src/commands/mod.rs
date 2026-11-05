@@ -21,9 +21,9 @@ pub use callout::insert_callout;
 pub use footnote::{FootnoteCommand, insert_or_jump_footnote};
 pub use format::{Format, toggle_format};
 pub use indent::{ShiftAvailability, indent, outdent, shift_availability};
-pub use lines::{duplicate_lines, move_lines_down, move_lines_up, toggle_tasks};
+pub use lines::{check_checkboxes, duplicate_lines, move_lines_down, move_lines_up};
 pub use link::insert_link;
-pub use lists::{toggle_bullet_list, toggle_numbered_list};
+pub use lists::{toggle_bullet_list, toggle_checkboxes, toggle_numbered_list};
 
 use crate::document::{Document, Selection};
 use crate::pipeline::{InputContext, RangePlan, StepContext, plan_transaction};

@@ -60,6 +60,18 @@ keys = "Mod+/"
 do   = "format.comment"
 
 [[rule]]
+id   = "key.format.bullet-list"
+on   = "key"
+keys = "Mod+Shift+8"
+do   = "format.bullet-list"
+
+[[rule]]
+id   = "key.format.numbered-list"
+on   = "key"
+keys = "Mod+Shift+7"
+do   = "format.numbered-list"
+
+[[rule]]
 id   = "key.markdown.cycle-symbols"
 on   = "key"
 keys = "Mod+;"

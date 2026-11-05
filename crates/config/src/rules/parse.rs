@@ -8,7 +8,7 @@ use serde::Deserialize;
 use toml::Spanned;
 
 use super::{EventKind, Rule};
-use crate::commands::Args;
+use crate::commands::{Args, current_command_id};
 use crate::diagnostics::Diagnostic;
 use crate::keys::KeyChord;
 use crate::platform::{InputContext, PlatformFilter};
@@ -117,7 +117,7 @@ fn compile_rule(raw: RawRule, span: Range<usize>) -> Result<Rule, FieldError> {
         platform: raw.platform,
         when: raw.when,
         conditions: raw.conditions,
-        command: command.into_inner(),
+        command: current_command_id(&command.into_inner()).to_owned(),
         args: Args::from(raw.args),
     })
 }

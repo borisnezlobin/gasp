@@ -4,10 +4,10 @@
 use std::ops::Range;
 
 use gasp_core::commands::{
-    FootnoteCommand, Format, duplicate_lines, indent, insert_callout, insert_code_block,
-    insert_horizontal_rule, insert_link, insert_math_block, insert_or_jump_footnote,
-    move_lines_down, move_lines_up, outdent, toggle_bullet_list, toggle_format,
-    toggle_numbered_list, toggle_tasks,
+    FootnoteCommand, Format, check_checkboxes, duplicate_lines, indent, insert_callout,
+    insert_code_block, insert_horizontal_rule, insert_link, insert_math_block,
+    insert_or_jump_footnote, move_lines_down, move_lines_up, outdent, toggle_bullet_list,
+    toggle_checkboxes, toggle_format, toggle_numbered_list,
 };
 use gasp_core::document::{Document, Selection, SelectionRange};
 use gasp_core::footnotes::{
@@ -78,7 +78,8 @@ const TRANSACTIONS: &[(&str, TransactionCommand)] = &[
     ("edit.move-line-up", move_lines_up),
     ("edit.move-line-down", move_lines_down),
     ("edit.duplicate-line", duplicate_lines),
-    ("edit.toggle-task", toggle_tasks),
+    ("edit.toggle-checkbox", toggle_checkboxes),
+    ("edit.check-checkboxes", check_checkboxes),
     ("format.bullet-list", toggle_bullet_list),
     ("format.numbered-list", toggle_numbered_list),
     ("table.insert", insert_table),

@@ -65,6 +65,13 @@ pub fn kept_app_folder(name: &str) -> Option<PathBuf> {
     APP_FOLDERS_ROOT.get().map(|root| root.join(name))
 }
 
+/// Whether tests keep the app's folders aside. Those tests share one
+/// folder that outlives each run, so choices saved there would carry from
+/// one test to the next.
+pub fn is_test_run() -> bool {
+    APP_FOLDERS_ROOT.get().is_some()
+}
+
 /// Whether this is a snapshot run.
 pub fn is_active() -> bool {
     SANDBOX.get().is_some()

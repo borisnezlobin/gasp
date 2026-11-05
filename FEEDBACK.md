@@ -255,7 +255,25 @@ Copy and layout
 - [ ] Encrypted notes: a vault password changed on another device is picked up right away, and embeds of encrypted notes never show scrambled text.
 - [ ] Encrypted attachments: can images and files be encrypted too, with an easy way to do it?
 - [x] Build folders must never reach 80 GB again. *(Cleaned to 2.7 GB; 15 GB cap enforced by hooks after every turn and agent; rules in CLAUDE.md and memory.)*
-- [ ] SEO: "Gasp vs Obsidian" style comparison pages that answer "it depends" honestly while showing Gasp at its best (privacy, speed, free sync, AI agents), plus feature pages and a place that links them all.
-- [ ] Put "Obsidian-compatible" more prominently on the site.
+- [x] SEO: "Gasp vs Obsidian" style comparison pages that answer "it depends" honestly while showing Gasp at its best (privacy, speed, free sync, AI agents), plus feature pages and a place that links them all. *(Seven comparisons under /compare and six feature pages under /features, linked from the header and footer.)*
+- [x] Put "Obsidian-compatible" more prominently on the site. *(A link under the hero's tagline.)*
+- [x] Comparisons should read as tradeoffs, not "Gasp has nothing": teams share a vault through GitHub, AI comes through MCP, and the Notion page must mention encryption.
+- [x] Icons beside text weren't vertically balanced.
+- [x] Site copy must be plain and easy for someone who knows nothing about Gasp or the other apps: simple full sentences, no tacked-on qualifiers like "though not live".
+- [x] Toggle several selected lines into bullet points at once. *(The command existed only in the palette; it now has Mod+Shift+8, with Mod+Shift+7 for a numbered list, and both sit in the Insert menu with Toggle task.)*
+- [x] Rename "task" to "checkbox". Running Toggle checkbox again should take the checkbox off, with no bullet left, instead of checking and unchecking; checking is a separate command. *(Toggle checkbox and Check or uncheck checkboxes, both in the Insert menu; the old command id still works in a vault's toolbars and rules.)*
+- [x] Locking a note was hard to find: right-clicking a note had no option, and the palette didn't find "lock". *(Commands renamed to Lock note, Remove lock from note, Re-lock all locked notes and Change how this note is locked, in an Encryption category so "encrypt" still finds them; a note's right-click menu offers Lock note or Remove lock from note.)*
+- [x] Clicking a text field made it disappear (its fill matched the dialog, and the focus ring only showed for keyboard focus). *(Text fields now always show their focus ring.)*
+- [x] Locking "Pandema" locked "Standard Physics Full Description" instead: the dialog never said which note it would lock. *(The dialog is now titled Lock “name”. Why the command picked the other note is still open: see below.)*
+- [x] Find out why Lock note acted on a different note than the one the owner meant. *(Split view: commands act on the active side, marked only by a faint tab shadow. Its current tab now has a red line under it, and the other side's tab title is greyed; a test checks that clicking into a note makes its side active.)*
+- [x] Locked notes need a lock icon in the file tree and the tab bar. *(Tabs now show a closed or open padlock, like the file tree.)*
+- [x] Settings should show a Check for updates button, and Update now once there is one. *(The General page's Version row: Check for updates, Update now, then Restart to update; Checking… and Downloading… while it works.)*
+- [x] PDF export should offer what Better Export PDF and PDF Export Plus did: line spacing, first-line indent (none or a tab) and a font chooser. *(The print dialog now has Font, Text size, Line spacing and First-line indent; with no indent, paragraphs get a gap between them.)*
+- [x] Save the print dialog's choices between launches. *(Kept in state.toml in Gasp's config folder.)*
+- [x] Export → PDF went straight to a save prompt with no preview, and ignored the print settings. *(Export as PDF, and PDF in the export picker, now open the print dialog: preview, the saved choices, then Save as PDF… or Print….)*
+- [x] While typing a heading, the look of the "## " at its start shouldn't fluctuate.
+- [x] Lock and encryption toasts should disappear by themselves.
+- [ ] When the next version ships, change the website's locked-notes steps from "Encrypt note" to "Lock note" and mention the right-click menu.
+- [ ] Multi-cursor on the desktop: the core handles several carets, but the desktop app has no way to add one.
 - [x] Importing from Obsidian must bring over Latex Suite snippets, Smart Typography and Symbols Prettifier from a real vault, which keeps them in `.obsidian/plugins/<id>/data.json`. *(The importer read flattened `plugins/<id>.json` files that only the test fixtures had; it now reads the real layout.)*
 - [x] Make the site scroll much faster. *(Scrolling in Chromium at 1440×900 @2x: GPU 54% to 9%, frames over 25 ms from about 93 to 0–1, p95 frame 50 ms to 16.8 ms. WebKit scroll 9 to 25 fps. Filters now run once per picture rather than once per frame, and effects off screen stop.)*

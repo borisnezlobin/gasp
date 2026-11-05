@@ -21,6 +21,8 @@ const KEYMAP: &[(&str, &str)] = &[
     ("Mod+Shift+H", "format.highlight"),
     ("Mod+Shift+M", "format.math-inline"),
     ("Mod+/", "format.comment"),
+    ("Mod+Shift+8", "format.bullet-list"),
+    ("Mod+Shift+7", "format.numbered-list"),
     ("Mod+;", "markdown.cycle-symbols"),
     ("Alt+0", "footnote.insert-or-jump"),
     ("Mod+J", "prose.toggle-sentence-highlighting"),

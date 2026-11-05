@@ -116,6 +116,28 @@ fn dump_node(tree: &SyntaxTree, text: &str, id: NodeId, depth: usize, out: &mut 
 }
 
 #[test]
+fn a_heading_owns_the_spaces_at_the_end_of_its_line() {
+    check("## ", &["Heading2 \"## \" [HeadingMarker\"## \"]"]);
+    check(
+        "## My \nnext",
+        &[
+            "Heading2 \"## My \" [HeadingMarker\"## \"]",
+            "  Text \"My\"",
+            "Paragraph \"next\"",
+            "  Text \"next\"",
+        ],
+    );
+    check(
+        "> ## My ",
+        &[
+            "BlockQuote \"> ## My \" [QuoteMarker\"> \"]",
+            "  Heading2 \"## My \" [HeadingMarker\"## \"]",
+            "    Text \"My\"",
+        ],
+    );
+}
+
+#[test]
 fn atx_and_setext_headings() {
     check(
         "# One #\n## Two *em*\n\nThree\n---\n#notheading",

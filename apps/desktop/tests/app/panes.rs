@@ -524,3 +524,26 @@ fn tree_drop_a_selection_opens_its_notes_and_skips_folders(cx: &mut TestAppConte
     assert_eq!(layout(&workspace, cx), vec![vec!["a", "b", "c"]]);
     assert!(vault.path().join("b.md").is_file(), "the notes stay put");
 }
+
+#[gpui::test]
+fn clicking_into_a_note_makes_its_pane_the_one_commands_act_on(cx: &mut TestAppContext) {
+    let vault = vault_with(&["a.md", "b.md"]);
+    let (workspace, cx) = open_workspace(cx, vault.path());
+    cx.update(|window, _| window.activate_window());
+    open_tabs(&workspace, cx, &["a.md", "b.md"]);
+    let all = panes(&workspace, cx);
+    cx.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            workspace.split_with_tab(&all[0], 1, &all[0], Direction::Right, window, cx)
+        })
+    });
+    cx.run_until_parked();
+    assert_eq!(active_title(&workspace, cx), "b");
+    let tab = bounds(cx, "tab-a");
+    cx.simulate_click(
+        point(tab.center().x, tab.bottom() + px(160.)),
+        Modifiers::none(),
+    );
+    cx.run_until_parked();
+    assert_eq!(active_title(&workspace, cx), "a");
+}

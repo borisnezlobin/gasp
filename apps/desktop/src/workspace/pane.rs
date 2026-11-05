@@ -20,6 +20,7 @@ use super::note_doc::{Conflict, NoteDoc};
 use super::pane_tree::DropZone;
 use crate::editor::EditorView;
 use crate::encryption::lock_screen::LockScreen;
+use crate::encryption::{NoteMark, note_mark};
 use crate::keymap::{KEY_CONTEXT, RunCommand};
 use crate::text_input::TextInput;
 use crate::theme::Theme;
@@ -234,6 +235,9 @@ pub struct Pane {
     pub(super) drop: DropState,
     /// The docked toolbars the workspace drew for this pane this frame.
     pub(crate) card_bars: CardBarSlot,
+    /// Redraws the tabs' padlocks when notes lock, unlock or become
+    /// encrypted.
+    _encryption_marks: Subscription,
 }
 
 /// What a tab drag over the pane shows. It changes only when the landing
@@ -290,6 +294,7 @@ impl Pane {
             sync_conflicts: Vec::new(),
             drop: DropState::default(),
             card_bars: CardBarSlot::default(),
+            _encryption_marks: crate::encryption::observe_marks(cx),
         }
     }
 
@@ -715,6 +720,8 @@ pub(super) struct TabState {
     pub title: String,
     pub dirty: bool,
     pub conflict: Option<Conflict>,
+    /// Set for an encrypted note: whether it's unlocked.
+    pub lock: Option<NoteMark>,
 }
 
 impl TabState {
@@ -724,6 +731,7 @@ impl TabState {
             title: tab.title(cx),
             dirty: doc.is_some_and(NoteDoc::is_dirty),
             conflict: doc.and_then(NoteDoc::conflict),
+            lock: doc.and_then(|doc| note_mark(doc.path(), cx)),
         }
     }
 }

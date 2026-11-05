@@ -105,18 +105,14 @@ fn trim_text_newlines(nodes: &mut [Node], text: &str) {
 
 /// Drops trailing newlines and spaces from block ranges, never cutting into
 /// a child. Children come after their parents in the arena, so walking it
-/// backwards trims children first. An empty list item keeps the space
-/// after its marker, so `- ` is drawn as a bullet before anything follows.
+/// backwards trims children first.
 fn trim_block_ranges(nodes: &mut [Node], text: &str) {
     for index in (1..nodes.len()).rev() {
         if !nodes[index].kind.is_block() {
             continue;
         }
         let range = nodes[index].range.clone();
-        let mut trimmed_end = range.start + text[range.clone()].trim_end().len();
-        if is_empty_list_item(&nodes[index]) {
-            trimmed_end = build::skip_one_space(text, trimmed_end);
-        }
+        let trimmed_end = trimmed_block_end(&nodes[index], text);
         let children_end = nodes[index]
             .children
             .iter()
@@ -125,6 +121,23 @@ fn trim_block_ranges(nodes: &mut [Node], text: &str) {
             .unwrap_or(range.start);
         nodes[index].range.end = trimmed_end.max(children_end).min(range.end);
     }
+}
+
+/// Where a block's text ends. An empty list item keeps the space after its
+/// marker, so `- ` is drawn as a bullet before anything follows. A heading
+/// keeps its trailing spaces, so a space typed between two words stays
+/// inside the heading: it has the heading's size and the caret after it is
+/// still on the heading.
+fn trimmed_block_end(node: &Node, text: &str) -> usize {
+    let source = &text[node.range.clone()];
+    if matches!(node.kind, NodeKind::Heading { .. }) {
+        return node.range.start + source.trim_end_matches(['\n', '\r']).len();
+    }
+    let trimmed_end = node.range.start + source.trim_end().len();
+    if is_empty_list_item(node) {
+        return build::skip_one_space(text, trimmed_end);
+    }
+    trimmed_end
 }
 
 fn is_empty_list_item(node: &Node) -> bool {

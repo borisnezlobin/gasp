@@ -10,7 +10,7 @@ use gasp_crypt::{ClaudeAccess, Key, KeySource, NameVisibility, NoteOptions, Vaul
 use gasp_vault::encryption::{
     ChangedPassword, Encryption, EncryptionError, PasswordChangeJob, hidden_file_name,
 };
-use gpui::{App, AppContext, Context, Entity, PromptLevel, Task, WeakEntity, Window};
+use gpui::{App, AppContext, Context, Entity, PromptLevel, SharedString, Task, WeakEntity, Window};
 
 use super::dialogs::{
     NoteOptionsDialog, OptionsChoice, PasswordDialog, PasswordForm, PasswordSource, PasswordSubmit,
@@ -39,7 +39,7 @@ fn active_doc(workspace: &Workspace, cx: &App) -> Option<Entity<NoteDoc>> {
 }
 
 fn notice(message: &str, cx: &mut App) {
-    crate::notices::show(crate::notices::Notice::offer(message.to_owned()), cx);
+    crate::notices::show(crate::notices::Notice::info(message.to_owned()), cx);
 }
 
 /// Runs `action` on the vault's encryption.
@@ -115,7 +115,7 @@ fn encrypt_note(workspace: &mut Workspace, window: &mut Window, cx: &mut Context
         return;
     };
     if doc.read(cx).is_encrypted() {
-        notice("This note is already encrypted.", cx);
+        notice("This note is already locked.", cx);
         return;
     }
     let vault = workspace.vault().to_path_buf();
@@ -132,6 +132,17 @@ fn encrypt_note(workspace: &mut Workspace, window: &mut Window, cx: &mut Context
     }
 }
 
+/// The lock dialog's title, naming the note it locks, so it's clear which
+/// note that is.
+fn lock_title(doc: &Entity<NoteDoc>, cx: &App) -> SharedString {
+    let path = doc.read(cx).path();
+    let name = path
+        .file_stem()
+        .unwrap_or(path.as_os_str())
+        .to_string_lossy();
+    format!("Lock “{name}”").into()
+}
+
 fn ask_for_new_vault_password(
     workspace: &mut Workspace,
     vault: PathBuf,
@@ -140,6 +151,7 @@ fn ask_for_new_vault_password(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
+    let title = lock_title(&doc, cx);
     let on_submit: PasswordSubmit = Box::new(move |values, _, cx| {
         matching(&values[0], &values[1])?;
         let job = vault_job(&vault, cx, |encryption| {
@@ -153,13 +165,13 @@ fn ask_for_new_vault_password(
         Ok(in_background(move || job.run_for_vault(), finish, cx))
     });
     let form = PasswordForm {
-        title: "Choose a vault password",
+        title,
         detail: Some(
-            "It unlocks every encrypted note in this vault. Gasp can’t recover it if it’s forgotten, so keep it somewhere safe.".to_owned(),
+            "First, choose a vault password. It unlocks every locked note in this vault. Gasp can’t recover it if it’s forgotten, so keep it somewhere safe.".to_owned(),
         ),
         fields: vec!["Vault password", "Type it again"],
-        submit_label: "Encrypt note",
-        working_label: "Encrypting…",
+        submit_label: "Lock note",
+        working_label: "Locking…",
         on_submit,
     };
     open_password_dialog(workspace, form, window, cx);
@@ -173,6 +185,7 @@ fn ask_for_vault_password(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
+    let title = lock_title(&doc, cx);
     let on_submit: PasswordSubmit = Box::new(move |values, _, cx| {
         super::lock_file_changed(&vault, cx);
         let job = vault_job(&vault, cx, |encryption| {
@@ -186,11 +199,11 @@ fn ask_for_vault_password(
         Ok(in_background(move || job.run(), finish, cx))
     });
     let form = PasswordForm {
-        title: "Type the vault password",
-        detail: Some("The note is encrypted with the password the vault already has.".to_owned()),
+        title,
+        detail: Some("Type the vault password. The note is locked with it.".to_owned()),
         fields: vec!["Vault password"],
-        submit_label: "Encrypt note",
-        working_label: "Encrypting…",
+        submit_label: "Lock note",
+        working_label: "Locking…",
         on_submit,
     };
     open_password_dialog(workspace, form, window, cx);
@@ -247,7 +260,7 @@ fn finish_encrypting(
     if options.name == NameVisibility::Hidden {
         rename_doc(this, doc, &hidden_title(), cx)?;
     }
-    notice("Encrypted with the vault password.", cx);
+    notice("Locked with the vault password.", cx);
     Ok(())
 }
 
@@ -275,21 +288,21 @@ fn decrypt_note(workspace: &mut Workspace, window: &mut Window, cx: &mut Context
     };
     let unlocked = doc.read(cx).is_unlocked_encrypted();
     if !doc.read(cx).is_encrypted() {
-        notice("This note isn’t encrypted.", cx);
+        notice("This note isn’t locked.", cx);
         return;
     }
     if !unlocked {
-        notice("Unlock the note first, then remove its encryption.", cx);
+        notice("Unlock the note first, then remove its lock.", cx);
         return;
     }
-    let message = "Remove encryption from this note?";
+    let message = "Remove the lock from this note?";
     let detail =
         "Its text is saved as plain text again, which anyone who can open the file can read.";
     let answer = window.prompt(
         PromptLevel::Warning,
         message,
         Some(detail),
-        &["Remove encryption", "Cancel"],
+        &["Remove lock", "Cancel"],
         cx,
     );
     cx.spawn_in(window, async move |workspace, cx| {
@@ -345,8 +358,8 @@ fn open_note_options(workspace: &mut Workspace, window: &mut Window, cx: &mut Co
     };
     if !doc.read(cx).is_unlocked_encrypted() {
         let message = match doc.read(cx).is_locked() {
-            true => "Unlock the note first, then change how it’s encrypted.",
-            false => "This note isn’t encrypted. Encrypt it first.",
+            true => "Unlock the note first, then change how it’s locked.",
+            false => "This note isn’t locked. Lock it first.",
         };
         notice(message, cx);
         return;
@@ -504,7 +517,7 @@ fn change_form(vault: PathBuf) -> PasswordForm {
         Ok(change_in_background(vault.clone(), job, cx))
     });
     PasswordForm {
-        title: "Change the vault password",
+        title: "Change the vault password".into(),
         detail: None,
         fields: vec!["Current password", "New password", "Type the new one again"],
         submit_label: "Change password",
@@ -577,7 +590,7 @@ fn first_password_form(vault: PathBuf) -> PasswordForm {
         Ok(in_background(move || job.run_for_vault(), finish, cx))
     });
     PasswordForm {
-        title: "Choose a vault password",
+        title: "Choose a vault password".into(),
         detail: Some(
             "It unlocks every encrypted note in this vault. Gasp can’t recover it if it’s forgotten, so keep it somewhere safe.".to_owned(),
         ),

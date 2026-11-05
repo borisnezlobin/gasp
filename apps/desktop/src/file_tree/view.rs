@@ -847,8 +847,25 @@ impl FileTree {
             }
             self.select_path(path, cx);
         }
-        self.menu = Some(ContextMenu::new(target, position));
+        let lock = target.as_deref().and_then(|path| self.lock_item(path, cx));
+        self.menu = Some(ContextMenu::new(target, position, lock));
         cx.notify();
+    }
+
+    /// The lock item a note's row offers: Lock note for a note without a
+    /// lock, Remove lock from note for a locked one, and none for anything
+    /// that isn't a note.
+    fn lock_item(&self, path: &Path, cx: &Context<Self>) -> Option<MenuItem> {
+        let absolute = self.absolute(path);
+        let is_note =
+            absolute.is_file() && path.extension().is_some_and(|extension| extension == "md");
+        if !is_note {
+            return None;
+        }
+        match crate::encryption::note_mark(&absolute, cx) {
+            Some(_) => Some(MenuItem::RemoveLock),
+            None => Some(MenuItem::Lock),
+        }
     }
 
     pub(super) fn close_menu(&mut self, cx: &mut Context<Self>) {
@@ -872,6 +889,11 @@ impl FileTree {
                 path.to_string_lossy().into_owned(),
             )),
             MenuItem::Trash => self.request_trash(cx),
+            MenuItem::Lock | MenuItem::RemoveLock => {
+                if let (Some(_), Some(command)) = (&target, item.note_command()) {
+                    cx.emit(FileTreeEvent::RunOnNote { path, command });
+                }
+            }
         }
         cx.notify();
     }

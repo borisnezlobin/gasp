@@ -105,6 +105,20 @@ make_dmg() {
     "$APP_NAME" "$dmg"
 }
 
+# notarytool's sign-in: the App Store Connect API key the iPhone uploads use
+# (~/.appstoreconnect/gasp.env names it) when it's there, otherwise the
+# profile saved with `xcrun notarytool store-credentials`.
+NOTARY_API_ENV="${NOTARY_API_ENV:-$HOME/.appstoreconnect/gasp.env}"
+notary_credentials() {
+  if [[ -f "$NOTARY_API_ENV" ]]; then
+    source "$NOTARY_API_ENV"
+    NOTARY_ARGS=(--key "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+      --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID")
+  else
+    NOTARY_ARGS=(--keychain-profile "$NOTARY_PROFILE")
+  fi
+}
+
 # The app gets its own stapled ticket before it goes in the disk image, so
 # macOS accepts it offline: the updater checks the app inside a downloaded
 # image with `spctl` before installing it.
@@ -115,7 +129,8 @@ notarize_app() {
   local zip="$OUT_DIR/$APP_NAME-notarize.zip"
   step "Notarizing the app (this usually takes a few minutes)"
   ditto -c -k --keepParent "$APP_DIR" "$zip"
-  xcrun notarytool submit "$zip" --keychain-profile "$NOTARY_PROFILE" --wait
+  notary_credentials
+  xcrun notarytool submit "$zip" "${NOTARY_ARGS[@]}" --wait
   xcrun stapler staple "$APP_DIR"
   rm -f "$zip"
 }
@@ -127,7 +142,8 @@ notarize() {
     return 0
   fi
   step "Notarizing (this usually takes a few minutes)"
-  xcrun notarytool submit "$dmg" --keychain-profile "$NOTARY_PROFILE" --wait
+  notary_credentials
+  xcrun notarytool submit "$dmg" "${NOTARY_ARGS[@]}" --wait
   xcrun stapler staple "$dmg"
 }
 

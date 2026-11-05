@@ -8,10 +8,13 @@ import { IdleTrace, KeystrokeSpeed } from "@/components/LightFigures";
 import { LineField } from "@/components/LineField";
 import { LiveEditor } from "@/components/LiveEditor";
 import { LookShowcase } from "@/components/LookShowcase";
+import { ObsidianLink } from "@/components/ObsidianLink";
 import { ScreenshotTabs } from "@/components/ScreenshotTabs";
 import { Section } from "@/components/Section";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
+import { AppStructuredData } from "@/components/seo/AppStructuredData";
+import { SITE_DESCRIPTION } from "@/lib/site";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
@@ -37,8 +40,9 @@ export default function Home() {
   return (
     <>
       <SiteHeader />
+      <AppStructuredData description={SITE_DESCRIPTION} />
       <main>
-        <SwimHero>
+        <SwimHero tagline={<ObsidianLink />}>
           <DownloadButton size="large" others />
         </SwimHero>
 

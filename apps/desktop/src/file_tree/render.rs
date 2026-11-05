@@ -83,15 +83,6 @@ fn kind_icon(entry: &Entry, expanded: bool) -> IconName {
     }
 }
 
-/// An encrypted note's icon: a closed padlock while it's locked, an open
-/// one while it's unlocked.
-fn encrypted_icon(mark: &NoteMark) -> IconName {
-    match mark.unlocked {
-        true => IconName::LockSimpleOpen,
-        false => IconName::LockSimple,
-    }
-}
-
 /// How a row should look.
 #[derive(Clone, Copy, Default)]
 struct RowState {
@@ -334,9 +325,10 @@ impl FileTree {
         } else {
             ui.icon
         };
-        let kind_name = mark
-            .as_ref()
-            .map_or_else(|| kind_icon(&row.entry, row.expanded), encrypted_icon);
+        let kind_name = mark.as_ref().map_or_else(
+            || kind_icon(&row.entry, row.expanded),
+            crate::encryption::lock_icon,
+        );
         let kind = icon(kind_name)
             .flex_none()
             .size(ui.icon_size)

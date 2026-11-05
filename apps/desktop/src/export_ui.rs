@@ -82,7 +82,7 @@ impl ExportFormat {
 
     fn detail(self) -> &'static str {
         match self {
-            ExportFormat::Pdf => "A4 pages, ready to print or send",
+            ExportFormat::Pdf => "Preview the pages, then print or save them",
             ExportFormat::Html => "An article for your website",
         }
     }
@@ -226,32 +226,6 @@ pub(crate) fn save_with<T: Send + 'static>(
             })
             .await
     })
-}
-
-/// Asks where to save, then exports the PDF there on a background thread.
-/// Resolves to the saved path and its page count, or `None` when the save
-/// was cancelled.
-pub fn save_pdf(
-    text: String,
-    note_path: Option<PathBuf>,
-    vault_root: Option<PathBuf>,
-    cx: &mut App,
-) -> Task<anyhow::Result<Option<(PathBuf, usize)>>> {
-    let folder = save_folder(note_path.as_deref());
-    let name = suggested_file_name(note_path.as_deref());
-    save_with(
-        &folder,
-        &name,
-        move |destination| {
-            write_pdf(
-                &text,
-                note_path.as_deref(),
-                vault_root.as_deref(),
-                destination,
-            )
-        },
-        cx,
-    )
 }
 
 /// Opens the export dialog for the note's text. The workspace hosts the
@@ -403,6 +377,15 @@ pub struct ExportDialog {
 
 impl EventEmitter<DismissEvent> for ExportDialog {}
 
+/// What the dialog asks the workspace to do once it closes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExportRequest {
+    /// Open the print dialog, where PDFs are previewed, set up and saved.
+    Print,
+}
+
+impl EventEmitter<ExportRequest> for ExportDialog {}
+
 impl Focusable for ExportDialog {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
@@ -472,37 +455,19 @@ impl ExportDialog {
         }
     }
 
+    /// HTML is made here. A PDF is the print dialog's job, which shows the
+    /// pages with the print settings before saving, so this dialog hands
+    /// over to it.
     fn start_export(&mut self, cx: &mut Context<Self>) {
         let format = self.selected_format();
+        if format == ExportFormat::Pdf {
+            cx.emit(ExportRequest::Print);
+            cx.emit(DismissEvent);
+            return;
+        }
         self.state = ExportState::Exporting(format);
         cx.notify();
-        match format {
-            ExportFormat::Pdf => self.export_pdf(cx),
-            ExportFormat::Html => self.export_html(cx),
-        }
-    }
-
-    fn export_pdf(&mut self, cx: &mut Context<Self>) {
-        let saving = save_pdf(
-            self.text.clone(),
-            self.note_path.clone(),
-            self.vault_root.clone(),
-            cx,
-        );
-        self.export_task = Some(cx.spawn(async move |this, cx| {
-            let result = saving.await.map(|saved| {
-                saved.map(|(path, pages)| Saved {
-                    path,
-                    detail: if pages == 1 {
-                        "1 page".to_owned()
-                    } else {
-                        format!("{pages} pages")
-                    },
-                })
-            });
-            this.update(cx, |dialog, cx| dialog.finish_save(result, cx))
-                .ok();
-        }));
+        self.export_html(cx);
     }
 
     fn export_html(&mut self, cx: &mut Context<Self>) {
@@ -519,20 +484,6 @@ impl ExportDialog {
             })
             .ok();
         }));
-    }
-
-    fn finish_save(&mut self, result: anyhow::Result<Option<Saved>>, cx: &mut Context<Self>) {
-        self.state = match result {
-            Ok(Some(saved)) => ExportState::Saved(saved),
-            Ok(None) => ExportState::Choosing,
-            Err(error) => {
-                // The row has room for the outermost message; the log
-                // keeps the whole chain.
-                eprintln!("export failed: {error:#}");
-                ExportState::Failed(error.to_string())
-            }
-        };
-        cx.notify();
     }
 
     /// Puts the article's HTML on the clipboard.

@@ -24,7 +24,7 @@ pub type PasswordSubmit =
 
 /// One password question.
 pub struct PasswordForm {
-    pub title: &'static str,
+    pub title: SharedString,
     pub detail: Option<String>,
     /// Each field's label.
     pub fields: Vec<&'static str>,
@@ -245,7 +245,7 @@ impl Render for PasswordDialog {
                 div()
                     .text_size(ui.font_size + gpui::px(1.))
                     .font_weight(ui.strong_weight)
-                    .child(self.form.title),
+                    .child(self.form.title.clone()),
             )
             .children(
                 self.form

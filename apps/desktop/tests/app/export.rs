@@ -1,12 +1,12 @@
-//! Export and print: a corpus note becomes a PDF, and the export dialog
-//! saves a PDF where the save prompt says, then offers to open it; its
-//! HTML choice makes the website article, copies it and saves it.
+//! Export and print: a corpus note becomes a PDF, the export dialog's PDF
+//! choice hands over to the print dialog, and its HTML choice makes the
+//! website article, copies it and saves it.
 
 use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use gasp_desktop::export_ui::{self, ExportDialog, ExportFormat, ExportState};
+use gasp_desktop::export_ui::{self, ExportDialog, ExportFormat, ExportRequest, ExportState};
 use gpui::{
     Context, DismissEvent, Entity, IntoElement, Render, TestAppContext, VisualTestContext, Window,
     div, prelude::*,
@@ -75,46 +75,31 @@ fn a_corpus_note_exports_to_pdf() {
 }
 
 #[gpui::test]
-fn the_dialog_saves_a_pdf_and_offers_to_open_it(cx: &mut TestAppContext) {
-    let out = tempfile::tempdir().unwrap();
-    let destination = out.path().join("chosen.pdf");
+fn the_pdf_choice_hands_over_to_the_print_dialog(cx: &mut TestAppContext) {
     let (dialog, window) = open_dialog(
         cx,
         "# Title\n\nSome text with $x^2$.",
         Some(PathBuf::from("Lemma.md")),
     );
     let dismissed = watch_dismissal(&dialog, window);
+    let asked = Rc::new(Cell::new(false));
+    let seen = asked.clone();
+    window.update(|_, cx| {
+        cx.subscribe(&dialog, move |_, request: &ExportRequest, _| {
+            seen.set(*request == ExportRequest::Print)
+        })
+        .detach();
+    });
     dialog.read_with(window, |dialog, _| {
         assert_eq!(dialog.selected_format(), ExportFormat::Pdf)
     });
     window.simulate_keystrokes("enter");
-    assert!(window.did_prompt_for_new_path());
-    let chosen = destination.clone();
-    window.simulate_new_path_selection(move |_| Some(chosen));
     window.run_until_parked();
-    assert_pdf(&destination);
-    dialog.read_with(window, |dialog, _| match dialog.state() {
-        ExportState::Saved(saved) => {
-            assert_eq!(saved.path, destination);
-            assert_eq!(saved.detail, "1 page");
-        }
-        _ => panic!("the dialog should show the saved file"),
-    });
-    // The dialog stays until it's closed, so the file can be opened.
-    assert!(!dismissed.get());
-    window.simulate_keystrokes("escape");
+    // The print dialog previews the pages and saves the PDF, so this one
+    // asks for it and closes without a save prompt of its own.
+    assert!(asked.get());
     assert!(dismissed.get());
-}
-
-#[gpui::test]
-fn cancelling_the_save_prompt_writes_nothing(cx: &mut TestAppContext) {
-    let (dialog, window) = open_dialog(cx, "text", None);
-    window.simulate_keystrokes("enter");
-    window.simulate_new_path_selection(|_| None);
-    window.run_until_parked();
-    dialog.read_with(window, |dialog, _| {
-        assert!(matches!(dialog.state(), ExportState::Choosing))
-    });
+    assert!(!window.did_prompt_for_new_path());
 }
 
 #[gpui::test]

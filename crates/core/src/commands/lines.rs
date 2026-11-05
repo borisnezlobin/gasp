@@ -1,5 +1,5 @@
 //! Whole-line commands: moving the selected lines up or down, duplicating
-//! them, and toggling a task's checkbox.
+//! them, and checking or unchecking checklist items.
 
 use std::ops::RangeInclusive;
 
@@ -9,7 +9,7 @@ use crate::transaction::{ChangeSet, Origin, TextEdit, Transaction};
 pub const MOVE_UP: &str = "edit.move-line-up";
 pub const MOVE_DOWN: &str = "edit.move-line-down";
 pub const DUPLICATE: &str = "edit.duplicate-line";
-pub const TOGGLE_TASK: &str = "edit.toggle-task";
+pub const CHECK_CHECKBOXES: &str = "edit.check-checkboxes";
 
 /// The lines the selection touches, as one block. A selection ending at
 /// the very start of a line leaves that line out, as it looks unselected.
@@ -125,39 +125,42 @@ pub fn duplicate_lines(doc: &Document, selection: &Selection, timestamp_ms: u64)
     )
 }
 
-/// What toggling does to one line: `- [ ]` and `- [x]` swap, a list item
-/// gains a checkbox, and any other text line becomes a task.
-fn toggled_line(line: &str) -> Option<(usize, usize, &'static str)> {
+/// Where a checklist item's checkmark goes (the byte inside `[ ]`), and
+/// whether it's checked. `None` for a line that isn't a checklist item.
+fn checkmark_of(line: &str) -> Option<(usize, bool)> {
     let indent = line.len() - line.trim_start().len();
     let rest = &line[indent..];
-    let marker = ["- ", "* ", "+ "]
+    let bullet = ["- ", "* ", "+ "]
         .iter()
-        .find(|marker| rest.starts_with(**marker))
-        .map_or(0, |marker| marker.len());
-    let after = &rest[marker..];
-    let at = indent + marker;
-    match (marker, after.get(..3)) {
-        (0, _) if rest.is_empty() => None,
-        (0, _) => Some((indent, 0, "- [ ] ")),
-        (_, Some("[ ]")) => Some((at + 1, 1, "x")),
-        (_, Some("[x]" | "[X]")) => Some((at + 1, 1, " ")),
-        _ => Some((at, 0, "[ ] ")),
+        .find(|bullet| rest.starts_with(**bullet))?;
+    let at = indent + bullet.len();
+    match line.get(at..at + 4)? {
+        "[ ] " => Some((at + 1, false)),
+        "[x] " | "[X] " => Some((at + 1, true)),
+        _ => None,
     }
 }
 
-/// Checks or unchecks the task on each selected line, turning list items
-/// and plain lines into tasks first.
-pub fn toggle_tasks(doc: &Document, selection: &Selection, timestamp_ms: u64) -> Transaction {
-    let edits: Vec<TextEdit> = selected_block(doc, selection)
+/// Checks every checklist item among the selected lines, or unchecks them
+/// all when every one is checked already. Other lines are left alone.
+pub fn check_checkboxes(doc: &Document, selection: &Selection, timestamp_ms: u64) -> Transaction {
+    let marks: Vec<(usize, bool)> = selected_block(doc, selection)
         .filter_map(|line| {
-            let text = doc.line_text(line);
-            let (at, len, insert) = toggled_line(&text)?;
-            let start = doc.line_start(line) + at;
-            Some(TextEdit::new(start..start + len, insert))
+            let (at, checked) = checkmark_of(&doc.line_text(line))?;
+            Some((doc.line_start(line) + at, checked))
         })
         .collect();
+    let mark = if marks.iter().all(|(_, checked)| *checked) {
+        " "
+    } else {
+        "x"
+    };
+    let edits: Vec<TextEdit> = marks
+        .iter()
+        .map(|(at, _)| TextEdit::new(*at..*at + 1, mark))
+        .collect();
     let changes = ChangeSet::new(edits).unwrap_or_default();
-    Transaction::new(changes, Origin::command(TOGGLE_TASK), timestamp_ms)
+    Transaction::new(changes, Origin::command(CHECK_CHECKBOXES), timestamp_ms)
 }
 
 #[cfg(test)]
@@ -231,11 +234,23 @@ mod tests {
     }
 
     #[test]
-    fn toggling_cycles_tasks_and_makes_them() {
-        assert_eq!(run("- [ ] buy |milk", toggle_tasks), "- [x] buy |milk");
-        assert_eq!(run("  * [x] do|ne", toggle_tasks), "  * [ ] do|ne");
-        assert_eq!(run("- ite|m", toggle_tasks), "- [ ] ite|m");
-        assert_eq!(run("plai|n", toggle_tasks), "- [ ] plai|n");
-        assert_eq!(run("|", toggle_tasks), "|");
+    fn checking_checks_and_unchecks_checklist_items() {
+        assert_eq!(run("- [ ] buy |milk", check_checkboxes), "- [x] buy |milk");
+        assert_eq!(run("  * [x] do|ne", check_checkboxes), "  * [ ] do|ne");
+        assert_eq!(run("- ite|m", check_checkboxes), "- ite|m");
+        assert_eq!(run("plai|n", check_checkboxes), "plai|n");
+        assert_eq!(run("|", check_checkboxes), "|");
+    }
+
+    #[test]
+    fn a_mixed_selection_is_all_checked() {
+        assert_eq!(
+            run("«- [x] a\n- [ ] b»", check_checkboxes),
+            "«- [x] a\n- [x] b»"
+        );
+        assert_eq!(
+            run("«- [x] a\n- [X] b»", check_checkboxes),
+            "«- [ ] a\n- [ ] b»"
+        );
     }
 }

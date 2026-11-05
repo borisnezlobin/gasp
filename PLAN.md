@@ -338,6 +338,7 @@ Verification covers this too: a CI test walks every command in the registry and 
 - **Code blocks** get syntax highlighting, an optional title (`title:` in the fence line, replacing Embedded Code Title), line numbers, highlighted lines, and a copy button. Their appearance is themed through tokens rather than Code Styler's separate theme system.
 - **Links.** Markdown links and wikilinks both resolve, hovering shows a page preview, and renames update every link.
 - **Formatting commands** toggle: with a selection they wrap or unwrap it, with no selection they act on the word under the cursor, and on an empty spot they insert the pair with the cursor between. Markdown has no underline syntax, so underline uses `<u>…</u>`, which the editor, both exports and the site all render. Default bindings are in [Default keymap](#default-keymap).
+- **Lists and checklists.** Toggle bulleted list (`Mod+Shift+8`), Toggle numbered list (`Mod+Shift+7`) and Toggle checkbox turn every selected line into that kind of list item, replacing any other list marker; when every selected line already is one, they take the markers off and leave plain lines. Toggle checkbox keeps the checkmarks of items that already have one. Check or uncheck checkboxes is separate: it checks every checklist item in the selection, or unchecks them all when all are checked, and leaves other lines alone. `edit.toggle-task`, the old name, still reads as Toggle checkbox in a vault's toolbars and rules (`gasp_config::commands::current_command_id`).
 - **Indenting.** `edit.indent` and `edit.outdent` (Tab and Shift+Tab, and the iPhone's keyboard bar) move whole blocks wherever the caret is, in `gasp_core::commands::indent`. A list item nests under the item before it with everything nested under it, or comes out a level; the first item of a list has nothing to nest under, an empty nested item (which Markdown folds into the text above it) moves as a line of its own, and a list that uses spaces keeps spaces (as wide as the item before's marker going in, back to the parent item's column coming out). A plain paragraph never moves in, because Markdown reads an indented paragraph as code; one already indented comes back out. A block quote or callout nests in one more `> `, or loses one. Fenced code and math keep Tab's tab at the caret and shift the lines a selection touches; headings, tables and the like stay put, so the only literal tab indent types is inside code and math. A selection moves every block it touches, and the caret and selection stay on their text. Lists and code inside quotes indent inside the quote markers.
 - **Tabs.** Opening a link uses a new tab, or switches to the tab that already has that note (replacing Opener).
 - **Pasting images** saves them to `./images` named after the note, the way Paste Image Rename is set up now.
@@ -360,6 +361,8 @@ Verification covers this too: a CI test walks every command in the registry and 
 | `Mod+Shift+H` | Highlight (`==`) |
 | `Mod+Shift+M` | Inline math |
 | `Mod+/` | Toggle `%%` comment |
+| `Mod+Shift+8` | Toggle a bulleted list on the selected lines |
+| `Mod+Shift+7` | Toggle a numbered list on the selected lines |
 | `Mod+;` | Cycle Markdown symbols: always shown, revealed at cursor, always hidden |
 | `Alt+0` | Insert or jump to footnote |
 | `Mod+J` | Toggle sentence-length highlighting |
@@ -542,7 +545,7 @@ The export emits clean semantic HTML instead of Obsidian's markup. It uses plain
 
 This ports PDF Export Plus to Typst, a Rust typesetting engine that runs on every platform including the iPhone. Typst places footnotes at the bottom of the page that cites them natively, which removes the Paged.js machinery the plugin needs inside Electron. LaTeX math converts to Typst math with `mitex`.
 
-Your current settings carry over: A4 pages, 18/16/12/12 mm margins, page numbers, 8.5 pt footnotes, and the professional style in Iowan Old Style at 12 pt with line height 2. The drop cap is off by default, as in your PDF Export Plus settings (`applyLedeStyles: false`), and can be turned on with its line count. Page breaks from the Break Page plugin's markup are honoured, and header and footer templates from Better Export PDF become an option. The live preview renders pages as you change settings.
+Your current settings carry over: A4 pages, 18/16/12/12 mm margins, page numbers, 8.5 pt footnotes, and the professional style in Iowan Old Style at 12 pt with line height 2. The drop cap is off by default, as in your PDF Export Plus settings (`applyLedeStyles: false`), and can be turned on with its line count. Page breaks from the Break Page plugin's markup are honoured, and header and footer templates from Better Export PDF become an option. The live preview renders pages as you change settings. The print dialog offers paper, margins, font (print faces this computer has, and the bundled Libertinus Serif), text size, line spacing (single, 1.5 or double), first-line indent (none or a tab; with none, paragraphs get a gap instead), page numbers, the note title and the drop cap.
 
 ## MCP and agent access
 

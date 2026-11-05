@@ -153,7 +153,7 @@ impl ControlRow {
 
     /// Whether keyboard focus can land on the row.
     pub fn is_focusable(&self) -> bool {
-        !matches!(self, ControlRow::Version | ControlRow::NoAgentApps)
+        !matches!(self, ControlRow::NoAgentApps)
     }
 
     /// Whether the row is on the Snippets page's lists.
@@ -452,6 +452,7 @@ impl SettingsView {
         let mut subscriptions = view.watch_inputs(window, cx);
         subscriptions.extend(view.build_fields(window, cx));
         view._subscriptions = subscriptions;
+        view._subscriptions.push(crate::update::observe(cx));
         view.sync_fields(cx);
         if view.font_names.is_none() {
             let fonts = crate::ui::observe_installed_fonts(cx, |view: &mut Self, cx| {
@@ -1095,6 +1096,12 @@ impl SettingsView {
     }
 
     /// Closes the screen, running `command` once it has.
+    /// Runs `command` and keeps the settings open, for a button whose
+    /// result shows on the page, such as checking for updates.
+    pub(super) fn run_command_here(&mut self, command: &str, cx: &mut Context<Self>) {
+        cx.emit(SettingsRequest::RunCommand(command.to_string()));
+    }
+
     pub(super) fn request_command(&mut self, command: &str, cx: &mut Context<Self>) {
         cx.emit(SettingsRequest::RunCommand(command.to_string()));
         cx.emit(DismissEvent);
