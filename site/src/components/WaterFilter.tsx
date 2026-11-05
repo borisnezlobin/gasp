@@ -1,9 +1,9 @@
-/** Moving water, as an SVG filter any element can look through with
-    `[filter:url(#water)]`: the hero's whale below the surface and the one
-    under the footer. Defined once, in the root layout. */
+/** Moving water, as an SVG filter that `UnderWater` looks through: the
+    hero's whale below the surface and the one under the footer. Defined once,
+    in the root layout. */
 export function WaterFilter() {
   return (
-    <svg aria-hidden className="absolute size-0">
+    <svg id="water-source" aria-hidden className="absolute size-0">
       <filter id="water" x="-10%" y="-10%" width="120%" height="120%">
         <feTurbulence type="fractalNoise" baseFrequency="0.008 0.05" numOctaves="2" seed="4" result="noise">
           <animate

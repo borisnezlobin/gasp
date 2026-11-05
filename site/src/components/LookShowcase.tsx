@@ -123,6 +123,7 @@ function useScrollPosition(wrapperRef: React.RefObject<HTMLDivElement | null>, l
     if (!wrapper) return;
     const motion = window.matchMedia(REDUCED_MOTION);
     let frame = 0;
+    let near = false;
 
     const paint = () => {
       frame = 0;
@@ -133,15 +134,24 @@ function useScrollPosition(wrapperRef: React.RefObject<HTMLDivElement | null>, l
       setActive(Math.round(position));
     };
     const schedule = () => {
-      if (!frame) frame = requestAnimationFrame(paint);
+      if (near && !frame) frame = requestAnimationFrame(paint);
     };
+    const nearby = new IntersectionObserver(
+      ([entry]) => {
+        near = entry.isIntersecting;
+        schedule();
+      },
+      { rootMargin: "20% 0px" },
+    );
 
     paint();
+    nearby.observe(wrapper);
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     motion.addEventListener("change", schedule);
     return () => {
       cancelAnimationFrame(frame);
+      nearby.disconnect();
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
       motion.removeEventListener("change", schedule);
@@ -245,7 +255,7 @@ function Frame({ layerRefs }: { layerRefs: React.RefObject<(HTMLDivElement | nul
             layerRefs.current[index] = layer;
           }}
           style={{ opacity: index === 0 ? 1 : 0 }}
-          className="absolute inset-0"
+          className="absolute inset-0 will-change-[opacity]"
         >
           {[
             { src: look.light, theme: "dark:hidden" },

@@ -5,6 +5,7 @@ import { Caret } from "./Caret";
 import { LiveText } from "./glyphs/LiveText";
 import { InkImage } from "./InkImage";
 import { RippleLines } from "./RippleLines";
+import { UnderWater } from "./UnderWater";
 
 /** The note's lines under the name, as the app icon draws them. */
 const SEA_LENGTHS = [1, 0.96, 0.88, 0.64, 0.92, 0.4];
@@ -33,10 +34,10 @@ export function SwimHero({ children }: { children: ReactNode }) {
             aria-hidden
             className="pointer-events-none absolute -inset-x-[50vw] top-0 h-[calc(var(--whale-w)*0.5+2rem)] overflow-hidden [mask-image:linear-gradient(to_bottom,black_55%,transparent)]"
           >
-            <div className="absolute inset-x-[50vw] -top-6 bottom-0 [filter:url(#water)]">
-              <div className="absolute top-[calc(1.5rem+var(--whale-w)*0.07)] left-[calc(var(--cross)-var(--whale-w)*0.5)] w-(--whale-w) motion-safe:animate-glide">
+            <div className="absolute inset-x-[50vw] -top-6 bottom-0">
+              <UnderWater className="absolute top-[calc(1.5rem+var(--whale-w)*0.07)] left-[calc(var(--cross)-var(--whale-w)*0.5)] w-(--whale-w)">
                 <InkImage light={swimLight} dark={swimDark} alt="" sizes="(min-width: 1024px) 44vw, 86vw" priority className="h-auto w-full" />
-              </div>
+              </UnderWater>
             </div>
             <div className="absolute inset-0 bg-paper/65" />
           </div>

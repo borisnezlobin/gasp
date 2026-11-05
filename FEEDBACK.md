@@ -258,3 +258,4 @@ Copy and layout
 - [ ] SEO: "Gasp vs Obsidian" style comparison pages that answer "it depends" honestly while showing Gasp at its best (privacy, speed, free sync, AI agents), plus feature pages and a place that links them all.
 - [ ] Put "Obsidian-compatible" more prominently on the site.
 - [x] Importing from Obsidian must bring over Latex Suite snippets, Smart Typography and Symbols Prettifier from a real vault, which keeps them in `.obsidian/plugins/<id>/data.json`. *(The importer read flattened `plugins/<id>.json` files that only the test fixtures had; it now reads the real layout.)*
+- [x] Make the site scroll much faster. *(Scrolling in Chromium at 1440×900 @2x: GPU 54% to 9%, frames over 25 ms from about 93 to 0–1, p95 frame 50 ms to 16.8 ms. WebKit scroll 9 to 25 fps. Filters now run once per picture rather than once per frame, and effects off screen stop.)*

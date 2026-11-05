@@ -18,21 +18,25 @@ function lineLength(index: number): number {
   return 0.75 + fraction * 0.25;
 }
 
-/** Lays out exactly `LINES` marks, one device pixel tall each, in as many
-    columns as the canvas needs, and draws the first `count` of them. */
-function drawLines(canvas: HTMLCanvasElement, count: number) {
+type LinePlan = { context: CanvasRenderingContext2D; rows: number; columnWidth: number; markWidth: number };
+
+/** Sizes the canvas, which also clears it, and lays out exactly `LINES`
+    marks, one device pixel tall each, in as many columns as it needs. */
+function planLines(canvas: HTMLCanvasElement): LinePlan | null {
   const context = canvas.getContext("2d");
-  if (!context) return;
+  if (!context) return null;
   const scale = window.devicePixelRatio || 1;
   const { width, height } = canvas.getBoundingClientRect();
   canvas.width = Math.round(width * scale);
   canvas.height = Math.round(height * scale);
   context.fillStyle = getComputedStyle(canvas).color;
   const rows = Math.floor(canvas.height / ROW_PITCH);
-  const columns = Math.ceil(LINES / rows);
-  const columnWidth = canvas.width / columns;
-  const markWidth = Math.max(1, columnWidth - Math.max(1, Math.round(scale * 2)));
-  for (let line = 0; line < count; line++) {
+  const columnWidth = canvas.width / Math.ceil(LINES / rows);
+  return { context, rows, columnWidth, markWidth: Math.max(1, columnWidth - Math.max(1, Math.round(scale * 2))) };
+}
+
+function drawLines({ context, rows, columnWidth, markWidth }: LinePlan, from: number, to: number) {
+  for (let line = from; line < to; line++) {
     const column = Math.floor(line / rows);
     const row = line % rows;
     context.fillRect(column * columnWidth, row * ROW_PITCH, markWidth * lineLength(line), 1);
@@ -73,9 +77,9 @@ function useCountWhenSeen(target: React.RefObject<HTMLElement | null>) {
 }
 
 function useRedrawOnResize() {
-  const [, redraw] = useState(0);
+  const [redraws, setRedraws] = useState(0);
   useEffect(() => {
-    const onChange = () => redraw((n) => n + 1);
+    const onChange = () => setRedraws((n) => n + 1);
     const scheme = window.matchMedia("(prefers-color-scheme: dark)");
     window.addEventListener("resize", onChange);
     scheme.addEventListener("change", onChange);
@@ -84,6 +88,7 @@ function useRedrawOnResize() {
       scheme.removeEventListener("change", onChange);
     };
   }, []);
+  return redraws;
 }
 
 /** A 48,000-line note drawn to scale, one mark per line. */
@@ -91,11 +96,19 @@ export function LineField() {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const count = useCountWhenSeen(box);
-  useRedrawOnResize();
+  const redraws = useRedrawOnResize();
+  const plan = useRef<LinePlan | null>(null);
+  const drawn = useRef(0);
 
   useEffect(() => {
-    if (canvas.current) drawLines(canvas.current, count);
-  });
+    plan.current = canvas.current && planLines(canvas.current);
+    drawn.current = 0;
+  }, [redraws]);
+
+  useEffect(() => {
+    if (plan.current) drawLines(plan.current, drawn.current, count);
+    drawn.current = count;
+  }, [count, redraws]);
 
   return (
     <div ref={box}>

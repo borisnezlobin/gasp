@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
-import { subscribeGlyphs } from "./glyphEngine";
+import { subscribeGlyphs, type GlyphView } from "./glyphEngine";
 import { createBody, stepBody, transformOf, type GlyphBody, type Pointer } from "./glyphPhysics";
 import { RippleFilter, filterIdOf } from "./RippleFilter";
 
@@ -9,18 +9,22 @@ import { RippleFilter, filterIdOf } from "./RippleFilter";
     breath. Each mark has its own spot somewhere down the page and keeps
     rising from near it: it fades in, sways as it climbs a short way, grows
     a little the way a bubble does, fades out and starts again. They scroll
-    with the page, only the ones near the screen move, and they shy from
-    the pointer like the headings. */
+    with the page, only the ones near the screen exist for the browser to
+    draw, and they shy from the pointer like the headings. Each mark's outer
+    span moves and its inner span carries the filter, so a mark is filtered
+    once per climb and slides as a finished picture. */
 
 const MARKS = ["#", "**", "*", "_", ">", "-", "[ ]", "`", "1.", "~~", "[[", "]]", "##", "a", "g", "s", "p", "=="];
 const AREA_PER_MARK = 90_000;
 const FEWEST = 8;
 const MOST = 180;
 const FADE_SHARE = 0.25;
-const MARK_CLASS = "absolute top-0 left-0 font-bold whitespace-nowrap opacity-0";
+const MARK_CLASS = "absolute top-0 left-0 font-bold whitespace-nowrap opacity-0 will-change-transform";
 
 type Bubble = {
   span: HTMLElement;
+  ink: HTMLElement;
+  shown: boolean;
   body: GlyphBody;
   spotX: number;
   spotY: number;
@@ -45,7 +49,7 @@ function seeded(seed: number): () => number {
 /** Starts `bubble` on a new climb from near its own spot on the page. */
 function restart(bubble: Bubble, random: () => number, pageHeight: number) {
   const size = 16 + random() ** 2 * 44;
-  bubble.span.textContent = MARKS[Math.floor(random() * MARKS.length)];
+  bubble.ink.textContent = MARKS[Math.floor(random() * MARKS.length)];
   bubble.span.style.fontSize = `${size}px`;
   bubble.body = createBody(size, random() * 10);
   bubble.x = Math.min(0.98, Math.max(0.02, bubble.spotX + (random() - 0.5) * 0.12));
@@ -65,10 +69,14 @@ function fillPage(layer: HTMLElement, bubbles: Bubble[], random: () => number, f
   while (bubbles.length > want) bubbles.pop()?.span.remove();
   while (bubbles.length < want) {
     const span = document.createElement("span");
+    const ink = document.createElement("span");
     span.className = MARK_CLASS;
-    span.style.setProperty("filter", filter);
+    span.style.display = "none";
+    ink.style.setProperty("filter", filter);
+    ink.style.display = "inline-block";
+    span.append(ink);
     layer.append(span);
-    bubbles.push({ span, spotX: random() } as Bubble);
+    bubbles.push({ span, ink, shown: false, spotX: random() } as Bubble);
   }
   bubbles.forEach((bubble, index) => {
     bubble.spotY = (index + random()) / bubbles.length;
@@ -82,19 +90,27 @@ function fillPage(layer: HTMLElement, bubbles: Bubble[], random: () => number, f
 const visibilityOf = (progress: number) => Math.min(1, progress / FADE_SHARE, (1 - progress) / FADE_SHARE);
 
 /** Whether `y` on the page is on screen or close to it. */
-function nearScreen(y: number) {
-  const margin = window.innerHeight * 0.3;
-  return y > window.scrollY - margin && y < window.scrollY + window.innerHeight + margin;
+function nearScreen(y: number, view: GlyphView) {
+  const margin = view.height * 0.3;
+  return y > view.scrollY - margin && y < view.scrollY + view.height + margin;
 }
 
-function stepBubble(bubble: Bubble, dt: number, time: number, pointer: Pointer, random: () => number, pageHeight: number) {
-  if (!nearScreen(bubble.startY - bubble.risen)) return;
+function setShown(bubble: Bubble, shown: boolean) {
+  if (bubble.shown === shown) return;
+  bubble.shown = shown;
+  bubble.span.style.display = shown ? "" : "none";
+}
+
+function stepBubble(bubble: Bubble, dt: number, time: number, pointer: Pointer, random: () => number, pageHeight: number, view: GlyphView) {
+  const near = nearScreen(bubble.startY - bubble.risen, view);
+  setShown(bubble, near);
+  if (!near) return;
   bubble.risen += bubble.speed * dt;
   if (bubble.risen >= bubble.climb) restart(bubble, random, pageHeight);
   const y = bubble.startY - bubble.risen;
   const progress = bubble.risen / bubble.climb;
-  const homeX = bubble.x * window.innerWidth + bubble.sway * Math.sin(time * bubble.swayRate + bubble.body.phase);
-  stepBody(bubble.body, homeX, y - window.scrollY, pointer, dt);
+  const homeX = bubble.x * view.width + bubble.sway * Math.sin(time * bubble.swayRate + bubble.body.phase);
+  stepBody(bubble.body, homeX, y - view.scrollY, pointer, dt);
   bubble.span.style.transform = transformOf(bubble.body, time, homeX, y, 0.85 + 0.3 * progress);
   bubble.span.style.opacity = (bubble.opacity * visibilityOf(progress)).toFixed(3);
 }
@@ -114,8 +130,10 @@ export function GlyphDrift() {
     };
     const resizing = new ResizeObserver(refill);
     resizing.observe(element);
-    const unsubscribe = subscribeGlyphs((dt, time, pointer) => {
-      for (const bubble of bubbles) stepBubble(bubble, dt, time, pointer, random, pageHeight);
+    const unsubscribe = subscribeGlyphs({
+      step: (dt, time, pointer, view) => {
+        for (const bubble of bubbles) stepBubble(bubble, dt, time, pointer, random, pageHeight, view);
+      },
     });
     return () => {
       unsubscribe();
@@ -126,7 +144,7 @@ export function GlyphDrift() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden motion-reduce:hidden">
       <RippleFilter id={filterId} scale={4} softness={0.5} />
-      <div ref={layer} className="absolute inset-0 text-ink-muted" />
+      <div ref={layer} className="absolute inset-0 text-ink-muted [contain:strict]" />
     </div>
   );
 }

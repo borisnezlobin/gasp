@@ -166,8 +166,8 @@
 }
 
 @keyframes sweep {
-  from { width: 0; }
-  to { width: 100%; }
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
 }
 
 @utility animate-blink {

@@ -4,6 +4,7 @@ import whaleLight from "@/assets/whale-swim-light.png";
 import { CHANGELOG_PATH, CREDITS_PATH, PRIVACY_PATH, REPO_URL } from "@/lib/site";
 import { InkImage } from "./InkImage";
 import { RippleLines } from "./RippleLines";
+import { UnderWater } from "./UnderWater";
 
 const linkStyle = "underline decoration-rule underline-offset-4 hover:decoration-ink";
 
@@ -13,11 +14,9 @@ function WhaleUnderTheLines() {
   return (
     <div className="relative">
       <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-4 -bottom-10 overflow-hidden">
-        <div className="absolute inset-0 [filter:url(#water)]">
-          <div className="absolute top-2 right-[6%] w-[min(70%,30rem)] motion-safe:animate-glide">
-            <InkImage light={whaleLight} dark={whaleDark} alt="" sizes="30rem" className="h-auto w-full" />
-          </div>
-        </div>
+        <UnderWater className="absolute top-2 right-[6%] w-[min(70%,30rem)]">
+          <InkImage light={whaleLight} dark={whaleDark} alt="" sizes="30rem" className="h-auto w-full" />
+        </UnderWater>
         <div className="absolute inset-0 bg-paper/65" />
       </div>
       <div className="relative z-10">
