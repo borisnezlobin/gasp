@@ -321,6 +321,39 @@ fn heading_marker_shows_on_cursor() {
 }
 
 #[test]
+fn a_heading_keeps_its_marker_at_every_keystroke() {
+    let typed = "## My title ";
+    for end in 3..=typed.len() {
+        let line = render(&format!("{}‸", &typed[..end]), &element());
+        assert!(
+            line.contains("markup-dimmed:## "),
+            "the marker went away at {:?}: {line}",
+            &typed[..end]
+        );
+    }
+}
+
+#[test]
+fn a_space_typed_in_a_heading_has_the_headings_style() {
+    check(
+        "## ‸",
+        &element(),
+        &["[h2] {heading-2,markup-dimmed:## }"],
+    );
+    check(
+        "## My ‸",
+        &element(),
+        &["[h2] {heading-2,markup-dimmed:## }{heading-2:My }"],
+    );
+}
+
+#[test]
+fn a_heading_hides_its_marker_once_the_cursor_leaves_its_line() {
+    let line = render("## Title \n‸", &element());
+    assert!(!line.contains("markup-dimmed"), "{line}");
+}
+
+#[test]
 fn setext_underline_collapses() {
     check(
         "Title\n===\n\npara‸",

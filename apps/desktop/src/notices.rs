@@ -2,9 +2,10 @@
 //! a note that couldn't be saved or one that went to the trash, shown at
 //! the window's bottom right over the notes.
 //!
-//! A notice that reports something done leaves after
-//! `UiTheme::notice_duration`; one about a problem, or one offering
-//! something, stays until it's dismissed, so a failed save can't slip by. A notice can carry one
+//! A notice that reports something done, or that only says something worth
+//! knowing, leaves after `UiTheme::notice_duration`; one about a problem, or
+//! one offering something, stays until it's dismissed, so a failed save
+//! can't slip by. A notice can carry one
 //! follow-up, which is a command, so the keyboard reaches it through the
 //! palette too, and a quieter second one beside it, such as a link. A
 //! notice about work under way can show how far along it is, and
@@ -32,6 +33,16 @@ pub enum NoticeKind {
     Problem,
     /// Something the person may want to do, such as importing settings.
     Offer,
+    /// Something worth knowing with nothing to do about it, such as why a
+    /// command did nothing.
+    Info,
+}
+
+impl NoticeKind {
+    /// Whether a notice of this kind leaves by itself.
+    fn expires(self) -> bool {
+        matches!(self, NoticeKind::Done | NoticeKind::Info)
+    }
 }
 
 /// A command a notice offers, with its button's label.
@@ -86,6 +97,13 @@ impl Notice {
             action: None,
             link: None,
             progress: None,
+        }
+    }
+
+    pub fn info(message: impl Into<SharedString>) -> Notice {
+        Notice {
+            kind: NoticeKind::Info,
+            ..Notice::offer(message)
         }
     }
 
@@ -158,7 +176,7 @@ fn post(notice: Notice, window: Option<AnyWindowHandle>, cx: &mut App) -> u64 {
     if notice.kind == NoticeKind::Problem {
         eprintln!("{}", notice.message);
     }
-    let expires = notice.kind == NoticeKind::Done;
+    let expires = notice.kind.expires();
     let duration = crate::ui::ui_theme(cx).notice_duration;
     let notices = cx.default_global::<Notices>();
     notices
@@ -191,7 +209,7 @@ pub fn replace(id: Option<u64>, notice: Notice, cx: &mut App) -> u64 {
     let Some(id) = id.filter(|id| is_shown(*id, cx)) else {
         return show(notice, cx);
     };
-    let expires = notice.kind == NoticeKind::Done;
+    let expires = notice.kind.expires();
     if let Some(shown) = cx
         .global_mut::<Notices>()
         .shown
@@ -302,12 +320,13 @@ fn render_card(id: u64, notice: Notice, ui: &UiTheme) -> AnyElement {
     let (glyph, tint) = match notice.kind {
         NoticeKind::Done => (IconName::CheckCircle, ui.icon),
         NoticeKind::Problem => (IconName::WarningCircle, ui.error),
-        NoticeKind::Offer => (IconName::Info, ui.icon),
+        NoticeKind::Offer | NoticeKind::Info => (IconName::Info, ui.icon),
     };
     let kind = match notice.kind {
         NoticeKind::Done => "done",
         NoticeKind::Problem => "problem",
         NoticeKind::Offer => "offer",
+        NoticeKind::Info => "info",
     };
     let action = notice
         .action
@@ -437,6 +456,25 @@ mod tests {
                 .map(|shown| shown.notice.message.as_ref())
                 .collect();
             assert_eq!(messages, vec!["problem 2", "problem 1", "problem 9"]);
+        });
+    }
+
+    #[gpui::test]
+    fn info_leaves_by_itself_while_offers_and_problems_stay(cx: &mut gpui::TestAppContext) {
+        let (info, offer, problem) = cx.update(|cx| {
+            (
+                show(Notice::info("This note is already locked."), cx),
+                show(Notice::offer("This vault has settings from Obsidian."), cx),
+                show(Notice::problem("Couldn’t save the note."), cx),
+            )
+        });
+        let duration = cx.update(|cx| crate::ui::ui_theme(cx).notice_duration);
+        cx.executor().advance_clock(duration);
+        cx.run_until_parked();
+        cx.update(|cx| {
+            assert!(!is_shown(info, cx));
+            assert!(is_shown(offer, cx));
+            assert!(is_shown(problem, cx));
         });
     }
 

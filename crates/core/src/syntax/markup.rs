@@ -155,10 +155,12 @@ fn trimmed_marker_line(text: &str, line: Range<usize>) -> Range<usize> {
 }
 
 fn add_atx_markers(node: &mut Node, text: &str) {
+    let line_end = node.range.end;
     let Range { start, end } = trimmed(text, node.range.clone());
     let hashes_end = start + run_len(&text[start..end], b'#');
-    let open_end = hashes_end + run_len_of(&text[hashes_end..end], b" \t");
+    let open_end = hashes_end + run_len_of(&text[hashes_end..line_end], b" \t");
     node.add_markup(MarkupKind::HeadingMarker, start..open_end);
+    let end = end.max(open_end);
     let content = &text[open_end..end];
     let without_hashes = content.trim_end_matches('#');
     let close_start = open_end + without_hashes.len();

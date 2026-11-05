@@ -240,7 +240,7 @@ fn open_dialog(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<
     };
     if crate::encryption::is_encrypted_note(&path, cx) {
         crate::notices::show(
-            crate::notices::Notice::offer(
+            crate::notices::Notice::info(
                 "Snapshots aren’t kept for encrypted notes, so there are no older versions to restore.",
             ),
             cx,

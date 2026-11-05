@@ -39,7 +39,7 @@ fn active_doc(workspace: &Workspace, cx: &App) -> Option<Entity<NoteDoc>> {
 }
 
 fn notice(message: &str, cx: &mut App) {
-    crate::notices::show(crate::notices::Notice::offer(message.to_owned()), cx);
+    crate::notices::show(crate::notices::Notice::info(message.to_owned()), cx);
 }
 
 /// Runs `action` on the vault's encryption.

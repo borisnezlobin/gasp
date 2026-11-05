@@ -271,6 +271,8 @@ Copy and layout
 - [x] PDF export should offer what Better Export PDF and PDF Export Plus did: line spacing, first-line indent (none or a tab) and a font chooser. *(The print dialog now has Font, Text size, Line spacing and First-line indent; with no indent, paragraphs get a gap between them.)*
 - [x] Save the print dialog's choices between launches. *(Kept in state.toml in Gasp's config folder.)*
 - [x] Export → PDF went straight to a save prompt with no preview, and ignored the print settings. *(Export as PDF, and PDF in the export picker, now open the print dialog: preview, the saved choices, then Save as PDF… or Print….)*
+- [x] While typing a heading, the look of the "## " at its start shouldn't fluctuate.
+- [x] Lock and encryption toasts should disappear by themselves.
 - [ ] When the next version ships, change the website's locked-notes steps from "Encrypt note" to "Lock note" and mention the right-click menu.
 - [ ] Multi-cursor on the desktop: the core handles several carets, but the desktop app has no way to add one.
 - [x] Importing from Obsidian must bring over Latex Suite snippets, Smart Typography and Symbols Prettifier from a real vault, which keeps them in `.obsidian/plugins/<id>/data.json`. *(The importer read flattened `plugins/<id>.json` files that only the test fixtures had; it now reads the real layout.)*
