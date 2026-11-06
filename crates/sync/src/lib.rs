@@ -11,6 +11,8 @@
 //! [`github`] signs in with GitHub and finds or makes the repository, and
 //! [`icloud`] keeps a vault in iCloud Drive instead of a repository.
 
+mod address;
+mod branch;
 mod conflict;
 mod credentials;
 mod device_files;
@@ -25,6 +27,7 @@ mod policy;
 mod runner;
 mod scheduler;
 mod setup;
+pub mod ssh;
 mod vault;
 
 pub use conflict::{ConflictHunk, ConflictedFile, MarkedHunk, MarkedText, Resolution, Segment};
@@ -52,11 +55,13 @@ pub use scheduler::{
     FailureKind, MergeReport, Scheduler, SchedulerConfig, StepFailure, StepReport, SyncEvent,
     SyncEventKind, SyncStatus, SyncStep,
 };
+pub use address::{
+    host_and_port, is_reachable, repository_url, url_is_local, url_takes_token, url_uses_ssh,
+};
+pub use branch::{branch_move_problem, follow_branch, switch_branch};
 pub use setup::{
-    InPlaceSetup, STAGING_FOLDER, SetupReport, repository_url, set_up_in_place, setup_problem,
-    sync_author, url_is_local, url_takes_token,
+    InPlaceSetup, STAGING_FOLDER, SetupReport, set_up_in_place, setup_problem, sync_author,
 };
 pub use vault::{
-    Author, MergeOutcome, RepoProbe, SYNC_AUTHOR_EMAIL, Vault, VaultConfig, follow_branch, probe,
-    set_remote_url, switch_branch,
+    Author, MergeOutcome, RepoProbe, SYNC_AUTHOR_EMAIL, Vault, VaultConfig, probe, set_remote_url,
 };

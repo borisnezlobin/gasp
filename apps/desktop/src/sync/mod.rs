@@ -17,6 +17,7 @@ pub mod indicator;
 pub mod resolver;
 pub mod service;
 pub mod setup;
+pub mod ssh_key;
 pub mod start;
 mod start_view;
 pub mod state;

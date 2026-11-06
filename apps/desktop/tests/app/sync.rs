@@ -552,6 +552,73 @@ fn a_vault_on_another_branch_is_left_alone(cx: &mut TestAppContext) {
     assert!(is_drawn(cx, "sync-popover"));
 }
 
+/// A clone of `main` while the repository's `master` moved on, as a
+/// clone of a repository whose default branch isn't the notes' one is.
+fn clone_of_an_old_branch(world: &World, master_note: &str) -> PathBuf {
+    let desk = world.device("desk");
+    drop(desk);
+    gasp_sync::switch_branch(&world.path("desk"), "origin", "main", None).unwrap();
+    let on_main = VaultConfig {
+        branch: "main".into(),
+        ..VaultConfig::default()
+    };
+    sync_device(&Vault::open(world.path("desk"), on_main.clone()).unwrap(), "desk");
+    let phone = world.device("phone");
+    write(phone.root(), "note.md", master_note);
+    write(phone.root(), "fresh.md", "only on master\n");
+    sync_device(&phone, "phone");
+    let old_tool = world.path("old-tool");
+    drop(Vault::clone_remote(&world.remote, &old_tool, on_main, None).unwrap());
+    old_tool
+}
+
+#[gpui::test]
+fn switching_takes_the_branch_the_repository_has(cx: &mut TestAppContext) {
+    let world = World::seeded(&[("note.md", "first\n")]);
+    let old_tool = clone_of_an_old_branch(&world, "first\nfrom master\n");
+
+    let (workspace, cx) = open_workspace(cx, &old_tool, Arc::default());
+    let service = service(&workspace, cx);
+    assert!(matches!(
+        phase(&service, cx),
+        SyncPhase::Setup(SetupProblem::WrongBranch { .. })
+    ));
+    service.update(cx, |service, cx| service.switch_to_settings_branch(cx));
+    cx.run_until_parked();
+    assert_eq!(phase(&service, cx), SyncPhase::Synced);
+    assert_eq!(
+        std::fs::read_to_string(old_tool.join("note.md")).unwrap(),
+        "first\nfrom master\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(old_tool.join("fresh.md")).unwrap(),
+        "only on master\n"
+    );
+}
+
+#[gpui::test]
+fn a_switch_that_would_lose_an_edit_says_why_and_stays(cx: &mut TestAppContext) {
+    let world = World::seeded(&[("note.md", "first\n")]);
+    let old_tool = clone_of_an_old_branch(&world, "first from master\n");
+    write(&old_tool, "note.md", "first from this computer\n");
+
+    let (workspace, cx) = open_workspace(cx, &old_tool, Arc::default());
+    let service = service(&workspace, cx);
+    service.update(cx, |service, cx| service.switch_to_settings_branch(cx));
+    cx.run_until_parked();
+    let SyncPhase::Setup(SetupProblem::MoveStopped { to, reason }) = phase(&service, cx) else {
+        panic!("expected a stopped move, got {:?}", phase(&service, cx));
+    };
+    assert_eq!(to, "master");
+    assert!(reason.contains("note.md"), "{reason}");
+    assert_eq!(
+        std::fs::read_to_string(old_tool.join("note.md")).unwrap(),
+        "first from this computer\n"
+    );
+    run(&workspace, cx, "sync.now");
+    assert!(is_drawn(cx, "sync-popover"));
+}
+
 #[gpui::test]
 fn signing_in_keeps_the_token_in_the_store_not_the_vault(cx: &mut TestAppContext) {
     let world = World::seeded(&[("note.md", "first\n")]);
@@ -639,6 +706,33 @@ fn the_sync_page_edits_device_only_files(cx: &mut TestAppContext) {
             .clone()
     });
     assert_eq!(now.len(), SyncSettings::default().device_only.len() - 1);
+}
+
+#[gpui::test]
+fn an_ssh_remote_offers_this_computers_key_instead_of_a_token(cx: &mut TestAppContext) {
+    let world = World::seeded(&[("note.md", "first\n")]);
+    let laptop = world.path("laptop");
+    let clone = world.device("laptop");
+    // A closed port on this machine: nothing leaves it.
+    clone.set_remote_url("ssh://git@127.0.0.1:1/notes.git").unwrap();
+    drop(clone);
+    let (workspace, cx) = open_workspace(cx, &laptop, Arc::default());
+    run(&workspace, cx, "settings.open");
+    let settings = cx
+        .read(|cx| workspace.read(cx).active_modal::<SettingsView>())
+        .unwrap();
+    settings.update(cx, |settings, cx| settings.show_section("sync", cx));
+    cx.run_until_parked();
+    let rows = settings.read_with(cx, |settings, _| settings.rows());
+    assert!(rows.contains(&ControlRow::SyncSshKey), "{rows:?}");
+    assert!(!rows.contains(&ControlRow::SyncAccount));
+
+    click(cx, "copy-ssh-key");
+    let copied = cx.read_from_clipboard().and_then(|item| item.text()).unwrap();
+    assert!(copied.starts_with("ssh-ed25519 "), "{copied}");
+    click(cx, "copy-ssh-key");
+    let again = cx.read_from_clipboard().and_then(|item| item.text()).unwrap();
+    assert_eq!(again, copied, "the key is made once and kept");
 }
 
 /// Sync step timings on a synthetic vault of 200 notes, printed for the

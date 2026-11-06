@@ -2,7 +2,10 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Mutex;
 
+use git2::CredentialType;
+
 use crate::error::SyncResult;
+use crate::ssh::{SshSignIn, check_host};
 
 /// A personal access token for an HTTPS remote. Debug output never shows it.
 #[derive(Clone, PartialEq, Eq)]
@@ -234,16 +237,25 @@ impl CredentialStore for KeychainService {
 /// GitHub accepts any user name with a token; this is the conventional one.
 const TOKEN_USER: &str = "x-access-token";
 
-/// Remote callbacks that answer credential requests with `token`, once.
+/// Remote callbacks that sign in with `token` over HTTPS, once, and with
+/// this device's SSH keys over SSH, one key per request. They also check
+/// that a GitHub SSH server is really GitHub's.
 ///
 /// libgit2 calls the credential callback again after a rejected attempt, so
-/// the second call fails instead of looping forever.
+/// a request after the last thing to try fails instead of looping forever.
 pub(crate) fn remote_callbacks<'a>(token: Option<&'a Token>) -> git2::RemoteCallbacks<'a> {
     let mut callbacks = git2::RemoteCallbacks::new();
-    let mut attempts = 0;
-    callbacks.credentials(move |_url, username, _allowed| {
-        attempts += 1;
-        let Some(token) = token.filter(|_| attempts == 1) else {
+    let mut token_attempts = 0;
+    let mut ssh = SshSignIn::new();
+    callbacks.credentials(move |_url, username, allowed| {
+        if allowed.contains(CredentialType::USERNAME) {
+            return SshSignIn::username(username);
+        }
+        if allowed.contains(CredentialType::SSH_KEY) {
+            return ssh.next_key(username);
+        }
+        token_attempts += 1;
+        let Some(token) = token.filter(|_| token_attempts == 1) else {
             return Err(git2::Error::new(
                 git2::ErrorCode::Auth,
                 git2::ErrorClass::Http,
@@ -252,6 +264,7 @@ pub(crate) fn remote_callbacks<'a>(token: Option<&'a Token>) -> git2::RemoteCall
         };
         git2::Cred::userpass_plaintext(username.unwrap_or(TOKEN_USER), token.secret())
     });
+    callbacks.certificate_check(check_host);
     callbacks
 }
 

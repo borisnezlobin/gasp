@@ -15,6 +15,9 @@ pub enum SetupProblem {
         expected: String,
         actual: Option<String>,
     },
+    /// Moving onto the branch the settings name stopped, and the vault
+    /// stayed where it was. `reason` is a sentence that says why.
+    MoveStopped { to: String, reason: String },
     /// The clone couldn't be opened for sync.
     Broken(String),
 }
@@ -36,6 +39,8 @@ pub enum SyncPhase {
     SignIn {
         has_token: bool,
     },
+    /// An SSH remote turned down every key this device has.
+    KeyRefused,
     Conflict {
         files: usize,
     },
@@ -52,6 +57,7 @@ impl SyncPhase {
             self,
             SyncPhase::Setup(_)
                 | SyncPhase::SignIn { .. }
+                | SyncPhase::KeyRefused
                 | SyncPhase::Conflict { .. }
                 | SyncPhase::Failed { .. }
         )
@@ -132,6 +138,7 @@ pub fn headline(phase: &SyncPhase, synced_ago: Option<Duration>) -> String {
         SyncPhase::Syncing(step) => step_label(*step).to_owned(),
         SyncPhase::Offline { .. } => "Offline".to_owned(),
         SyncPhase::SignIn { .. } => "Sign in to sync".to_owned(),
+        SyncPhase::KeyRefused => "Add this device’s SSH key".to_owned(),
         SyncPhase::Conflict { files } => {
             format!("{} changed on two devices", count(*files, "note"))
         }
@@ -155,6 +162,9 @@ pub fn explanation(phase: &SyncPhase) -> Option<String> {
         }
         SyncPhase::SignIn { has_token: false } => {
             "Your notes repository needs a GitHub token to sync. Paste one in sync settings.".to_owned()
+        }
+        SyncPhase::KeyRefused => {
+            "The server didn’t accept any of this device’s SSH keys. Copy this device’s key in sync settings and add it to your GitHub account. Then sync again.".to_owned()
         }
         SyncPhase::Conflict { files: 1 } => {
             "This device and another one changed the same lines of this note. Your other notes keep syncing. Pick which version to keep, and this note syncs too.".to_owned()
@@ -180,6 +190,9 @@ fn setup_explanation(problem: &SetupProblem) -> String {
             expected,
             actual: None,
         } => format!("This vault isn’t on a branch. Check out {expected} to sync it."),
+        SetupProblem::MoveStopped { to, reason } => {
+            format!("Sync couldn’t move this vault to the branch {to}. {reason}")
+        }
         SetupProblem::Broken(message) => format!(
             "Sync couldn’t open this vault’s git repository. Git said: {}",
             plain_git_message(message)
@@ -193,6 +206,7 @@ fn failure_explanation(kind: FailureKind, message: &str) -> String {
             "Another device sent changes at the same moment. Sync tries again in a minute."
                 .to_owned()
         }
+        FailureKind::Untrusted => message.to_owned(),
         _ if message.contains("index is locked") => {
             "Another git program is working in this vault, so sync waits for it. If none is running, delete .git/index.lock in the vault. Sync tries again in a minute.".to_owned()
         }
@@ -388,4 +402,37 @@ mod tests {
         assert_eq!(shown, ["Wave Packets", "plot.png"]);
         assert_eq!(more, 1);
     }
+
+    #[test]
+    fn a_refused_ssh_key_asks_for_the_key_not_a_token() {
+        let phase = SyncPhase::KeyRefused;
+        assert!(phase.needs_attention());
+        assert_eq!(headline(&phase, None), "Add this device’s SSH key");
+        let explanation = explanation(&phase).unwrap();
+        assert!(explanation.contains("SSH key"), "{explanation}");
+        assert!(!explanation.contains("token"), "{explanation}");
+    }
+
+    #[test]
+    fn a_stopped_branch_move_says_where_and_why() {
+        let phase = SyncPhase::Setup(SetupProblem::MoveStopped {
+            to: "master".into(),
+            reason: "The notes repository can’t be reached right now.".into(),
+        });
+        assert_eq!(
+            explanation(&phase).unwrap(),
+            "Sync couldn’t move this vault to the branch master. The notes repository can’t be reached right now."
+        );
+    }
+
+    #[test]
+    fn an_untrusted_server_explains_itself_without_a_git_prefix() {
+        let message = "This device doesn’t know the SSH host key of example.com yet.";
+        let phase = SyncPhase::Failed {
+            kind: FailureKind::Untrusted,
+            message: message.into(),
+        };
+        assert_eq!(explanation(&phase).unwrap(), message);
+    }
+
 }

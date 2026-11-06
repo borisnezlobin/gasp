@@ -88,6 +88,8 @@ pub enum ControlRow {
     SyncRemote,
     /// The token sync signs in with.
     SyncAccount,
+    /// This computer's SSH key, for a remote that signs in over SSH.
+    SyncSshKey,
     /// Where a vault in iCloud Drive is, with a way to show it in Finder.
     ICloudFolder,
     /// The AI apps on this Mac, one tile each, which connect them to the
@@ -219,6 +221,7 @@ impl ControlRow {
             ControlRow::ObsidianImport => OBSIDIAN_IMPORT_TITLE,
             ControlRow::SyncRemote => "Notes repository",
             ControlRow::SyncAccount => "GitHub token",
+            ControlRow::SyncSshKey => "SSH key",
             ControlRow::ICloudFolder => "iCloud Drive",
             ControlRow::AgentApps => AGENT_APPS_TITLE,
             ControlRow::NoAgentApps => NO_AGENT_APPS,
@@ -875,9 +878,9 @@ impl SettingsView {
             RowSpec::AgentApps => return self.agent_app_rows(query),
             RowSpec::SyncRemote if self.in_icloud => ControlRow::ICloudFolder,
             RowSpec::SyncRemote => ControlRow::SyncRemote,
-            RowSpec::SyncAccount if self.in_icloud || !self.remote_takes_token() => {
-                return Vec::new();
-            }
+            RowSpec::SyncAccount if self.in_icloud => return Vec::new(),
+            RowSpec::SyncAccount if self.remote_uses_ssh() => ControlRow::SyncSshKey,
+            RowSpec::SyncAccount if !self.remote_takes_token() => return Vec::new(),
             RowSpec::SyncAccount => ControlRow::SyncAccount,
             _ => return Vec::new(),
         };
@@ -937,6 +940,7 @@ impl SettingsView {
             ControlRow::Font(slot) => slot.description().to_string(),
             ControlRow::SyncRemote => self.remote_description(),
             ControlRow::SyncAccount => self.account_description(),
+            ControlRow::SyncSshKey => super::sync_page::SSH_KEY_DESCRIPTION.to_string(),
             ControlRow::ICloudFolder => self.icloud_description(),
             ControlRow::Vault => crate::workspace::files::display_path(&self.vault_root),
             ControlRow::SnippetsFile => self.snippets_file_description(),

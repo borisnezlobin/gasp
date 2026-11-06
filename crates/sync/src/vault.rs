@@ -185,7 +185,7 @@ fn clone_branch(
         .fetch_options(fetch_options)
         .with_checkout(no_checkout)
         .clone(url, path)
-        .map_err(SyncError::from_transport)
+        .map_err(|error| SyncError::from_transport(error, url))
 }
 
 /// The largest object a push tries to store as a delta against another.
@@ -435,6 +435,7 @@ impl Vault {
     /// Fetches the configured branch into its remote-tracking ref.
     pub fn fetch(&self) -> SyncResult<()> {
         let mut remote = self.repo.find_remote(&self.config.remote)?;
+        let url = remote.url().unwrap_or_default().to_owned();
         let mut options = FetchOptions::new();
         options
             .remote_callbacks(remote_callbacks(self.token.as_ref()))
@@ -448,7 +449,7 @@ impl Vault {
         self.fetched_remote_tip.set(None);
         remote
             .fetch(&[refspec], Some(&mut options), None)
-            .map_err(SyncError::from_transport)?;
+            .map_err(|error| SyncError::from_transport(error, &url))?;
         // Pruning drops the tracking branch when the remote no longer has
         // it, so after the fetch it holds exactly the remote's tip, or
         // nothing. (Listing the remote's heads instead crashes on a remote
@@ -481,6 +482,7 @@ impl Vault {
 
     fn send(&self) -> SyncResult<()> {
         let mut remote = self.repo.find_remote(&self.config.remote)?;
+        let url = remote.url().unwrap_or_default().to_owned();
         let refspec = format!("{0}:{0}", self.config.local_ref());
         let mut rejection = None;
         {
@@ -495,7 +497,7 @@ impl Vault {
             options.remote_callbacks(callbacks);
             remote
                 .push(&[&refspec], Some(&mut options))
-                .map_err(SyncError::from_transport)?;
+                .map_err(|error| SyncError::from_transport(error, &url))?;
         }
         match rejection {
             Some(message) => Err(SyncError::PushRejected(message)),
@@ -878,46 +880,6 @@ pub struct RepoProbe {
     pub remote_url: Option<String>,
     /// `user.name` and `user.email` from git's config, when both are set.
     pub author: Option<Author>,
-}
-
-/// Moves the clone at `path` onto `branch`, when that changes no file: a
-/// branch that doesn't exist yet is made at the commit the clone is on,
-/// and one that points at that commit already is simply taken. Uncommitted
-/// edits stay as they are, and the branch reaches the remote on the next
-/// push. A branch that exists elsewhere is left alone, as switching to it
-/// would rewrite the notes on disk.
-pub fn switch_branch(path: &Path, branch: &str) -> SyncResult<()> {
-    let repo = Repository::open(path)?;
-    let head = repo.head()?;
-    if head.shorthand() == Some(branch) {
-        return Ok(());
-    }
-    let commit = head.peel_to_commit()?;
-    let wrong_branch = || SyncError::WrongBranch {
-        expected: branch.to_owned(),
-        actual: head.shorthand().unwrap_or_default().to_owned(),
-    };
-    match repo.find_branch(branch, git2::BranchType::Local) {
-        Ok(existing) if existing.get().target() == Some(commit.id()) => {}
-        Ok(_) => return Err(wrong_branch()),
-        Err(_) => {
-            repo.branch(branch, &commit, false)?;
-        }
-    }
-    repo.set_head(&format!("refs/heads/{branch}"))?;
-    Ok(())
-}
-
-/// Moves the clone at `path` from the branch sync used, `from`, onto `to`,
-/// after the branch setting changed, but only when it's on `from`: a clone
-/// on some other branch belongs to another tool and is left alone.
-pub fn follow_branch(path: &Path, remote: &str, from: &str, to: &str) -> SyncResult<()> {
-    let on_old_branch =
-        probe(path, remote).is_some_and(|found| found.branch.as_deref() == Some(from.trim()));
-    if !on_old_branch {
-        return Ok(());
-    }
-    switch_branch(path, to.trim())
 }
 
 /// Looks at the clone at `path` (not its parents) without writing to it.

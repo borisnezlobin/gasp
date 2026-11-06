@@ -80,7 +80,17 @@ pub enum FailureKind {
     SignIn,
     /// The remote moved on since the fetch. Retried after a while.
     Rejected,
+    /// The server's identity couldn't be confirmed. Retrying can't help
+    /// until the person trusts it, so it waits for a sync request.
+    Untrusted,
     Other,
+}
+
+impl FailureKind {
+    /// Whether the scheduler tries again on its own after a while.
+    pub fn retries(self) -> bool {
+        !matches!(self, FailureKind::SignIn | FailureKind::Untrusted)
+    }
 }
 
 /// Why a step failed.
@@ -311,14 +321,14 @@ impl Scheduler {
                 SyncEventKind::SignInNeeded { message },
                 SyncStatus::SignInNeeded { waiting },
             ),
-            FailureKind::Rejected | FailureKind::Other => (
+            FailureKind::Rejected | FailureKind::Untrusted | FailureKind::Other => (
                 SyncEventKind::Failed { message },
                 SyncStatus::Failed { waiting },
             ),
         };
         self.record(now, event);
         self.status = status;
-        self.retry_at = (kind != FailureKind::SignIn).then(|| now + self.config.retry_after);
+        self.retry_at = kind.retries().then(|| now + self.config.retry_after);
     }
 
     fn start(&mut self, step: SyncStep) -> Option<SyncStep> {

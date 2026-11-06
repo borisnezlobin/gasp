@@ -10,9 +10,9 @@ struct SyncSetupDraft: Equatable {
     var startsAtOnce = false
 }
 
-/// Setting up sync: the notes repository, its branch and a GitHub token.
-/// It clones the notes into the app, keeps the token in the Keychain and
-/// opens the clone as the vault.
+/// Setting up sync: the notes repository, its branch and a GitHub token,
+/// or this iPhone's SSH key for an SSH address. It clones the notes into
+/// the app, keeps the token in the Keychain and opens the clone as the vault.
 struct SyncSetupView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -47,7 +47,17 @@ struct SyncSetupView: View {
                             + "Anything your other tools send to main is merged in too."
                     )
                 }
-                tokenSection
+                if repositoryUsesSsh(typed: draft.repository) {
+                    Section {
+                        DeviceKeyRows(tokens: tokens)
+                    } header: {
+                        Text("SSH key")
+                    } footer: {
+                        Text("This iPhone signs in with its own key. Copy it and add it to your GitHub account once.")
+                    }
+                } else {
+                    tokenSection
+                }
                 if let problem {
                     Section { ProblemText(message: problem, tokens: tokens) }
                 }

@@ -18,7 +18,7 @@ struct SyncLook {
             self.init("icloud.slash", \.syncing, count: waiting)
         case .needsSetup:
             self.init("gear.badge.questionmark", \.syncing)
-        case .signIn:
+        case .signIn, .keyRefused:
             self.init("key", \.accent)
         case .conflict(let files):
             self.init("arrow.triangle.merge", \.conflict, count: files)

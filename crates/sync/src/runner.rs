@@ -69,6 +69,7 @@ fn failure_kind(error: &SyncError) -> FailureKind {
     match error {
         SyncError::Offline(_) => FailureKind::Offline,
         SyncError::Auth(_) => FailureKind::SignIn,
+        SyncError::Untrusted(_) => FailureKind::Untrusted,
         SyncError::PushRejected(_) => FailureKind::Rejected,
         _ => FailureKind::Other,
     }

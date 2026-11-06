@@ -104,10 +104,22 @@ impl VaultFolder {
         self.reload_config();
         if key == BRANCH_KEY {
             let branch = self.config().settings.sync.branch.clone();
-            gasp_sync::follow_branch(&self.root, crate::sync::REMOTE, &branch_before, &branch)
-                .map_err(|error| VaultError::Refused {
-                    message: format!("Sync stays on {branch_before}: {error}"),
-                })?;
+            let token = gasp_sync::probe(&self.root, crate::sync::REMOTE)
+                .and_then(|found| found.remote_url)
+                .and_then(|url| crate::sync_setup::token_store().load(&url).ok().flatten());
+            gasp_sync::follow_branch(
+                &self.root,
+                crate::sync::REMOTE,
+                &branch_before,
+                &branch,
+                token.as_ref(),
+            )
+            .map_err(|error| VaultError::Refused {
+                message: format!(
+                    "Sync stays on {branch_before}. {}",
+                    gasp_sync::branch_move_problem(&error)
+                ),
+            })?;
         }
         Ok(())
     }

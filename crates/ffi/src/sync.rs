@@ -70,6 +70,8 @@ pub enum SyncPhaseKind {
     SignIn {
         has_token: bool,
     },
+    /// An SSH remote turned down every key this device has.
+    KeyRefused,
     Conflict {
         files: u32,
     },
@@ -97,6 +99,8 @@ pub struct SyncOverview {
     pub signed_in: bool,
     /// Whether the repository signs in with a token (GitHub does, a folder doesn't).
     pub takes_token: bool,
+    /// Whether the repository signs in with this device's SSH key.
+    pub uses_ssh: bool,
     pub seconds_since_sync: Option<f64>,
     /// Newest first.
     pub recent: Vec<SyncRunSummary>,
@@ -271,6 +275,10 @@ impl SyncState {
         }
     }
 
+    fn uses_ssh(&self) -> bool {
+        self.remote_url.as_deref().is_some_and(gasp_sync::url_uses_ssh)
+    }
+
     fn phase(&self) -> SyncPhase {
         match &self.presence {
             Presence::NotSynced => return SyncPhase::Hidden,
@@ -284,6 +292,7 @@ impl SyncState {
             SyncStatus::Synced => SyncPhase::Synced,
             SyncStatus::Syncing => SyncPhase::Syncing(SyncStep::Commit),
             SyncStatus::Offline { waiting } => SyncPhase::Offline { waiting },
+            SyncStatus::SignInNeeded { .. } if self.uses_ssh() => SyncPhase::KeyRefused,
             SyncStatus::SignInNeeded { .. } => SyncPhase::SignIn {
                 has_token: self.signed_in,
             },
@@ -369,6 +378,7 @@ impl SyncState {
             auto_sync: self.settings.auto,
             signed_in: self.signed_in,
             takes_token: self.remote_url.as_deref().is_some_and(takes_token),
+            uses_ssh: self.uses_ssh(),
             seconds_since_sync: synced_ago.map(|elapsed| elapsed.as_secs_f64()),
             recent: self.recent.iter().map(|run| summary(run, now)).collect(),
         }
@@ -388,6 +398,7 @@ fn phase_kind(phase: &SyncPhase) -> SyncPhaseKind {
         SyncPhase::SignIn { has_token } => SyncPhaseKind::SignIn {
             has_token: *has_token,
         },
+        SyncPhase::KeyRefused => SyncPhaseKind::KeyRefused,
         SyncPhase::Conflict { files } => SyncPhaseKind::Conflict {
             files: count(*files),
         },

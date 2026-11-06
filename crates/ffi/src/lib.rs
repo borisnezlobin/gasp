@@ -28,6 +28,7 @@ mod positions;
 mod recovery;
 mod settings;
 mod shown;
+mod ssh;
 mod sync;
 mod sync_conflicts;
 mod sync_setup;
@@ -48,6 +49,7 @@ pub use encryption::{
     EncryptedNoteOptions, EncryptionState, KeptKey, LockedNote, NoteClaudeAccess, OpenedNote,
     is_encrypted_text,
 };
+pub use ssh::{DeviceSshKey, repository_uses_ssh, this_device_ssh_key, use_ssh_key_folder};
 pub use export::ExportedFile;
 pub use folding::HeadingFold;
 pub use github::{

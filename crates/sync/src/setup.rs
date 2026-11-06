@@ -61,42 +61,18 @@ pub struct SetupReport {
     pub waiting: Vec<PathBuf>,
 }
 
-/// The address git uses for what a person typed: GitHub shorthand
-/// (`you/notes`, `github.com/you/notes`) becomes an HTTPS address, an
-/// address with a scheme or an absolute folder path stays as it is.
-pub fn repository_url(typed: &str) -> Option<String> {
-    let typed = typed.trim().trim_end_matches('/');
-    if typed.is_empty() || typed.chars().any(char::is_whitespace) {
-        return None;
-    }
-    if typed.contains("://") || typed.starts_with('/') {
-        return Some(typed.to_owned());
-    }
-    let path = typed
-        .strip_prefix("github.com/")
-        .or_else(|| typed.strip_prefix("www.github.com/"))
-        .unwrap_or(typed);
-    let parts: Vec<&str> = path.split('/').collect();
-    let is_owner_and_name = parts.len() == 2 && parts.iter().all(|part| !part.is_empty());
-    is_owner_and_name.then(|| format!("https://github.com/{path}"))
-}
-
-/// Whether the remote signs in with a token: GitHub over HTTPS does, a
-/// folder on this device doesn't.
-pub fn url_takes_token(url: &str) -> bool {
-    url.starts_with("https://") || url.starts_with("http://")
-}
-
-/// Whether the address is a folder on this device rather than a server.
-pub fn url_is_local(url: &str) -> bool {
-    url.starts_with("file://") || url.starts_with('/')
-}
-
 /// Why setting up stopped, in words that say what to do next.
 pub fn setup_problem(error: &SyncError, url: &str) -> String {
     let refused_token = "GitHub didn’t accept this token. Check that it can read and write the repository’s contents, then paste it again.";
     match error {
+        SyncError::Auth(_) if crate::address::url_uses_ssh(url) => {
+            "The server didn’t accept this device’s SSH key. Add the key shown here to your GitHub account, then try again.".to_owned()
+        }
         SyncError::Auth(_) => refused_token.to_owned(),
+        SyncError::Untrusted(message) | SyncError::Remote(message) => format!(
+            "Setting up stopped. Git said: {}",
+            crate::phase::plain_git_message(message)
+        ),
         SyncError::Offline(message) if message.contains("401") || message.contains("403") => {
             refused_token.to_owned()
         }
@@ -231,7 +207,7 @@ impl<'a> Builder<'a> {
             .update_fetchhead(false);
         remote
             .fetch(&[self.refspec()], Some(&mut options), None)
-            .map_err(SyncError::from_transport)
+            .map_err(|error| SyncError::from_transport(error, self.setup.url))
     }
 
     fn tracking_ref(&self) -> String {
@@ -412,7 +388,7 @@ impl<'a> Builder<'a> {
             options.remote_callbacks(callbacks);
             remote
                 .push(&[&refspec], Some(&mut options))
-                .map_err(SyncError::from_transport)?;
+                .map_err(|error| SyncError::from_transport(error, self.setup.url))?;
         }
         match rejection {
             Some(message) => Err(SyncError::PushRejected(message)),
@@ -581,33 +557,4 @@ fn tree_files(tree: &Tree<'_>) -> SyncResult<Vec<TreeFile>> {
         TreeWalkResult::Ok
     })?;
     Ok(files)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn typed_repositories_become_addresses() {
-        let url = |typed: &str| repository_url(typed);
-        assert_eq!(
-            url("you/notes").as_deref(),
-            Some("https://github.com/you/notes")
-        );
-        assert_eq!(
-            url(" github.com/you/notes/ ").as_deref(),
-            Some("https://github.com/you/notes")
-        );
-        assert_eq!(
-            url("file:///tmp/notes.git").as_deref(),
-            Some("file:///tmp/notes.git")
-        );
-        assert_eq!(url("/tmp/notes.git").as_deref(), Some("/tmp/notes.git"));
-        assert_eq!(url("notes"), None);
-        assert_eq!(url("you/my notes"), None);
-        assert!(url_takes_token("https://github.com/you/notes"));
-        assert!(!url_takes_token("/tmp/notes.git"));
-        assert!(url_is_local("/tmp/notes.git"));
-        assert!(!url_is_local("https://github.com/you/notes"));
-    }
 }

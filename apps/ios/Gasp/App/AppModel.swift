@@ -19,6 +19,7 @@ final class AppModel {
 
     init() {
         setDeviceName(name: Self.deviceName)
+        useSshKeyFolder(folder: VaultLocation.supportFolder.appending(path: "ssh").path)
         #if DEBUG
         VaultLocation.useICloudVaultFromArguments()
         #endif

@@ -258,7 +258,9 @@ impl SettingsView {
             ControlRow::Vault | ControlRow::ObsidianImport => self.button_key(key, row, cx),
             ControlRow::IconCredit => open_url_key(key, ICON_SOURCE_URL, cx),
             ControlRow::Version => self.update_key(key, cx),
-            ControlRow::SyncAccount | ControlRow::SyncRemote => self.sync_row_key(row, key, cx),
+            ControlRow::SyncAccount | ControlRow::SyncSshKey | ControlRow::SyncRemote => {
+                self.sync_row_key(row, key, cx)
+            }
             ControlRow::ICloudFolder => self.icloud_key(key, cx),
             ControlRow::AgentApps => self.agent_apps_key(key, cx),
             ControlRow::SnippetsFile | ControlRow::Snippet(_) | ControlRow::Replacement(_) => {

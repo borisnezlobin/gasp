@@ -81,11 +81,11 @@ struct SyncDetailsSheet: View {
 }
 
 extension SyncPhaseKind {
-    /// Whether the way forward is on the settings screen: a token, or a
-    /// branch that doesn't match.
+    /// Whether the way forward is on the settings screen: a token, an SSH
+    /// key to add, or a branch that doesn't match.
     var needsSettings: Bool {
         switch self {
-        case .signIn, .needsSetup: true
+        case .signIn, .keyRefused, .needsSetup: true
         default: false
         }
     }

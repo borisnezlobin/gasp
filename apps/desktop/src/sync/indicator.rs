@@ -57,7 +57,7 @@ fn look(phase: &SyncPhase, ui: &UiTheme) -> (IconName, gpui::Hsla) {
         SyncPhase::Syncing(_) => (IconName::ArrowsClockwise, ui.sync_busy),
         SyncPhase::Offline { .. } => (IconName::CloudSlash, ui.sync_busy),
         SyncPhase::Setup(_) => (IconName::CloudWarning, ui.sync_busy),
-        SyncPhase::SignIn { .. } => (IconName::Key, ui.icon_active),
+        SyncPhase::SignIn { .. } | SyncPhase::KeyRefused => (IconName::Key, ui.icon_active),
         SyncPhase::Conflict { .. } => (IconName::GitMerge, ui.sync_attention),
         SyncPhase::Failed { .. } => (IconName::CloudWarning, ui.sync_attention),
     }
@@ -107,10 +107,15 @@ fn action_for(phase: &SyncPhase) -> Action {
     match phase {
         SyncPhase::Syncing(_) | SyncPhase::Starting => Action::Syncing,
         SyncPhase::Conflict { .. } => Action::Resolve,
-        SyncPhase::Setup(SetupProblem::WrongBranch {
-            actual: Some(_), ..
-        }) => Action::SwitchBranch,
-        SyncPhase::SignIn { .. } | SyncPhase::Setup(_) => Action::Settings,
+        SyncPhase::Setup(
+            SetupProblem::WrongBranch {
+                actual: Some(_), ..
+            }
+            | SetupProblem::MoveStopped { .. },
+        ) => Action::SwitchBranch,
+        SyncPhase::SignIn { .. } | SyncPhase::KeyRefused | SyncPhase::Setup(_) => {
+            Action::Settings
+        }
         _ => Action::SyncNow,
     }
 }

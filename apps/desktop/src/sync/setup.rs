@@ -43,6 +43,9 @@ pub enum SetupStop {
     Branch,
     Token,
     CreateToken,
+    /// Copies this computer's SSH key, in place of the token for an SSH address.
+    CopyKey,
+    AddKey,
     Cancel,
     Submit,
     /// On the finished screen.
@@ -250,7 +253,12 @@ impl SyncSetup {
         match event {
             TextInputEvent::Submitted => self.submit(window, cx),
             TextInputEvent::Cancelled => self.cancel(cx),
-            TextInputEvent::Changed => self.clear_refusal_of(input, cx),
+            TextInputEvent::Changed => {
+                self.clear_refusal_of(input, cx);
+                if input == &self.repository {
+                    cx.notify();
+                }
+            }
             TextInputEvent::Blurred => {}
         }
     }
@@ -267,6 +275,13 @@ impl SyncSetup {
             self.phase = SetupPhase::Editing;
             cx.notify();
         }
+    }
+
+    /// Whether the repository typed so far signs in with an SSH key, so the
+    /// form offers this computer's key instead of asking for a token.
+    fn uses_ssh(&self, cx: &App) -> bool {
+        gasp_sync::repository_url(self.repository.read(cx).text())
+            .is_some_and(|url| gasp_sync::url_uses_ssh(&url))
     }
 
     fn input(&self, field: SetupField) -> &Entity<TextInput> {
@@ -314,7 +329,7 @@ impl SyncSetup {
         let repository = self.repository.read(cx).text().trim().to_owned();
         let Some(url) = gasp_sync::repository_url(&repository) else {
             let message =
-                "Enter the repository as you/notes, github.com/you/notes or its full address.";
+                "Enter the repository as you/notes, git@github.com:you/notes.git or its full address.";
             return Err((SetupField::Repository, message.to_owned()));
         };
         if !crate::sandbox::allows_repository(&url) {
@@ -392,18 +407,20 @@ impl SyncSetup {
 
     // ---- Keys ----
 
-    fn stops(&self) -> Vec<SetupStop> {
+    fn stops(&self, cx: &App) -> Vec<SetupStop> {
+        let sign_in = if self.uses_ssh(cx) {
+            [SetupStop::CopyKey, SetupStop::AddKey]
+        } else {
+            [SetupStop::Token, SetupStop::CreateToken]
+        };
         match &self.phase {
             SetupPhase::Done(done) if done.report.waiting.is_empty() => vec![SetupStop::Done],
             SetupPhase::Done(_) => vec![SetupStop::Resolve, SetupStop::Done],
-            _ => vec![
-                SetupStop::Repository,
-                SetupStop::Branch,
-                SetupStop::Token,
-                SetupStop::CreateToken,
-                SetupStop::Cancel,
-                SetupStop::Submit,
-            ],
+            _ => [SetupStop::Repository, SetupStop::Branch]
+                .into_iter()
+                .chain(sign_in)
+                .chain([SetupStop::Cancel, SetupStop::Submit])
+                .collect(),
         }
     }
 
@@ -435,7 +452,7 @@ impl SyncSetup {
     }
 
     fn move_focus(&mut self, backwards: bool, window: &mut Window, cx: &mut Context<Self>) {
-        let stops = self.stops();
+        let stops = self.stops(cx);
         let at = stops
             .iter()
             .position(|stop| *stop == self.current_stop(window, cx))
@@ -452,6 +469,8 @@ impl SyncSetup {
     fn press(&mut self, stop: SetupStop, window: &mut Window, cx: &mut Context<Self>) {
         match stop {
             SetupStop::CreateToken => crate::sandbox::open_url(NEW_TOKEN_URL, cx),
+            SetupStop::CopyKey => super::ssh_key::copy_key(cx),
+            SetupStop::AddKey => super::ssh_key::open_new_key_page(cx),
             SetupStop::Cancel => self.cancel(cx),
             SetupStop::Resolve => self.close_and_run("sync.resolve-conflicts", cx),
             SetupStop::Done => cx.emit(DismissEvent),
@@ -581,6 +600,52 @@ impl SyncSetup {
             .into_any_element()
     }
 
+    /// In place of the token field for an SSH address: which keys sync
+    /// tries, and this computer's own key to add on GitHub.
+    fn render_ssh_key(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+        let style = &self.style;
+        let copy = icon_label_button(
+            "sync-setup-copy-key",
+            IconName::Copy,
+            "Copy this computer’s key",
+            false,
+            self.ringed(SetupStop::CopyKey, window, cx),
+            style,
+        )
+        .selector(|| "sync-setup-copy-key".to_owned())
+        .on_click(|_: &ClickEvent, _, cx| super::ssh_key::copy_key(cx));
+        let add = icon_label_button(
+            "sync-setup-add-key",
+            IconName::ArrowSquareOut,
+            "Add a key on GitHub",
+            false,
+            self.ringed(SetupStop::AddKey, window, cx),
+            style,
+        )
+        .selector(|| "sync-setup-add-key".to_owned())
+        .on_click(|_: &ClickEvent, _, cx| super::ssh_key::open_new_key_page(cx));
+        div()
+            .flex()
+            .flex_col()
+            .gap(style.gap_sm * 1.5)
+            .child(div().child("SSH key"))
+            .child(
+                div()
+                    .text_size(style.small_text_size)
+                    .text_color(style.text_muted)
+                    .child("Sync tries your SSH agent and the keys in ~/.ssh first. If GitHub knows none of them, copy this computer’s own key and add it to your account."),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .gap(style.control_gap)
+                    .child(copy)
+                    .child(add),
+            )
+            .into_any_element()
+    }
+
     /// The line above the buttons, which always keeps its room: why
     /// setting up stopped, or that it's running.
     fn render_status(&self) -> AnyElement {
@@ -698,20 +763,19 @@ impl SyncSetup {
     fn render_form(&self, window: &Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let style = &self.style;
         let intro = "Keep this vault the same on every device through a GitHub repository. The notes here stay, and anything the repository has joins them.";
-        let token_help = self.render_token_help(window, cx);
+        let sign_in = if self.uses_ssh(cx) {
+            self.render_ssh_key(window, cx)
+        } else {
+            let token_help = self.render_token_help(window, cx);
+            self.render_field(SetupField::Token, "GitHub token", Some(token_help), window, cx)
+        };
         let fields = div()
             .flex()
             .flex_col()
             .gap(style.row_gap * 0.75)
             .child(self.render_field(SetupField::Repository, "Repository", None, window, cx))
             .child(self.render_field(SetupField::Branch, "Branch", None, window, cx))
-            .child(self.render_field(
-                SetupField::Token,
-                "GitHub token",
-                Some(token_help),
-                window,
-                cx,
-            ));
+            .child(sign_in);
         vec![
             self.render_header("Set up sync", Some(intro.to_owned())),
             fields.into_any_element(),
@@ -805,9 +869,12 @@ fn capitalized(text: &str) -> String {
         .unwrap_or_default()
 }
 
-/// Which field a failure points at.
-fn field_for(error: &SyncError) -> Option<SetupField> {
+/// Which field a failure points at. An SSH address has no token field:
+/// a refused key points at nothing, and the message sits by the key.
+fn field_for(error: &SyncError, url: &str) -> Option<SetupField> {
     match error {
+        SyncError::Auth(_) if gasp_sync::url_uses_ssh(url) => None,
+        SyncError::Remote(_) => Some(SetupField::Repository),
         SyncError::Auth(_) | SyncError::PushRejected(_) => Some(SetupField::Token),
         SyncError::Offline(message) if message.contains("401") || message.contains("403") => {
             Some(SetupField::Token)
@@ -830,7 +897,7 @@ pub(super) fn finish(
         Ok(report) => report,
         Err(error) => {
             return SetupPhase::Refused {
-                field: field_for(&error),
+                field: field_for(&error, &job.url),
                 message: gasp_sync::setup_problem(&error, &job.url),
             };
         }

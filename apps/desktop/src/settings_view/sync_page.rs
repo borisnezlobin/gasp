@@ -24,6 +24,12 @@ const SET_UP_COMMAND: &str = "sync.set-up";
 /// The account row's buttons while signed out, as the keyboard counts them.
 const CREATE_TOKEN: usize = 0;
 const PASTE_TOKEN: usize = 1;
+/// The SSH key row's buttons, as the keyboard counts them.
+const COPY_KEY: usize = 0;
+const ADD_KEY: usize = 1;
+
+/// What the SSH key row says under its title.
+pub(super) const SSH_KEY_DESCRIPTION: &str = "This computer signs in with your SSH agent and the keys in ~/.ssh. If GitHub knows none of them, copy this computer’s own key and add it to your account.";
 
 pub use crate::sync::setup::NEW_TOKEN_URL;
 
@@ -66,7 +72,14 @@ impl SettingsView {
     pub(super) fn remote_takes_token(&self) -> bool {
         self.remote_cache
             .as_deref()
-            .is_some_and(|url| url.starts_with("https://") || url.starts_with("http://"))
+            .is_some_and(gasp_sync::url_takes_token)
+    }
+
+    /// Whether the remote signs in with this computer's SSH key.
+    pub(super) fn remote_uses_ssh(&self) -> bool {
+        self.remote_cache
+            .as_deref()
+            .is_some_and(gasp_sync::url_uses_ssh)
     }
 
     /// Remembers what the page shows about the remote and the account, so
@@ -87,7 +100,7 @@ impl SettingsView {
         if self.sync_remote().is_none() {
             return "This vault doesn’t sync yet. Keep it the same on every device through iCloud or GitHub.".to_string();
         }
-        "The HTTPS address of the GitHub repository this vault syncs with.".to_string()
+        "The address of the GitHub repository this vault syncs with, over HTTPS or SSH.".to_string()
     }
 
     pub(super) fn icloud_description(&self) -> String {
@@ -309,6 +322,34 @@ impl SettingsView {
             .into_any_element()
     }
 
+    pub(super) fn ssh_key_control(&self, focused: bool) -> AnyElement {
+        let style = &self.style;
+        let copy = button(
+            "copy-ssh-key",
+            "Copy this computer’s key",
+            false,
+            focused && self.sub_control == COPY_KEY,
+            style,
+        )
+        .selector(|| "copy-ssh-key".to_string())
+        .on_click(|_: &ClickEvent, _, cx| crate::sync::ssh_key::copy_key(cx));
+        let add = button(
+            "add-ssh-key",
+            "Add a key on GitHub",
+            false,
+            focused && self.sub_control == ADD_KEY,
+            style,
+        )
+        .selector(|| "add-ssh-key".to_string())
+        .on_click(|_: &ClickEvent, _, cx| crate::sync::ssh_key::open_new_key_page(cx));
+        div()
+            .flex()
+            .gap(style.control_gap)
+            .child(copy)
+            .child(add)
+            .into_any_element()
+    }
+
     pub(super) fn list_add_control(
         &self,
         item: &SettingItem,
@@ -369,6 +410,7 @@ impl SettingsView {
     ) -> bool {
         match row {
             ControlRow::SyncRemote => self.remote_key(key, cx),
+            ControlRow::SyncSshKey => self.ssh_key_key(key, cx),
             _ => self.account_key(key, cx),
         }
     }
@@ -394,6 +436,22 @@ impl SettingsView {
             ("space" | "enter", false) => self.paste_token(cx),
             ("left", false) => self.sub_control = CREATE_TOKEN,
             ("right", false) => self.sub_control = PASTE_TOKEN,
+            _ => return false,
+        }
+        cx.notify();
+        true
+    }
+
+    /// Space or Enter presses the button the keyboard is on; Left and Right
+    /// move between copying the key and GitHub's page for adding one.
+    fn ssh_key_key(&mut self, key: &str, cx: &mut Context<Self>) -> bool {
+        match key {
+            "space" | "enter" if self.sub_control == COPY_KEY => {
+                crate::sync::ssh_key::copy_key(cx)
+            }
+            "space" | "enter" => crate::sync::ssh_key::open_new_key_page(cx),
+            "left" => self.sub_control = COPY_KEY,
+            "right" => self.sub_control = ADD_KEY,
             _ => return false,
         }
         cx.notify();

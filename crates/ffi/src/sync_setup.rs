@@ -27,7 +27,8 @@ pub struct SyncSetup {
 }
 
 /// The address git clones from, for what the person typed: GitHub
-/// shorthand becomes an HTTPS address, anything with a scheme stays.
+/// shorthand becomes an HTTPS address. Anything with a scheme and an SSH
+/// address such as `git@github.com:you/notes.git` stay as typed.
 #[uniffi::export]
 pub fn repository_url(typed: String) -> Option<String> {
     gasp_sync::repository_url(&typed)
@@ -202,6 +203,10 @@ fn use_branch_in_settings(folder: &Path, branch: &str) -> Result<(), VaultError>
 
 fn clone_problem(error: &SyncError, url: &str, branch: &str) -> String {
     match error {
+        SyncError::Auth(_) if gasp_sync::url_uses_ssh(url) => {
+            "The server didn't accept this iPhone's SSH key. Copy the key shown here, add it to your GitHub account, then try again.".to_owned()
+        }
+        SyncError::Untrusted(message) => message.clone(),
         SyncError::Auth(_) => {
             "GitHub didn't accept this token. Check that it can read and write the repository's contents.".to_owned()
         }

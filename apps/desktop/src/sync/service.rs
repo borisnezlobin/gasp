@@ -38,6 +38,14 @@ enum Presence {
     Ready(Arc<Engine>),
 }
 
+/// Moving the clone onto another branch. `from` is the branch the
+/// settings named before, when the setting changed: a clone that isn't on
+/// it belongs to another tool and stays put.
+struct BranchMove {
+    from: Option<String>,
+    to: String,
+}
+
 /// Sync for one vault.
 pub struct SyncService {
     root: PathBuf,
@@ -63,6 +71,8 @@ pub struct SyncService {
     resolve_task: Option<Task<()>>,
     timer: Option<Task<()>>,
     setup_task: Option<Task<()>>,
+    /// A branch move waiting for the running sync to end.
+    pending_move: Option<BranchMove>,
 }
 
 fn scheduler_config(settings: &SyncSettings) -> SchedulerConfig {
@@ -84,6 +94,7 @@ impl SyncService {
         store: Arc<dyn CredentialStore>,
         cx: &mut Context<Self>,
     ) -> Self {
+        super::ssh_key::use_key_folder();
         let executor = cx.background_executor().clone();
         let mut service = SyncService {
             root: root.to_path_buf(),
@@ -107,6 +118,7 @@ impl SyncService {
             resolve_task: None,
             timer: None,
             setup_task: None,
+            pending_move: None,
         };
         // Looking at the clone runs git, which can wait until the window
         // is on screen.
@@ -191,6 +203,7 @@ impl SyncService {
             SyncStatus::Synced => SyncPhase::Synced,
             SyncStatus::Syncing => SyncPhase::Syncing(SyncStep::Commit),
             SyncStatus::Offline { waiting } => SyncPhase::Offline { waiting },
+            SyncStatus::SignInNeeded { .. } if self.uses_ssh() => SyncPhase::KeyRefused,
             SyncStatus::SignInNeeded { .. } => SyncPhase::SignIn {
                 has_token: self.signed_in,
             },
@@ -259,6 +272,11 @@ impl SyncService {
         self.signed_in
     }
 
+    /// Whether the remote signs in with this device's SSH key.
+    pub fn uses_ssh(&self) -> bool {
+        self.remote_url.as_deref().is_some_and(gasp_sync::url_uses_ssh)
+    }
+
     pub fn settings(&self) -> &SyncSettings {
         &self.settings
     }
@@ -276,14 +294,52 @@ impl SyncService {
     }
 
     /// Moves a vault that's on another branch onto the one the settings
-    /// name, then syncs from there. A branch that would change the notes
-    /// on disk is refused, and says so.
+    /// name, then syncs from there.
     pub fn switch_to_settings_branch(&mut self, cx: &mut Context<Self>) {
-        match gasp_sync::switch_branch(&self.root, self.settings.branch.trim()) {
+        let to = self.settings_branch().to_owned();
+        self.move_branch(BranchMove { from: None, to }, cx);
+    }
+
+    /// Moves the clone on the background executor, taking the remote's
+    /// branch when it has one, then opens it there. A move that stops
+    /// leaves the vault where it was and says why in the indicator. A sync
+    /// that's running finishes first.
+    fn move_branch(&mut self, branch_move: BranchMove, cx: &mut Context<Self>) {
+        if self.step_task.is_some() {
+            self.pending_move = Some(branch_move);
+            return;
+        }
+        self.presence = Presence::Starting;
+        self.timer = None;
+        let root = self.root.clone();
+        let store = self.store.clone();
+        let remote_url = self.remote_url.clone();
+        let BranchMove { from, to } = branch_move;
+        let target = to.clone();
+        let moving = cx.background_spawn(async move {
+            let token = remote_url.and_then(|url| store.load(&url).ok().flatten());
+            let moved = match from {
+                Some(from) => {
+                    gasp_sync::follow_branch(&root, engine::REMOTE, &from, &to, token.as_ref())
+                }
+                None => gasp_sync::switch_branch(&root, engine::REMOTE, &to, token.as_ref()),
+            };
+            moved.map_err(|error| gasp_sync::branch_move_problem(&error))
+        });
+        self.setup_task = Some(cx.spawn(async move |this, cx| {
+            let moved = moving.await;
+            this.update(cx, |this, cx| this.moved(target, moved, cx)).ok();
+        }));
+        cx.notify();
+    }
+
+    fn moved(&mut self, to: String, moved: Result<(), String>, cx: &mut Context<Self>) {
+        self.setup_task = None;
+        match moved {
             Ok(()) => self.open(cx),
-            Err(error) => {
-                let what = format!("Sync can’t move to {}", self.settings_branch());
-                crate::notices::failed(what, error, cx);
+            Err(reason) => {
+                self.presence = Presence::Problem(SetupProblem::MoveStopped { to, reason });
+                cx.notify();
             }
         }
     }
@@ -426,6 +482,9 @@ impl SyncService {
             self.failure = None;
         }
         self.reschedule(cx);
+        if let Some(branch_move) = self.pending_move.take() {
+            self.move_branch(branch_move, cx);
+        }
     }
 
     /// Wakes up when the scheduler next has something due.
@@ -494,17 +553,15 @@ impl SyncService {
         if settings == self.settings {
             return;
         }
-        if settings.branch != self.settings.branch {
-            let (from, to) = (&self.settings.branch, &settings.branch);
-            if let Err(error) = gasp_sync::follow_branch(&self.root, engine::REMOTE, from, to) {
-                eprintln!("could not move sync to branch {to}: {error}");
-            }
-        }
-        let reopen = settings.branch != self.settings.branch
-            || settings.device_only != self.settings.device_only;
+        let moving_from = (settings.branch != self.settings.branch)
+            .then(|| self.settings.branch.trim().to_owned());
+        let reopen = settings.device_only != self.settings.device_only;
         self.scheduler.set_config(scheduler_config(&settings));
         self.settings = settings;
-        if reopen && self.step_task.is_none() {
+        if let Some(from) = moving_from {
+            let to = self.settings_branch().to_owned();
+            self.move_branch(BranchMove { from: Some(from), to }, cx);
+        } else if reopen && self.step_task.is_none() {
             self.open(cx);
         } else {
             self.reschedule(cx);

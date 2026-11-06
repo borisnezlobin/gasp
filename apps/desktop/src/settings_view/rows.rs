@@ -227,6 +227,7 @@ impl SettingsView {
             }
             ControlRow::Version => self.update_control(focused, cx),
             ControlRow::SyncAccount => self.account_control(focused, cx),
+            ControlRow::SyncSshKey => self.ssh_key_control(focused),
             ControlRow::ICloudFolder => self.icloud_control(focused, cx),
             ControlRow::ListAdd(item) => self.list_add_control(item, row, focused, cx),
             ControlRow::ListEntry { list, value } => {

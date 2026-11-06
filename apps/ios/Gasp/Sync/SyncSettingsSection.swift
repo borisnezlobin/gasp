@@ -144,6 +144,8 @@ private struct SyncAccountRow: View {
             DisclosureGroup("Use a token instead") { tokenField }
         } else if overview.takesToken {
             tokenField
+        } else if overview.usesSsh {
+            DeviceKeyRows(tokens: tokens)
         }
     }
 
