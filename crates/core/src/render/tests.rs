@@ -390,6 +390,22 @@ fn starting_a_list_under_a_paragraph_keeps_the_paragraph() {
 }
 
 #[test]
+fn starting_a_list_above_more_of_the_note_keeps_the_paragraph() {
+    for marked in [
+        "The authors are:\n- ‸\n",
+        "The authors are:\n- ‸\nmore",
+        "The authors are:\n- ‸\n\nmore",
+        "The authors are:\r\n- ‸\r\n",
+    ] {
+        let rendered = render(marked, &element());
+        assert!(
+            !rendered.contains("[h2]"),
+            "{marked:?} became a heading:\n{rendered}"
+        );
+    }
+}
+
+#[test]
 fn list_markers_draw_as_soon_as_they_are_typed() {
     check("- ‸", &element(), &["⟦•1⟧"]);
     check("1. ‸", &element(), &["⟦1.⟧"]);
@@ -1555,3 +1571,4 @@ fn the_styled_html_fixture_renders_its_subset() {
     assert_eq!(aligned("Right-aligned"), Some(syntax::Alignment::Right));
     assert_eq!(aligned("After the unclosed"), None);
 }
+

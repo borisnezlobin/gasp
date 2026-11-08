@@ -377,6 +377,7 @@ fn skip_leading_blanks(text: &str, range: Range<usize>) -> Range<usize> {
 /// empty. A longer `--` or `==` underline still makes a heading.
 fn is_starting_a_list(source: &str) -> bool {
     source
+        .trim_end_matches(['\n', '\r'])
         .rsplit_once('\n')
         .is_some_and(|(_, underline)| underline.trim() == "-")
 }
