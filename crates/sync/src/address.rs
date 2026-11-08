@@ -72,7 +72,9 @@ pub fn host_and_port(url: &str) -> Option<(String, u16)> {
         _ => return None,
     };
     let authority = rest.split('/').next()?;
-    let host_port = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
+    let host_port = authority
+        .rsplit_once('@')
+        .map_or(authority, |(_, host)| host);
     match host_port.rsplit_once(':') {
         Some((host, port)) => Some((host.to_owned(), port.parse().ok()?)),
         None => Some((host_port.to_owned(), default_port)),
@@ -128,7 +130,10 @@ mod tests {
             repository_url("file:///tmp/notes.git").as_deref(),
             Some("file:///tmp/notes.git")
         );
-        assert_eq!(repository_url("/tmp/notes.git").as_deref(), Some("/tmp/notes.git"));
+        assert_eq!(
+            repository_url("/tmp/notes.git").as_deref(),
+            Some("/tmp/notes.git")
+        );
         assert!(url_is_local("/tmp/notes.git"));
         assert!(!url_takes_token("/tmp/notes.git"));
         assert_eq!(repository_url("you/my notes"), None);
@@ -140,8 +145,14 @@ mod tests {
     fn each_kind_of_address_names_its_server() {
         let cases = [
             ("git@github.com:you/notes.git", Some(("github.com", 22))),
-            ("ssh://git@example.com:2222/notes.git", Some(("example.com", 2222))),
-            ("https://github.com/you/notes.git", Some(("github.com", 443))),
+            (
+                "ssh://git@example.com:2222/notes.git",
+                Some(("example.com", 2222)),
+            ),
+            (
+                "https://github.com/you/notes.git",
+                Some(("github.com", 443)),
+            ),
             ("http://localhost:8080/notes.git", Some(("localhost", 8080))),
             ("/Users/you/notes.git", None),
             ("file:///Users/you/notes.git", None),

@@ -878,13 +878,26 @@ impl SettingsView {
             RowSpec::AgentApps => return self.agent_app_rows(query),
             RowSpec::SyncRemote if self.in_icloud => ControlRow::ICloudFolder,
             RowSpec::SyncRemote => ControlRow::SyncRemote,
-            RowSpec::SyncAccount if self.in_icloud => return Vec::new(),
-            RowSpec::SyncAccount if self.remote_uses_ssh() => ControlRow::SyncSshKey,
-            RowSpec::SyncAccount if !self.remote_takes_token() => return Vec::new(),
-            RowSpec::SyncAccount => ControlRow::SyncAccount,
+            RowSpec::SyncAccount => match self.sync_account_row() {
+                Some(row) => row,
+                None => return Vec::new(),
+            },
             _ => return Vec::new(),
         };
         self.matching(vec![row], query)
+    }
+
+    /// How this vault signs in to its remote: this computer's SSH key for
+    /// an SSH address, a token for one that takes one, and nothing for an
+    /// iCloud vault or a remote that needs neither.
+    fn sync_account_row(&self) -> Option<ControlRow> {
+        if self.in_icloud {
+            return None;
+        }
+        if self.remote_uses_ssh() {
+            return Some(ControlRow::SyncSshKey);
+        }
+        self.remote_takes_token().then_some(ControlRow::SyncAccount)
     }
 
     /// The rows whose title or description match `query`.

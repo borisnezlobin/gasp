@@ -446,9 +446,7 @@ impl SettingsView {
     /// move between copying the key and GitHub's page for adding one.
     fn ssh_key_key(&mut self, key: &str, cx: &mut Context<Self>) -> bool {
         match key {
-            "space" | "enter" if self.sub_control == COPY_KEY => {
-                crate::sync::ssh_key::copy_key(cx)
-            }
+            "space" | "enter" if self.sub_control == COPY_KEY => crate::sync::ssh_key::copy_key(cx),
             "space" | "enter" => crate::sync::ssh_key::open_new_key_page(cx),
             "left" => self.sub_control = COPY_KEY,
             "right" => self.sub_control = ADD_KEY,

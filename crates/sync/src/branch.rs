@@ -60,7 +60,10 @@ pub fn switch_branch(
     } else {
         let target_tree = repo.find_commit(target)?.tree()?;
         let carried = carried_edits(&repo, &current, &target_tree, branch)?;
-        repo.checkout_tree(target_tree.as_object(), Some(CheckoutBuilder::new().force()))?;
+        repo.checkout_tree(
+            target_tree.as_object(),
+            Some(CheckoutBuilder::new().force()),
+        )?;
         carried
     };
     let local_ref = format!("refs/heads/{branch}");
@@ -283,19 +286,23 @@ mod tests {
     #[test]
     fn edits_to_different_lines_merge() {
         let settled = versions("a\nb\nc\n", "a\nmine\nc\n", "a\nb\nc\ntheirs\n").settle();
-        assert!(
-            matches!(settled, Settle::Write(Some(bytes)) if bytes == b"a\nmine\nc\ntheirs\n")
-        );
+        assert!(matches!(settled, Settle::Write(Some(bytes)) if bytes == b"a\nmine\nc\ntheirs\n"));
     }
 
     #[test]
     fn the_same_change_on_both_sides_needs_nothing() {
-        assert!(matches!(versions("a\n", "b\n", "b\n").settle(), Settle::Keep));
+        assert!(matches!(
+            versions("a\n", "b\n", "b\n").settle(),
+            Settle::Keep
+        ));
     }
 
     #[test]
     fn edits_to_the_same_line_block_the_move() {
-        assert!(matches!(versions("a\n", "mine\n", "theirs\n").settle(), Settle::Blocked));
+        assert!(matches!(
+            versions("a\n", "mine\n", "theirs\n").settle(),
+            Settle::Blocked
+        ));
     }
 
     #[test]

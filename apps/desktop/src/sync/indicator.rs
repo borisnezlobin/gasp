@@ -113,9 +113,7 @@ fn action_for(phase: &SyncPhase) -> Action {
             }
             | SetupProblem::MoveStopped { .. },
         ) => Action::SwitchBranch,
-        SyncPhase::SignIn { .. } | SyncPhase::KeyRefused | SyncPhase::Setup(_) => {
-            Action::Settings
-        }
+        SyncPhase::SignIn { .. } | SyncPhase::KeyRefused | SyncPhase::Setup(_) => Action::Settings,
         _ => Action::SyncNow,
     }
 }

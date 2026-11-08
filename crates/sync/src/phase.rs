@@ -434,5 +434,4 @@ mod tests {
         };
         assert_eq!(explanation(&phase).unwrap(), message);
     }
-
 }

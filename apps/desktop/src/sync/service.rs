@@ -274,7 +274,9 @@ impl SyncService {
 
     /// Whether the remote signs in with this device's SSH key.
     pub fn uses_ssh(&self) -> bool {
-        self.remote_url.as_deref().is_some_and(gasp_sync::url_uses_ssh)
+        self.remote_url
+            .as_deref()
+            .is_some_and(gasp_sync::url_uses_ssh)
     }
 
     pub fn settings(&self) -> &SyncSettings {
@@ -328,7 +330,8 @@ impl SyncService {
         });
         self.setup_task = Some(cx.spawn(async move |this, cx| {
             let moved = moving.await;
-            this.update(cx, |this, cx| this.moved(target, moved, cx)).ok();
+            this.update(cx, |this, cx| this.moved(target, moved, cx))
+                .ok();
         }));
         cx.notify();
     }
@@ -560,7 +563,13 @@ impl SyncService {
         self.settings = settings;
         if let Some(from) = moving_from {
             let to = self.settings_branch().to_owned();
-            self.move_branch(BranchMove { from: Some(from), to }, cx);
+            self.move_branch(
+                BranchMove {
+                    from: Some(from),
+                    to,
+                },
+                cx,
+            );
         } else if reopen && self.step_task.is_none() {
             self.open(cx);
         } else {

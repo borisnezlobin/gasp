@@ -30,6 +30,10 @@ mod setup;
 pub mod ssh;
 mod vault;
 
+pub use address::{
+    host_and_port, is_reachable, repository_url, url_is_local, url_takes_token, url_uses_ssh,
+};
+pub use branch::{branch_move_problem, follow_branch, switch_branch};
 pub use conflict::{ConflictHunk, ConflictedFile, MarkedHunk, MarkedText, Resolution, Segment};
 #[cfg(all(
     feature = "keychain",
@@ -55,10 +59,6 @@ pub use scheduler::{
     FailureKind, MergeReport, Scheduler, SchedulerConfig, StepFailure, StepReport, SyncEvent,
     SyncEventKind, SyncStatus, SyncStep,
 };
-pub use address::{
-    host_and_port, is_reachable, repository_url, url_is_local, url_takes_token, url_uses_ssh,
-};
-pub use branch::{branch_move_problem, follow_branch, switch_branch};
 pub use setup::{
     InPlaceSetup, STAGING_FOLDER, SetupReport, set_up_in_place, setup_problem, sync_author,
 };

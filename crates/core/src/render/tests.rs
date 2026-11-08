@@ -335,11 +335,7 @@ fn a_heading_keeps_its_marker_at_every_keystroke() {
 
 #[test]
 fn a_space_typed_in_a_heading_has_the_headings_style() {
-    check(
-        "## ‸",
-        &element(),
-        &["[h2] {heading-2,markup-dimmed:## }"],
-    );
+    check("## ‸", &element(), &["[h2] {heading-2,markup-dimmed:## }"]);
     check(
         "## My ‸",
         &element(),
@@ -1571,4 +1567,3 @@ fn the_styled_html_fixture_renders_its_subset() {
     assert_eq!(aligned("Right-aligned"), Some(syntax::Alignment::Right));
     assert_eq!(aligned("After the unclosed"), None);
 }
-

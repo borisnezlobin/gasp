@@ -328,8 +328,7 @@ impl SyncSetup {
     fn job(&self, cx: &App) -> Result<SetupJob, (SetupField, String)> {
         let repository = self.repository.read(cx).text().trim().to_owned();
         let Some(url) = gasp_sync::repository_url(&repository) else {
-            let message =
-                "Enter the repository as you/notes, git@github.com:you/notes.git or its full address.";
+            let message = "Enter the repository as you/notes, git@github.com:you/notes.git or its full address.";
             return Err((SetupField::Repository, message.to_owned()));
         };
         if !crate::sandbox::allows_repository(&url) {
@@ -767,7 +766,13 @@ impl SyncSetup {
             self.render_ssh_key(window, cx)
         } else {
             let token_help = self.render_token_help(window, cx);
-            self.render_field(SetupField::Token, "GitHub token", Some(token_help), window, cx)
+            self.render_field(
+                SetupField::Token,
+                "GitHub token",
+                Some(token_help),
+                window,
+                cx,
+            )
         };
         let fields = div()
             .flex()

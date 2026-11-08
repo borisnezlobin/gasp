@@ -83,7 +83,8 @@ fn public_half(private: &Path) -> PathBuf {
 }
 
 fn make_key(private: &Path, label: &str) -> SyncResult<()> {
-    let mut key = PrivateKey::random(&mut rand_core::OsRng, Algorithm::Ed25519).map_err(key_error)?;
+    let mut key =
+        PrivateKey::random(&mut rand_core::OsRng, Algorithm::Ed25519).map_err(key_error)?;
     key.set_comment(label);
     let secret = key.to_openssh(LineEnding::LF).map_err(key_error)?;
     let public = key.public_key().to_openssh().map_err(key_error)?;
@@ -263,10 +264,16 @@ mod tests {
         make_key(&private, "Gasp on a test machine").unwrap();
         let public = fs::read_to_string(public_half(&private)).unwrap();
         assert!(public.starts_with("ssh-ed25519 "), "{public}");
-        assert!(public.trim_end().ends_with("Gasp on a test machine"), "{public}");
+        assert!(
+            public.trim_end().ends_with("Gasp on a test machine"),
+            "{public}"
+        );
         let secret = fs::read_to_string(&private).unwrap();
         assert!(!needs_passphrase(&secret));
-        assert!(make_key(&private, "again").is_err(), "an existing key is kept");
+        assert!(
+            make_key(&private, "again").is_err(),
+            "an existing key is kept"
+        );
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -286,7 +293,11 @@ mod tests {
             let path = folder.path().join(name);
             let secret: &PrivateKey = key;
             fs::write(&path, secret.to_openssh(LineEnding::LF).unwrap().as_bytes()).unwrap();
-            fs::write(public_half(&path), secret.public_key().to_openssh().unwrap()).unwrap();
+            fs::write(
+                public_half(&path),
+                secret.public_key().to_openssh().unwrap(),
+            )
+            .unwrap();
         }
         fs::write(folder.path().join("known_hosts"), "").unwrap();
         let pairs = key_pairs(folder.path());
@@ -303,7 +314,8 @@ mod tests {
     fn old_pem_keys_say_when_they_are_locked() {
         let locked = "-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,00\n\nAAAA\n-----END RSA PRIVATE KEY-----\n";
         assert!(needs_passphrase(locked));
-        let open = "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAK\n-----END RSA PRIVATE KEY-----\n";
+        let open =
+            "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAK\n-----END RSA PRIVATE KEY-----\n";
         assert!(!needs_passphrase(open));
     }
 

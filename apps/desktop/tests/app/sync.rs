@@ -562,7 +562,10 @@ fn clone_of_an_old_branch(world: &World, master_note: &str) -> PathBuf {
         branch: "main".into(),
         ..VaultConfig::default()
     };
-    sync_device(&Vault::open(world.path("desk"), on_main.clone()).unwrap(), "desk");
+    sync_device(
+        &Vault::open(world.path("desk"), on_main.clone()).unwrap(),
+        "desk",
+    );
     let phone = world.device("phone");
     write(phone.root(), "note.md", master_note);
     write(phone.root(), "fresh.md", "only on master\n");
@@ -714,7 +717,9 @@ fn an_ssh_remote_offers_this_computers_key_instead_of_a_token(cx: &mut TestAppCo
     let laptop = world.path("laptop");
     let clone = world.device("laptop");
     // A closed port on this machine: nothing leaves it.
-    clone.set_remote_url("ssh://git@127.0.0.1:1/notes.git").unwrap();
+    clone
+        .set_remote_url("ssh://git@127.0.0.1:1/notes.git")
+        .unwrap();
     drop(clone);
     let (workspace, cx) = open_workspace(cx, &laptop, Arc::default());
     run(&workspace, cx, "settings.open");
@@ -728,10 +733,16 @@ fn an_ssh_remote_offers_this_computers_key_instead_of_a_token(cx: &mut TestAppCo
     assert!(!rows.contains(&ControlRow::SyncAccount));
 
     click(cx, "copy-ssh-key");
-    let copied = cx.read_from_clipboard().and_then(|item| item.text()).unwrap();
+    let copied = cx
+        .read_from_clipboard()
+        .and_then(|item| item.text())
+        .unwrap();
     assert!(copied.starts_with("ssh-ed25519 "), "{copied}");
     click(cx, "copy-ssh-key");
-    let again = cx.read_from_clipboard().and_then(|item| item.text()).unwrap();
+    let again = cx
+        .read_from_clipboard()
+        .and_then(|item| item.text())
+        .unwrap();
     assert_eq!(again, copied, "the key is made once and kept");
 }
 

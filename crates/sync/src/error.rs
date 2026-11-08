@@ -58,9 +58,13 @@ fn untrusted(url: &str, message: &str) -> String {
         return format!("The certificate of {host} couldn’t be checked. Git said: {reason}");
     }
     if message == crate::ssh::not_github(&host) {
-        return format!("{host} answered with an SSH host key that isn’t GitHub’s, so sync didn’t trust it. The network may be intercepting the connection. Try again on another network.");
+        return format!(
+            "{host} answered with an SSH host key that isn’t GitHub’s, so sync didn’t trust it. The network may be intercepting the connection. Try again on another network."
+        );
     }
-    format!("This device doesn’t know the SSH host key of {host} yet. Connect to it once with ssh {host} in a terminal and accept its key.")
+    format!(
+        "This device doesn’t know the SSH host key of {host} yet. Connect to it once with ssh {host} in a terminal and accept its key."
+    )
 }
 
 /// "plan.md" or "plan.md, ideas.md and 3 more".

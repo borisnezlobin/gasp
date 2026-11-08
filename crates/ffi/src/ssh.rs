@@ -46,9 +46,15 @@ mod tests {
 
     #[test]
     fn ssh_addresses_are_told_apart_from_https_ones() {
-        assert!(repository_uses_ssh("git@github.com:you/notes.git".to_owned()));
-        assert!(repository_uses_ssh("ssh://git@github.com/you/notes.git".to_owned()));
+        assert!(repository_uses_ssh(
+            "git@github.com:you/notes.git".to_owned()
+        ));
+        assert!(repository_uses_ssh(
+            "ssh://git@github.com/you/notes.git".to_owned()
+        ));
         assert!(!repository_uses_ssh("github.com/you/notes".to_owned()));
-        assert!(!repository_uses_ssh("https://github.com/you/notes.git".to_owned()));
+        assert!(!repository_uses_ssh(
+            "https://github.com/you/notes.git".to_owned()
+        ));
     }
 }

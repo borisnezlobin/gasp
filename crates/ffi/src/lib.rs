@@ -49,7 +49,6 @@ pub use encryption::{
     EncryptedNoteOptions, EncryptionState, KeptKey, LockedNote, NoteClaudeAccess, OpenedNote,
     is_encrypted_text,
 };
-pub use ssh::{DeviceSshKey, repository_uses_ssh, this_device_ssh_key, use_ssh_key_folder};
 pub use export::ExportedFile;
 pub use folding::HeadingFold;
 pub use github::{
@@ -72,6 +71,7 @@ pub use positions::ReadingPosition;
 pub use recovery::{SnapshotInfo, use_data_folder};
 pub use settings::{SettingControl, SettingItem, SettingValue};
 pub use shown::{PlanSplice, PlanUpdate};
+pub use ssh::{DeviceSshKey, repository_uses_ssh, this_device_ssh_key, use_ssh_key_folder};
 pub use sync::{SyncOutcome, SyncOverview, SyncPhaseKind, SyncRunSummary, VaultSync};
 pub use sync_conflicts::{ConflictNote, ConflictPlace, PlaceChoice, merge_note_edits};
 pub use sync_setup::{

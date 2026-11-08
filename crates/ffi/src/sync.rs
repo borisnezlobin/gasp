@@ -276,7 +276,9 @@ impl SyncState {
     }
 
     fn uses_ssh(&self) -> bool {
-        self.remote_url.as_deref().is_some_and(gasp_sync::url_uses_ssh)
+        self.remote_url
+            .as_deref()
+            .is_some_and(gasp_sync::url_uses_ssh)
     }
 
     fn phase(&self) -> SyncPhase {

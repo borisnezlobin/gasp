@@ -31,7 +31,10 @@ fn laptop_on_an_old_branch(phone_note: &[u8]) -> World {
     let world = World::seeded(&[(NOTE, b"first\nsecond\nthird\n")]);
     drop(world.device("desk"));
     switch_branch(&world.path("desk"), REMOTE, "old", None).unwrap();
-    sync(&Vault::open(world.path("desk"), on_branch("old")).unwrap(), "desk");
+    sync(
+        &Vault::open(world.path("desk"), on_branch("old")).unwrap(),
+        "desk",
+    );
     drop(world.device_with("laptop", on_branch("old")));
     let phone = world.device("phone");
     write(&phone, NOTE, phone_note);
@@ -50,7 +53,10 @@ fn a_branch_the_remote_has_brings_its_notes() {
     let vault = Vault::open(&laptop, VaultConfig::default()).unwrap();
     assert_eq!(read(&vault, NOTE), "first\nsecond\nthird\nfrom the phone\n");
     assert_eq!(read(&vault, "notes/new.md"), "from the phone\n");
-    assert_eq!(world.remote_file("old", NOTE).unwrap(), b"first\nsecond\nthird\n");
+    assert_eq!(
+        world.remote_file("old", NOTE).unwrap(),
+        b"first\nsecond\nthird\n"
+    );
 }
 
 #[test]
@@ -103,10 +109,17 @@ fn a_branch_the_remote_lacks_starts_where_the_vault_is_and_takes_the_next_sync()
 
     switch_branch(&world.path("laptop"), REMOTE, "notes", None).unwrap();
     let laptop = Vault::open(world.path("laptop"), on_branch("notes")).unwrap();
-    assert_eq!(read(&laptop, NOTE), "first\nunsaved edit\n", "edits stay on disk");
+    assert_eq!(
+        read(&laptop, NOTE),
+        "first\nunsaved edit\n",
+        "edits stay on disk"
+    );
     sync(&laptop, "laptop");
 
-    assert_eq!(world.remote_file("notes", NOTE).unwrap(), b"first\nunsaved edit\n");
+    assert_eq!(
+        world.remote_file("notes", NOTE).unwrap(),
+        b"first\nunsaved edit\n"
+    );
     assert_eq!(world.remote_file("master", NOTE).unwrap(), b"first\n");
 }
 
