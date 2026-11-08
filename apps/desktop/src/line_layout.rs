@@ -92,6 +92,11 @@ pub enum PieceContent {
         color: Hsla,
         radius: Pixels,
     },
+    /// A list bullet: a round dot as tall as the piece, centred across
+    /// the room the marker takes.
+    Dot {
+        color: Hsla,
+    },
     /// A task's box, drawn at the piece's left edge, as wide as it is
     /// tall.
     Checkbox {
@@ -264,6 +269,7 @@ impl VisualRow {
                 };
             }
             if let Some(text) = piece.text()
+                && piece.hit != Hit::Widget
                 && offset <= piece.range.end
             {
                 return piece.x + text.x_for_index(offset - piece.range.start);

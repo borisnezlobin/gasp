@@ -242,11 +242,10 @@ impl LineLayouter<'_, '_> {
             let size = theme.bullet_size * (self.font_size() / theme.body_font_size);
             let piece = blank_piece(
                 range.clone(),
+                slot,
                 size,
-                size,
-                PieceContent::Quad {
+                PieceContent::Dot {
                     color: theme.text_muted,
-                    radius: size / 2.,
                 },
             );
             let lift = self.font_size() * 0.3;
@@ -254,10 +253,7 @@ impl LineLayouter<'_, '_> {
                 ascent: lift + size / 2.,
                 descent: size / 2. - lift,
             };
-            let side = (slot - size) / 2.;
-            builder.advance(side);
-            builder.push_atomic(piece, extent);
-            return builder.advance(side);
+            return builder.push_atomic(piece, extent);
         };
         let run = text_run(1, &[StyleKey::MarkupDimmed], &self.tone, false, theme);
         let (mut piece, extent) = self.label(
@@ -269,12 +265,13 @@ impl LineLayouter<'_, '_> {
         piece.range = range.clone();
         // Numbers end where a bullet does and the text starts at the same
         // place after either; a long number hangs out to the left, as
-        // numbers set outside a list do.
+        // numbers set outside a list do. The piece reaches the text, so
+        // the caret after an empty item stands where its text will start.
         let bullet = theme.bullet_size * (self.font_size() / theme.body_font_size);
         let marker_end = (slot + bullet) / 2.;
         builder.advance(marker_end - piece.width);
+        piece.width += slot - marker_end;
         builder.push_atomic(piece, extent);
-        builder.advance(slot - marker_end);
     }
 
     fn superscript(&mut self, range: &Range<usize>, label: &str, builder: &mut RowBuilder) {

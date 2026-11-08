@@ -1199,3 +1199,28 @@ fn styled_html_reveals_its_tags_at_the_cursor(cx: &mut TestAppContext) {
         "a <span style=\"color:red;\">aZbc</span> b"
     );
 }
+
+#[gpui::test]
+fn the_caret_in_an_empty_list_item_stands_where_its_text_will_start(cx: &mut TestAppContext) {
+    let note = "- kill\n- \n\n1. one\n2. ";
+    let (view, cx) = open(cx, note);
+    let caret_after_marker = |view: &Entity<EditorView>, cx: &mut VisualTestContext, line, at| {
+        visual(view, cx, line).x_for_offset(at)
+    };
+    for cursor in [note.find("- \n").unwrap() + 2, note.len()] {
+        place_cursor(&view, cx, cursor);
+        let bullet_text = caret_after_marker(&view, cx, 0, 2);
+        let empty_bullet = caret_after_marker(&view, cx, 1, 2);
+        assert!(
+            (bullet_text - empty_bullet).abs() < px(0.01),
+            "bullet: text starts at {bullet_text:?}, the empty item's caret at {empty_bullet:?}"
+        );
+    }
+    place_cursor(&view, cx, note.len());
+    let number_text = caret_after_marker(&view, cx, 3, 3);
+    let empty_number = caret_after_marker(&view, cx, 4, 3);
+    assert!(
+        (number_text - empty_number).abs() < px(0.01),
+        "number: text starts at {number_text:?}, the empty item's caret at {empty_number:?}"
+    );
+}

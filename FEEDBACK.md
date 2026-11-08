@@ -188,6 +188,7 @@ Copy and layout
 - [x] Error notices are ugly and useless, e.g. 'Couldn't open “CR5”: stream did not contain valid UTF-8'. Say what happened and what to do, in people's words. *(A short headline says what failed and a quieter line says why and what to do; the system's wording goes to the log. A note that isn't text already opens in its default app in 0.2.3.)*
 - [x] A paragraph followed by a line starting a list ("- ") turns into a heading. It shouldn't. *(A lone `-` under a paragraph no longer underlines it into a heading; `--`, `---` and `===` still do.)*
 - [x] It still happened when anything came after the new "- " line, even a single line break. *(The underline check now looks past the heading's trailing line break.)*
+- [x] On the desktop the caret in an empty list item (`- `) sat right against the bullet instead of where the item's text starts. *(Bullets and numbers now take their whole marker room, so the caret after them stands where text begins.)*
 - [ ] Make the App Store page ready for submission ("Gasp: Markdown Notes") and generate every asset it needs.
   - *(Five 6.9" screenshots and the full listing text are made (apps/ios/store); the owner pastes them into App Store Connect.)*
 - [x] The build folder grew to 40 GB+. Make it small and keep it small. *(43 GB → 6 GB. Debug builds keep only line tables, and `make tidy` keeps the newest five builds of each crate; it runs after `make build` and `make dmg` and once a day from the auto-pull job.)*

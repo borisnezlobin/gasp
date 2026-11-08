@@ -829,6 +829,13 @@ fn paint_piece(
             window.paint_quad(fill(bounds, *color).corner_radii(*radius));
         }
         PieceContent::Quad { .. } => {}
+        PieceContent::Dot { color } => {
+            let dot = Bounds::new(
+                point(origin.x + (piece.width - piece.height) / 2., origin.y),
+                size(piece.height, piece.height),
+            );
+            window.paint_quad(fill(dot, *color).corner_radii(piece.height / 2.));
+        }
         PieceContent::Checkbox { checked } => {
             paint_checkbox(piece, bounds, *checked, context, window, cx);
         }
